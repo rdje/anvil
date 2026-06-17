@@ -2413,9 +2413,9 @@ structure-first / no-shadow-simulator ceiling (decision `0004`, steering gap 4)
 is unchanged. `SEMANTIC-INTROSPECTION-EXPANSION` + `AGENT-MCP-EXPANSION` are the
 cross-cutting homes for this deepening.
 
-The seven lanes (north-star-ordered). Lane 1 is **delivered** (`2026-06-17`, tree
-closed); lane 2's design `.1` ADR is **recorded** (`2026-06-17`, decision `0019`)
-and its first code leaves are **done** — `.2a` (the shared
+The seven lanes (north-star-ordered). Lanes 1 and 2 are **delivered**
+(`2026-06-17`, both trees closed). Lane 2 (`ACCEPTANCE-DIVERGENCE-HUNTING`,
+decision `0019`) shipped end-to-end — `.2a` (the shared
 `downstream::tool_verdict` accept/warn/reject classifier extract), `.2b` (the
 `src/divergence/` library core: `divergence::run` + the report types, reusing
 `validate` + the shared classifier), `.2c.1` (the `hunt::run` fold:
@@ -2428,9 +2428,13 @@ CLI shim — the decision-`0017` API-completeness surface), and `.2e` (the
 tool-version-vs-version axis as a library surface: `DivergenceOptions.tool_specs`
 + `ToolInvocation.version` + `downstream::{ToolSpec, tool_version,
 prepare_dut_sandbox, validate_tool_specs}` + `divergence::classify_version_mismatch`,
-composing the one hardened orchestration with no forked invocation set); frontier
-now `.2f` (the real-tool e2e gate + book/USER_GUIDE/README/KM closeout + the
-version-axis surfacing decision — closes the tree). The
+composing the one hardened orchestration with no forked invocation set), and
+`.2f` (the real-tool e2e gate `tests/divergence_e2e.rs` + the
+book/USER_GUIDE/README/KM closeout + the version-axis surfacing decision:
+`tool_specs` stays **library-only**, not exposed over MCP/CLI — an allow-listed
+kind with a caller-supplied binary path is a larger trust surface than the
+fixed-binary tools — recorded as future breadth, nothing retired) — **closing the
+tree**. The
 other five remain `active` with a design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
@@ -2445,7 +2449,7 @@ other five remain `active` with a design-first `.1` ADR frontier:
    Decision [`0018`](docs/decisions/0018-bug-hunt-orchestration-loop.md); tree
    `BUG-HUNT-ORCHESTRATION` (`.1`–`.2e`), default `anvil` build / DUT
    byte-identical.
-2. `ACCEPTANCE-DIVERGENCE-HUNTING` — **`.1` design ADR done (`2026-06-17`,
+2. `ACCEPTANCE-DIVERGENCE-HUNTING` — **DONE (`2026-06-17`, tree closed;
    decision [`0019`](docs/decisions/0019-acceptance-divergence-hunting.md)).** A
    "tool A accepts / tool B rejects" (and version-vs-version) divergence finder +
    report, complementing `--diff-sim` (cross-sim trace agreement) with the
@@ -2487,10 +2491,13 @@ other five remain `active` with a design-first `.1` ADR frontier:
    single Yosys mode for the axis) + `divergence::{DivergenceOptions.tool_specs,
    ToolDecision.version, classify_version_mismatch (a distinct relation over the
    same `tool_verdict`, not a second classifier)}`; +8 proofs, lib 543/0, snapshots
-   6/6, real-tool `validate`-refactor regression clean; library-only — MCP/CLI
-   surfacing of the caller-supplied-binary axis is the `.2f` decision); frontier
-   `.2f` (the real-tool e2e gate + book/USER_GUIDE/README/KM closeout — closes the
-   tree). Default
+   6/6, real-tool `validate`-refactor regression clean; library-only) **+ `.2f`
+   done** (`2026-06-17`, the real-tool e2e gate `tests/divergence_e2e.rs` — an
+   all-agree real-tool sweep records `diverged=false` across Verilator + both Yosys
+   modes and an injected accept/reject pair classifies `accept_reject`, all via the
+   public API — plus the book/USER_GUIDE/README/KM closeout and the version-axis
+   surfacing decision: `tool_specs` stays library-only, not exposed over MCP/CLI,
+   recorded as future breadth). **Tree closed.** Default
    `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).

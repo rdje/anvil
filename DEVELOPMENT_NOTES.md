@@ -5,6 +5,44 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — the version-axis trust boundary + the e2e gate shape — `ACCEPTANCE-DIVERGENCE-HUNTING.2f`
+
+The closing leaf. Two durable rationales worth recording:
+
+- **Why the tool-version-vs-version axis stays library-only (NOT exposed over
+  MCP/CLI).** The whole controlled-tool security model (decision `0004`) is: the
+  agent chooses *which allow-listed kind* runs (`verilator`/`yosys`/`iverilog`),
+  but **never which binary** — the binary is pinned by `AcceptanceTool::binary()`.
+  The `.2e` version axis (`DivergenceOptions.tool_specs` →
+  `downstream::validate_tool_specs`) deliberately pairs an allow-listed *kind* with
+  a **caller-supplied binary path** so two versions can be compared. That is
+  exactly right for an *in-process* caller who already controls the host, but
+  exposing it over the agent interface would let a caller point the `verilator`
+  kind at *any* executable — a strictly larger trust surface than every other
+  controlled tool. So `.2f` decided: keep it a **library surface**, do not wire it
+  into the MCP `divergence` tool or the CLI. Safe exposure would need its own
+  design — an **operator-configured** version-binary registry the server consults
+  (the operator, not the agent, enumerates the allowed binaries/labels), never an
+  agent-supplied path. Recorded as future breadth in decision `0019`; nothing
+  retired (the library surface + its cargo-portable proofs stay). This is the
+  conservative reading of decision `0017` (API-first): the *capability* (acceptance
+  divergence) is fully MCP-invocable + queryable + CLI-shimmed; only the *unsafe
+  parameterization* (an arbitrary binary path) is gated behind a future
+  trust-boundary decision.
+
+- **Why the e2e gate has no "manufactured ANVIL failure" (the `hunt_e2e`
+  precedent).** ANVIL output is valid by construction, so there is no honest way to
+  make a real downstream tool *reject* it — a genuine rejection would be the real
+  downstream-tool bug the lane exists to *surface*, not a fixture (fabricating one
+  means emitting illegal RTL, which the project forbids). So `tests/divergence_e2e.rs`
+  proves the two things that *are* provable end-to-end: (1) the **steady state**
+  (an all-agree real-tool run records the full per-tool verdict matrix with
+  `diverged=false`, and the report is queryable), and (2) the **classifier** (a
+  synthetic accept/reject `ValidateReport`, injected through the **public** API,
+  classifies `accept_reject`). The synthetic injection is portable (no tool) and
+  runs on every `cargo test`; the all-agree run is `#[ignore]` + tool-gated. Same
+  honesty shape as `BUG-HUNT-ORCHESTRATION.2e`.
+
 ## 2026-06-17 — Acceptance-divergence hunting — the tool-version-vs-version axis — `ACCEPTANCE-DIVERGENCE-HUNTING.2e`
 
 The version axis (one tool **kind**, two **versions/binaries**). Design choices

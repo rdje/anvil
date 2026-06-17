@@ -180,6 +180,16 @@ existing hardened invocations:
 fixed — it never mutates or "repairs" emitted RTL. That would violate
 valid-by-construction; ANVIL stays the source of truth.
 
+The `divergence` detector also has a **tool-version-vs-version** axis (one
+allow-listed tool *kind*, two caller-supplied binaries — e.g. `verilator-5.046`
+vs `verilator-4.228` — classified `version_mismatch`). That axis is a **library
+surface only** and is deliberately **not** exposed over MCP or the CLI: an
+allow-listed kind paired with an *arbitrary caller-supplied binary path* is a
+larger trust surface than the fixed-binary controlled tools (decision `0004`),
+so exposing it would need its own trust-boundary design (an operator-configured
+version-binary registry, never an agent-supplied path). The agent-facing
+`divergence` tool runs the fixed allow-list, same as `validate`.
+
 ### Resources
 
 Static catalogs, the audit log, and every artifact you've generated this

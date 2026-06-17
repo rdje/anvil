@@ -1775,6 +1775,9 @@ anvil hunt --seeds 32 --config profile.json --tools verilator --out ./hunt-bundl
 
 # Add the cross-simulator agreement check (iverilog vs verilator).
 anvil hunt --seeds 16 --tools verilator --diff-sim
+
+# Add cross-tool acceptance-divergence detection (verilator vs yosys).
+anvil hunt --seeds 16 --tools verilator,yosys --divergence
 ```
 
 | Flag | Default | Meaning |
@@ -1787,6 +1790,7 @@ anvil hunt --seeds 16 --tools verilator --diff-sim
 | `--no-minimize` | (minimize on) | Report failures as-found instead of shrinking them. |
 | `--budget N` | `200` | Per-failure ceiling on minimize `validate` evaluations. |
 | `--diff-sim` | off | Also assert cross-simulator trace agreement on each clean artifact. |
+| `--divergence` | off | Also classify cross-**tool** acceptance divergence on each artifact — a finding where some tool accepted while another warned/rejected becomes a `detection = "acceptance_divergence"` finding (not minimized: the `validate` oracle can't preserve a cross-tool *disagreement*). |
 | `--out <dir>` | (none) | Write a self-contained reproducer bundle directory per finding (`repro.sv`, `knobs.json`, `introspection.json`, `hunt-verdict.json`, `tool-logs/`, a one-command `repro.sh`). |
 
 Because ANVIL output is valid by construction, a clean sweep (`n_failures = 0`)

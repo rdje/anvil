@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `ACCEPTANCE-DIVERGENCE-HUNTING`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Usability — acceptance-divergence bug-finder (north star, idea 2)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold + `.2c.2` `tool_matrix` column + `.2d` MCP tool + CLI shim + `.2e` tool-version-vs-version axis done; `.2c` closed; frontier `.2f` — the real-tool e2e gate + docs closeout, closes the tree)
+- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold + `.2c.2` `tool_matrix` column + `.2d` MCP tool + CLI shim + `.2e` tool-version-vs-version axis + `.2f` real-tool e2e gate + docs closeout all `done`; `.2c` + `.2` + the **root closed** — tree `done`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -49,8 +49,9 @@ query — building on the existing hardened `src/downstream/` adapters and the
 ## Task Tree
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING`
-  Status: `active`
+  Status: `done`
   Goal: `A first-class accept/warn/reject divergence finder across tools (and tool versions), surfaced as a tool_matrix column + an MCP query, built on the existing downstream adapters + the diff_sim precedent.`
+  Result: `Done (2026-06-17). The acceptance-divergence detector shipped end-to-end as one shared default-off SCHEMA-DERIVED library (src/divergence/'s divergence::run) reused by three surfaces — a hunt::run detection axis, a tool_matrix --divergence column, and a controlled MCP divergence tool + anvil hunt --divergence CLI shim (decision 0017) — plus the tool-version-vs-version library axis (.2e) and the real-tool e2e gate (.2f). All .1..2f done; .2 + the root closed. Default anvil build / --artifact dut byte-identical throughout (snapshots 6/6 across every leaf).`
   Children: `ACCEPTANCE-DIVERGENCE-HUNTING.1, ACCEPTANCE-DIVERGENCE-HUNTING.2`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.1`
@@ -62,11 +63,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.1 commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement the .1 design: the shared classifier + the src/divergence/ core + the hunt axis + the tool_matrix column + the MCP tool + version-vs-version + a real-tool end-to-end gate + book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. Pre-split at .1 into .2a..2f (below).`
   Acceptance: `All of .2a..2f done; divergence::run composes the existing run_* primitives + the shared tool_verdict; surfaced as a hunt axis + a tool_matrix column + an MCP divergence tool (decision-0017 gate: MCP-invocable + queryable + CLI a shim); version-vs-version landed; an injected accept/reject pair is classified accept_reject AND an all-agree real-tool run records diverged=false; snapshots 6/6 + book-examples 3/3 unchanged; downstream-clean; documented; committed per COMMIT.md.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done — all six children landed: .2a (shared downstream::tool_verdict), .2b (src/divergence/ core), .2c.1 (hunt fold) + .2c.2 (tool_matrix --divergence column; closes .2c), .2d (MCP divergence tool + anvil hunt --divergence CLI shim), .2e (tool-version-vs-version library axis), .2f (real-tool e2e gate + docs closeout). Every acceptance bullet met: one shared divergence::run composes the existing run_* primitives + the one tool_verdict; three surfaces (hunt axis + tool_matrix column + MCP tool, CLI a shim — decision 0017); version axis landed (library-only by the .2f trust-boundary decision); injected accept/reject ⇒ accept_reject AND all-agree real-tool run ⇒ diverged=false (tests/divergence_e2e.rs); snapshots 6/6 + book_examples 3/3 unchanged; downstream-clean; documented; committed per COMMIT.md.`
+  Verification: `All children green (see each row + the Verification Log). cargo test --test divergence_e2e: portable synthetic 1/0 (clean), real-tool --ignored 2/0 (Verilator 5.046 + Yosys 0.64); snapshots 6/6 byte-identical; book_examples 3/3; clippy/fmt green.`
+  Commit: `closed by the .2f commit (one leaf per commit; .2a..2e closed by their own commits)`
   Children: `ACCEPTANCE-DIVERGENCE-HUNTING.2a, .2b, .2c, .2d, .2e, .2f`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2a`
@@ -127,19 +129,20 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2e commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2f`
-  Status: `pending`
+  Status: `done`
   Goal: `A real-tool end-to-end gate (#[ignore], tool-gated) proving the divergence matrix is produced + correctly classified + queryable (the all-agree steady state records diverged=false; a synthetic-injected accept/reject pair classifies accept_reject) and the book/USER_GUIDE/README/KM closeout; close .2 and the tree.`
   Acceptance: `A #[ignore] tool-gated tests/divergence_e2e.rs (tool-less ⇒ skips green) proving an all-agree real-tool run records diverged=false + the report is queryable; book/src/synthesizability.md + book/src/agent-mcp.md + USER_GUIDE + README updated; a KM how-to card; ROADMAP lane 2 marked delivered; the tree + .2 + root closed; cargo check/test/clippy/fmt green incl. snapshots 6/6 + book_examples.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. (1) tests/divergence_e2e.rs — the real-tool e2e gate, structured like tests/hunt_e2e.rs: a PORTABLE #[test] (injected_accept_reject_pair_classifies_accept_reject) that builds a synthetic ValidateReport via the PUBLIC API (anvil::downstream::{ValidateReport,ToolInvocation}) and classifies it via the public anvil::divergence::classify_report — an accept+reject pair ⇒ one accept_reject divergence naming both tools, and the DivergenceReport serde-round-trips (queryable); plus TWO #[ignore] tool-gated proofs — divergence_all_agree_against_real_tools (anvil::divergence::run over a 3-seed sweep with Verilator + Yosys both ABC modes ⇒ 3 labelled verdicts, all Accept, diverged=false, declined=None, distinct run_ids, JSON round-trip) and hunt_divergence_axis_clean_against_real_verilator (the anvil hunt --divergence CLI on a clean sweep ⇒ no acceptance_divergence finding). (2) The VERSION-AXIS SURFACING DECISION: tool_specs stays LIBRARY-ONLY — NOT exposed over MCP/CLI — because an allow-listed kind paired with a caller-supplied arbitrary binary path is a strictly larger trust surface than the fixed-binary controlled tools (decision 0004); exposing it needs its own trust-boundary design (an operator-configured version-binary registry, never an agent-supplied path), recorded as future breadth in decision 0019's "Follow-up decision (.2f)" + DEVELOPMENT_NOTES; nothing retired (the library surface stays + is cargo-portably proven). (3) Docs closeout: book/src/synthesizability.md "Acceptance divergence across tools" subsection; book/src/agent-mcp.md version-axis trust-boundary note (the divergence tool itself was documented at .2d); USER_GUIDE anvil hunt --divergence flag row + example; README anvil hunt bullet + MCP controlled-tools list (divergence added); docs/knowledge/acceptance-divergence.md how-to card (KM 48→49); ROADMAP lane 2 marked delivered + tree closed. Docs are pure-docs (KM/book/live-docs); the only code/test artifact is tests/divergence_e2e.rs (this leaf owns it). Default-off / DUT byte-identical.`
+  Verification: `cargo test --test divergence_e2e: portable synthetic 1/0 (always runs, tool-less green); real-tool cargo test --test divergence_e2e -- --ignored 2/0 against Verilator 5.046 + Yosys 0.64 — "clean 3-seed all-agree sweep (3 tools/seed)" with distinct run_ids + "divergence axis inert on a clean sweep". cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK (under scripts/ram_guard.sh --threshold 90). tests/snapshots.rs 6/6 byte-identical (divergence default-off ⇒ no emit path touched); tests/book_examples.rs 3/3; mdbook build book clean. check_memory_architecture OK; KM gen+check OK (48→49 facts).`
+  Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2f commit`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. Now also covers the `.2e` version-axis surfacing decision (whether/how the caller-supplied-binary `tool_specs` axis is exposed over MCP/CLI, given the allow-list boundary) + a KM how-to card. |
+| — | (none) | `done` | **Tree closed `2026-06-17`.** All leaves `.1`..`.2f` done; `.2c` + `.2` + the root closed. No frontier remains. Optional future breadth (exposing the caller-supplied-binary version axis over MCP/CLI behind an operator-configured registry; more tool kinds to diverge across via `DOWNSTREAM-ADAPTER-EXPANSION`) lands as new trees/leaves, not by reopening this one. |
 
-(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done` + `.2c.2` (the `tool_matrix --divergence` column) `done`; **`.2c` closed**. `.2d` (the MCP `divergence` controlled tool + the `hunt` `divergence` axis + the `anvil hunt --divergence` CLI shim) `done 2026-06-17` — the decision-`0017` API-completeness surface. `.2e` (the tool-version-vs-version axis) `done 2026-06-17` — `DivergenceOptions.tool_specs` + `ToolInvocation.version` + `downstream::{ToolSpec, tool_version, prepare_dut_sandbox, DutSandbox, validate_tool_specs}` + `divergence::classify_version_mismatch`, all composing the one hardened orchestration (no forked invocation set); +8 proofs, lib 543/0, snapshots 6/6, real-tool `validate`-refactor regression clean. Library-only (CLI/MCP surfacing + real-tool gate + docs are `.2f`). Frontier `.2f` (the real-tool e2e gate + docs closeout, closes the tree).)
+(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done` + `.2c.2` (the `tool_matrix --divergence` column) `done`; **`.2c` closed**. `.2d` (the MCP `divergence` controlled tool + the `hunt` `divergence` axis + the `anvil hunt --divergence` CLI shim) `done 2026-06-17` — the decision-`0017` API-completeness surface. `.2e` (the tool-version-vs-version axis) `done 2026-06-17` — `DivergenceOptions.tool_specs` + `ToolInvocation.version` + `downstream::{ToolSpec, tool_version, prepare_dut_sandbox, DutSandbox, validate_tool_specs}` + `divergence::classify_version_mismatch`, all composing the one hardened orchestration (no forked invocation set); library-only. `.2f` `done 2026-06-17` — the real-tool e2e gate `tests/divergence_e2e.rs` (portable synthetic accept/reject ⇒ `accept_reject` + `#[ignore]` real-tool all-agree ⇒ `diverged=false` over Verilator + both Yosys modes + the `anvil hunt --divergence` CLI inert on a clean sweep) + the version-axis surfacing decision (library-only, recorded as future breadth) + the book/USER_GUIDE/README/KM closeout. **`.2` + the root closed — tree `done`.**)
 
 ## Decisions
 
@@ -177,10 +180,18 @@ query — building on the existing hardened `src/downstream/` adapters and the
   label }` + `validate_tool_specs` (reusing the shared `prepare_dut_sandbox` +
   vetted `run_*` primitives), `ToolInvocation.version` (best-effort `--version`
   capture, axis-only ⇒ default paths byte-identical), and
-  `divergence::classify_version_mismatch`. Open follow-up for `.2f`: whether the
+  `divergence::classify_version_mismatch`. ~~Open follow-up for `.2f`: whether the
   caller-supplied-binary axis is exposed over MCP/CLI (an allow-listed *kind* with
   an arbitrary *binary path* is a distinct trust surface from the fixed-binary
-  `validate` tool — it needs its own decision before exposure).
+  `validate` tool — it needs its own decision before exposure).~~ **Resolved at
+  `.2f`** (`2026-06-17`): the version axis stays **library-only** — it is **not**
+  exposed over MCP/CLI, because an allow-listed kind paired with an arbitrary
+  caller-supplied binary path is a strictly larger trust surface than the
+  fixed-binary controlled tools (decision `0004`). Safe exposure needs its own
+  trust-boundary design (an operator-configured version-binary registry consulted
+  by the server, never an agent-supplied path), recorded as **future breadth** in
+  decision `0019` ("Follow-up decision (`.2f`)") + DEVELOPMENT_NOTES; nothing
+  retired (the library surface stays + is cargo-portably proven).
 - ~~Whether divergence detection rides the `BUG-HUNT-ORCHESTRATION` loop or is an
   independent `tool_matrix` column.~~ **Resolved at `.1`**: **both**, via one shared
   `divergence::run` — a `hunt::run` axis (`HuntRequest.divergence`) **and** a
@@ -205,6 +216,9 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `both children (.2c.1 hunt fold + .2c.2 matrix column) done ⇒ .2c closed; one shared detector reused by two surfaces, no drift` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `controlled MCP divergence tool (run_divergence, single-(seed,cfg) shim over divergence::run, caches divergent run_id + audit record) + the hunt divergence-axis arg (flipped .2c.1 placeholder) + the anvil hunt --divergence CLI flag; book/src/agent-mcp.md tool list/table; no introspection schema bump (no new resource type); +4 MCP proofs + CLI parse proofs; cargo check/clippy/fmt green; cargo test --lib mcp::tests 55/0 + full lib 535/0 + bin anvil 12/0; snapshots 6/6 + book_examples 3/3; mdbook clean; real-tool CLI sanity anvil hunt --divergence n_clean=4 n_failures=0` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `tool-version-vs-version axis (library core): ToolInvocation.version (serde-absent on default paths) + downstream::{tool_version, ToolSpec, DutSandbox, prepare_dut_sandbox (validate refactored to it, byte-identical), validate_tool_specs} + divergence::{DivergenceOptions.tool_specs, ToolDecision.version, classify_version_mismatch, assemble_report, run dispatch}; mcp DivergenceOptions literal gets tool_specs: vec![] (axis library-only). +8 proofs; cargo check/clippy/fmt green (under ram_guard --threshold 90); cargo test --lib 543/0 (535→543) + bin tool_matrix 75/0 + bin anvil 12/0; snapshots 6/6 byte-identical; real-tool validate-refactor regression anvil hunt --divergence n_clean=4 n_failures=0` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `real-tool e2e gate tests/divergence_e2e.rs (portable synthetic injected accept/reject ⇒ accept_reject via the PUBLIC API + #[ignore] tool-gated all-agree real-tool 3-seed sweep ⇒ diverged=false over Verilator 5.046 + both Yosys modes + anvil hunt --divergence CLI inert on a clean sweep); version-axis surfacing decision (tool_specs stays library-only, recorded as future breadth in decision 0019 + DEVELOPMENT_NOTES); docs closeout (synthesizability.md + agent-mcp.md + USER_GUIDE + README + docs/knowledge/acceptance-divergence.md KM card 48→49); ROADMAP lane 2 delivered + tree closed. cargo test --test divergence_e2e portable 1/0 + --ignored 2/0; snapshots 6/6 byte-identical; book_examples 3/3; mdbook clean; clippy/fmt green; check_memory_architecture + KM gen/check OK` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2` | `all six children (.2a..2f) done ⇒ .2 closed; one shared divergence::run reused by three surfaces (hunt axis + tool_matrix column + MCP tool, CLI a shim) + the version-vs-version library axis, no drift` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING` | `.1 + .2 done ⇒ ROOT closed; tree done. Acceptance-divergence is a first-class, default-off, SCHEMA-DERIVED detector. Default anvil build / --artifact dut byte-identical throughout.` | `done` |
 
 ## Commit Log
 
@@ -217,10 +231,38 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 — fold the acceptance-divergence detector into hunt::run (classify_report + HuntRequest.divergence)` | `divergence::classify_report` (the pure projection of an already-run `ValidateReport`) + `hunt::run`'s `HuntRequest.divergence`/`HuntFailure.divergence`: a finding where one tool accepted what another rejected/warned is classified `acceptance_divergence` (no minimize). MCP/CLI set `divergence:false` (arg-wiring=`.2d`). lib 531/0; snapshots 6/6 + book_examples. Default-off / DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the tool_matrix --divergence column (ModuleReport/DesignReport.divergence via the shared classify_report)` | The second surface: `tool_matrix --divergence` + `ModuleReport`/`DesignReport.divergence: Option<DivergenceReport>` populated by `unit_divergence` — the same `divergence::classify_report` over the tools the matrix already ran (a pure projection; no extra spawn / no tool-clean precondition). `.divergence-subset` sentinel reuses `select_diff_sim_subset`/`classify_diff_sim_axis` (membership factored to `scenario_in_named_subset`). Opportunistic `saw_acceptance_divergence` fact, never a gate. +4 proofs; matrix-bin 75/0, lib 531/0; snapshots 6/6 + book_examples; real-tool smoke clean. Closes `.2c`. Default-off / DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `ACCEPTANCE-DIVERGENCE-HUNTING.2d — the MCP divergence tool + CLI shim (run_divergence + the hunt divergence axis + anvil hunt --divergence)` | The third surface (decision `0017` API-completeness): a controlled MCP `divergence` tool (`run_divergence`, a single-`(seed,cfg)` shim over `divergence::run`, caching the divergent `run_id` + an audit record) added to `tools_list`/dispatch; the `hunt` tool's `divergence` axis arg (flipped the `.2c.1` placeholder); the `anvil hunt --divergence` CLI shim. `book/src/agent-mcp.md` tool list/table updated. No introspection schema bump. +4 MCP proofs + CLI parse proofs; lib 535/0, mcp 55/0, bin anvil 12/0; snapshots 6/6 + book_examples 3/3; mdbook clean; real-tool CLI sanity clean. Default-off / DUT byte-identical. |
+| `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `ACCEPTANCE-DIVERGENCE-HUNTING.2f — real-tool e2e gate (tests/divergence_e2e.rs) + version-axis surfacing decision + book/USER_GUIDE/README/KM closeout; close the tree` | Closes `.2` + the root. The real-tool e2e gate: a portable synthetic accept/reject ⇒ `accept_reject` via the public API + two `#[ignore]` tool-gated proofs (all-agree real-tool 3-seed sweep ⇒ `diverged=false` over Verilator + both Yosys modes; `anvil hunt --divergence` inert on a clean sweep). The version-axis surfacing decision: `tool_specs` stays **library-only** (an allow-listed kind + caller-supplied binary path is a larger trust surface than the fixed-binary tools — decision `0004`), recorded as future breadth. Docs: `synthesizability.md` "Acceptance divergence across tools", `agent-mcp.md` version-axis note, USER_GUIDE `--divergence` flag, README hunt bullet + MCP controlled-tools list, `docs/knowledge/acceptance-divergence.md` KM card (48→49). ROADMAP lane 2 delivered. Only code/test artifact = `tests/divergence_e2e.rs` (this leaf owns it); rest pure-docs. snapshots 6/6 + book_examples 3/3; default-off / DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `ACCEPTANCE-DIVERGENCE-HUNTING.2e — tool-version-vs-version axis (ToolSpec/validate_tool_specs + ToolInvocation.version + classify_version_mismatch)` | The version axis as a library surface, composing the one hardened orchestration (no forked invocation set). `downstream`: `ToolInvocation.version` (serde-absent on default paths ⇒ byte-identical reports/checkpoints), `tool_version` (best-effort `--version`, axis-only), `ToolSpec { kind, binary, label }` (kind allow-listed, binary caller-supplied), the extracted shared `DutSandbox`/`prepare_dut_sandbox` (`validate` refactored to it, byte-identical), and `validate_tool_specs` (reuses `prepare_dut_sandbox` + the vetted `run_*` primitives + `MemGuard`; one relabeled+version-stamped invocation per spec; single Yosys mode for the axis). `divergence`: `DivergenceOptions.tool_specs`, `ToolDecision.version`, `classify_version_mismatch` (a `version_mismatch` over the SAME `tool_verdict`, a distinct relation — not a second classifier), `assemble_report` factor, `run` dispatch. MCP literal gets `tool_specs: vec![]` (axis library-only at `.2e`). +8 proofs; lib 543/0, tool_matrix 75/0, anvil 12/0; snapshots 6/6 byte-identical; real-tool `validate`-refactor regression clean. Default-off / DUT byte-identical. |
 
 ## Changelog
 
+- `2026-06-17`: `.2f` done — **the tree is closed.** (1) `tests/divergence_e2e.rs`
+  — the real-tool e2e gate, structured like `tests/hunt_e2e.rs`: a **portable**
+  `#[test]` that builds a synthetic `ValidateReport` via the **public** API
+  (`anvil::downstream::{ValidateReport,ToolInvocation}`) and classifies it through
+  the public `anvil::divergence::classify_report` — an accept+reject pair ⇒ one
+  `accept_reject` divergence naming both tools, and the `DivergenceReport`
+  serde-round-trips (queryable) — plus two `#[ignore]` tool-gated proofs:
+  `divergence_all_agree_against_real_tools` (`anvil::divergence::run` over a 3-seed
+  sweep with Verilator + Yosys both ABC modes ⇒ 3 labelled verdicts, all `Accept`,
+  `diverged=false`, distinct `run_id`s, JSON round-trip) and
+  `hunt_divergence_axis_clean_against_real_verilator` (the `anvil hunt --divergence`
+  CLI on a clean sweep ⇒ no `acceptance_divergence` finding). (2) The **version-axis
+  surfacing decision**: `tool_specs` stays **library-only** — *not* exposed over
+  MCP/CLI — because an allow-listed *kind* paired with an arbitrary caller-supplied
+  *binary path* is a strictly larger trust surface than the fixed-binary controlled
+  tools (decision `0004`); safe exposure needs its own trust-boundary design (an
+  operator-configured version-binary registry, never an agent-supplied path),
+  recorded as **future breadth** in decision `0019` + DEVELOPMENT_NOTES; nothing
+  retired. (3) Docs closeout: `book/src/synthesizability.md` "Acceptance divergence
+  across tools"; `book/src/agent-mcp.md` version-axis trust-boundary note; USER_GUIDE
+  `--divergence` flag row + example; README `anvil hunt` bullet + the MCP
+  controlled-tools list (`divergence` added); `docs/knowledge/acceptance-divergence.md`
+  KM how-to card (KM 48→49); ROADMAP lane 2 marked delivered + tree closed.
+  `cargo test --test divergence_e2e` portable 1/0 + `--ignored` 2/0 (Verilator 5.046
+  + Yosys 0.64); snapshots 6/6 byte-identical; book_examples 3/3; mdbook clean;
+  clippy/fmt green; check_memory_architecture + KM gen/check OK. Default-off / DUT
+  byte-identical. **`.2` + the root closed.**
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
 - `2026-06-17`: `.1` done — recorded decision `0019` (the acceptance-divergence
   detector design). Acceptance divergence = a default-off, SCHEMA-DERIVED detector

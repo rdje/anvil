@@ -1,9 +1,87 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2f — real-tool e2e gate + version-axis surfacing decision + docs closeout (closes the tree)
+
+**Landed as:** this commit (previous: `0836655`). **Default-off / DUT
+byte-identical** (`tests/snapshots.rs` 6/6 unchanged; the only code/test artifact
+is `tests/divergence_e2e.rs`, which touches no generator/emit path — every other
+change is pure-docs). The **closing leaf** of `ACCEPTANCE-DIVERGENCE-HUNTING`
+(decision `0019`): the real-tool end-to-end gate, the version-axis surfacing
+decision, and the book/USER_GUIDE/README/KM closeout. **`.2` + the root close —
+the tree is `done`.**
+
+**What changed (why)**
+
+- **`tests/divergence_e2e.rs`** (new; the only code/test artifact — this leaf owns
+  it) — the real-tool e2e gate, structured exactly like `tests/hunt_e2e.rs`:
+  - a **portable** `#[test] injected_accept_reject_pair_classifies_accept_reject`
+    — builds a synthetic `ValidateReport` (Verilator accept + Yosys reject) through
+    the **public** API (`anvil::downstream::{ValidateReport, ToolInvocation}`) and
+    classifies it via the **public** `anvil::divergence::classify_report`, exactly as
+    an external crate consumer would. Asserts one `accept_reject` divergence naming
+    both tools and a queryable serde round-trip. This is the manufacturable half of
+    the `.2f` acceptance (a real downstream tool can't be made to reject
+    valid-by-construction RTL without it being a genuine tool bug), so it needs no
+    tool and always runs.
+  - two `#[ignore]` tool-gated proofs (tool-less ⇒ skip green):
+    `divergence_all_agree_against_real_tools` (`anvil::divergence::run` over a 3-seed
+    sweep with Verilator + Yosys both ABC modes ⇒ 3 labelled verdicts, all `Accept`,
+    `diverged=false`, `declined=None`, distinct content-addressed `run_id`s, JSON
+    round-trip) and `hunt_divergence_axis_clean_against_real_verilator` (the
+    `anvil hunt --divergence` CLI on a clean sweep ⇒ no `acceptance_divergence`
+    finding — the axis is inert on the steady state).
+- **The version-axis surfacing decision (the `.2f` open follow-up from `.2e`).**
+  `DivergenceOptions.tool_specs` (the caller-supplied-binary tool-version-vs-version
+  axis) **stays library-only — it is NOT exposed over MCP or the CLI.** An
+  allow-listed *kind* paired with an arbitrary caller-supplied *binary path* is a
+  strictly larger trust surface than the fixed-binary controlled tools (decision
+  `0004`: the agent picks *which vetted kind* runs, never *which binary*). Safe
+  exposure needs its own trust-boundary design (an operator-configured
+  version-binary registry consulted by the server, never an agent-supplied path),
+  recorded as **future breadth** in decision `0019` ("Follow-up decision (`.2f`)")
+  + `DEVELOPMENT_NOTES.md`. Nothing retired — the library surface stays available
+  to in-process callers and is cargo-portably proven.
+- **Docs closeout** (pure-docs): `book/src/synthesizability.md` gains an "Acceptance
+  divergence across tools" subsection (the cross-tool acceptance axis complementing
+  the cross-simulator trace axis, the three surfaces, the opportunistic fact, the
+  e2e contract); `book/src/agent-mcp.md` gains the version-axis trust-boundary note;
+  `USER_GUIDE.md` gains the `anvil hunt --divergence` flag row + example; `README.md`
+  adds `--divergence` to the `anvil hunt` bullet and `divergence` to the MCP
+  controlled-tools list; `docs/knowledge/acceptance-divergence.md` is a new KM how-to
+  card (KM 48→49 facts); `ROADMAP.md` marks lane 2 delivered.
+
+**Validation**
+
+- `cargo test --test divergence_e2e` — portable 1/0 (always runs, tool-less green);
+  `cargo test --test divergence_e2e -- --ignored` 2/0 against **Verilator 5.046 +
+  Yosys 0.64**: "clean 3-seed all-agree sweep (3 tools/seed)" with distinct
+  `run_id`s + "divergence axis inert on a clean sweep".
+- `cargo check --all-targets` / `cargo clippy --all-targets -- -D warnings` /
+  `cargo fmt --all --check` green (under `scripts/ram_guard.sh --threshold 90`).
+- `tests/snapshots.rs` 6/6 byte-identical (divergence is default-off and wired into
+  no emit path); `tests/book_examples.rs` 3/3; `mdbook build book` clean.
+- `scripts/check_memory_architecture.sh` OK; KM gen + check OK (48→49 facts).
+
+**Impact**
+
+- `ACCEPTANCE-DIVERGENCE-HUNTING` is **delivered end-to-end and closed** —
+  acceptance divergence is a first-class, default-off, SCHEMA-DERIVED detector with
+  one shared home (`divergence::run`) reused by three surfaces (hunt axis +
+  `tool_matrix` column + MCP tool, CLI a shim) plus the library version axis, proven
+  by a real-tool e2e gate. North-star lane 2 done. Default `anvil` build /
+  `--artifact dut` byte-identical.
+
+**Files touched:** `tests/divergence_e2e.rs` (new), `book/src/synthesizability.md`,
+`book/src/agent-mcp.md`, `USER_GUIDE.md`, `README.md`, `ROADMAP.md`,
+`docs/decisions/0019-acceptance-divergence-hunting.md`,
+`docs/knowledge/acceptance-divergence.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2e — the tool-version-vs-version axis
 
-**Landed as:** this commit (previous: `4d17fc2`). **Default-off / DUT
+**Landed as:** `0836655` (previous: `4d17fc2`). **Default-off / DUT
 byte-identical** (`tests/snapshots.rs` 6/6 unchanged; the new field is serde-absent
 on every default path, so banked `tool_matrix` reports + `--resume` checkpoints are
 byte-for-byte unchanged and the `validate` refactor is byte-equivalent). The

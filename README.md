@@ -627,7 +627,8 @@ exercising adversarial axes that previously fired only by chance
   turnkey downstream bug-hunt loop as one command — fuzz a deterministic seed
   sweep (`--seed`/`--seeds`), run the vetted tools (`--tools verilator,yosys`,
   `--yosys-mode`), treat any reject/warning (and, with `--diff-sim`, a
-  cross-simulator trace mismatch) as a finding, auto-minimize each failure
+  cross-simulator trace mismatch; and, with `--divergence`, a cross-*tool*
+  acceptance disagreement) as a finding, auto-minimize each failure
   (`--no-minimize` / `--budget`), and print a JSON `HuntReport` to stdout. A thin
   shim over the same `hunt::run` the MCP `hunt` tool drives (decision `0017`);
   `--out <dir>` additionally drops a self-contained reproducer bundle per finding
@@ -655,10 +656,13 @@ exercising adversarial axes that previously fired only by chance
   graph), schema `1.11`, unknown query/target ⇒
   `-32602`, and `coverage_gaps` projects the recorded
   `tool_matrix_report.json` gap list read-only), controlled tools
-  (`validate`/`minimize`/`hunt` — where `hunt` (`BUG-HUNT-ORCHESTRATION.2c`) is the
-  turnkey fuzz → detect → minimize loop over a deterministic seed sweep that
+  (`validate`/`minimize`/`hunt`/`divergence` — where `hunt` (`BUG-HUNT-ORCHESTRATION.2c`)
+  is the turnkey fuzz → detect → minimize loop over a deterministic seed sweep that
   returns a structured `HuntReport` and caches each failing `run_id` so its
-  `anvil://artifact/<run_id>/{sv,introspection}` resolve — all run only through
+  `anvil://artifact/<run_id>/{sv,introspection}` resolve, and `divergence`
+  (`ACCEPTANCE-DIVERGENCE-HUNTING`, decision `0019`) classifies cross-tool
+  **acceptance divergence** — one tool accepts while another warns/rejects
+  valid-by-construction RTL, returning a `DivergenceReport` — all run only through
   the hardened `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded
   + audit-logged), resources (artifact `.sv`/introspection/`manifest`/`analysis`,
   `knobs`/`lanes` catalogs, `audit/log`), and five workflow prompts

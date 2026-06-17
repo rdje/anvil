@@ -4,7 +4,7 @@ Live analysis of the Rust workspace as it currently stands. Updated whenever a s
 ## Snapshot
 - **Workspace:** single crate `anvil` (no Cargo workspace; flat layout).
 - **Edition:** 2021.
-- **Targets:** three binaries (`anvil` as Cargo's default run target; the auxiliary `tool_matrix` harness; and `anvil-mcp` — the read-only agent MCP server, `AGENT-INTROSPECTION-MCP.4`, an explicit `[[bin]]`), one library (`anvil`), one example (`generate_one`), nine integration tests (`pipeline`; `book_examples` — the mdBook copy-paste-runnable gate; `snapshots` — the `insta` byte-identical-reproducibility guard, `INSTA-SNAPSHOTS.1`; `diff_sim` — the `DIFFERENTIAL-SIMULATION` cross-simulator harness proofs; `microdesign_parity` — the Phase-7 oracle-vs-tool parity proofs; `frontend_parity` — the Phase-8 frontend/elaboration parity proofs; `sv_version` — the `SV-VERSION-TARGETING.2b.1` down-gating / byte-identical emission proofs; `sv_version_downstream` — the `SV-VERSION-TARGETING.2b.2a` per-version `--language 1800-20xx` real-tool acceptance proofs; `hunt_e2e` — the `BUG-HUNT-ORCHESTRATION.2e` real-tool end-to-end gate driving the `anvil hunt` binary against Verilator [clean sweep + byte-identical reproducer recipe]). Five of them (`diff_sim`, `microdesign_parity`, `frontend_parity`, `sv_version_downstream`, `hunt_e2e`) each also carry a tool-gated `#[ignore]` end-to-end gate that runs only when the real downstream tool is present.
+- **Targets:** three binaries (`anvil` as Cargo's default run target; the auxiliary `tool_matrix` harness; and `anvil-mcp` — the read-only agent MCP server, `AGENT-INTROSPECTION-MCP.4`, an explicit `[[bin]]`), one library (`anvil`), one example (`generate_one`), ten integration tests (`pipeline`; `book_examples` — the mdBook copy-paste-runnable gate; `snapshots` — the `insta` byte-identical-reproducibility guard, `INSTA-SNAPSHOTS.1`; `diff_sim` — the `DIFFERENTIAL-SIMULATION` cross-simulator harness proofs; `microdesign_parity` — the Phase-7 oracle-vs-tool parity proofs; `frontend_parity` — the Phase-8 frontend/elaboration parity proofs; `sv_version` — the `SV-VERSION-TARGETING.2b.1` down-gating / byte-identical emission proofs; `sv_version_downstream` — the `SV-VERSION-TARGETING.2b.2a` per-version `--language 1800-20xx` real-tool acceptance proofs; `hunt_e2e` — the `BUG-HUNT-ORCHESTRATION.2e` real-tool end-to-end gate driving the `anvil hunt` binary against Verilator [clean sweep + byte-identical reproducer recipe]; `divergence_e2e` — the `ACCEPTANCE-DIVERGENCE-HUNTING.2f` real-tool end-to-end gate [a portable synthetic accept/reject ⇒ `accept_reject` via the public API + `#[ignore]` all-agree real-tool sweep ⇒ `diverged=false` + `anvil hunt --divergence` inert on a clean sweep]). Six of them (`diff_sim`, `microdesign_parity`, `frontend_parity`, `sv_version_downstream`, `hunt_e2e`, `divergence_e2e`) each also carry a tool-gated `#[ignore]` end-to-end gate that runs only when the real downstream tool is present (`divergence_e2e` additionally carries a portable, always-run synthetic-classification proof).
 - **External deps:** `rand`, `rand_chacha`, `clap`, `serde`, `serde_json`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`. `insta` (dev) reserved for snapshot tests. `tracing` carries `release_max_level_info` so trace-level calls compile out in release.
 - **MSRV:** pinned to Rust 1.95 via `Cargo.toml` `rust-version = "1.95"`.
 - **Package description:** `Cargo.toml` describes ANVIL as a random by-construction generator of synthesizable SystemVerilog RTL; do not use SV/UVM-style constrained-random terminology for the crate purpose.
@@ -636,9 +636,17 @@ src/
 │                     the same `tool_verdict`, not a second classifier). `run`
 │                     dispatches on `tool_specs`; `assemble_report` is the shared
 │                     projection behind `classify_report` (cross-tool) and
-│                     `classify_report_versions` (version axis). Library-only at
-│                     `.2e` (MCP/CLI surfacing is `.2f`). Default `anvil` build / DUT
-│                     byte-identical.
+│                     `classify_report_versions` (version axis). **The version axis
+│                     stays library-only** — `.2f` decided **not** to expose
+│                     `tool_specs` over MCP/CLI (an allow-listed kind + a
+│                     caller-supplied binary path is a larger trust surface than the
+│                     fixed-binary tools, decision `0004`; safe exposure needs an
+│                     operator-configured registry, recorded as future breadth in
+│                     decision `0019`). `.2f` also lands the real-tool e2e gate
+│                     `tests/divergence_e2e.rs` (portable synthetic accept/reject ⇒
+│                     `accept_reject` via the public API + `#[ignore]` all-agree
+│                     real-tool sweep ⇒ `diverged=false`). **Tree closed.** Default
+│                     `anvil` build / DUT byte-identical.
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:

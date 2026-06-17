@@ -25,8 +25,13 @@ evidence: docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md (the owning tree; this is 
 # 0019 - ACCEPTANCE-DIVERGENCE-HUNTING: acceptance divergence is a first-class, default-off, SCHEMA-DERIVED detector shared by the hunt loop, the matrix, and MCP
 
 - Date: 2026-06-17
-- Status: accepted (design accepted; implementation pending under the pre-split
-  `ACCEPTANCE-DIVERGENCE-HUNTING.2`)
+- Status: accepted — **implemented and the tree is closed** (`2026-06-17`). The
+  pre-split `ACCEPTANCE-DIVERGENCE-HUNTING.2` landed in full: `.2a` (shared
+  `downstream::tool_verdict`) → `.2b` (`src/divergence/` core) → `.2c.1`/`.2c.2`
+  (hunt fold + `tool_matrix --divergence` column) → `.2d` (MCP `divergence` tool +
+  `anvil hunt --divergence` CLI shim) → `.2e` (the tool-version-vs-version library
+  axis) → `.2f` (the real-tool e2e gate `tests/divergence_e2e.rs` + this
+  closeout). Default `anvil` build / `--artifact dut` byte-identical throughout.
 - Tree: `ACCEPTANCE-DIVERGENCE-HUNTING.1` (design/decision leaf; no code — pins the
   divergence model, the verdict/report shape, the three surfaces, the
   reproducer-retention policy, the tool-version-vs-version axis, and the
@@ -292,6 +297,23 @@ each carrying the decision-`0017` API-completeness gate):
   matrix is produced + classified (all-agree steady state + a synthetic-injected
   divergence is classified) and queryable; `book/src/synthesizability.md` +
   `book/src/agent-mcp.md` + USER_GUIDE + README + a KM card; close `.2` and the tree.
+
+## Follow-up decision (`.2f`): the tool-version-vs-version axis stays library-only
+
+`.2f` resolved the open question that `.2e` deferred — *whether the
+caller-supplied-binary version axis (`DivergenceOptions.tool_specs`) is exposed
+over MCP/CLI.* **Decision: it is not (for now); it stays a library surface.**
+Rationale: the fixed-binary controlled tools (`validate`/`hunt`/`divergence`) let
+the agent choose *which allow-listed kind* runs but never *which binary* — the
+binary is pinned by `AcceptanceTool::binary` (decision `0004`). `tool_specs`
+pairs an allow-listed *kind* with an **arbitrary caller-supplied binary path**,
+which is a strictly larger trust surface: over the agent interface it would let a
+caller point the `verilator` kind at any executable on the host. Exposing it
+safely needs its own trust-boundary design (e.g. an *operator-configured*
+version-binary registry consulted by the server, never an agent-supplied path),
+recorded here as **future breadth**. Nothing is retired — the library surface
+(`validate_tool_specs` + `DivergenceOptions.tool_specs` + `classify_version_mismatch`)
+stays available to in-process callers and is proven by cargo-portable tests.
 
 ## Rejected alternatives
 

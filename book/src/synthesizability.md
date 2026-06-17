@@ -204,3 +204,83 @@ Any disagreement is either a generator bug (file with seed) or a
 real downstream-tool bug — both are valuable signal per the
 project's north star (surface downstream-tool bugs via
 valid-by-construction + downstream-acceptance-quality output).
+
+## Acceptance divergence across tools
+
+`--diff-sim` asks *do two simulators compute the same values?* — a
+question about **behaviour**, and only after both tools already
+**accept** the artifact. The complementary, earlier-in-the-pipeline
+question is *do two tools even agree the artifact is legal?* When one
+tool accepts an artifact and another **warns or rejects** it, that is
+an **acceptance divergence**. On RTL that is legal by construction
+every such disagreement is a real downstream-tool bug — exactly the
+north star — because the RTL cannot be at fault.
+
+The acceptance-divergence detector lives in one shared place
+(`divergence::run`, decision
+[`0019`](https://github.com/rdje/anvil/blob/main/docs/decisions/0019-acceptance-divergence-hunting.md))
+and is **default-off** everywhere it is surfaced — it changes no
+emitted RTL. It does not run a generator or a behavioural oracle of
+its own: it **composes** the same hardened `validate` orchestration the
+parse/synth columns already use, projects each tool's run into an
+`accept` / `warn` / `reject` **verdict**, and classifies any
+disagreement. The unit of comparison is a *labelled tool*, so
+`--yosys-mode both` contributes two labelled verdicts and a
+without-abc-vs-with-abc disagreement is itself a divergence.
+
+It is surfaced three ways over the one detector (decision `0017`: one
+home, no drift):
+
+- **the `tool_matrix --divergence` column** — a per-unit
+  `DivergenceReport` over the tools the matrix already ran (no extra
+  tool spawn, and — unlike `--diff-sim` — no tool-clean precondition,
+  because a divergence is most interesting when one tool rejects what
+  another accepts);
+- **the `anvil hunt --divergence` axis** — a swept finding with
+  `detection = "acceptance_divergence"` (see the User Guide);
+- **the MCP `divergence` controlled tool** — for an agent (see
+  [Driving anvil from an AI Agent](agent-mcp.md)).
+
+<!-- book-test: skip — opt-in column requires verilator + yosys on PATH; documented in the verification log of ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 -->
+```bash
+# Add the per-unit acceptance-divergence column to a tool_matrix run
+cargo run --bin tool_matrix -- --divergence --out ./tool-matrix
+```
+
+The per-unit outcome is recorded under `ModuleReport.divergence` /
+`DesignReport.divergence`:
+
+```json
+{
+  "run_id": "…",
+  "lane": "dut",
+  "kind": "module",
+  "top": "mod_1_0000",
+  "sandbox": "…",
+  "verdicts": [
+    { "tool": "verilator",         "verdict": "accept", "exit_code": 0 },
+    { "tool": "yosys-without-abc", "verdict": "accept", "exit_code": 0 },
+    { "tool": "yosys-with-abc",    "verdict": "accept", "exit_code": 0 }
+  ],
+  "diverged": false,
+  "divergences": []
+}
+```
+
+The `saw_acceptance_divergence` coverage fact is **opportunistic** —
+it fires when a divergence is seen but is **never a required gate**,
+because on valid-by-construction RTL the steady state is that all tools
+**agree** (`diverged: false`, as above). The detector also has a
+tool-version-vs-version axis (one tool *kind*, two caller-supplied
+binaries — e.g. `verilator-5.046` vs `verilator-4.228` — classified
+`version_mismatch`); that axis is a library surface only, because an
+allow-listed kind with a caller-supplied binary path is a larger trust
+surface than the fixed-binary tools and is not exposed over the agent
+interface.
+
+The contract (`ACCEPTANCE-DIVERGENCE-HUNTING.2f`,
+`tests/divergence_e2e.rs`): on a machine with Verilator (and
+optionally Yosys) installed, an all-agree sweep records the full
+per-tool verdict matrix with `diverged: false`, and an injected
+accept/reject pair classifies `accept_reject` — proving the matrix is
+produced, correctly classified, and queryable.
