@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.1 — design ADR (decision 0018): turnkey fuzz→detect→minimize→bundle loop + MCP hunt tool + anvil hunt CLI
+
+**Landed as:** this commit (previous: `59f248c`). **Docs-only design/decision
+leaf — no `src/` touched; DUT byte-identical.** PNT-selected the
+owner-recommended highest-leverage usability lane (idea 1). The `.1` design leaf
+pins the bug-hunt orchestration loop *before any code*, per the design-first
+cadence; the implementation lands under the pre-split `.2a`…`.2e`.
+
+**What changed (why)**
+
+- **`docs/decisions/0018-bug-hunt-orchestration-loop.md`** (new) — the design
+  ADR (KM `answers:` front-matter; binds `0017` + `0004` + `0011`; evidence
+  grounded in the *real* `src/downstream` / `src/diff_sim` / `src/mcp` /
+  `src/introspect` / `src/bin/tool_matrix` surfaces, verified this session via a
+  code-map reconnaissance pass). It pins five things:
+  1. **Loop shape** — `src/hunt/mod.rs` exposes one
+     `hunt::run(&HuntRequest) -> HuntReport` that BOTH the MCP `hunt` tool and the
+     `anvil hunt` CLI shim over (decision `0017`: CLI is a shim, not a superset).
+     It is a **thin orchestrator** composing the existing
+     `downstream::validate`/`minimize` (warning already folds into `ok=false`, so
+     reject+warning are one signal — no new detector) + optional **extracted**
+     diff-sim + content-addressed `introspect`; it adds no minimizer of its own.
+  2. **Reproducer bundle** = a directory `<root>/<run_id>/` with `repro.sv`,
+     `knobs.json`, `introspection.json`, `manifest.json` (non-DUT only),
+     `tool-logs/`, `hunt-verdict.json`, and a one-command `repro.sh` (directory
+     over archive — matches `--out`/`tool_matrix`, inspectable, agent-fetchable as
+     `anvil://…` resources).
+  3. **MCP `hunt` tool + CLI shim** — the controlled `hunt` tool's input/result
+     schema (`HuntRequest`/`HuntReport`/`HuntFailure`, every field SCHEMA-DERIVED)
+     and ANVIL's **first** subcommand `anvil hunt`; `--out` is a human-CLI
+     convenience while the MCP sandbox path stays caller-set (decision `0004`),
+     and the default flat-flag path stays byte-identical.
+  4. **Detection policy** — a finding = reject | warning | cross_sim_mismatch;
+     classify, never adjudicate (the real tools + ANVIL manifests remain the
+     source of truth; no shadow oracle).
+  5. **Sandbox/reproducibility** — seeded, allow-listed, sandboxed, RAM-guarded,
+     audit-logged, default-off — all inherited by composing through
+     `downstream::validate`/`minimize`. `+ INDEX row`.
+- **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`** — `.1` marked `done` with its Result;
+  `.2` pre-split into `.2a` (extract diff-sim run+compare into
+  `diff_sim::run_agreement`) → `.2b` (`src/hunt/` core + bundle emitter) → `.2c`
+  (MCP `hunt` tool) → `.2d` (`anvil hunt` CLI + byte-identical guard) → `.2e`
+  (real-tool end-to-end gate + book/USER_GUIDE/README/KM); frontier advanced to
+  `.2a`; verification/commit/changelog rows added; bundle-format open question
+  resolved.
+- **`docs/TASK_TREE.md`** — the `BUG-HUNT-ORCHESTRATION` row updated to `.1` done
+  + the pre-split `.2a`…`.2e` frontier.
+- **`DEVELOPMENT_NOTES.md`** — a new entry recording the six load-bearing design
+  choices (thin orchestrator; diff-sim must be extracted first; directory bundle;
+  first subcommand + default-path guard; caller-set sandbox; SCHEMA-DERIVED
+  report). **`MEMORY.md`** refreshed.
+
+**Validation**
+
+- Docs-only — no `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected; code
+  state = the green `.10b.3` baseline (lib 502 / tool_matrix 73 / snapshots 6/6
+  byte-identical / introspection schema `1.11`). DUT byte-identical.
+- `bash scripts/check_memory_architecture.sh` OK; knowledge-map gen+check OK (new
+  `0018` decision card folded into `KNOWLEDGE_MAP.md`).
+
+**Impact**
+
+- No user-visible behaviour change yet (design only). The next slice (`.2a`)
+  begins the implementation with a pure, byte-identical diff-sim extraction.
+
 ## 2026-06-17 — USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017
 
-**Landed as:** this commit (previous: `6125ea5`). **Docs/workflow-only
+**Landed as:** `59f248c` (previous: `6125ea5`). **Docs/workflow-only
 registration — no `src/` touched; DUT byte-identical.** By owner directive
 (`2026-06-17`), task-tree-tracks the six "make ANVIL more usable" ideas plus a
 capability-breadth lane, and records the binding cross-cutting **API-first

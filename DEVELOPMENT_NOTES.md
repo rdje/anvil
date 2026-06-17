@@ -5,6 +5,66 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — design ADR — `BUG-HUNT-ORCHESTRATION.1` (decision `0018`)
+
+Picked the owner-recommended highest-leverage usability lane (idea 1) at the PNT
+boundary. This is the `.1` design/decision leaf — docs-only, no `src/` — so the
+code state stays the green `.10b.3` baseline and the DUT contract is untouched.
+Decision `0018` pins the loop; a few choices worth recording so `.2` does not
+re-derive them:
+
+1. **Thin orchestrator, not a new engine.** The whole loop is *composition* over
+   surfaces that already exist as library functions. `src/downstream/mod.rs`
+   already exports `validate(seed, cfg, &ValidateOptions) -> ValidateReport` and
+   `minimize(seed, cfg, &MinimizeOptions) -> MinimizeReport`; crucially,
+   `first_tool_warning` already folds a *warning* into `ToolInvocation.success ==
+   false`, so **reject and warning are already one unified failure signal** —
+   the hunt needs no warning parser of its own. So `src/hunt/` adds only
+   `hunt::run(&HuntRequest) -> HuntReport` (the seed-sweep + bundle emitter); it
+   adds **no** second detector and **no** second minimizer. This is the
+   full-factorization reflex applied to orchestration: one source of truth for
+   "is this a finding?".
+
+2. **diff-sim must be extracted before the loop can reuse it (`.2a`).** The
+   `src/diff_sim/` module today holds only the deterministic *primitives*
+   (`baked_input_vectors`, `emit_testbench`, `is_sequential`); the actual
+   *run-both-sims-and-compare* lives inside `src/bin/tool_matrix.rs` (the
+   `DiffSimReport` producer). So the cross-sim mismatch detector cannot be
+   composed without first promoting that run+compare into a reusable
+   `diff_sim::run_agreement(...)` library entry — the same extract-then-reuse
+   the `DIFFERENTIAL-SIMULATION.3b.1` refactor did. Recorded as the first impl
+   sub-leaf (`.2a`), orderable first; a first hunt cut may ship reject/warning
+   only and fold cross-sim in next.
+
+3. **Bundle = a directory, not an archive.** Matches the existing
+   `--out`/`tool_matrix` directory-tree convention, stays inspectable/diffable/
+   git-attachable for filing, and lets an agent fetch parts as `anvil://…`
+   resources without unpacking. An archive view is a trivial later add-on.
+
+4. **`anvil hunt` is ANVIL's first subcommand — guard the default path.** The CLI
+   is flat flags + `--artifact` today (no subcommands). Adding a `hunt`
+   subcommand (clap) must not perturb the default `anvil --seed N …` invocation,
+   which is load-bearing for `tests/snapshots.rs` (6/6) and
+   `tests/book_examples.rs::every_runnable_book_bash_block_succeeds` (3/3). `.2d`
+   owns proving both unchanged. A `hunt` subcommand was chosen over an
+   `anvil --hunt` flag because the hunt's option set (`--seeds`, `--budget`,
+   `--no-minimize`, …) is mutually-exclusive with the generate flags and would be
+   awkward to overlay; nothing is retired.
+
+5. **Sandbox path is caller-set, never agent-supplied (decision `0004`).** The
+   MCP `hunt` tool writes bundles to a fixed sandboxed per-run dir and returns
+   its path + resource URIs; only the *human* CLI may pass `--out <dir>`. This
+   mirrors `ValidateOptions.sandbox_root` being caller-set — the agent never
+   hands a filesystem path to a controlled tool. So `hunt::run` takes a
+   `bundle_root: PathBuf` from its caller; the MCP shim fixes it, the CLI shim
+   exposes it.
+
+6. **Every `HuntReport` field is SCHEMA-DERIVED.** The report is a projection of
+   `ValidateReport`/`MinimizeReport`/`DiffSimReport`/`ToolInvocation` — no new
+   computed truth, satisfying decision `0017`'s queryable gate without breaching
+   the no-shadow-simulator ceiling (decision `0004`). The hunt *classifies*
+   findings (reject | warning | cross_sim_mismatch); it never adjudicates them.
+
 ## 2026-06-17 — Structured emission — cone-function metric + repo-owned gate — `STRUCTURED-EMISSION-EXPANSION.10b.2`
 
 The fifth surface's metric (`Metrics::num_emitted_cone_functions`,

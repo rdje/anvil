@@ -56,16 +56,53 @@ this lane composes them into one bug-hunt orchestrator.
   Children: `BUG-HUNT-ORCHESTRATION.1`
 
 - ID: `BUG-HUNT-ORCHESTRATION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Design/decision leaf (ADR, no code): pin the orchestration-loop shape (how it composes generate + the existing downstream validate/minimize + diff-sim + introspect), the reproducer-bundle format (seed + effective knobs + .sv + manifest + expected-facts + tool log + one-command repro), the MCP "hunt" tool input/result schema + the CLI shim over it (decision 0017 API-completeness), the detection policy (reject/warning/mismatch as a failure), and the sandbox/reproducibility discipline (decision 0004). Record as the next decision record + pre-split .2 (impl).`
   Acceptance: `A decision record (next sequential id) + a DEVELOPMENT_NOTES/tree entry pinning the loop, the bundle format, and the MCP+CLI surface; docs-only; INDEX + this tree + docs/TASK_TREE.md updated.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. Wrote docs/decisions/0018-bug-hunt-orchestration-loop.md (the design ADR; KM answers: front-matter; binds 0017 + 0004 + 0011; evidence grounded in the real src/downstream / src/diff_sim / src/mcp / src/introspect surfaces verified this session via a code-map recon agent). It pins: (loop) src/hunt/mod.rs exposing one hunt::run(&HuntRequest)->HuntReport that BOTH the MCP hunt tool and the anvil hunt CLI shim over — composing downstream::validate (whose first_tool_warning already unifies reject+warning into ok=false) + downstream::minimize (coordinate-descent oracle) + optional cross-sim mismatch + content-addressed run_id; (bundle) a directory <bundle_root>/<run_id>/ with repro.sv, knobs.json, introspection.json, manifest.json (non-DUT), tool-logs/, hunt-verdict.json, repro.sh; (MCP+CLI) the controlled hunt tool I/O schema + the first anvil subcommand anvil hunt, CLI --out a human convenience while the MCP sandbox stays caller-set (decision 0004), default path byte-identical; (detection) reject | warning | cross_sim_mismatch, classify-not-adjudicate; (discipline) seeded/sandboxed/allow-listed/RAM-guarded/audit-logged, default-off. Added the docs/decisions/INDEX.md row, a DEVELOPMENT_NOTES.md entry, and refreshed MEMORY.md + CHANGES.md + the docs/TASK_TREE.md frontier. Pre-split .2 into .2a..2e (below). Docs-only — no src/ touched ⇒ DUT byte-identical.`
+  Verification: `Docs-only / no src/ ⇒ cargo check/clippy/fmt/test unaffected (code state = green .10b.3 baseline). bash scripts/check_memory_architecture.sh OK; knowledge-map gen+check OK (new 0018 card folded in). DUT byte-identical.`
+  Commit: `this BUG-HUNT-ORCHESTRATION.1 commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2`
   Status: `pending`
-  Goal: `Implement the .1 design: the hunt orchestrator + the MCP hunt tool + the CLI shim + the reproducer-bundle emitter + proofs + a real-tool end-to-end gate + book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. Pre-split when picked.`
-  Acceptance: `pending (set at .1)`
+  Goal: `Implement the .1 design: the hunt orchestrator + the MCP hunt tool + the CLI shim + the reproducer-bundle emitter + proofs + a real-tool end-to-end gate + book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. Pre-split at .1 into .2a..2e (below).`
+  Acceptance: `All of .2a..2e done; hunt loop runs end-to-end against a real downstream tool and drops a one-command-reproducible bundle; decision-0017 API-completeness gate met (hunt MCP-invocable + results queryable + CLI a shim); snapshots 6/6 + book-examples 3/3 unchanged; downstream-clean; documented; committed per COMMIT.md.`
+  Verification: `pending`
+  Commit: `pending`
+  Children: `BUG-HUNT-ORCHESTRATION.2a, .2b, .2c, .2d, .2e`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2a`
+  Status: `pending`
+  Goal: `Pure refactor: extract the tool_matrix diff-sim run+compare into a reusable diff_sim::run_agreement(...) library entry (the DIFFERENTIAL-SIMULATION.3b.1 extract-then-reuse precedent) so the hunt loop (and ACCEPTANCE-DIVERGENCE-HUNTING) detect cross-sim mismatch through a hardened surface. Byte-identical tool_matrix behaviour. Orderable first; the first hunt cut may ship reject/warning-only and fold this in next.`
+  Acceptance: `pending (set when picked)`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2b`
+  Status: `pending`
+  Goal: `The src/hunt/ library core: HuntRequest/HuntReport/HuntFailure types + hunt::run(&HuntRequest)->HuntReport composing downstream::validate/minimize (+ optional diff-sim via .2a) over a deterministic seed sweep + the reproducer-bundle emitter; cargo-portable proofs. No CLI/MCP yet. Default-off / DUT byte-identical.`
+  Acceptance: `pending (set when picked)`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2c`
+  Status: `pending`
+  Goal: `The MCP hunt controlled tool wired into src/mcp dispatcher: input schema, HuntReport result, failing-run artifact-cache population (so anvil://artifact/<run_id>/{sv,introspection,manifest} reads work), a top-level hunt audit record; introspection/MCP doc + schema note; proofs.`
+  Acceptance: `pending (set when picked)`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2d`
+  Status: `pending`
+  Goal: `The anvil hunt CLI subcommand (ANVIL's first subcommand) as a thin shim over hunt::run, with --out as a human-only convenience; the byte-identical default-path guard (snapshots 6/6 + book-examples 3/3 unchanged); proofs.`
+  Acceptance: `pending (set when picked)`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2e`
+  Status: `pending`
+  Goal: `A real-tool end-to-end gate (#[ignore], tool-gated) that runs a hunt against Verilator/Yosys and produces a one-command-reproducible bundle for an injected/known failure; book/src/agent-mcp.md + USER_GUIDE + README + a KM card; close .2 and the tree.`
+  Acceptance: `pending (set when picked)`
   Verification: `pending`
   Commit: `pending`
 
@@ -73,7 +110,11 @@ this lane composes them into one bug-hunt orchestrator.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.1` | `pending` | Highest-leverage usability lane (the owner's "single biggest usability multiplier"); design-first ADR pins the loop + the MCP/CLI surface (decision `0017`) before any code. |
+| 1 | `BUG-HUNT-ORCHESTRATION.2a` | `pending` | First impl step: a pure, byte-identical refactor extracting the diff-sim run+compare into `diff_sim::run_agreement` so the loop's cross-sim detector reuses a hardened surface. Orderable first; `.2b` may proceed reject/warning-only and fold this in. |
+| 2 | `BUG-HUNT-ORCHESTRATION.2b` | `pending` | The `src/hunt/` library core (`hunt::run`) + the reproducer-bundle emitter — the engine both the MCP tool (`.2c`) and the CLI (`.2d`) shim over. |
+| 3 | `BUG-HUNT-ORCHESTRATION.2c` | `pending` | The MCP `hunt` controlled tool (decision `0017` invocable + queryable). |
+| 4 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim + the byte-identical default-path guard. |
+| 5 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
 
 ## Decisions
 
@@ -82,14 +123,30 @@ this lane composes them into one bug-hunt orchestrator.
   (API-first: the hunt must be fully MCP-driveable + its results queryable). The
   first leaf is a design/decision ADR per the project's design-first cadence; no
   code before `.1` lands.
+- `2026-06-17` (`.1` done): Recorded decision
+  [`0018`](../decisions/0018-bug-hunt-orchestration-loop.md). The loop is a
+  **thin orchestrator, not a new engine** — `hunt::run` composes the existing
+  `downstream::validate`/`minimize` (+ optional extracted diff-sim) and adds no
+  detector and no minimizer of its own. Reproducer bundle = a **directory**
+  (matches `--out`/`tool_matrix`; inspectable; agent-fetchable as resources).
+  `hunt` is a controlled MCP tool **and** the first `anvil` subcommand, both
+  shims over `hunt::run`. Detection = reject | warning | cross_sim_mismatch
+  (`validate` already unifies reject+warning into `ok=false`). Sandbox path is
+  caller-set, never agent-supplied (decision `0004`). Pre-split `.2` into
+  `.2a`…`.2e`.
 
 ## Open Questions
 
-- Bundle format: a directory vs a single self-describing archive; how the
-  one-command repro invokes the (external) downstream tool portably. *(Does not
-  block `.1` — it is what `.1` decides.)*
+- ~~Bundle format: directory vs single archive.~~ **Resolved at `.1`**: a
+  directory (`<bundle_root>/<run_id>/`) — matches the `--out`/`tool_matrix`
+  convention, stays inspectable/diffable/git-attachable, and lets an agent fetch
+  parts as `anvil://…` resources without unpacking. An archive view is a trivial
+  later add-on if asked.
 - Knob-profile source: reuse `KNOB-ERGONOMICS-AND-PRESETS` presets once that lane
-  lands, vs. an interim inline profile set. *(Cross-lane; resolve at `.1`.)*
+  lands, vs. an interim inline profile set. **Partially resolved at `.1`**: the
+  hunt's `config` input *is* the knob profile (a full `Config`); curated
+  `--profile` names are deferred to `KNOB-ERGONOMICS-AND-PRESETS` and plug in
+  without reopening this lane. *(Cross-lane; not a `.2` blocker.)*
 
 ## Blockers
 
@@ -102,13 +159,19 @@ this lane composes them into one bug-hunt orchestrator.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION` | `tree registered (docs-only); no code` | `registered` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.1` | `decision 0018 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row; check_memory_architecture OK; KM gen+check OK; docs-only (no src/) ⇒ DUT byte-identical` | `done` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `BUG-HUNT-ORCHESTRATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
+| `BUG-HUNT-ORCHESTRATION.1` | `BUG-HUNT-ORCHESTRATION.1 — design ADR (decision 0018): turnkey fuzz→detect→minimize→bundle loop + MCP hunt tool + anvil hunt CLI` | Design/decision leaf (docs-only). Pins the loop/bundle/MCP+CLI/detection/sandbox; pre-splits `.2` into `.2a`…`.2e`. DUT byte-identical. |
 
 ## Changelog
 
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
+- `2026-06-17`: `.1` done — recorded decision `0018` (the bug-hunt loop design);
+  pre-split `.2` into `.2a` (diff-sim extract), `.2b` (`src/hunt/` core), `.2c`
+  (MCP `hunt` tool), `.2d` (`anvil hunt` CLI), `.2e` (real-tool gate + docs).
+  Frontier advanced to `.2a`. Docs-only / DUT byte-identical.
