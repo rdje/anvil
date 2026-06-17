@@ -5,6 +5,47 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — the `src/divergence/` library core — `ACCEPTANCE-DIVERGENCE-HUNTING.2b`
+
+The detector core. The decisions worth recording:
+
+- **`divergence::run` reuses `downstream::validate`; it does not re-run the
+  tools.** The ADR sketched "compose `generate_dut_artifact` + the `run_*`
+  primitives", but `validate` is *already* that composition — and crucially it
+  already runs **every** enabled tool/mode to completion (it never short-circuits
+  on a reject; only `MemGuard` declines before a spawn). So the highest-factored
+  realisation is to call `validate` and project `report.tools` into verdicts,
+  rather than fork a second sandbox-and-run loop. This is the same
+  "one orchestration, no second source of truth" move that `MinimizeOptions` made
+  by wrapping `ValidateOptions` — which is exactly why `DivergenceOptions` wraps
+  `ValidateOptions` too. A forked loop would have been a second place to keep the
+  sandbox/allow-list/RAM-guard discipline in sync; rejected.
+- **`ToolDecision`, not `ToolVerdict`, for the per-tool record.** The `.1` ADR's
+  JSON sketch named the per-tool record `ToolVerdict { tool, verdict, … }`, but
+  `.2a` already shipped a `ToolVerdict` *enum* (`Accept`/`Warn`/`Reject`) that
+  `hunt` depends on. Renaming the enum would churn `.2a`; so the record is
+  `ToolDecision { tool, verdict: ToolVerdict, exit_code, first_message }`. A
+  deliberate, minor naming refinement of the ADR, recorded here so the ADR↔code
+  delta is explicit (no silent drift).
+- **`classify_divergences` emits one `Divergence` per present pair-class, and up
+  to all three co-occur.** With verdicts drawn from {accept, warn, reject}, each
+  *pair of distinct values both present* is a divergence: `accept_reject`,
+  `accept_warn`, `warn_reject`. If all three values are present, all three fire —
+  that's correct (each is a real, separately-actionable disagreement), and the
+  output order is fixed + the tool lists sorted/deduped so the result is
+  deterministic (the reproducibility contract — no hash-map iteration in an
+  output path).
+- **Yosys `both` makes a tool diverge with itself.** The comparison unit is the
+  *labelled* tool (`ToolInvocation.tool`), and Yosys `both` yields
+  `yosys-without-abc` + `yosys-with-abc` as two labels. So a without-abc-vs-with-abc
+  disagreement (a real shape the repo has seen — ABC-flow warnings on valid
+  designs) is a first-class divergence with no extra plumbing. Proven directly.
+- **Honesty / no oracle.** `divergence::run` only *classifies* the tools' own
+  verdicts; it never decides which tool is "right" (decision `0004`, gap 4). On
+  valid-by-construction RTL the steady state is all-agree, so the no-tools proof
+  and the all-agree proof both assert `diverged == false` — a found divergence is
+  the (opportunistic) downstream-bug signal, surfaced at `.2c`+.
+
 ## 2026-06-17 — Acceptance-divergence hunting — shared accept/warn/reject classifier extract — `ACCEPTANCE-DIVERGENCE-HUNTING.2a`
 
 The first code leaf of lane 2, a **pure byte-identical refactor** (the

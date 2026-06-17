@@ -16,6 +16,15 @@ pub mod config;
 /// + `differential_simulation_sequential`). The upcoming `.3b.2`
 /// adds a `tool_matrix --diff-sim` opt-in column.
 pub mod diff_sim;
+/// Acceptance-divergence detector (`ACCEPTANCE-DIVERGENCE-HUNTING`, decision
+/// `0019`): a default-off, `SCHEMA-DERIVED` finder for where downstream tools
+/// *disagree* on whether a valid-by-construction artifact is legal
+/// (accept/warn/reject divergence). Composes the one hardened
+/// [`downstream::validate`] orchestration + the shared
+/// [`downstream::tool_verdict`] classifier; adds no generator path and no
+/// behavioural oracle. Complements [`diff_sim`] (cross-*simulator* trace
+/// agreement) with the orthogonal *acceptance* axis.
+pub mod divergence;
 /// Hardened downstream-tool invocation surface
 /// (`AGENT-INTROSPECTION-MCP.5.1`). The single source of truth for the
 /// `verilator --lint-only` / `yosys synth` / `iverilog -g2012` acceptance

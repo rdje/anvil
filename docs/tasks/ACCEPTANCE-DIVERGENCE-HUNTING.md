@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability — acceptance-divergence bug-finder (north star, idea 2)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` design ADR done — decision `0019`; `.2a` shared `tool_verdict` classifier extract done; frontier `.2b`)
+- Last updated: `2026-06-17` (`.1` design ADR done — decision `0019`; `.2a` shared `tool_verdict` extract done; `.2b` `src/divergence/` core done; frontier `.2c`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -78,11 +78,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2a commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `The src/divergence/ library core: ToolVerdict (reused) / Divergence / DivergenceReport / DivergenceOptions types + divergence::run(seed,cfg,&DivergenceOptions)->Result<DivergenceReport> composing generate_dut_artifact + run_verilator/run_yosys/run_iverilog_compile (all enabled tools/modes to completion, no fold, no short-circuit) + the shared classifier + the multi-tool same-version divergence classifier. Cargo-portable proofs. No CLI/MCP/version axis yet. Default-off / DUT byte-identical.`
   Acceptance: `src/divergence/mod.rs + lib.rs pub mod divergence; divergence::run runs every enabled labelled tool to completion, classifies each verdict, and flags any disagreement; DivergenceReport SCHEMA-DERIVED; cargo-portable proofs (a synthetic accept/reject ToolInvocation set ⇒ accept_reject; a no-tools run ⇒ friendly no-op/empty verdicts); cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. New src/divergence/mod.rs + pub mod divergence in lib.rs. Types: DivergenceOptions { validate: ValidateOptions } (wraps ValidateOptions — the MinimizeOptions precedent — so the .2e version axis extends it); ToolDecision { tool, verdict: ToolVerdict, exit_code, first_message } (the per-tool record — renamed from the ADR's "ToolVerdict { tool, … }" sketch to avoid clashing with the .2a enum); Divergence { kind, tools }; DivergenceReport { run_id, lane, kind, top, sandbox, verdicts, diverged, divergences, declined } — all serde, every field SCHEMA-DERIVED. divergence::run REUSES the one hardened downstream::validate orchestration (which already runs every enabled tool/mode to completion — no short-circuit on reject; only MemGuard declines) and projects report.tools into ToolDecisions via the shared downstream::tool_verdict (.2a), then classifies disagreement — NOT a forked sandbox loop / no second classifier (full-factorization). classify_divergences emits one Divergence per present pair-class (accept_reject/accept_warn/warn_reject), deterministic (sorted+deduped tools, fixed order); up to all three co-occur when all three verdict values are present; Yosys `both` ⇒ two labelled verdicts so without-abc-vs-with-abc is itself a divergence. 7 cargo-portable proofs: to_decision projection, accept_reject classification (the synthetic accept/reject set the .1 ADR requires), all-agree ⇒ no divergence, all-three-pair-classes, the Yosys-mode divergence, the no-tools friendly no-op run (generate+sandbox only, run_id non-empty), and the report serde round-trip (absent optional fields off the wire + the "accept" snake_case form). No CLI/MCP yet (.2c/.2d); no version axis yet (.2e). Default-off / DUT byte-identical.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test --lib divergence:: 7/7; full cargo test --lib 529/0 (522→529, +7); tests/snapshots.rs 6/6 byte-identical (divergence is default-off, wired into no generate/emit path ⇒ DUT byte-identical).`
+  Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2b commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c`
   Status: `pending`
@@ -116,13 +117,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `pending` | The `src/divergence/` library core (`divergence::run` + `DivergenceReport`/`Divergence`/`DivergenceOptions`) composing the existing `run_*` primitives + the shared `downstream::tool_verdict` (now landed by `.2a`) + the multi-tool same-version divergence classifier. |
-| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `pending` | Fold into `hunt::run` + add the `tool_matrix` column (the one detector, two surfaces). |
-| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool + CLI shim (decision `0017` gate). |
-| 4 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis. |
-| 5 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
+| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `pending` | Fold the detector into `hunt::run` (`HuntRequest.divergence` → an `acceptance_divergence` finding) + add the `tool_matrix` column (the one detector, two surfaces). |
+| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool + CLI shim (decision `0017` gate). |
+| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis. |
+| 4 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
 
-(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` classifier extract `done 2026-06-17` — byte-identical hunt; lib 522/0, snapshots 6/6.)
+(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` classifier extract `done 2026-06-17`. `.2b` `src/divergence/` library core `done 2026-06-17` — `divergence::run` + the report types; lib 529/0, snapshots 6/6.)
 
 ## Decisions
 
@@ -174,6 +174,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.1` | `decision 0019 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row + ROADMAP lane-2 note; check_memory_architecture OK; KM gen+check OK (47→48 facts); docs-only (no src/) ⇒ DUT byte-identical` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `downstream::tool_verdict + ToolVerdict{Accept,Warn,Reject} extracted; hunt::classify_detection derives from it (byte-identical); +1 downstream proof; cargo check/clippy/fmt green; cargo test --lib 522/0 (downstream:: 21/0 + hunt:: 11/11); snapshots 6/6 byte-identical` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `src/divergence/mod.rs + pub mod divergence; DivergenceOptions/ToolDecision/Divergence/DivergenceReport + divergence::run reuses downstream::validate + the shared tool_verdict + classify_divergences (accept_reject/accept_warn/warn_reject, deterministic); 7 cargo-portable proofs; cargo check/clippy/fmt green; cargo test --lib divergence:: 7/7 + full lib 529/0; snapshots 6/6 byte-identical` | `done` |
 
 ## Commit Log
 
@@ -182,6 +183,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `ACCEPTANCE-DIVERGENCE-HUNTING` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.1 — design ADR (decision 0019): acceptance-divergence detector (accept/warn/reject verdicts + classifier) shared by the hunt loop, tool_matrix, and MCP` | Design/decision leaf (docs-only). Pins the verdict/classifier/report, the three surfaces (one shared `divergence::run`), the reproducer reuse, the version axis, the honesty boundary; pre-splits `.2` into `.2a`…`.2f`. DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a — extract shared downstream::tool_verdict accept/warn/reject classifier from hunt::run` | First code leaf. `ToolVerdict` enum + `tool_verdict` in `src/downstream/mod.rs`; `hunt::classify_detection` derives from it (byte-identical). The one accept/warn/reject classifier `.2b`'s divergence detector reuses. Default-off / DUT byte-identical (snapshots 6/6). |
+| `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b — src/divergence/ library core (divergence::run + DivergenceReport, reusing validate + the shared classifier)` | New `src/divergence/mod.rs` + `pub mod divergence`. `divergence::run` reuses the one `downstream::validate` orchestration + the shared `tool_verdict`, classifies disagreement (`accept_reject`/`accept_warn`/`warn_reject`, deterministic). 7 cargo-portable proofs; lib 529/0; snapshots 6/6. No CLI/MCP/version axis yet. Default-off / DUT byte-identical. |
 
 ## Changelog
 
@@ -211,3 +213,20 @@ query — building on the existing hardened `src/downstream/` adapters and the
   21/0, hunt:: 11/11); snapshots 6/6 byte-identical; clippy/fmt green. First code
   leaf; default-off / DUT byte-identical. Frontier advanced to `.2b` (the
   `src/divergence/` library core).
+- `2026-06-17`: `.2b` done — the `src/divergence/` library core. New
+  `src/divergence/mod.rs` (`pub mod divergence`): `DivergenceOptions { validate:
+  ValidateOptions }` (the `MinimizeOptions` wrap precedent), `ToolDecision` (the
+  per-tool labelled record carrying a `downstream::ToolVerdict`), `Divergence
+  { kind, tools }`, `DivergenceReport`, and `divergence::run(seed, cfg,
+  &DivergenceOptions) -> DivergenceReport`. `run` **reuses** the one hardened
+  `downstream::validate` orchestration (which already runs every enabled tool/mode
+  to completion — no short-circuit on reject) and projects its per-tool invocations
+  via the shared `downstream::tool_verdict` (no second sandbox loop / no second
+  classifier; full-factorization), then `classify_divergences` emits one
+  `Divergence` per present pair-class (`accept_reject`/`accept_warn`/`warn_reject`),
+  deterministic. 7 cargo-portable proofs (incl. the synthetic accept/reject set ⇒
+  `accept_reject`, all-three-pair-classes, the Yosys-mode divergence, the no-tools
+  friendly no-op, the serde round-trip). `cargo test --lib` 529/0; snapshots 6/6
+  byte-identical; clippy/fmt green. No CLI/MCP yet (`.2c`/`.2d`); no version axis
+  (`.2e`). Default-off / DUT byte-identical. Frontier advanced to `.2c` (the
+  `hunt::run` fold + the `tool_matrix` column).

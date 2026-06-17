@@ -1,9 +1,62 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2b — src/divergence/ library core (divergence::run + DivergenceReport)
+
+**Landed as:** this commit (previous: `dd6c9eb`). **Default-off / DUT byte-identical**
+(`tests/snapshots.rs` untouched; the detector is wired into no generate/emit path).
+The `.2b` library core of the acceptance-divergence lane — a **composer**, not a new
+engine.
+
+**What changed (why)**
+
+- **`src/divergence/mod.rs`** (new) + **`src/lib.rs`** (`pub mod divergence`) — the
+  detector core:
+  - `DivergenceOptions { validate: ValidateOptions }` — wraps `ValidateOptions`
+    (the `MinimizeOptions` precedent), so the one allow-list / sandbox / RAM-guard /
+    audit discipline is reused verbatim; the `.2e` version axis extends this struct.
+  - `ToolDecision { tool, verdict: ToolVerdict, exit_code, first_message }` — the
+    per-tool labelled record, a SCHEMA-DERIVED projection of one `ToolInvocation`
+    via the shared `downstream::tool_verdict` (`.2a`). (Named `ToolDecision` to
+    avoid clashing with the `.2a` `ToolVerdict` enum the ADR's sketch reused.)
+  - `Divergence { kind, tools }` and `DivergenceReport { run_id, lane, kind, top,
+    sandbox, verdicts, diverged, divergences, declined }` — all serde,
+    SCHEMA-DERIVED; live beside `DiffSimReport`/`HuntReport`.
+  - `divergence::run(seed, cfg, &DivergenceOptions) -> Result<DivergenceReport>` —
+    **reuses the one hardened `downstream::validate` orchestration** (which already
+    runs every enabled tool/mode to completion — no short-circuit on reject; only
+    `MemGuard` declines) and projects `report.tools` into verdicts, then
+    classifies disagreement. No forked sandbox loop, no second classifier
+    (`feedback_full_factorization`), no behavioural oracle (decision `0004`).
+  - `classify_divergences` emits one `Divergence` per present pair-class
+    (`accept_reject` / `accept_warn` / `warn_reject`), deterministic (sorted +
+    deduped tool lists, fixed order); up to all three co-occur. Yosys `both` ⇒ two
+    labelled verdicts, so without-abc-vs-with-abc is itself a divergence.
+- **`CODEBASE_ANALYSIS.md`** — a `divergence/` entry added to the module map.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo clippy --all-targets -- -D warnings` OK;
+  `cargo fmt --all --check` OK (all under `scripts/ram_guard.sh --threshold 90`).
+- `cargo test --lib divergence::` **7/7** (the `to_decision` projection; the
+  synthetic accept/reject set ⇒ `accept_reject`; all-agree ⇒ no divergence; all
+  three pair-classes; the Yosys-mode divergence; the no-tools friendly no-op `run`;
+  the report serde round-trip). Full `cargo test --lib` **529 passed / 0 failed / 2
+  ignored** (522 → 529). `tests/snapshots.rs` **6/6 byte-identical**.
+
+**Impact**
+
+- Lands the detector core. No CLI/MCP surface yet (the `hunt` fold + `tool_matrix`
+  column is `.2c`; the MCP `divergence` tool + CLI is `.2d`; the version axis is
+  `.2e`). No behaviour/RTL change.
+
+**Files touched:** `src/divergence/mod.rs` (new), `src/lib.rs`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2a — extract shared downstream::tool_verdict accept/warn/reject classifier
 
-**Landed as:** this commit (previous: `e7a3de8`). **First code leaf of lane 2 — a
+**Landed as:** `dd6c9eb` (previous: `e7a3de8`). **First code leaf of lane 2 — a
 pure byte-identical refactor; default-off / DUT byte-identical** (`tests/snapshots.rs`
 untouched). The `BUG-HUNT-ORCHESTRATION.2a` extract-then-reuse precedent.
 

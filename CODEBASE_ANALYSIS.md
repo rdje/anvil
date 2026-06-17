@@ -587,6 +587,31 @@ src/
 │                     acceptance-divergence lane reuse the same hardened surface
 │                     (the `downstream` full-factorization pattern). Byte-identical:
 │                     emitted `tb.sv` + serialized `DiffSimReport` unchanged.
+├── divergence/      Acceptance-divergence detector
+│   └── mod.rs        (`ACCEPTANCE-DIVERGENCE-HUNTING`, decision `0019`). A
+│                     default-off, `SCHEMA-DERIVED` finder for where downstream
+│                     tools *disagree* on whether a valid-by-construction artifact
+│                     is legal — the complement of `diff_sim`'s cross-*simulator*
+│                     trace axis. `.2b` (the library core): `DivergenceOptions`
+│                     (wraps `ValidateOptions`, the `MinimizeOptions` precedent),
+│                     `ToolDecision` (a labelled tool + its `downstream::ToolVerdict`
+│                     + exit code + first message — a projection of one
+│                     `ToolInvocation`), `Divergence{kind,tools}`, `DivergenceReport`,
+│                     and `run(seed,cfg,&DivergenceOptions) -> DivergenceReport`.
+│                     `run` composes the one hardened `downstream::validate`
+│                     orchestration (which runs every enabled tool/mode to
+│                     completion, no short-circuit) and projects its per-tool
+│                     invocations into accept/warn/reject verdicts via the shared
+│                     `downstream::tool_verdict` (no second classifier / no second
+│                     sandbox loop), then classifies disagreement: a `Divergence`
+│                     per present pair-class (`accept_reject`/`accept_warn`/
+│                     `warn_reject`), deterministic (sorted tools, fixed order).
+│                     Yosys `both` ⇒ two labelled verdicts, so without-abc-vs-
+│                     with-abc is itself a divergence. Adds no generator path and
+│                     no behavioural oracle (decision `0004`). The `hunt`-axis +
+│                     `tool_matrix` column (`.2c`), the MCP `divergence` tool + CLI
+│                     (`.2d`), and the tool-version axis (`.2e`) come next. Default
+│                     `anvil` build / DUT byte-identical.
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:
