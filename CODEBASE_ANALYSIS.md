@@ -551,12 +551,25 @@ src/
 │                     (default `dut`, byte-identical to the historical
 │                     no-flag path).
 ├── diff_sim/        Cross-simulator semantic-agreement harness core
-│   └── mod.rs        (`DIFFERENTIAL-SIMULATION`). Used by
-│                     `bin/tool_matrix.rs`'s opt-in `--diff-sim` column:
+│   └── mod.rs        (`DIFFERENTIAL-SIMULATION` + `BUG-HUNT-ORCHESTRATION.2a`).
+│                     Used by `bin/tool_matrix.rs`'s opt-in `--diff-sim` column:
 │                     normalizes fixed-width-hex traces from iverilog +
 │                     verilator and byte-compares them, proving emitted SV
 │                     is *semantically equivalent* across two independent
-│                     simulators, not merely accepted.
+│                     simulators, not merely accepted. `.2a` lifted the full
+│                     SV-text-driven run+compare pipeline out of the
+│                     `tool_matrix` binary into this library module — the
+│                     `DiffSimReport` row, `DutPort` + `parse_dut_ports`
+│                     (the strict-subset port parser), `emit_testbench_for_ports`,
+│                     and the `run_agreement(work_dir, top, sv_text, n_vectors)
+│                     -> DiffSimReport` entry (port-parse → testbench →
+│                     dual-simulator run → trace compare; friendly no-op when a
+│                     simulator is absent). `tool_matrix`'s per-module
+│                     `run_diff_sim_for_module` is now a thin wrapper over it, so
+│                     the bug-hunt loop (decision `0018`) and the
+│                     acceptance-divergence lane reuse the same hardened surface
+│                     (the `downstream` full-factorization pattern). Byte-identical:
+│                     emitted `tb.sv` + serialized `DiffSimReport` unchanged.
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:

@@ -10,6 +10,12 @@ use anvil::downstream::{
     run_iverilog_compile, run_iverilog_compile_design, run_verilator, run_verilator_design,
     run_yosys, run_yosys_design, yosys_mode_slug, ToolInvocation, YosysMode,
 };
+// BUG-HUNT-ORCHESTRATION.2a — the per-module diff-sim run+compare pipeline
+// (the `DiffSimReport` + the SV-text-driven testbench + the dual-simulator
+// run+compare) now lives in `anvil::diff_sim` so the bug-hunt loop (decision
+// `0018`) and the acceptance-divergence lane reuse the same hardened surface.
+// This binary `use`s the report type; the serialized shape is unchanged.
+use anvil::diff_sim::DiffSimReport;
 use anvil::metrics::{DesignMetrics, Metrics};
 use anvil::{Config, Design, Generator, GeneratorCheckpoint};
 use anyhow::{bail, Context, Result};
@@ -272,33 +278,10 @@ struct ModuleReport {
     emitted_cone_function: bool,
 }
 
-/// `DIFFERENTIAL-SIMULATION.3b.2` — per-module diff-sim outcome
-/// (one row in the matrix's new opt-in column).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DiffSimReport {
-    /// Was the diff-sim gate actually invoked for this module?
-    /// `false` when simulators were absent (`tools_present()`
-    /// returned false) — the matrix still exits clean; the column
-    /// just records the reason it didn't run.
-    ran: bool,
-    /// `true` iff `normalize_trace(iverilog) == normalize_trace(verilator)`
-    /// (byte-equal post-reset traces) — drives the
-    /// `saw_design_with_cross_simulator_agreement` coverage fact.
-    success: bool,
-    /// Number of post-reset sample lines compared (the length of
-    /// the normalized trace). Zero when `ran=false`.
-    n_samples: usize,
-    /// Free-form skip reason when `ran=false` (e.g., "iverilog or
-    /// verilator absent from $PATH", "verilator pre-step failed",
-    /// "yosys pre-step failed"). Empty when `ran=true`.
-    skip_reason: String,
-    /// First-mismatch counterexample excerpt (up to 10 lines from
-    /// each side, side-by-side) when `success=false` and `ran=true`.
-    /// Per the Phase-7 doctrine — every mismatch is a retained
-    /// counterexample, never a silent pass.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    mismatch_excerpt: Option<String>,
-}
+// `DiffSimReport` (the per-module diff-sim outcome) now lives in
+// `anvil::diff_sim` (imported above) — moved in `BUG-HUNT-ORCHESTRATION.2a`
+// alongside the run+compare pipeline so the bug-hunt loop reuses it. The serde
+// shape is unchanged, so `tool_matrix_report.json` stays byte-identical.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EmittedModuleReport {
@@ -5145,364 +5128,20 @@ fn scenario_in_diff_sim_subset(scenario_dir: &Path) -> bool {
     contents.lines().any(|line| line.trim() == name)
 }
 
-/// `DIFFERENTIAL-SIMULATION.3b.2` — invoke the diff-sim harness
-/// per-module. Parses the DUT's SystemVerilog from disk via the
-/// already-emitted `sv_path` (`.sv_text` for byte-stability), then
-/// uses `anvil::diff_sim` to drive both simulators and compare
-/// traces. The harness is friendly when tools are absent: returns
-/// a `ran: false` report with a skip reason rather than failing
-/// the build.
+/// `BUG-HUNT-ORCHESTRATION.2a` — per-module diff-sim wrapper. The
+/// run+compare pipeline (port parse → testbench → dual-simulator run
+/// → trace compare) now lives in `anvil::diff_sim::run_agreement`; this
+/// computes the per-module work dir and delegates. The behaviour (and the
+/// emitted `tb.sv` / `DiffSimReport`) is byte-identical to the prior in-binary
+/// implementation.
 fn run_diff_sim_for_module(
     scenario_dir: &Path,
     stem: &str,
     top_name: &str,
     sv_text: &str,
 ) -> DiffSimReport {
-    use anvil::diff_sim;
-    if !diff_sim::tools_present() {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: "iverilog and/or verilator absent from $PATH".to_string(),
-            mismatch_excerpt: None,
-        };
-    }
-    // The diff-sim harness needs the typed `Module`, not just SV
-    // text — `emit_testbench` reads ports from the IR (NOT by
-    // re-parsing SV). The matrix already has the prepared `sv_text`
-    // for byte-stability, but the IR is regenerated here from the
-    // same seed/config via the (top_name, sv_text) pair the
-    // checkpoint persists. Since the matrix doesn't keep the
-    // typed `Module` in-memory past prepare, the simplest path is
-    // to re-parse the seed from the stem and re-run the generator
-    // — but that's expensive AND loses the matrix's strict
-    // emit-byte-for-byte contract. So instead we just shell the
-    // simulators on the existing `sv_text` + a generic testbench
-    // constructed from the *port section* of the SV text.
-    //
-    // This is the bounded inverse of `emit_testbench` for the
-    // matrix path: the matrix has already emitted a port-explicit
-    // SV file; we parse only the port declarations (a stable
-    // strict subset of SV) to build the testbench. The full
-    // testbench-from-IR path remains in `tests/diff_sim.rs` for
-    // the IR-driven proofs.
-    let Some(ports) = parse_dut_ports(sv_text, top_name) else {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: format!("could not parse DUT port section for top `{top_name}`"),
-            mismatch_excerpt: None,
-        };
-    };
-
     let dir = scenario_dir.join(format!("{stem}-diff-sim"));
-    if let Err(e) = std::fs::create_dir_all(&dir) {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: format!("create diff-sim work dir failed: {e}"),
-            mismatch_excerpt: None,
-        };
-    }
-    let dut_path = dir.join("dut.sv");
-    let tb_path = dir.join("tb.sv");
-    let tb_text = emit_testbench_for_ports(top_name, &ports, 8);
-    if std::fs::write(&dut_path, sv_text).is_err() || std::fs::write(&tb_path, &tb_text).is_err() {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: "write dut.sv / tb.sv failed".to_string(),
-            mismatch_excerpt: None,
-        };
-    }
-    let Some(iv) = diff_sim::run_iverilog(&dir) else {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: "iverilog compile/run failed (see stderr)".to_string(),
-            mismatch_excerpt: None,
-        };
-    };
-    let Some(vl) = diff_sim::run_verilator(&dir) else {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: "verilator compile/run failed (see stderr)".to_string(),
-            mismatch_excerpt: None,
-        };
-    };
-    let norm_iv = diff_sim::normalize_trace(&iv);
-    let norm_vl = diff_sim::normalize_trace(&vl);
-    if norm_iv.is_empty() {
-        return DiffSimReport {
-            ran: false,
-            success: false,
-            n_samples: 0,
-            skip_reason: "iverilog produced no hex trace lines".to_string(),
-            mismatch_excerpt: None,
-        };
-    }
-    if norm_iv == norm_vl {
-        DiffSimReport {
-            ran: true,
-            success: true,
-            n_samples: norm_iv.len(),
-            skip_reason: String::new(),
-            mismatch_excerpt: None,
-        }
-    } else {
-        // Retained counterexample per the Phase-7 doctrine. First
-        // 10 sample lines from each side, side-by-side.
-        let mut excerpt = String::new();
-        excerpt.push_str("iverilog | verilator\n");
-        let n = norm_iv.len().min(norm_vl.len()).min(10);
-        for i in 0..n {
-            excerpt.push_str(&format!("{} | {}\n", norm_iv[i], norm_vl[i]));
-        }
-        if norm_iv.len() != norm_vl.len() {
-            excerpt.push_str(&format!(
-                "(traces differ in length: iverilog={} vs verilator={})\n",
-                norm_iv.len(),
-                norm_vl.len()
-            ));
-        }
-        DiffSimReport {
-            ran: true,
-            success: false,
-            n_samples: norm_iv.len(),
-            skip_reason: String::new(),
-            mismatch_excerpt: Some(excerpt),
-        }
-    }
-}
-
-/// A port declaration parsed from an ANVIL-emitted SV header.
-#[derive(Debug, Clone)]
-struct DutPort {
-    name: String,
-    width: u32,
-    is_input: bool,
-}
-
-/// `DIFFERENTIAL-SIMULATION.3b.2` — parse the port section of an
-/// ANVIL-emitted DUT module. ANVIL's emitter writes ports as
-/// `input  logic [W-1:0] name,` or 1-bit `input  logic  name,`
-/// (with *two* spaces between `input` and `logic` — see
-/// `src/emit/sv.rs::write!("    input  logic {} {}")`). The
-/// parser whitespace-normalises each line via `split_whitespace`
-/// rather than fixed-prefix matching, so it's robust to any
-/// internal-whitespace variation. Aggregate ports (`input <type>
-/// <name>`, no `logic` keyword — Phase 5b) are treated as
-/// unrecognised and the function returns `None`; the caller
-/// treats that as "skip diff-sim for this module" (the generic
-/// testbench cannot type-correctly drive an aggregate without the
-/// struct definition in scope).
-fn parse_dut_ports(sv: &str, top_name: &str) -> Option<Vec<DutPort>> {
-    let mut in_module = false;
-    let mut in_port_list = false;
-    let mut ports: Vec<DutPort> = Vec::new();
-    for raw in sv.lines() {
-        let line = raw.trim();
-        if !in_module {
-            if (line.starts_with("module ") || line.starts_with(&format!("module {top_name}")))
-                && line.contains(top_name)
-            {
-                in_module = true;
-                if line.contains('(') {
-                    in_port_list = true;
-                }
-            }
-            continue;
-        }
-        if !in_port_list {
-            if line.contains('(') {
-                in_port_list = true;
-            }
-            continue;
-        }
-        if line.starts_with(");") || line == ")" {
-            return Some(ports);
-        }
-        let stripped = line.trim_start_matches('(').trim();
-        if stripped.is_empty() {
-            continue;
-        }
-        let trimmed_comma = stripped.trim_end_matches(',').trim();
-        let tokens: Vec<&str> = trimmed_comma.split_whitespace().collect();
-        // Expected shapes (after split_whitespace):
-        //   `input logic <name>`           → 3 tokens, width=1
-        //   `input logic [W-1:0] <name>`    → 4 tokens, width from bracket
-        //   `output logic <name>`          → 3 tokens, width=1
-        //   `output logic [W-1:0] <name>`   → 4 tokens, width from bracket
-        // Anything else (Phase-5b aggregate `input <type> <name>`
-        // without `logic`, etc.) → bail to caller.
-        let (is_input, rest_tokens) = match tokens.first().copied() {
-            Some("input") => (true, &tokens[1..]),
-            Some("output") => (false, &tokens[1..]),
-            _ => return None,
-        };
-        let after_logic = match rest_tokens.first().copied() {
-            Some("logic") => &rest_tokens[1..],
-            _ => return None,
-        };
-        let (width, name) = match after_logic.len() {
-            1 => (1u32, after_logic[0].to_string()),
-            2 => {
-                let bracket = after_logic[0];
-                let inner = bracket.strip_prefix('[')?.strip_suffix(']')?;
-                let (msb, lsb) = inner.split_once(':')?;
-                let msb_val: i64 = msb.trim().parse().ok()?;
-                let lsb_val: i64 = lsb.trim().parse().ok()?;
-                let width = (msb_val - lsb_val + 1).max(1) as u32;
-                (width, after_logic[1].to_string())
-            }
-            _ => return None,
-        };
-        if name.is_empty() {
-            return None;
-        }
-        ports.push(DutPort {
-            name,
-            width,
-            is_input,
-        });
-    }
-    None
-}
-
-/// `DIFFERENTIAL-SIMULATION.3b.2` — emit a parameter-less SV
-/// testbench from a `Vec<DutPort>` (the strict-subset parser's
-/// output). The shape mirrors `anvil::diff_sim::emit_testbench`'s
-/// IR-driven version, but driven from parsed ports — this is what
-/// the matrix consumes (no live `Module` in scope). The two
-/// emitters share the same testbench shape so behavior is identical;
-/// the IR-driven version remains canonical and is what the
-/// `#[ignore]`-gated proofs in `tests/diff_sim.rs` exercise.
-fn emit_testbench_for_ports(top_name: &str, ports: &[DutPort], n_vectors: usize) -> String {
-    use anvil::diff_sim::{baked_input_vectors, fmt_sv_hex};
-    let has_clk = ports
-        .iter()
-        .any(|p| p.is_input && p.name == "clk" && p.width == 1);
-    let has_rst_n = ports
-        .iter()
-        .any(|p| p.is_input && p.name == "rst_n" && p.width == 1);
-    let seq = has_clk && has_rst_n;
-    let inputs: Vec<&DutPort> = ports.iter().filter(|p| p.is_input).collect();
-    let outputs: Vec<&DutPort> = ports.iter().filter(|p| !p.is_input).collect();
-    let data_inputs: Vec<&DutPort> = inputs
-        .iter()
-        .copied()
-        .filter(|p| p.name != "clk" && p.name != "rst_n")
-        .collect();
-    let n_data = data_inputs.len();
-    let vectors = baked_input_vectors(0, n_data, n_vectors);
-    let mut s = String::new();
-    s.push_str("// DIFFERENTIAL-SIMULATION.3b.2 — tool_matrix --diff-sim testbench\n");
-    s.push_str("module tb;\n");
-    for p in &inputs {
-        if p.width == 1 {
-            s.push_str(&format!("    reg {};\n", p.name));
-        } else {
-            s.push_str(&format!("    reg [{}:0] {};\n", p.width - 1, p.name));
-        }
-    }
-    for p in &outputs {
-        if p.width == 1 {
-            s.push_str(&format!("    wire {};\n", p.name));
-        } else {
-            s.push_str(&format!("    wire [{}:0] {};\n", p.width - 1, p.name));
-        }
-    }
-    s.push_str(&format!("    {top_name} dut (\n"));
-    let all_ports: Vec<&DutPort> = inputs
-        .iter()
-        .copied()
-        .chain(outputs.iter().copied())
-        .collect();
-    for (i, p) in all_ports.iter().enumerate() {
-        let comma = if i + 1 < all_ports.len() { "," } else { "" };
-        s.push_str(&format!("        .{}({}){}\n", p.name, p.name, comma));
-    }
-    s.push_str("    );\n");
-
-    if seq {
-        s.push_str("    initial clk = 1'b0;\n");
-        s.push_str("    always #5 clk = ~clk;\n");
-        s.push_str("    initial begin\n");
-        s.push_str("        rst_n = 1'b0;\n");
-        for p in &data_inputs {
-            s.push_str(&format!(
-                "        {} = {};\n",
-                p.name,
-                fmt_sv_hex(0, p.width)
-            ));
-        }
-        for _ in 0..4 {
-            s.push_str("        @(posedge clk);\n");
-        }
-        s.push_str("        @(negedge clk);\n");
-        s.push_str("        rst_n = 1'b1;\n");
-        for _ in 0..2 {
-            s.push_str("        @(posedge clk);\n");
-        }
-        for v in &vectors {
-            s.push_str("        @(negedge clk);\n");
-            for (i, p) in data_inputs.iter().enumerate() {
-                let val = v.get(i).copied().unwrap_or(0);
-                s.push_str(&format!(
-                    "        {} = {};\n",
-                    p.name,
-                    fmt_sv_hex(val, p.width)
-                ));
-            }
-            s.push_str("        @(posedge clk);\n");
-            s.push_str("        @(negedge clk);\n");
-            push_display_for_ports(&mut s, &outputs);
-        }
-        s.push_str("        $finish;\n");
-        s.push_str("    end\n");
-    } else {
-        s.push_str("    initial begin\n");
-        for v in &vectors {
-            for (i, p) in data_inputs.iter().enumerate() {
-                let val = v.get(i).copied().unwrap_or(0);
-                s.push_str(&format!(
-                    "        {} = {};\n",
-                    p.name,
-                    fmt_sv_hex(val, p.width)
-                ));
-            }
-            s.push_str("        #1;\n");
-            push_display_for_ports(&mut s, &outputs);
-        }
-        s.push_str("        $finish;\n");
-        s.push_str("    end\n");
-    }
-    s.push_str("endmodule\n");
-    s
-}
-
-fn push_display_for_ports(s: &mut String, outputs: &[&DutPort]) {
-    if outputs.is_empty() {
-        s.push_str("        $display(\"NO_OUT\");\n");
-        return;
-    }
-    let fmt = (0..outputs.len())
-        .map(|_| "%h")
-        .collect::<Vec<_>>()
-        .join(" ");
-    s.push_str(&format!("        $display(\"{fmt}\",\n"));
-    for (i, p) in outputs.iter().enumerate() {
-        let comma = if i + 1 < outputs.len() { "," } else { "" };
-        s.push_str(&format!("            {}{}\n", p.name, comma));
-    }
-    s.push_str("        );\n");
+    anvil::diff_sim::run_agreement(&dir, top_name, sv_text, 8)
 }
 
 /// `DIFFERENTIAL-SIMULATION.3b.2` — per-axis subset selector per
@@ -11562,31 +11201,10 @@ mod tests {
         assert!(cov2.saw_design_with_cross_simulator_agreement);
     }
 
-    #[test]
-    fn parse_dut_ports_recognises_anvil_emitter_shape() {
-        // Synthetic ANVIL-shape SV header. The strict-subset
-        // parser only needs the port declarations between `(` and
-        // `);` after `module <top> (`.
-        let sv = "\
-module dummy_top (\n\
-    input logic clk,\n\
-    input logic rst_n,\n\
-    input logic [7:0] i_a,\n\
-    input logic [0:0] i_b,\n\
-    output logic [15:0] o_x,\n\
-    output logic o_y\n\
-);\n\
-endmodule\n";
-        let ports = parse_dut_ports(sv, "dummy_top").expect("parse should succeed");
-        assert_eq!(ports.len(), 6);
-        let names: Vec<_> = ports.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, vec!["clk", "rst_n", "i_a", "i_b", "o_x", "o_y"]);
-        assert_eq!(ports[0].width, 1);
-        assert_eq!(ports[2].width, 8);
-        assert_eq!(ports[4].width, 16);
-        assert!(ports[0].is_input);
-        assert!(!ports[4].is_input);
-    }
+    // NOTE: `parse_dut_ports_recognises_anvil_emitter_shape` and
+    // `emit_testbench_for_ports_renders_combinational_and_sequential_shapes`
+    // moved to `src/diff_sim/mod.rs` with their functions in
+    // `BUG-HUNT-ORCHESTRATION.2a`.
 
     /// `DIFFERENTIAL-SIMULATION.3b.2` end-to-end tool-gated proof:
     /// run the matrix's per-module diff-sim helper against a real
@@ -11750,60 +11368,5 @@ endmodule\n";
             .find(|s| s.name == "int_multi_clock_3flop_sync")
             .expect("N-flop multi-clock scenario should be in the default set");
         assert_eq!(nflop.config.cdc_synchronizer_stages, 3);
-    }
-
-    #[test]
-    fn emit_testbench_for_ports_renders_combinational_and_sequential_shapes() {
-        let comb_ports = vec![
-            DutPort {
-                name: "i_a".to_string(),
-                width: 4,
-                is_input: true,
-            },
-            DutPort {
-                name: "o_y".to_string(),
-                width: 4,
-                is_input: false,
-            },
-        ];
-        let comb_tb = emit_testbench_for_ports("comb_top", &comb_ports, 4);
-        assert!(comb_tb.contains("module tb;"));
-        assert!(comb_tb.contains("comb_top dut ("));
-        assert!(comb_tb.contains("$display("));
-        assert!(comb_tb.contains("#1;"));
-        // Combinational: no clock generator.
-        assert!(!comb_tb.contains("always #5 clk = ~clk;"));
-
-        let seq_ports = vec![
-            DutPort {
-                name: "clk".to_string(),
-                width: 1,
-                is_input: true,
-            },
-            DutPort {
-                name: "rst_n".to_string(),
-                width: 1,
-                is_input: true,
-            },
-            DutPort {
-                name: "i_a".to_string(),
-                width: 4,
-                is_input: true,
-            },
-            DutPort {
-                name: "o_y".to_string(),
-                width: 4,
-                is_input: false,
-            },
-        ];
-        let seq_tb = emit_testbench_for_ports("seq_top", &seq_ports, 4);
-        assert!(seq_tb.contains("module tb;"));
-        assert!(seq_tb.contains("seq_top dut ("));
-        assert!(seq_tb.contains("always #5 clk = ~clk;"));
-        // Sequential: cycle-accurate negedge/posedge idiom.
-        assert!(seq_tb.contains("@(posedge clk);"));
-        assert!(seq_tb.contains("@(negedge clk);"));
-        // Reset is asserted in the prologue.
-        assert!(seq_tb.contains("rst_n = 1'b0;"));
     }
 }

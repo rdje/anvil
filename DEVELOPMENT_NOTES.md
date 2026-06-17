@@ -5,6 +5,50 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — extract diff-sim run+compare — `BUG-HUNT-ORCHESTRATION.2a`
+
+First implementation leaf of decision `0018`'s pre-split `.2`. A pure,
+byte-identical move: the per-module diff-sim run+compare pipeline left the
+`tool_matrix` binary for the `anvil::diff_sim` library so the bug-hunt loop
+(`.2b`) — and `ACCEPTANCE-DIVERGENCE-HUNTING` — detect a cross-simulator
+mismatch through one hardened surface instead of duplicating the harness. The
+mechanism mirrors `AGENT-INTROSPECTION-MCP.5.1` (which earlier lifted the
+acceptance-tool invocations into `anvil::downstream`) and
+`DIFFERENTIAL-SIMULATION.3b.1` (the diff-sim *primitives* extract). Notes:
+
+1. **Moved as-is; not merged.** `src/diff_sim/mod.rs` now owns `DiffSimReport`,
+   `DutPort`, `parse_dut_ports`, `emit_testbench_for_ports`,
+   `push_display_for_ports`, and a new
+   `run_agreement(work_dir, top_name, sv_text, n_vectors) -> DiffSimReport`. The
+   bodies are verbatim, so the emitted `tb.sv` and the serialized `DiffSimReport`
+   are byte-identical and `tool_matrix_report.json` is unchanged. The library
+   still carries **two** testbench emitters — the IR-driven `emit_testbench`
+   (canonical, used by `tests/diff_sim.rs`) and the SV-text-driven
+   `emit_testbench_for_ports` (the matrix/hunt path, no live `Module` in scope).
+   Unifying them is a deferred cleanup; `.2a`'s contract is a byte-identical
+   move, not a behaviour change, so a merge that could perturb either path's
+   output was explicitly out of scope.
+
+2. **`run_agreement` takes the work dir, not `(scenario_dir, stem)`.** The old
+   `run_diff_sim_for_module` computed `dir = scenario_dir.join("<stem>-diff-sim")`
+   internally. The reusable entry takes the already-joined `work_dir` so any
+   caller (the matrix wrapper, the future hunt loop) controls sandbox placement —
+   the sandbox path stays *caller-set, never agent-supplied* (decision `0004`).
+   The `tool_matrix` wrapper keeps the exact old dir name, so existing output
+   trees are unchanged. The hardcoded `8` baked vectors became the `n_vectors`
+   parameter (the wrapper passes `8`).
+
+3. **Tests follow the code.** The two pure-unit tests
+   (`parse_dut_ports_recognises_anvil_emitter_shape`,
+   `emit_testbench_for_ports_renders_combinational_and_sequential_shapes`) moved
+   into the `diff_sim` test module with their functions; a new
+   `run_agreement_is_a_friendly_no_op_without_tools` covers the tools-absent
+   path. The `tool_matrix` `#[ignore]` e2e gate stays (it now exercises the
+   wrapper → `run_agreement`), as does the coverage-fact test (it constructs the
+   now-`pub`-fielded `DiffSimReport`). Net: lib 502→505, tool_matrix 73→71
+   passed + the e2e ignored; `tests/snapshots.rs` 6/6 byte-identical proves DUT
+   output untouched.
+
 ## 2026-06-17 — Bug-hunt orchestration — design ADR — `BUG-HUNT-ORCHESTRATION.1` (decision `0018`)
 
 Picked the owner-recommended highest-leverage usability lane (idea 1) at the PNT

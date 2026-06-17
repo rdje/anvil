@@ -72,11 +72,12 @@ this lane composes them into one bug-hunt orchestrator.
   Children: `BUG-HUNT-ORCHESTRATION.2a, .2b, .2c, .2d, .2e`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2a`
-  Status: `pending`
+  Status: `done`
   Goal: `Pure refactor: extract the tool_matrix diff-sim run+compare into a reusable diff_sim::run_agreement(...) library entry (the DIFFERENTIAL-SIMULATION.3b.1 extract-then-reuse precedent) so the hunt loop (and ACCEPTANCE-DIVERGENCE-HUNTING) detect cross-sim mismatch through a hardened surface. Byte-identical tool_matrix behaviour. Orderable first; the first hunt cut may ship reject/warning-only and fold this in next.`
-  Acceptance: `pending (set when picked)`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `diff_sim::run_agreement(work_dir, top, sv_text, n_vectors) -> DiffSimReport (+ the moved DiffSimReport / DutPort / parse_dut_ports / emit_testbench_for_ports) lives in src/diff_sim/mod.rs and is reusable; tool_matrix's run_diff_sim_for_module is a thin wrapper; emitted tb.sv + serialized DiffSimReport byte-identical (tool_matrix_report.json schema unchanged); cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical; no new public-API regression.`
+  Result: `Done. Moved into src/diff_sim/mod.rs (made pub): the DiffSimReport struct (serde shape unchanged), DutPort, parse_dut_ports (the strict-subset SV port parser), emit_testbench_for_ports (the SV-text-driven testbench), push_display_for_ports, and a NEW pub fn run_agreement(work_dir, top_name, sv_text, n_vectors) -> DiffSimReport containing the verbatim run+compare pipeline (tools_present → parse_dut_ports → create work_dir → write dut.sv/tb.sv → run_iverilog/run_verilator → normalize_trace + byte-compare; friendly no-op when a simulator is absent). src/bin/tool_matrix.rs now imports DiffSimReport from the library and reduces run_diff_sim_for_module to a 2-line wrapper computing dir = scenario_dir.join("<stem>-diff-sim") and delegating to run_agreement(.., 8). Moved the two pure-unit tests (parse_dut_ports_recognises_anvil_emitter_shape, emit_testbench_for_ports_renders_combinational_and_sequential_shapes) into the diff_sim test module + added run_agreement_is_a_friendly_no_op_without_tools; kept the tool_matrix #[ignore] e2e gate (over the wrapper) + the coverage-fact test (over the imported type). The IR-driven emit_testbench stays canonical; unifying the two testbench emitters is a deferred cleanup (.2a is a byte-identical move, not a merge).`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test green — lib 502→505 (the 2 moved unit tests + the new friendly-no-op), tool_matrix 73→71 passed + the e2e gate ignored, tests/diff_sim.rs 2 passed/2 tool-gated, tests/snapshots.rs 6/6 byte-identical (DUT output unchanged ⇒ the refactor is provably byte-identical). No .snap change.`
+  Commit: `this BUG-HUNT-ORCHESTRATION.2a commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2b`
   Status: `pending`
@@ -110,11 +111,11 @@ this lane composes them into one bug-hunt orchestrator.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.2a` | `pending` | First impl step: a pure, byte-identical refactor extracting the diff-sim run+compare into `diff_sim::run_agreement` so the loop's cross-sim detector reuses a hardened surface. Orderable first; `.2b` may proceed reject/warning-only and fold this in. |
-| 2 | `BUG-HUNT-ORCHESTRATION.2b` | `pending` | The `src/hunt/` library core (`hunt::run`) + the reproducer-bundle emitter — the engine both the MCP tool (`.2c`) and the CLI (`.2d`) shim over. |
-| 3 | `BUG-HUNT-ORCHESTRATION.2c` | `pending` | The MCP `hunt` controlled tool (decision `0017` invocable + queryable). |
-| 4 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim + the byte-identical default-path guard. |
-| 5 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
+| 1 | `BUG-HUNT-ORCHESTRATION.2b` | `pending` | The `src/hunt/` library core (`hunt::run`) + the reproducer-bundle emitter — the engine both the MCP tool (`.2c`) and the CLI (`.2d`) shim over. With `.2a` done, the cross-sim detector is now a hardened `diff_sim::run_agreement` call. |
+| 2 | `BUG-HUNT-ORCHESTRATION.2c` | `pending` | The MCP `hunt` controlled tool (decision `0017` invocable + queryable). |
+| 3 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim + the byte-identical default-path guard. |
+| 4 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
+| — | `BUG-HUNT-ORCHESTRATION.2a` | `done` | Extracted the diff-sim run+compare into `diff_sim::run_agreement` (byte-identical; snapshots 6/6). |
 
 ## Decisions
 
@@ -160,6 +161,7 @@ this lane composes them into one bug-hunt orchestrator.
 | --- | --- | --- | --- |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.1` | `decision 0018 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row; check_memory_architecture OK; KM gen+check OK; docs-only (no src/) ⇒ DUT byte-identical` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2a` | `cargo check/test/clippy/fmt green; lib 502→505, tool_matrix 73→71+ignored, tests/diff_sim.rs 2 pass/2 gated, snapshots 6/6 byte-identical; run_agreement extracted; tool_matrix_report.json schema unchanged` | `done` |
 
 ## Commit Log
 
@@ -167,6 +169,7 @@ this lane composes them into one bug-hunt orchestrator.
 | --- | --- | --- |
 | `BUG-HUNT-ORCHESTRATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `BUG-HUNT-ORCHESTRATION.1` | `BUG-HUNT-ORCHESTRATION.1 — design ADR (decision 0018): turnkey fuzz→detect→minimize→bundle loop + MCP hunt tool + anvil hunt CLI` | Design/decision leaf (docs-only). Pins the loop/bundle/MCP+CLI/detection/sandbox; pre-splits `.2` into `.2a`…`.2e`. DUT byte-identical. |
+| `BUG-HUNT-ORCHESTRATION.2a` | `BUG-HUNT-ORCHESTRATION.2a — extract diff-sim run+compare into reusable diff_sim::run_agreement` | Pure byte-identical refactor; `src/diff_sim/` now owns `run_agreement` + `DiffSimReport` + the SV-text testbench; `tool_matrix` wraps it. First impl leaf of `.2`. |
 
 ## Changelog
 
@@ -175,3 +178,8 @@ this lane composes them into one bug-hunt orchestrator.
   pre-split `.2` into `.2a` (diff-sim extract), `.2b` (`src/hunt/` core), `.2c`
   (MCP `hunt` tool), `.2d` (`anvil hunt` CLI), `.2e` (real-tool gate + docs).
   Frontier advanced to `.2a`. Docs-only / DUT byte-identical.
+- `2026-06-17`: `.2a` done — extracted the diff-sim run+compare into
+  `anvil::diff_sim::run_agreement` (a byte-identical move; the bug-hunt loop and
+  `ACCEPTANCE-DIVERGENCE-HUNTING` now reuse it). `tool_matrix`'s
+  `run_diff_sim_for_module` is a thin wrapper; snapshots 6/6 byte-identical.
+  Frontier advanced to `.2b` (the `src/hunt/` core).

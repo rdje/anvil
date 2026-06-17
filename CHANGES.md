@@ -1,9 +1,60 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2a — extract diff-sim run+compare into reusable diff_sim::run_agreement
+
+**Landed as:** this commit (previous: `b8c1e8b`). **Pure, byte-identical
+refactor — first implementation leaf of decision `0018`'s pre-split `.2`.** The
+per-module diff-sim run+compare pipeline moves out of the `tool_matrix` binary
+into the `anvil::diff_sim` library so the bug-hunt loop (`.2b`) and the
+`ACCEPTANCE-DIVERGENCE-HUNTING` lane detect a cross-simulator mismatch through
+one hardened surface instead of duplicating the harness (the
+`AGENT-INTROSPECTION-MCP.5.1` downstream-extract precedent).
+
+**What changed (why)**
+
+- **`src/diff_sim/mod.rs`** — gained (all `pub`): the `DiffSimReport` struct
+  (serde shape unchanged), `DutPort` + `parse_dut_ports` (the strict-subset SV
+  port parser), `emit_testbench_for_ports` (the SV-text-driven testbench),
+  `push_display_for_ports`, and the new
+  `run_agreement(work_dir, top_name, sv_text, n_vectors) -> DiffSimReport` — the
+  verbatim run+compare pipeline (`tools_present` → `parse_dut_ports` → create
+  `work_dir` → write `dut.sv`/`tb.sv` → `run_iverilog`/`run_verilator` →
+  `normalize_trace` + byte-compare; friendly `ran:false` no-op when a simulator
+  is absent). The work dir is caller-supplied (sandbox stays caller-set, decision
+  `0004`); the baked-vector count is a parameter. The two pure-unit tests moved
+  here with their functions + a new `run_agreement_is_a_friendly_no_op_without_tools`.
+- **`src/bin/tool_matrix.rs`** — removed the local `DiffSimReport` struct +
+  `DutPort`/`parse_dut_ports`/`emit_testbench_for_ports`/`push_display_for_ports`;
+  added `use anvil::diff_sim::DiffSimReport;`; reduced `run_diff_sim_for_module`
+  to a 2-line wrapper computing `dir = scenario_dir.join("<stem>-diff-sim")` and
+  delegating to `diff_sim::run_agreement(.., 8)`. The `#[ignore]` e2e gate + the
+  coverage-fact test stay (now over the wrapper / the imported type).
+- **`CODEBASE_ANALYSIS.md`** — `diff_sim/` entry amended to record that it now
+  owns the run+compare pipeline (moved from the bin). **`DEVELOPMENT_NOTES.md`** —
+  a `.2a` entry (moved-not-merged; `run_agreement` work-dir signature; the two
+  testbench emitters stay, unification deferred). **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`**
+  + **`docs/TASK_TREE.md`** — `.2a` marked `done`, frontier → `.2b`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test` green — **lib 502→505** (the two
+  moved unit tests + the new friendly-no-op), **tool_matrix 73→71 passed + the
+  e2e gate ignored**, `tests/diff_sim.rs` 2 passed / 2 tool-gated, and
+  **`tests/snapshots.rs` 6/6 byte-identical** (DUT output unchanged ⇒ the refactor
+  is provably byte-identical; no `.snap` change).
+
+**Impact**
+
+- No user-visible / CLI behaviour change. `--diff-sim` behaves identically and
+  `tool_matrix_report.json`'s schema is unchanged. The reusable
+  `diff_sim::run_agreement` is the cross-sim detector the bug-hunt loop's `.2b`
+  will compose.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.1 — design ADR (decision 0018): turnkey fuzz→detect→minimize→bundle loop + MCP hunt tool + anvil hunt CLI
 
-**Landed as:** this commit (previous: `59f248c`). **Docs-only design/decision
+**Landed as:** `b8c1e8b` (previous: `59f248c`). **Docs-only design/decision
 leaf — no `src/` touched; DUT byte-identical.** PNT-selected the
 owner-recommended highest-leverage usability lane (idea 1). The `.1` design leaf
 pins the bug-hunt orchestration loop *before any code*, per the design-first
