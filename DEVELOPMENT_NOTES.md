@@ -5,6 +5,68 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Downstream adapter interface — a closed registry, not a plugin system — `DOWNSTREAM-ADAPTER-EXPANSION.1` (decision `0020`)
+
+The design ADR for making ANVIL's downstream reach pluggable. Rationales worth
+recording (the full argument is decision `0020`):
+
+- **"Pluggable" deliberately means a *closed, compile-time* registry, NOT a
+  runtime plugin.** The tempting reading of "let new tools plug in" is a dynamic /
+  loadable / agent-supplied-command adapter. That is rejected outright: it destroys
+  the decision-`0004` fixed-allow-list (the agent picks *which vetted kind* runs,
+  never *which binary* — `AcceptanceTool::binary()`) and breaks reproducibility /
+  auditability. The registry keeps the runnable set fixed at compile time and
+  reviewed; it only collapses "add a tool" from a sprawling cross-cutting edit
+  (a new `AcceptanceTool` variant + a `run_*` pair + a `first_tool_warning` arm + a
+  `match` arm in `validate` *and* `validate_tool_specs` *and* the `tool_matrix`
+  columns) into **one self-contained descriptor**. This is the same boundary
+  `0019.2f` drew for the version axis — adapters are emphatically not a back door to
+  caller-supplied binaries.
+
+- **The trait generalizes only what genuinely differs per tool: argv + the warning
+  predicate + an optional `extract_facts` hook.** Everything else is already shared
+  and must NOT be re-implemented per tool — `run_tool` is the one sandboxed runner,
+  `tool_verdict` is the one accept/warn/reject classifier (extracted at `0019.2a`),
+  `prepare_dut_sandbox`/`MemGuard` are the one sandbox/decline lifecycle. One runner,
+  one classifier (`feedback_full_factorization`). The payoff is structural: because
+  the verdict is unchanged, every new adapter becomes a new comparable verdict in
+  `divergence::run` and a new selectable tool in `hunt`/`validate` **for free** —
+  the adapter expansion multiplies the bug-surface across all three detector
+  surfaces without touching any of them. That compounding is the lane's reason to
+  exist.
+
+- **Byte-identical built-ins are a hard constraint, not an aspiration.** Banked
+  `tool_matrix` reports and `--resume` checkpoints key off the literal
+  `ToolInvocation.tool` labels (`"verilator"`, the `yosys-<mode>` rows,
+  `"iverilog-compile"`) and the exact argv. So re-expressing the three built-ins as
+  the first registry entries must reproduce those byte-for-byte; new adapters add
+  *new* rows/columns only, opt-in. `AcceptanceTool` is not retired
+  (`feedback_never_retire_strategies`) — it stays the canonical built-in identity.
+
+- **`sv2v` first, `slang` second — minimal-surface-first.** Live-toolchain probe
+  this session: `slang`/`sv2v`/`surelog`/`svlint`/`verible`/`moore` all **absent**
+  (only verilator 5.046 / yosys 0.64 / iverilog 13.0 present). With nothing
+  installed, the choice is on shape: `sv2v` is the *minimal* adapter (a pure
+  accept/reject transpile column — no fact hook), so it proves the whole trait
+  end-to-end in the smallest leaf; `slang` is the *richer* one (strict elaborator +
+  `--ast-json`), so it lands the optional `extract_facts` hook (the
+  `tests/frontend_parity.rs` Verilator-JSON-AST precedent). Both absent ⇒ ship
+  structural + a friendly `tools_present()`-style no-op + an `#[ignore]` tool-gated
+  real-tool gate (the `sv_version_downstream` / `hunt_e2e` / `divergence_e2e`
+  precedent), upgraded to a banked proof once `brew install sv2v` / `slang` is run.
+  This is the `0019` "reject/warning first, fold the richer axis in later" cadence.
+
+- **API-completeness (`0017`) without a new MCP tool.** Adapters ride the existing
+  surfaces: selectable through the existing `tools: [...]` arg (the same
+  allow-listed `from_name` path — unknown ⇒ a clean `-32602`, never a spawn) and
+  queryable through the existing `ValidateReport`/`DivergenceReport`/matrix columns.
+  The one genuinely-new API piece is an **adapter-catalog** projection
+  (`{ id, binary, present, supports_facts }`) so an agent can *discover which tools
+  exist and which are installed* over the API alone — the decision-`0017` "drive it
+  with only the MCP API" test. An adapter's richer facts are a SCHEMA-DERIVED
+  projection of *its own tool's* output (e.g. slang's AST), never an ANVIL
+  behavioural oracle — the `0004` ceiling holds.
+
 ## 2026-06-17 — Acceptance-divergence hunting — the version-axis trust boundary + the e2e gate shape — `ACCEPTANCE-DIVERGENCE-HUNTING.2f`
 
 The closing leaf. Two durable rationales worth recording:

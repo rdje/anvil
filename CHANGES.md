@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — DOWNSTREAM-ADAPTER-EXPANSION.1 — adapter-interface design ADR (decision 0020)
+
+**Landed as:** this commit (previous: `6a441f7`). **Docs-only — no `src/` touched ⇒
+DUT byte-identical** (`tests/snapshots.rs` untouched). The `.1` design/decision leaf
+of the owner-directed usability lane 3 (north-star idea 3): pin the pluggable
+downstream-adapter interface before any code (task-tree doctrine — design-first ADR).
+
+**What changed (why)**
+
+ANVIL's downstream surface is a fixed allow-list of exactly three tools
+(`AcceptanceTool { Verilator, Yosys, Iverilog }` + a bespoke `run_*` pair each), so
+adding a fourth is a sprawling cross-cutting edit. Decision `0020` makes the reach
+**pluggable through a closed, compile-time `Adapter` registry** layered over the one
+`run_tool` runner + the one `tool_verdict` classifier — *not* a runtime plugin and
+*not* an agent-supplied command, so the decision-`0004` fixed-allow-list holds.
+
+- **`docs/decisions/0020-downstream-adapter-interface.md`** (new) — the ADR. Pins:
+  (1) the `Adapter` trait/registry shape — the trait carries only `module_argv` /
+  `design_argv` + a `warning` predicate (generalizing `first_tool_warning`) + an
+  **optional** SCHEMA-DERIVED `extract_facts` hook; every adapter reuses the
+  unchanged `run_tool` + `tool_verdict` (no second runner, no second classifier).
+  (2) Built-ins re-expressed **byte-identically** (`AcceptanceTool` not retired; the
+  `"verilator"` / `yosys-<mode>` / `"iverilog-compile"` labels + argv are a hard
+  byte-identical constraint for banked `tool_matrix` reports + `--resume`).
+  (3) Because the verdict is unchanged, every added column becomes a new comparable
+  verdict in `divergence::run` (decision `0019`) + a new selectable tool in
+  `hunt`/`validate` **for free** — the expansion multiplies the bug-surface across
+  all three detector surfaces without touching them.
+  (4) First adapter = **`sv2v`** (`.2b`, minimal accept/reject transpile column),
+  second = **`slang`** (`.2c`, the JSON-AST `extract_facts` hook) — resolved against
+  a live-toolchain probe (`slang`/`sv2v`/`surelog` all **absent**; only
+  verilator 5.046 / yosys 0.64 / iverilog 13.0 present), so the first cuts ship
+  structural + a friendly absent-tool no-op + an `#[ignore]` real-tool gate.
+  (5) API-completeness (decision `0017`) without a new MCP tool: adapters selectable
+  via the existing `tools` arg, queryable via the existing reports + a new
+  SCHEMA-DERIVED **adapter-catalog** projection; CLI a shim. (6) Allow-list / sandbox
+  / RAM-guard / audit (`0004`) + the `0019.2f` caller-supplied-binary library-only
+  boundary preserved.
+- **`docs/decisions/INDEX.md`** — added the `0020` row.
+- **`docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`** — `.1` marked `done`; `.2`
+  pre-split into `.2a` (registry refactor + adapter-catalog query) / `.2b` (sv2v) /
+  `.2c` (slang); frontier advanced to `.2a`; open questions resolved; verification +
+  commit log + changelog updated.
+- **`docs/TASK_TREE.md`** — the lane's index row updated with the `.1`-done summary
+  and the new `.2a` frontier.
+- **`DEVELOPMENT_NOTES.md`** — a dated entry on the closed-registry-not-plugin
+  rationale, the one-runner/one-classifier constraint, the byte-identical built-in
+  constraint, the `sv2v`-first / `slang`-second minimal-surface ordering, and the
+  decision-`0017` adapter-catalog discoverability piece.
+
+**Validation**
+
+Docs-only / DUT byte-identical (no `src/`, `tests/`, or `examples/` touched —
+`tests/snapshots.rs` untouched). `scripts/check_memory_architecture.sh` green; the
+Knowledge Map regenerated + `scripts/check_knowledge_map.sh` green (decision `0020`'s
+`answers:` front-matter folds into `KNOWLEDGE_MAP.md`); `mdbook build book` clean.
+Full `cargo test` intentionally not run — no code change (owner resource policy;
+decision `0003`).
+
+**Impact**
+
+No behavioural change. The pluggable-adapter design is now pinned and the impl
+(`.2a`/`.2b`/`.2c`) is owned and ordered. Default `anvil` build / `--artifact dut`
+byte-identical.
+
+**Files touched:** `docs/decisions/0020-downstream-adapter-interface.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md` (lane-3 `.1`-done annotation),
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-06-17 — BOOK-API-REFERENCE.1 — comprehensive industry-standard API reference in the mdBook
 
 **Landed as:** this commit (previous: `5d3c430`). **Pure-mdBook docs — no `src/`

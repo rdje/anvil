@@ -2501,6 +2501,23 @@ other five remain `active` with a design-first `.1` ADR frontier:
    `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).
+   **`.1` design ADR done (`2026-06-17`, decision
+   [`0020`](docs/decisions/0020-downstream-adapter-interface.md)):** the reach
+   becomes pluggable through a **closed, compile-time `Adapter` registry** over the
+   one `run_tool` runner + the one `tool_verdict` classifier (the trait carries only
+   argv + a warning predicate + an optional SCHEMA-DERIVED `extract_facts` hook;
+   built-ins re-expressed byte-identically, `AcceptanceTool` not retired). The
+   verdict is unchanged, so every added column is a new comparable verdict in
+   `divergence::run` + a new selectable tool in `hunt`/`validate` **for free**.
+   First adapter = **`sv2v`** (`.2b`, accept/reject transpile column); second =
+   **`slang`** (`.2c`, JSON-AST fact hook) — live probe found `slang`/`sv2v`/
+   `surelog` absent, so first cuts ship structural + a friendly no-op + an
+   `#[ignore]` real-tool gate. API-completeness (`0017`): selectable via the existing
+   `tools` arg, queryable via the existing reports + a new adapter-catalog
+   projection; allow-list/sandbox (`0004`) + the `0019.2f` caller-supplied-binary
+   library-only boundary preserved. `.2` pre-split → `.2a` (registry refactor +
+   catalog) / `.2b` (sv2v) / `.2c` (slang); `.2d+` future. Default-off / DUT
+   byte-identical.
 4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full
    MCP knob steerability + an API-queryable knob catalog & preset registry.
 5. `CI-PACKAGING-DISTRIBUTION` — prebuilt binaries + a drop-in GitHub Action for
