@@ -2,13 +2,17 @@ use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
     SvVersion,
 };
-// AGENT-INTROSPECTION-MCP.5.1 — the hardened downstream-tool invocations now
-// live in the library (`anvil::downstream`) so the agent `validate`/`minimize`
-// tools reuse the same vetted command lines. This binary `use`s them instead
-// of defining them; the serialized `ToolInvocation` shape is unchanged.
+// AGENT-INTROSPECTION-MCP.5.1 — the hardened downstream-tool invocations live in
+// the library (`anvil::downstream`) so the agent `validate`/`minimize` tools
+// reuse the same vetted command lines. `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` routes
+// this binary's per-unit acceptance columns through the closed `Adapter` registry
+// too (`AcceptanceTool::adapter().run(&AdapterRunCx{..})`) rather than calling the
+// `run_*` primitives directly — byte-identical, because each built-in adapter
+// delegates verbatim to those primitives, so the serialized `ToolInvocation`
+// shape (and banked reports + `--resume`) stay unchanged.
 use anvil::downstream::{
-    run_iverilog_compile, run_iverilog_compile_design, run_verilator, run_verilator_design,
-    run_yosys, run_yosys_design, yosys_mode_slug, ToolInvocation, ValidateReport, YosysMode,
+    yosys_mode_slug, AcceptanceTool, AdapterRunCx, AdapterTarget, ToolInvocation, ValidateReport,
+    YosysMode,
 };
 // ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the opt-in acceptance-divergence column
 // reuses the one shared detector in `anvil::divergence`: `classify_report`
@@ -5365,31 +5369,51 @@ fn run_module_tools(
     Vec<ToolInvocation>,
     Option<ToolInvocation>,
 )> {
+    // Dispatch each fixed column through the closed adapter registry
+    // (`DOWNSTREAM-ADAPTER-EXPANSION.2a.3`, decision `0020`) instead of calling
+    // the `run_*` primitives directly. Byte-identical: each built-in adapter's
+    // `run` delegates verbatim to the same primitive with the same binary /
+    // out_dir / Yosys mode / `--language` selector, so the fixed
+    // verilator/yosys/iverilog_compile columns — and banked reports + `--resume`
+    // — are unchanged. Routing through the registry is the bridge that makes a
+    // new acceptance column (`sv2v`, `.2b`) a near-one-line registry add.
+    let target = AdapterTarget::Module { sv_path, stem };
+    let run_column = |tool: AcceptanceTool,
+                      binary: &str,
+                      language: Option<&str>|
+     -> Result<Vec<ToolInvocation>> {
+        let cx = AdapterRunCx {
+            binary,
+            out_dir: scenario_dir,
+            target,
+            yosys_mode: cli.yosys_mode,
+            language,
+        };
+        tool.adapter().run(&cx)
+    };
+
     let verilator = if cli.skip_verilator {
         None
     } else {
-        Some(run_verilator(
+        run_column(
+            AcceptanceTool::Verilator,
             &cli.verilator_bin,
-            scenario_dir,
-            sv_path,
-            stem,
             verilator_language,
-        )?)
+        )?
+        .into_iter()
+        .next()
     };
 
     let yosys = if cli.skip_yosys || verilator_only {
         Vec::new()
     } else {
-        run_yosys(cli.yosys_mode, &cli.yosys_bin, scenario_dir, sv_path, stem)?
+        run_column(AcceptanceTool::Yosys, &cli.yosys_bin, None)?
     };
 
     let iverilog_compile = if cli.iverilog_compile && !verilator_only {
-        Some(run_iverilog_compile(
-            &cli.iverilog_bin,
-            scenario_dir,
-            sv_path,
-            stem,
-        )?)
+        run_column(AcceptanceTool::Iverilog, &cli.iverilog_bin, None)?
+            .into_iter()
+            .next()
     } else {
         None
     };
@@ -5427,37 +5451,52 @@ fn run_design_tools(
         .and_then(|module| module.sv_path.parent())
         .context("prepared design missing scenario directory")?;
 
+    // Dispatch each fixed column through the closed adapter registry
+    // (`DOWNSTREAM-ADAPTER-EXPANSION.2a.3`, decision `0020`), exactly as
+    // `run_module_tools` does for the leaf path. Byte-identical: each built-in
+    // adapter delegates verbatim to the same `run_*_design` primitive, so the
+    // fixed verilator/yosys/iverilog_compile design columns — and banked reports
+    // + `--resume` — are unchanged.
+    let target = AdapterTarget::Design {
+        sv_paths: &sv_paths,
+        top: &prepared.top,
+    };
+    let run_column = |tool: AcceptanceTool,
+                      binary: &str,
+                      language: Option<&str>|
+     -> Result<Vec<ToolInvocation>> {
+        let cx = AdapterRunCx {
+            binary,
+            out_dir: scenario_dir,
+            target,
+            yosys_mode: cli.yosys_mode,
+            language,
+        };
+        tool.adapter().run(&cx)
+    };
+
     let verilator = if cli.skip_verilator {
         None
     } else {
-        Some(run_verilator_design(
+        run_column(
+            AcceptanceTool::Verilator,
             &cli.verilator_bin,
-            scenario_dir,
-            &sv_paths,
-            &prepared.top,
             verilator_language,
-        )?)
+        )?
+        .into_iter()
+        .next()
     };
 
     let yosys = if cli.skip_yosys {
         Vec::new()
     } else {
-        run_yosys_design(
-            cli.yosys_mode,
-            &cli.yosys_bin,
-            scenario_dir,
-            &sv_paths,
-            &prepared.top,
-        )?
+        run_column(AcceptanceTool::Yosys, &cli.yosys_bin, None)?
     };
 
     let iverilog_compile = if cli.iverilog_compile {
-        Some(run_iverilog_compile_design(
-            &cli.iverilog_bin,
-            scenario_dir,
-            &sv_paths,
-            &prepared.top,
-        )?)
+        run_column(AcceptanceTool::Iverilog, &cli.iverilog_bin, None)?
+            .into_iter()
+            .next()
     } else {
         None
     };

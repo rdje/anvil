@@ -5,6 +5,34 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — Routing the matrix columns through the adapter registry — fixed columns, per-column dispatch — `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
+
+`.2a.3` routed the last two downstream callers (`validate_tool_specs`/`run_tool_spec`
+and the `tool_matrix` `run_module_tools`/`run_design_tools` columns) through the closed
+`Adapter` registry. Two choices worth recording for the `.2b` (`sv2v`) follow-up:
+
+- **The matrix keeps *fixed, named* columns — it does NOT iterate the registry to build a
+  dynamic column list.** `ModuleReport`/`DesignReport` have hard-coded `verilator: Option<…>`,
+  `yosys: Vec<…>`, `iverilog_compile: Option<…>` fields, and those exact field names +
+  the `"verilator"`/`"yosys-<mode>"`/`"iverilog-compile"` labels are a byte-identical
+  constraint for banked reports + `--resume` (decision `0020`). So "route through the
+  registry" means *per-column dispatch* — each column looks up its adapter via
+  `AcceptanceTool::{Verilator,Yosys,Iverilog}.adapter()` and calls `.run(&cx)` — not a loop
+  over `adapters()`. Adding `sv2v` (`.2b`) is therefore a registry entry **plus** a new
+  named column field **plus** one `run_column` line; the registry makes the *invocation*
+  one line, but the report still grows a typed column (that is intentional — typed columns
+  are what keep the serialized shape a stable wire contract).
+- **The Yosys version-axis `Both`→single collapse must happen BEFORE the adapter, not
+  after.** `YosysAdapter::run` faithfully emits *two* `ToolInvocation`s for
+  `YosysMode::Both` (that is correct for the matrix, where both modes are columns). But the
+  tool-version-vs-version axis (`run_tool_spec`) wants exactly *one* invocation per spec —
+  comparing the two Yosys modes is the cross-tool axis, not the version axis. So
+  `run_tool_spec` collapses `Both`→`WithoutAbc` into `cx.yosys_mode` *before* calling the
+  adapter, then takes `.into_iter().next()`. The new proof
+  `validate_tool_specs_routes_each_kind_through_its_adapter_single_row` pins this (one row
+  per spec under `Both`), because it is the one place the registry routing could silently
+  change row counts.
+
 ## 2026-06-17 — Adapter catalog — a live `present` probe inside an otherwise-static catalog read — `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`
 
 The `anvil://catalog/adapters` resource projects the registry as `{id, binary,

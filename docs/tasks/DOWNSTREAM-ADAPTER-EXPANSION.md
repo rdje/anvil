@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / breadth — more downstream tool reach (north star, idea 3)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.2a.2` done — `anvil://catalog/adapters` resource; frontier `.2a.3`)
+- Last updated: `2026-06-18` (`.2a.3` done — `validate_tool_specs` + the `tool_matrix` columns routed through the adapter registry; `.2a` complete; frontier `.2b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -84,11 +84,12 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Route validate_tool_specs (version axis, single-yosys-mode, caller-supplied binary) and the tool_matrix per-unit invocation (run_module_tools/run_design_tools) through the registry, keeping the fixed ModuleReport/DesignReport columns + banked reports + --resume byte-identical. This is the bridge that makes adding a new adapter column (sv2v at .2b) a near-one-line registry add.`
-  Acceptance: `pending (refine at pick)`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `(1) downstream::run_tool_spec dispatches via spec.kind.adapter().run(&AdapterRunCx{..}) instead of the hard-coded match spec.kind, byte-identical: each spec still yields exactly one ToolInvocation, the Yosys version axis still collapses Both -> WithoutAbc to a single row, and the relabel + tool_version stamp stay in validate_tool_specs. (2) tool_matrix run_module_tools/run_design_tools build one AdapterTarget (Module/Design) + per-column AdapterRunCx and dispatch each fixed column through AcceptanceTool::{Verilator,Yosys,Iverilog}.adapter().run(&cx); the verilator/yosys/iverilog_compile columns, skip flags, verilator_only no-op, --language selector, and Yosys-mode row count are byte-identical, so banked reports + --resume + snapshots are untouched. (3) the now-unused run_* primitive imports are dropped from tool_matrix.rs (clippy -D warnings clean). (4) a downstream lib proof asserts the per-kind single-row routing incl. the Yosys Both->single collapse. Gate: cargo check --all-targets; cargo test --lib (+1 proof); snapshots 6/6; tool_matrix tests; clippy -D warnings; fmt --check; default-off / DUT byte-identical.`
+  Result: `Landed the registry routing for the two remaining downstream callers, both byte-identical. (a) src/downstream/mod.rs: run_tool_spec replaced its hard-coded match spec.kind with one AdapterTarget (Module/Design) + AdapterRunCx{binary=spec.binary, yosys_mode=single (Both->WithoutAbc collapse kept), language=None} dispatched via spec.kind.adapter().run(&cx).into_iter().next() (+ a generalized defensive fallback, still unreachable for the built-ins); the relabel + tool_version stamp stay in validate_tool_specs. (b) src/bin/tool_matrix.rs: run_module_tools + run_design_tools each build one AdapterTarget + a per-column run_column closure dispatching through AcceptanceTool::{Verilator,Yosys,Iverilog}.adapter().run(&cx), preserving the fixed verilator/yosys/iverilog_compile columns, skip flags, verilator_only Verilator-only no-op, the --language selector, and the Yosys-mode row count; the six now-unused run_* primitive imports were dropped (the primitives stay live behind the adapters). So adding sv2v (.2b) is now a registry entry + a column field + a routing line — no new invocation site. Default-off / DUT byte-identical (snapshots 6/6 untouched).`
+  Verification: `cargo check --all-targets clean; cargo test --lib 547/0 (+1: validate_tool_specs_routes_each_kind_through_its_adapter_single_row — proves the Yosys Both->single collapse survives the registry routing); tests/snapshots.rs 6/6 byte-identical; cargo test --bin tool_matrix 75/0; anvil bin + pipeline + divergence_e2e (portable divergence path exercises the rerouted validate_tool_specs) exit 0; clippy --all-targets -D warnings clean; fmt --all --check clean; mdbook build clean; check_memory_architecture + KM gen/check green. Heavy steps RAM-guarded (decision 0003).`
+  Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2b`
   Status: `pending`
@@ -108,13 +109,14 @@ with its results queryable over MCP. Builds on the hardened
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `pending` | Route `validate_tool_specs` + the `tool_matrix` columns through the registry (byte-identical fixed columns) — the bridge that makes adding `sv2v` a near-one-line registry add. |
-| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). |
-| 3 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
+| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). Now a near-one-line registry add: `.2a.3` routed every downstream caller (`validate`, `validate_tool_specs`, the `tool_matrix` columns) through the registry. |
+| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
 
 Done: `.1` (design ADR, decision `0020`); `.2a.1` (the closed `Adapter` registry
 core + `validate` routed through it, byte-identical); `.2a.2` (the
-`anvil://catalog/adapters` discoverability resource, decision `0017`).
+`anvil://catalog/adapters` discoverability resource, decision `0017`); `.2a.3`
+(`validate_tool_specs` + the `tool_matrix` per-unit columns routed through the
+registry, byte-identical — `.2a` complete).
 
 ## Decisions
 
@@ -166,6 +168,7 @@ core + `validate` routed through it, byte-identical); `.2a.2` (the
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.1` | `docs-only / DUT byte-identical (no src/); decision 0020 + INDEX + tree + TASK_TREE.md + DEVELOPMENT_NOTES; live-toolchain probe (slang/sv2v/surelog absent); check_memory_architecture + KM gen/check green; mdbook build clean` | `done` |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `cargo check --all-targets clean; cargo test --lib 545/0 (+2 registry proofs); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil 12/0; clippy -D warnings clean; fmt --check clean; DUT byte-identical (umbrella + snapshots); RAM-guarded` | `done` |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `cargo test --lib 546/0 (+1 catalog proof); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt --check clean; mdbook build clean; book_examples 3/3; no introspection SCHEMA_VERSION bump; DUT byte-identical; RAM-guarded` | `done` |
+| `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `cargo check --all-targets clean; cargo test --lib 547/0 (+1: validate_tool_specs_routes_each_kind_through_its_adapter_single_row); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil+pipeline+divergence_e2e exit 0; clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green; DUT byte-identical; RAM-guarded` | `done` |
 
 ## Commit Log
 
@@ -175,6 +178,7 @@ core + `validate` routed through it, byte-identical); `.2a.2` (the
 | `DOWNSTREAM-ADAPTER-EXPANSION.1` | `DOWNSTREAM-ADAPTER-EXPANSION.1 — adapter-interface ADR (decision 0020)` | Design ADR (`412e5ff`); pre-split `.2` → `.2a`/`.2b`/`.2c`; frontier advances to `.2a`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1 — closed Adapter registry in src/downstream` | The registry core + `validate` routed through it, byte-identical. `.2a` split into `.2a.1`/`.2a.2`/`.2a.3`; frontier advances to `.2a.2`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2 — anvil://catalog/adapters discoverability resource` | The SCHEMA-DERIVED adapter catalog over MCP (decision `0017`); `Adapter::supports_facts` + `AdapterInfo`/`adapter_catalog()`. Frontier advances to `.2a.3`. |
+| `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3 — route validate_tool_specs + tool_matrix columns through the adapter registry` | The last two downstream callers (`validate_tool_specs` via `run_tool_spec`; the `tool_matrix` `run_module_tools`/`run_design_tools` columns) routed through the registry, byte-identical; six now-unused `run_*` imports dropped from `tool_matrix.rs`. `.2a` complete; frontier advances to `.2b` (sv2v). |
 
 ## Changelog
 
@@ -198,3 +202,18 @@ core + `validate` routed through it, byte-identical); `.2a.2` (the
   book synced (`api-resources-prompts.md` + `agent-mcp.md`). No introspection schema
   bump. Gate green (lib 546/0, snapshots 6/6, clippy/fmt, mdbook, book_examples 3/3).
   Frontier advanced to `.2a.3`.
+- `2026-06-18`: **`.2a.3` done** — routed the two remaining downstream callers through
+  the closed `Adapter` registry, completing `.2a`. `downstream::run_tool_spec` (the
+  `validate_tool_specs` version axis) now dispatches via `spec.kind.adapter().run(&cx)`
+  with the Yosys `Both`→single collapse preserved and the relabel + `tool_version` stamp
+  still in `validate_tool_specs`; `tool_matrix`'s `run_module_tools` / `run_design_tools`
+  dispatch each fixed `verilator`/`yosys`/`iverilog_compile` column through
+  `AcceptanceTool::*.adapter().run(&cx)` (one `AdapterTarget` + a per-column
+  `run_column` closure), with the skip flags / `verilator_only` no-op / `--language`
+  selector / Yosys-mode row count all preserved; the six now-unused `run_*` primitive
+  imports were dropped from `tool_matrix.rs` (the primitives stay live behind the
+  adapters). Byte-identical: fixed columns + banked reports + `--resume` + snapshots 6/6
+  untouched. Adding `sv2v` (`.2b`) is now a registry entry + a column field + a routing
+  line. Gate green (lib 547/0 +1 routing proof, snapshots 6/6, tool_matrix 75/0,
+  anvil+pipeline+divergence_e2e exit 0, clippy/fmt, mdbook, check_memory_architecture +
+  KM). Frontier advanced to `.2b`.

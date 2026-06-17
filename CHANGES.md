@@ -1,9 +1,72 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — DOWNSTREAM-ADAPTER-EXPANSION.2a.3 — route `validate_tool_specs` + the `tool_matrix` columns through the adapter registry (decision 0020)
+
+**Landed as:** this commit (previous: `f1388af`). **Code change — `src/downstream/mod.rs`
++ `src/bin/tool_matrix.rs`; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6
+untouched; no introspection `SCHEMA_VERSION` bump). Completes `DOWNSTREAM-ADAPTER-EXPANSION.2a`
+(leaf `.2a.3`).
+
+**What changed (why)**
+
+`.2a.1` introduced the closed `Adapter` registry and routed `downstream::validate` through
+`tool.adapter().run(&cx)`; `.2a.2` added the discoverability catalog. Two downstream
+callers still invoked the `run_*` primitives directly: the tool-version-vs-version axis
+(`validate_tool_specs` → `run_tool_spec`) and the `tool_matrix` per-unit columns
+(`run_module_tools` / `run_design_tools`). This slice routes both through the registry, so
+the registry is the single home every downstream caller dispatches through — the bridge
+that makes adding the first new adapter (`sv2v`, `.2b`) a near-one-line registry add rather
+than a fourth invocation site to wire up.
+
+- **`src/downstream/mod.rs`** — `run_tool_spec` replaced its hard-coded `match spec.kind`
+  with one `AdapterTarget` (Module/Design) + an `AdapterRunCx { binary = spec.binary,
+  yosys_mode = single (the `Both`→`WithoutAbc` version-axis collapse kept), language = None }`
+  dispatched via `spec.kind.adapter().run(&cx).into_iter().next()` (with a generalized
+  defensive fallback, still unreachable for the built-ins). The relabel + `tool_version`
+  stamp stay in `validate_tool_specs`. The allow-listed `ToolSpec::kind` still fixes the
+  vetted argv + warning detection; the caller-supplied binary stays library-only
+  (decision `0019.2f`).
+- **`src/bin/tool_matrix.rs`** — `run_module_tools` and `run_design_tools` each build one
+  `AdapterTarget` (`Module` / `Design`) + a per-column `run_column` closure that dispatches
+  through `AcceptanceTool::{Verilator,Yosys,Iverilog}.adapter().run(&cx)`, preserving the
+  fixed `verilator` / `yosys` / `iverilog_compile` columns, the skip flags, the
+  `verilator_only` Verilator-only no-op, the `--language` selector, and the Yosys-mode row
+  count. The six now-unused `run_*` primitive imports were dropped (the primitives stay
+  live behind the adapters).
+
+Byte-identical because each built-in adapter's `run` delegates **verbatim** to the same
+`run_*` primitive: same binary / out_dir / Yosys mode / `--language` / argv / order, so the
+serialized `ToolInvocation` shape — and therefore banked `tool_matrix` reports + `--resume`
+checkpoints + `tests/snapshots.rs` — are unchanged.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo test --lib` **547/0** (+1:
+`validate_tool_specs_routes_each_kind_through_its_adapter_single_row`, which proves the
+Yosys `Both`→single collapse survives the registry routing and each kind yields exactly one
+relabeled row); `tests/snapshots.rs` **6/6** byte-identical; `cargo test --bin tool_matrix`
+**75/0**; `cargo test --bin anvil --test pipeline --test divergence_e2e` exit 0 (the portable
+`divergence_e2e` test exercises the rerouted `validate_tool_specs` path); `cargo clippy
+--all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book`
+clean; `check_memory_architecture.sh` + KM gen/check green. Heavy steps RAM-guarded
+(decision `0003`).
+
+**Impact**
+
+No user-visible change: default-off / DUT byte-identical; no CLI flag, knob, or report-shape
+change. Internal refactor only — every `src/downstream` caller now dispatches through the
+closed `Adapter` registry, completing `.2a`. Frontier advances to `.2b` (`sv2v`).
+
+**Files touched**
+
+`src/downstream/mod.rs`, `src/bin/tool_matrix.rs`,
+`docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`.
+
 ## 2026-06-17 — DOWNSTREAM-ADAPTER-EXPANSION.2a.2 — `anvil://catalog/adapters` discoverability resource (decision 0017)
 
-**Landed as:** this commit (previous: `c5d0fac`). **Code change — `src/downstream/mod.rs`
+**Landed as:** `f1388af` (previous: `c5d0fac`). **Code change — `src/downstream/mod.rs`
 + `src/mcp/mod.rs` + book; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6
 untouched; no introspection `SCHEMA_VERSION` bump). The adapter-catalog discoverability
 surface (owned by leaf `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`).

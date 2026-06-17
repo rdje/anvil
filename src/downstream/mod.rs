@@ -1098,70 +1098,61 @@ pub fn validate_tool_specs(
 }
 
 /// Run one [`ToolSpec`] (caller-supplied binary, allow-listed kind) over the
-/// sandboxed DUT, producing exactly one [`ToolInvocation`] via the vetted `run_*`
-/// primitives. Yosys runs in a single mode for the version axis (`Both` →
-/// `WithoutAbc`); a single mode yields exactly one invocation, so the defensive
-/// fallback is unreachable in practice.
+/// sandboxed DUT, producing exactly one [`ToolInvocation`] — dispatched through
+/// the closed adapter registry (`DOWNSTREAM-ADAPTER-EXPANSION.2a.3`, decision
+/// `0020`) via [`AcceptanceTool::adapter`] rather than a hard-coded `match
+/// spec.kind`. Byte-identical to the prior per-kind match: each built-in
+/// adapter's [`Adapter::run`] delegates verbatim to the same vetted `run_*`
+/// primitive, and Yosys runs in a single mode for the version axis (`Both` →
+/// `WithoutAbc`) — comparing the two Yosys modes is the cross-tool axis, not the
+/// version axis — so it yields exactly one invocation and the defensive fallback
+/// stays unreachable in practice. The caller-supplied binary stays library-only
+/// (decision `0019.2f`); the allow-listed [`ToolSpec::kind`] still fixes the
+/// vetted argv + warning detection.
 fn run_tool_spec(
     spec: &ToolSpec,
     yosys_mode: YosysMode,
     sb: &DutSandbox,
     is_design: bool,
 ) -> Result<ToolInvocation> {
-    match spec.kind {
-        AcceptanceTool::Verilator => {
-            if is_design {
-                run_verilator_design(
-                    &spec.binary,
-                    &sb.dir,
-                    std::slice::from_ref(&sb.sv_path),
-                    &sb.top,
-                    None,
-                )
-            } else {
-                run_verilator(&spec.binary, &sb.dir, &sb.sv_path, &sb.top, None)
-            }
+    let single_yosys_mode = match yosys_mode {
+        YosysMode::WithAbc => YosysMode::WithAbc,
+        YosysMode::WithoutAbc | YosysMode::Both => YosysMode::WithoutAbc,
+    };
+    let target = if is_design {
+        AdapterTarget::Design {
+            sv_paths: std::slice::from_ref(&sb.sv_path),
+            top: &sb.top,
         }
-        AcceptanceTool::Iverilog => {
-            if is_design {
-                run_iverilog_compile_design(
-                    &spec.binary,
-                    &sb.dir,
-                    std::slice::from_ref(&sb.sv_path),
-                    &sb.top,
-                )
-            } else {
-                run_iverilog_compile(&spec.binary, &sb.dir, &sb.sv_path, &sb.top)
-            }
+    } else {
+        AdapterTarget::Module {
+            sv_path: &sb.sv_path,
+            stem: &sb.top,
         }
-        AcceptanceTool::Yosys => {
-            let single = match yosys_mode {
-                YosysMode::WithAbc => YosysMode::WithAbc,
-                YosysMode::WithoutAbc | YosysMode::Both => YosysMode::WithoutAbc,
-            };
-            let invs = if is_design {
-                run_yosys_design(
-                    single,
-                    &spec.binary,
-                    &sb.dir,
-                    std::slice::from_ref(&sb.sv_path),
-                    &sb.top,
-                )?
-            } else {
-                run_yosys(single, &spec.binary, &sb.dir, &sb.sv_path, &sb.top)?
-            };
-            Ok(invs.into_iter().next().unwrap_or_else(|| ToolInvocation {
-                tool: "yosys".to_string(),
-                argv: vec![spec.binary.clone()],
-                success: false,
-                exit_code: None,
-                stdout_log: None,
-                stderr_log: None,
-                error: Some("yosys produced no invocation".to_string()),
-                version: None,
-            }))
-        }
-    }
+    };
+    let cx = AdapterRunCx {
+        binary: &spec.binary,
+        out_dir: &sb.dir,
+        target,
+        yosys_mode: single_yosys_mode,
+        language: None,
+    };
+    Ok(spec
+        .kind
+        .adapter()
+        .run(&cx)?
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| ToolInvocation {
+            tool: spec.kind.binary().to_string(),
+            argv: vec![spec.binary.clone()],
+            success: false,
+            exit_code: None,
+            stdout_log: None,
+            stderr_log: None,
+            error: Some(format!("{} produced no invocation", spec.kind.binary())),
+            version: None,
+        }))
 }
 
 fn decline_message(reason: &AbortReason) -> String {
@@ -2057,6 +2048,58 @@ mod tests {
         assert!(!report.ok);
         assert!(report.declined.is_none());
         // Default keep_sandbox = false ⇒ the shared sandbox is removed.
+        assert!(!Path::new(&report.sandbox).exists());
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` — `validate_tool_specs` dispatches each
+    /// caller-supplied spec through the closed adapter registry
+    /// (`spec.kind.adapter().run(&cx)`), byte-identical to the prior hard-coded
+    /// `match spec.kind`: every kind — Verilator, Yosys, **and** Iverilog —
+    /// contributes exactly one relabeled row, and the Yosys version axis collapses
+    /// `Both` to a single `without-abc` invocation (not the two rows
+    /// `YosysAdapter::run` would emit for `Both`), so the row count stays
+    /// one-per-spec. Portable: missing binaries can't spawn, so no real tool is
+    /// required.
+    #[test]
+    fn validate_tool_specs_routes_each_kind_through_its_adapter_single_row() {
+        let cfg = Config {
+            seed: 13,
+            ..Config::default()
+        };
+        let opts = ValidateOptions {
+            tools: vec![], // ignored on this path — the specs drive the run
+            // The version axis must still collapse `Both` to ONE Yosys row.
+            yosys_mode: YosysMode::Both,
+            sandbox_root: test_root("specs-per-kind"),
+            ..Default::default()
+        };
+        let specs = vec![
+            ToolSpec {
+                kind: AcceptanceTool::Verilator,
+                binary: "anvil-missing-verilator".to_string(),
+                label: "verilator-v".to_string(),
+            },
+            ToolSpec {
+                kind: AcceptanceTool::Yosys,
+                binary: "anvil-missing-yosys".to_string(),
+                label: "yosys-v".to_string(),
+            },
+            ToolSpec {
+                kind: AcceptanceTool::Iverilog,
+                binary: "anvil-missing-iverilog".to_string(),
+                label: "iverilog-v".to_string(),
+            },
+        ];
+        let report = validate_tool_specs(13, &cfg, &specs, &opts).unwrap();
+        // Exactly one relabeled row per spec — including Yosys under `Both`.
+        assert_eq!(report.tools.len(), 3);
+        let labels: Vec<&str> = report.tools.iter().map(|t| t.tool.as_str()).collect();
+        assert_eq!(labels, vec!["verilator-v", "yosys-v", "iverilog-v"]);
+        // Missing binaries can't spawn ⇒ no success, no captured version.
+        assert!(report.tools.iter().all(|t| !t.success));
+        assert!(report.tools.iter().all(|t| t.version.is_none()));
+        assert!(!report.ok);
+        assert!(report.declined.is_none());
         assert!(!Path::new(&report.sandbox).exists());
     }
 
