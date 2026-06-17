@@ -5,6 +5,38 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — the `tool_matrix` column — `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`
+
+The second of the one-detector-two-surfaces pair. Two design choices worth recording:
+
+- **The matrix column is a pure projection, so it has NO tool-clean precondition —
+  the opposite of `--diff-sim`.** `--diff-sim` spawns two simulators *after*
+  Verilator + Yosys both accept the SV (no point asking simulators to agree on
+  output a parser already rejected), so its per-unit gate is
+  `cli.diff_sim && verilator_ok && all_yosys_ok && in_subset`. The divergence column
+  spawns **nothing** — it classifies the `ToolInvocation`s the matrix *already ran* —
+  so requiring the tools to be clean first would be exactly backwards: a divergence
+  is most interesting precisely when one tool rejects what another accepts. Hence
+  `unit_divergence`'s gate is only `cli.divergence && in_subset` (then "≥1 tool ran").
+  This asymmetry is deliberate and is the reason the two columns do not share a gate
+  helper even though they share the subset selector.
+- **One classifier, reached two ways.** Rather than reimplement verdict
+  classification in the binary, `unit_divergence` assembles the already-run
+  invocations into a `ValidateReport` and calls the *same*
+  `divergence::classify_report` the hunt loop uses (`feedback_full_factorization` —
+  no second classifier). The `ValidateReport.run_id`/`sandbox` are the unit's name /
+  scenario dir (the matrix retains the actual `.sv` on disk per the reproducer
+  policy, so it does not content-address here); `ValidateReport.ok` is computed but
+  unread by `classify_report` (it only reads `tools` + the metadata it carries
+  through). The shared subset-membership check was likewise factored into one
+  `scenario_in_named_subset(scenario_dir, sentinel)` used by both columns.
+- **`saw_acceptance_divergence` is opportunistic and `compute_coverage_gaps` is
+  untouched.** A coverage *gate* requiring a divergence would fail on
+  valid-by-construction RTL, whose steady state is all-agree (decision `0019`'s
+  honesty boundary). The fact is recorded when seen and merged like any other
+  `saw_*`, but it is never added to the gap list — the real-tool smoke confirms the
+  steady state (`diverged=false`, fact `false`) on a clean 17/0 sweep.
+
 ## 2026-06-17 — Acceptance-divergence hunting — the `hunt::run` fold — `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1`
 
 Folding the detector into the hunt loop. The non-obvious calls:

@@ -8,8 +8,14 @@ use anvil::config::{
 // of defining them; the serialized `ToolInvocation` shape is unchanged.
 use anvil::downstream::{
     run_iverilog_compile, run_iverilog_compile_design, run_verilator, run_verilator_design,
-    run_yosys, run_yosys_design, yosys_mode_slug, ToolInvocation, YosysMode,
+    run_yosys, run_yosys_design, yosys_mode_slug, ToolInvocation, ValidateReport, YosysMode,
 };
+// ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the opt-in acceptance-divergence column
+// reuses the one shared detector in `anvil::divergence`: `classify_report`
+// projects the per-tool invocations this binary already ran into accept/warn/
+// reject verdicts and classifies any disagreement. There is one classifier (the
+// hunt loop shares it); this binary adds no second copy.
+use anvil::divergence::{self, DivergenceReport};
 // BUG-HUNT-ORCHESTRATION.2a — the per-module diff-sim run+compare pipeline
 // (the `DiffSimReport` + the SV-text-driven testbench + the dual-simulator
 // run+compare) now lives in `anvil::diff_sim` so the bug-hunt loop (decision
@@ -191,6 +197,23 @@ struct Cli {
     /// when either simulator is absent (`tools_present()` probe).
     #[arg(long)]
     diff_sim: bool,
+
+    /// Opt-in acceptance-divergence column
+    /// (`ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`, decision `0019`). When
+    /// set, every unit in the per-axis subset (the same
+    /// `select_diff_sim_subset` / `classify_diff_sim_axis` selector,
+    /// capped K=5) gets a `DivergenceReport`: each tool the matrix
+    /// **already ran** is projected to an accept/warn/reject verdict and
+    /// any disagreement is classified (`accept_reject` / `accept_warn` /
+    /// `warn_reject`). Unlike `--diff-sim` it spawns **no** extra tool —
+    /// it is a pure projection of the existing per-unit invocations — so
+    /// it does **not** require the tools to be clean first (a divergence
+    /// is most interesting exactly when one tool rejects what another
+    /// accepts). Lights the **opportunistic** `saw_acceptance_divergence`
+    /// fact — never a required coverage gate, because all-agree is the
+    /// valid-by-construction steady state.
+    #[arg(long)]
+    divergence: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -220,6 +243,15 @@ struct ModuleReport {
     /// counterexample per the Phase-7 doctrine.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     diff_sim: Option<DiffSimReport>,
+    /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — opt-in acceptance-divergence
+    /// column (decision `0019`). `None` unless `--divergence` was set AND this
+    /// scenario was in the per-axis subset. `Some(DivergenceReport)` records the
+    /// accept/warn/reject verdict of each tool the matrix already ran on this
+    /// module and any classified disagreement — a pure projection of the
+    /// existing per-tool invocations (no extra tool spawn), so it is populated
+    /// regardless of whether the tools accepted. Mirrors the `diff_sim` column.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    divergence: Option<DivergenceReport>,
     /// `SV-VERSION-TARGETING.3b.2b` — `true` iff this module's emitted SV
     /// carries the IEEE 1800-2023 `union soft` up-opt overlay (the
     /// `soft_union_slice_prob` low-bits-slice rendering). Lights the
@@ -328,6 +360,13 @@ struct DesignReport {
     yosys: Vec<ToolInvocation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     iverilog_compile: Option<ToolInvocation>,
+    /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — opt-in acceptance-divergence
+    /// column (decision `0019`); the design-level counterpart of
+    /// `ModuleReport.divergence`. `None` unless `--divergence` was set AND this
+    /// scenario was in the per-axis subset; otherwise `Some(DivergenceReport)`
+    /// projecting the verdict of each tool the matrix already ran on the design.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    divergence: Option<DivergenceReport>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -583,6 +622,16 @@ struct CoverageSummary {
     /// on ANVIL output, complementing the existing
     /// parse/synth/lint columns.
     saw_design_with_cross_simulator_agreement: bool,
+    /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — at least one unit in the
+    /// `--divergence` subset had two enabled tools disagree on its
+    /// acceptance (one accepted while another warned or rejected). This is
+    /// an **opportunistic** fact: on valid-by-construction RTL the steady
+    /// state is that all tools agree, so a divergence is a genuine
+    /// downstream-tool bug — the thing the lane exists to *surface*. It is
+    /// therefore **never** a required coverage gate (`compute_coverage_gaps`
+    /// never demands it); a gate requiring it would fail on clean output,
+    /// which is the normal case (decision `0019`).
+    saw_acceptance_divergence: bool,
     /// `MULTI-CLOCK-CDC.3b.2` — at least one DUT carried more
     /// than one declared clock domain
     /// (`Module.clock_domains.len() >= 2`). Lit when the
@@ -791,6 +840,17 @@ struct MatrixReport {
     /// were actually gated by the diff-sim column.
     #[serde(default)]
     diff_sim_subset: Vec<String>,
+    /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — whether `--divergence` was
+    /// set for this run. When `false`, `divergence_subset` is empty and no
+    /// `ModuleReport`/`DesignReport.divergence` is populated.
+    #[serde(default)]
+    divergence_enabled: bool,
+    /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — the per-axis subset of
+    /// scenario names selected by `select_diff_sim_subset` (shared with the
+    /// diff-sim column) for the acceptance-divergence column. Self-describing:
+    /// a reader can see which scenarios carried a `divergence` report.
+    #[serde(default)]
+    divergence_subset: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -884,6 +944,25 @@ fn main() -> Result<()> {
             .with_context(|| format!("write diff-sim subset sentinel in {}", out_dir.display()))?;
     }
 
+    // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — the acceptance-divergence column
+    // reuses the *same* per-axis subset selector (`classify_diff_sim_axis`) as
+    // diff-sim, but is gated by its own `--divergence` flag and its own
+    // `.divergence-subset` sentinel (the two columns are independent). The
+    // sentinel keeps the per-scenario materialization API stable, exactly as
+    // the diff-sim sentinel does.
+    let divergence_subset: Vec<String> = if cli.divergence {
+        select_diff_sim_subset(&scenarios)
+    } else {
+        Vec::new()
+    };
+    if cli.divergence {
+        std::fs::write(
+            out_dir.join(".divergence-subset"),
+            divergence_subset.join("\n"),
+        )
+        .with_context(|| format!("write divergence subset sentinel in {}", out_dir.display()))?;
+    }
+
     // `SV-VERSION-TARGETING.2b.2b` — only the per-version gate runs the
     // downstream tools in the matching `--language 1800-20xx` standard
     // mode and lights the per-version acceptance facts. Every other run
@@ -938,6 +1017,8 @@ fn main() -> Result<()> {
         iverilog_compile_enabled: cli.iverilog_compile,
         diff_sim_enabled: cli.diff_sim,
         diff_sim_subset,
+        divergence_enabled: cli.divergence,
+        divergence_subset,
     };
 
     let report_path = out_dir.join("tool_matrix_report.json");
@@ -5056,6 +5137,18 @@ fn materialize_prepared_module(
         None
     };
 
+    // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — classify the tools just run on this
+    // module for acceptance divergence (a pure projection; no extra spawn).
+    let divergence = unit_divergence(
+        cli,
+        scenario_dir,
+        "module",
+        &prepared.name,
+        verilator.as_ref(),
+        &yosys,
+        iverilog_compile.as_ref(),
+    );
+
     let report = ModuleReport {
         file: prepared.paths.file.clone(),
         name: prepared.name,
@@ -5064,6 +5157,7 @@ fn materialize_prepared_module(
         yosys,
         iverilog_compile,
         diff_sim,
+        divergence,
         emitted_soft_union_overlay,
         emitted_combinational_function,
         emitted_generate_loop,
@@ -5110,22 +5204,93 @@ fn all_yosys_invocations_ok(invocations: &[ToolInvocation]) -> bool {
 /// (it already takes `scenario_dir` and doesn't see the broader
 /// scenario list).
 fn scenario_in_diff_sim_subset(scenario_dir: &Path) -> bool {
+    scenario_in_named_subset(scenario_dir, ".diff-sim-subset")
+}
+
+/// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — the divergence-column counterpart of
+/// `scenario_in_diff_sim_subset`, reading the parallel `.divergence-subset`
+/// sentinel written by `main` when `--divergence` is set. Shares the
+/// membership logic via `scenario_in_named_subset`.
+fn scenario_in_divergence_subset(scenario_dir: &Path) -> bool {
+    scenario_in_named_subset(scenario_dir, ".divergence-subset")
+}
+
+/// Shared per-axis-subset membership check used by both the diff-sim column
+/// (`.diff-sim-subset`) and the acceptance-divergence column
+/// (`.divergence-subset`). The matrix computes each per-axis subset once at top
+/// level and persists the chosen scenario names to `<out>/<sentinel_name>`;
+/// this checks whether `scenario_dir`'s own directory name is in it. The
+/// sentinel pattern keeps the per-scenario materialization signatures stable
+/// (they already take `scenario_dir` and don't see the broader scenario list).
+fn scenario_in_named_subset(scenario_dir: &Path, sentinel_name: &str) -> bool {
     let Some(parent) = scenario_dir.parent() else {
         return false;
     };
-    let sentinel = parent.join(".diff-sim-subset");
+    let sentinel = parent.join(sentinel_name);
     let Ok(contents) = std::fs::read_to_string(&sentinel) else {
-        // Defensive: if the sentinel is missing, run diff-sim for
-        // EVERY scenario rather than silently skipping (the user
-        // explicitly opted in with `--diff-sim`). This also makes
-        // the `--diff-sim` path testable from focused unit/integration
-        // tests that don't go through `run_matrix`.
+        // Defensive: if the sentinel is missing, evaluate the column for
+        // EVERY scenario rather than silently skipping (the user explicitly
+        // opted in with the column's flag). This also makes the column path
+        // testable from focused unit/integration tests that don't go through
+        // `run_matrix`.
         return true;
     };
     let Some(name) = scenario_dir.file_name().and_then(|s| s.to_str()) else {
         return false;
     };
     contents.lines().any(|line| line.trim() == name)
+}
+
+/// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — the per-unit acceptance-divergence
+/// column. Unlike `--diff-sim`, this spawns **no** extra tool: it is a pure
+/// projection of the tool invocations the matrix **already ran**, so it does
+/// **not** require Verilator/Yosys to be clean first — a divergence is most
+/// interesting exactly when one tool rejects what another accepts. Gated by
+/// `--divergence` + the shared per-axis subset (`.divergence-subset`). It
+/// assembles the already-run invocations into a [`ValidateReport`] and
+/// classifies it through the **one** shared detector
+/// `divergence::classify_report` (the same classifier the hunt loop uses — no
+/// second copy, the full-factorization doctrine). Returns `None` when the
+/// column is off / the scenario is out of subset / no tool ran on the unit.
+///
+/// The `run_id` is the unit's `top` name (a stable per-report identifier);
+/// the matrix retains the actual `.sv` on disk per the reproducer policy, so it
+/// does not content-address here.
+fn unit_divergence(
+    cli: &Cli,
+    scenario_dir: &Path,
+    kind: &str,
+    top: &str,
+    verilator: Option<&ToolInvocation>,
+    yosys: &[ToolInvocation],
+    iverilog_compile: Option<&ToolInvocation>,
+) -> Option<DivergenceReport> {
+    if !cli.divergence || !scenario_in_divergence_subset(scenario_dir) {
+        return None;
+    }
+    let mut tools: Vec<ToolInvocation> = Vec::new();
+    if let Some(v) = verilator {
+        tools.push(v.clone());
+    }
+    tools.extend(yosys.iter().cloned());
+    if let Some(i) = iverilog_compile {
+        tools.push(i.clone());
+    }
+    if tools.is_empty() {
+        return None;
+    }
+    let ok = tools.iter().all(|inv| inv.success);
+    let report = ValidateReport {
+        run_id: top.to_string(),
+        lane: "dut".to_string(),
+        kind: kind.to_string(),
+        top: top.to_string(),
+        sandbox: scenario_dir.display().to_string(),
+        tools,
+        ok,
+        declined: None,
+    };
+    Some(divergence::classify_report(&report))
 }
 
 /// `BUG-HUNT-ORCHESTRATION.2a` — per-module diff-sim wrapper. The
@@ -5297,6 +5462,18 @@ fn run_design_tools(
         None
     };
 
+    // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — classify the tools just run on this
+    // design for acceptance divergence (a pure projection; no extra spawn).
+    let divergence = unit_divergence(
+        cli,
+        scenario_dir,
+        "design",
+        &prepared.top,
+        verilator.as_ref(),
+        &yosys,
+        iverilog_compile.as_ref(),
+    );
+
     Ok(DesignReport {
         index: prepared.index,
         top: prepared.top.clone(),
@@ -5307,6 +5484,7 @@ fn run_design_tools(
         verilator,
         yosys,
         iverilog_compile,
+        divergence,
     })
 }
 
@@ -5658,6 +5836,17 @@ fn summarize_coverage(
                 coverage.saw_design_with_cross_simulator_agreement = true;
             }
         }
+        // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — the opportunistic
+        // acceptance-divergence fact fires when a unit in the `--divergence`
+        // subset had two enabled tools disagree. Never a required gate
+        // (all-agree is the valid-by-construction steady state, decision
+        // `0019`); units outside the subset have `divergence = None` and
+        // contribute nothing.
+        if let Some(div) = &module.divergence {
+            if div.diverged {
+                coverage.saw_acceptance_divergence = true;
+            }
+        }
         // `MULTI-CLOCK-CDC.3b.2` / `SIGNOFF-SURFACE-EXPANSION.1`
         // — multi-clock facts surface via the per-module Metrics
         // fields populated by `anvil::metrics::compute`.
@@ -5801,6 +5990,14 @@ fn summarize_design_coverage(
 
     for design in designs {
         coverage.saw_hierarchy_design = true;
+        // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — opportunistic
+        // acceptance-divergence fact (design-level; see `summarize_coverage`).
+        // Never a required gate (decision `0019`).
+        if let Some(div) = &design.divergence {
+            if div.diverged {
+                coverage.saw_acceptance_divergence = true;
+            }
+        }
         // `SV-VERSION-TARGETING.2b.2b` — version-targeted design accepted
         // in the matching tool standard mode (see `summarize_coverage`).
         if version_targeted
@@ -7260,6 +7457,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_combinational_task_emit |= src.saw_combinational_task_emit;
     dst.saw_cone_function_emit |= src.saw_cone_function_emit;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
+    dst.saw_acceptance_divergence |= src.saw_acceptance_divergence;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
     dst.saw_cdc_2_flop_synchronizer |= src.saw_cdc_2_flop_synchronizer;
     dst.saw_cdc_nflop_synchronizer |= src.saw_cdc_nflop_synchronizer;
@@ -8757,6 +8955,7 @@ mod tests {
             fail_on_coverage_gap: false,
             resume: false,
             diff_sim: false,
+            divergence: false,
         }
     }
 
@@ -10535,6 +10734,7 @@ mod tests {
                 error: None,
             }),
             diff_sim: None,
+            divergence: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
@@ -10575,6 +10775,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             diff_sim: None,
+            divergence: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
@@ -10639,6 +10840,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             diff_sim: None,
+            divergence: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,
@@ -10700,6 +10902,7 @@ mod tests {
                 iverilog_compile: None,
                 yosys: vec![],
                 diff_sim: None,
+                divergence: None,
                 emitted_soft_union_overlay: false,
                 emitted_combinational_function: false,
                 emitted_generate_loop: false,
@@ -11169,6 +11372,7 @@ mod tests {
                 iverilog_compile: None,
                 yosys: vec![],
                 diff_sim: None,
+                divergence: None,
                 emitted_soft_union_overlay: false,
                 emitted_combinational_function: false,
                 emitted_generate_loop: false,
@@ -11199,6 +11403,171 @@ mod tests {
         });
         let cov2 = summarize_coverage(&scenario, &modules, false);
         assert!(cov2.saw_design_with_cross_simulator_agreement);
+    }
+
+    // ===============================================================
+    // ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — cargo-portable proofs of
+    // the tool_matrix --divergence column (CLI flag, the pure-projection
+    // `unit_divergence` over already-run tools, coverage merge, and the
+    // opportunistic `saw_acceptance_divergence` fact). The real-tool
+    // end-to-end gate is `.2f` (kept separate so cargo test stays green
+    // tool-less — Phase-1 doctrine).
+    // ===============================================================
+
+    #[test]
+    fn divergence_cli_flag_defaults_to_false_and_parses_when_set() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.divergence);
+        let with_flag =
+            Cli::try_parse_from(["tool_matrix", "--divergence", "--out", "/tmp/x"]).expect("parse");
+        assert!(with_flag.divergence);
+    }
+
+    /// A synthetic `ToolInvocation` for the divergence proofs (no real tool
+    /// spawned — the column is a pure projection of already-run invocations).
+    fn divergence_test_inv(tool: &str, success: bool, exit_code: Option<i32>) -> ToolInvocation {
+        ToolInvocation {
+            tool: tool.to_string(),
+            argv: vec![tool.to_string()],
+            success,
+            exit_code,
+            stdout_log: None,
+            stderr_log: None,
+            error: if success {
+                None
+            } else {
+                Some(format!("{tool}: not clean"))
+            },
+        }
+    }
+
+    #[test]
+    fn unit_divergence_projects_already_run_tools_and_classifies_accept_reject() {
+        use clap::Parser;
+        // A unique parent with NO `.divergence-subset` sentinel ⇒ the
+        // membership check defaults to "evaluate this scenario" (the helper is
+        // testable without going through `run_matrix`).
+        let parent = temp_test_dir("divergence-unit-proof");
+        let scenario_dir = parent.join("scenario");
+        let verilator = divergence_test_inv("verilator", true, Some(0));
+        let yosys = vec![divergence_test_inv("yosys-without-abc", false, Some(1))];
+
+        // Column off ⇒ no report at all (default-off / byte-identical).
+        let off = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(unit_divergence(
+            &off,
+            &scenario_dir,
+            "module",
+            "m",
+            Some(&verilator),
+            &yosys,
+            None,
+        )
+        .is_none());
+
+        // Column on ⇒ the tools the matrix already ran are projected and the
+        // accept-vs-reject disagreement is classified — no extra tool spawned.
+        let on =
+            Cli::try_parse_from(["tool_matrix", "--divergence", "--out", "/tmp/x"]).expect("parse");
+        let report = unit_divergence(
+            &on,
+            &scenario_dir,
+            "module",
+            "m",
+            Some(&verilator),
+            &yosys,
+            None,
+        )
+        .expect("divergence column populated when enabled and in subset");
+        assert_eq!(report.kind, "module");
+        assert_eq!(report.top, "m");
+        assert_eq!(report.verdicts.len(), 2);
+        assert!(report.diverged);
+        assert_eq!(report.divergences.len(), 1);
+        assert_eq!(report.divergences[0].kind, "accept_reject");
+        assert_eq!(
+            report.divergences[0].tools,
+            vec!["verilator", "yosys-without-abc"]
+        );
+
+        let _ = fs::remove_dir_all(&parent);
+    }
+
+    #[test]
+    fn merge_coverage_unions_saw_acceptance_divergence() {
+        let mut dst = CoverageSummary::default();
+        let src = CoverageSummary {
+            saw_acceptance_divergence: true,
+            ..CoverageSummary::default()
+        };
+        merge_coverage(&mut dst, &src);
+        assert!(dst.saw_acceptance_divergence);
+        // Re-merging with a `false` source must not flip the dst.
+        merge_coverage(&mut dst, &CoverageSummary::default());
+        assert!(dst.saw_acceptance_divergence);
+    }
+
+    #[test]
+    fn summarize_coverage_lights_acceptance_divergence_from_a_diverged_module() {
+        let scenario = Scenario {
+            name: "synthetic".to_string(),
+            description: "synthetic".to_string(),
+            config: Config::default(),
+        };
+        let mut modules: Vec<ModuleReport> = (0..2)
+            .map(|i| ModuleReport {
+                file: format!("mod_{i}.sv"),
+                name: format!("mod_{i}"),
+                metrics: Metrics::default(),
+                verilator: None,
+                iverilog_compile: None,
+                yosys: vec![],
+                diff_sim: None,
+                divergence: None,
+                emitted_soft_union_overlay: false,
+                emitted_combinational_function: false,
+                emitted_generate_loop: false,
+                emitted_combinational_task: false,
+                emitted_cone_function: false,
+            })
+            .collect();
+        // No unit carries a divergence report ⇒ the opportunistic fact stays
+        // false.
+        let cov0 = summarize_coverage(&scenario, &modules, false);
+        assert!(!cov0.saw_acceptance_divergence);
+        // An all-agree report (`diverged == false`) ⇒ still false: all-agree is
+        // the valid-by-construction steady state, so it is NOT a finding.
+        modules[0].divergence = Some(DivergenceReport {
+            run_id: "mod_0".to_string(),
+            lane: "dut".to_string(),
+            kind: "module".to_string(),
+            top: "mod_0".to_string(),
+            sandbox: "/tmp/s".to_string(),
+            verdicts: vec![],
+            diverged: false,
+            divergences: vec![],
+            declined: None,
+        });
+        let cov1 = summarize_coverage(&scenario, &modules, false);
+        assert!(!cov1.saw_acceptance_divergence);
+        // A unit whose report diverged ⇒ the opportunistic fact fires.
+        modules[1].divergence = Some(DivergenceReport {
+            run_id: "mod_1".to_string(),
+            lane: "dut".to_string(),
+            kind: "module".to_string(),
+            top: "mod_1".to_string(),
+            sandbox: "/tmp/s".to_string(),
+            verdicts: vec![],
+            diverged: true,
+            divergences: vec![divergence::Divergence {
+                kind: "accept_reject".to_string(),
+                tools: vec!["verilator".to_string(), "yosys-without-abc".to_string()],
+            }],
+            declined: None,
+        });
+        let cov2 = summarize_coverage(&scenario, &modules, false);
+        assert!(cov2.saw_acceptance_divergence);
     }
 
     // NOTE: `parse_dut_ports_recognises_anvil_emitter_shape` and
@@ -11324,6 +11693,7 @@ mod tests {
             iverilog_compile: None,
             yosys: vec![],
             diff_sim: None,
+            divergence: None,
             emitted_soft_union_overlay: false,
             emitted_combinational_function: false,
             emitted_generate_loop: false,

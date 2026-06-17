@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability — acceptance-divergence bug-finder (north star, idea 2)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold done; frontier `.2c.2` — the `tool_matrix` column)
+- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold + `.2c.2` `tool_matrix` column done; `.2c` closed; frontier `.2d` — the MCP `divergence` tool + CLI shim)
 - Owner: repo-local workflow
 
 ## Goal
@@ -86,11 +86,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2b commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c`
-  Status: `pending`
+  Status: `done`
   Goal: `Fold the detector into hunt::run (HuntRequest.divergence → an "acceptance_divergence" finding + HuntFailure.divergence, no minimize by default) AND add the tool_matrix column (--divergence, ModuleReport/DesignReport.divergence, the opportunistic saw_acceptance_divergence fact, the classify_diff_sim_axis subset reuse). Default-off / DUT byte-identical. Pre-split at pick into .2c.1 (hunt fold) + .2c.2 (tool_matrix column).`
   Acceptance: `Both .2c.1 + .2c.2 done; a hunt finding where some tool accepted while another rejected/warned is an acceptance_divergence; tool_matrix records the per-unit divergence column + the opportunistic fact; cargo-portable proofs; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done — both children landed. .2c.1 folded the detector into hunt::run (HuntRequest.divergence → an acceptance_divergence finding via the extracted classify_report, no minimize). .2c.2 added the tool_matrix --divergence column (ModuleReport/DesignReport.divergence via the same classify_report over the tools the matrix already ran, the opportunistic saw_acceptance_divergence fact never a gate, the classify_diff_sim_axis subset reuse). One shared detector, two surfaces, no drift. Default-off / DUT byte-identical.`
+  Verification: `Both children green (see .2c.1 and .2c.2 rows + the Verification Log). cargo check/clippy/fmt green; snapshots 6/6 byte-identical + book_examples 3/3 across both.`
+  Commit: `closed by the .2c.1 + .2c.2 commits (one leaf per commit)`
   Children: `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1, ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1`
@@ -102,11 +103,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Add the tool_matrix divergence column: a --divergence opt-in, ModuleReport/DesignReport.divergence: Option<DivergenceReport> (the diff_sim column precedent), the opportunistic saw_acceptance_divergence coverage fact (NEVER a required gate — all-agree is the valid-by-construction steady state), and the classify_diff_sim_axis subset reuse. Cargo-portable proofs. Default-off / DUT byte-identical.`
   Acceptance: `tool_matrix gains --divergence + the per-unit divergence column via divergence::classify_report over the tools it already ran; the opportunistic saw_acceptance_divergence fact (recorded when seen, not required); cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. src/bin/tool_matrix.rs gains: (1) the --divergence opt-in flag (default-off) + MatrixReport.divergence_enabled/divergence_subset header fields (the diff_sim_* precedent). (2) ModuleReport.divergence + DesignReport.divergence: Option<DivergenceReport> (#[serde(default, skip_serializing_if)] — old checkpoints still deserialize). (3) unit_divergence(...) — the per-unit projection: it gathers the verilator/yosys/iverilog_compile ToolInvocations the matrix ALREADY ran on the unit, assembles a ValidateReport, and classifies it through the ONE shared divergence::classify_report (no second classifier; feedback_full_factorization). It spawns NO extra tool and — unlike --diff-sim — has NO tool-clean precondition (a divergence is most interesting when one tool rejects what another accepts), so its gate is only cli.divergence && in-subset && >=1 tool ran. (4) Subset reuse: gated by the same select_diff_sim_subset/classify_diff_sim_axis selector via its own .divergence-subset sentinel; the shared membership check was factored into scenario_in_named_subset (one impl, used by both columns). (5) CoverageSummary.saw_acceptance_divergence — the OPPORTUNISTIC fact lit by summarize_coverage/summarize_design_coverage from a diverged unit + unioned by merge_coverage; NEVER a required gate (compute_coverage_gaps untouched). +4 cargo-portable proofs (CLI flag default/parse; unit_divergence off⇒None and on⇒accept_reject on a synthetic accept(verilator)+reject(yosys); merge_coverage unions the fact; summarize_coverage lights it only from a diverged report). Default-off / DUT byte-identical. README/USER_GUIDE/book/KM closeout is .2f per the pre-split.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK (all under scripts/ram_guard.sh --threshold 90). cargo test --bin tool_matrix 75/0 (1 ignored; +4 new proofs); full cargo test --lib 531/0 (2 ignored; lib untouched). tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs 3/3. Real-tool smoke /tmp/anvil-divergence-col-smoke (Verilator 5.046 + Yosys 0.64 both modes): 17 scenarios / 17 modules, 17/0 Verilator + both Yosys; divergence_enabled=true, divergence_subset=2 axes, each subset unit carries 3 labelled accept verdicts with diverged=false, saw_acceptance_divergence=false — the all-agree steady state, exactly as designed.`
+  Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2d`
   Status: `pending`
@@ -133,12 +135,11 @@ query — building on the existing hardened `src/downstream/` adapters and the
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `pending` | The `tool_matrix` divergence column (`--divergence`, `ModuleReport`/`DesignReport.divergence`, the opportunistic `saw_acceptance_divergence` fact, the `classify_diff_sim_axis` subset reuse) — the second of the one-detector-two-surfaces pair. |
-| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool + CLI shim (decision `0017` gate). |
-| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis. |
-| 4 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
+| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool (shimming `divergence::run`, caching each divergent `run_id`, a top-level audit record) + the `anvil` CLI `--divergence` shim (decision `0017` API-completeness gate). |
+| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis (`DivergenceOptions.tool_specs` + `ToolInvocation.version` + `version_mismatch`). |
+| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
 
-(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done 2026-06-17` — `HuntRequest.divergence` → an `acceptance_divergence` finding via `classify_report`; lib 531/0, snapshots 6/6 + book_examples. Frontier `.2c.2` (the `tool_matrix` column).)
+(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done 2026-06-17` + `.2c.2` (the `tool_matrix --divergence` column) `done 2026-06-17` — `ModuleReport`/`DesignReport.divergence` via the same `classify_report` over the tools the matrix already ran, the opportunistic `saw_acceptance_divergence` fact, the `classify_diff_sim_axis` subset reuse; matrix-bin 75/0, lib 531/0, snapshots 6/6 + book_examples, real-tool smoke clean; **`.2c` closed**. Frontier `.2d` (the MCP `divergence` tool + CLI shim).)
 
 ## Decisions
 
@@ -192,6 +193,8 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `downstream::tool_verdict + ToolVerdict{Accept,Warn,Reject} extracted; hunt::classify_detection derives from it (byte-identical); +1 downstream proof; cargo check/clippy/fmt green; cargo test --lib 522/0 (downstream:: 21/0 + hunt:: 11/11); snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `src/divergence/mod.rs + pub mod divergence; DivergenceOptions/ToolDecision/Divergence/DivergenceReport + divergence::run reuses downstream::validate + the shared tool_verdict + classify_divergences (accept_reject/accept_warn/warn_reject, deterministic); 7 cargo-portable proofs; cargo check/clippy/fmt green; cargo test --lib divergence:: 7/7 + full lib 529/0; snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `divergence::classify_report extracted (run refactored, byte-identical); hunt::run gains HuntRequest.divergence + HuntFailure.divergence — a finding where some tool accepted while another rejected/warned is classified acceptance_divergence (no minimize, like cross_sim); mcp/main set divergence:false (arg-wiring=.2d); +2 proofs; cargo check/clippy/fmt green; cargo test --lib divergence:: 8/8 + hunt:: 12/12 + full lib 531/0; snapshots 6/6 + book_examples 3/3` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `tool_matrix --divergence column: ModuleReport/DesignReport.divergence via the shared classify_report over a ValidateReport assembled from the tools the matrix already ran (no extra spawn, no tool-clean precondition); .divergence-subset sentinel reusing select_diff_sim_subset/classify_diff_sim_axis (membership factored to scenario_in_named_subset); opportunistic saw_acceptance_divergence fact (never a gate, compute_coverage_gaps untouched); +4 cargo-portable proofs; cargo check/clippy/fmt green; cargo test --bin tool_matrix 75/0 + full lib 531/0; snapshots 6/6 + book_examples 3/3; real-tool smoke /tmp/anvil-divergence-col-smoke 17/0 (divergence_enabled, subset=2 axes, diverged=false, saw_acceptance_divergence=false)` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `both children (.2c.1 hunt fold + .2c.2 matrix column) done ⇒ .2c closed; one shared detector reused by two surfaces, no drift` | `done` |
 
 ## Commit Log
 
@@ -202,6 +205,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a — extract shared downstream::tool_verdict accept/warn/reject classifier from hunt::run` | First code leaf. `ToolVerdict` enum + `tool_verdict` in `src/downstream/mod.rs`; `hunt::classify_detection` derives from it (byte-identical). The one accept/warn/reject classifier `.2b`'s divergence detector reuses. Default-off / DUT byte-identical (snapshots 6/6). |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b — src/divergence/ library core (divergence::run + DivergenceReport, reusing validate + the shared classifier)` | New `src/divergence/mod.rs` + `pub mod divergence`. `divergence::run` reuses the one `downstream::validate` orchestration + the shared `tool_verdict`, classifies disagreement (`accept_reject`/`accept_warn`/`warn_reject`, deterministic). 7 cargo-portable proofs; lib 529/0; snapshots 6/6. No CLI/MCP/version axis yet. Default-off / DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 — fold the acceptance-divergence detector into hunt::run (classify_report + HuntRequest.divergence)` | `divergence::classify_report` (the pure projection of an already-run `ValidateReport`) + `hunt::run`'s `HuntRequest.divergence`/`HuntFailure.divergence`: a finding where one tool accepted what another rejected/warned is classified `acceptance_divergence` (no minimize). MCP/CLI set `divergence:false` (arg-wiring=`.2d`). lib 531/0; snapshots 6/6 + book_examples. Default-off / DUT byte-identical. |
+| `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the tool_matrix --divergence column (ModuleReport/DesignReport.divergence via the shared classify_report)` | The second surface: `tool_matrix --divergence` + `ModuleReport`/`DesignReport.divergence: Option<DivergenceReport>` populated by `unit_divergence` — the same `divergence::classify_report` over the tools the matrix already ran (a pure projection; no extra spawn / no tool-clean precondition). `.divergence-subset` sentinel reuses `select_diff_sim_subset`/`classify_diff_sim_axis` (membership factored to `scenario_in_named_subset`). Opportunistic `saw_acceptance_divergence` fact, never a gate. +4 proofs; matrix-bin 75/0, lib 531/0; snapshots 6/6 + book_examples; real-tool smoke clean. Closes `.2c`. Default-off / DUT byte-identical. |
 
 ## Changelog
 
@@ -264,3 +268,26 @@ query — building on the existing hardened `src/downstream/` adapters and the
   8/8, hunt:: 12/12); snapshots 6/6 byte-identical + book_examples 3/3; clippy/fmt
   green. Default-off / DUT byte-identical. Frontier advanced to `.2c.2` (the
   `tool_matrix` column).
+- `2026-06-17`: `.2c.2` done — the `tool_matrix --divergence` column (the second of
+  the one-detector-two-surfaces pair; closes `.2c`). `src/bin/tool_matrix.rs` gains
+  the `--divergence` opt-in flag, `MatrixReport.divergence_enabled`/`divergence_subset`
+  header fields, `ModuleReport.divergence` + `DesignReport.divergence:
+  Option<DivergenceReport>` (the `diff_sim` column precedent), and `unit_divergence` —
+  which gathers the verilator/yosys/iverilog `ToolInvocation`s the matrix **already
+  ran** on a unit, assembles a `ValidateReport`, and classifies it through the **one**
+  shared `divergence::classify_report` (no second classifier). It spawns **no** extra
+  tool and (unlike `--diff-sim`) has **no** tool-clean precondition — a divergence is
+  most interesting when one tool rejects what another accepts. Gated by a
+  `.divergence-subset` sentinel reusing `select_diff_sim_subset`/`classify_diff_sim_axis`
+  (the shared membership check factored into `scenario_in_named_subset`). The
+  **opportunistic** `saw_acceptance_divergence` fact (lit by
+  `summarize_coverage`/`summarize_design_coverage` from a `diverged` unit, unioned by
+  `merge_coverage`) is **never** a required gate — `compute_coverage_gaps` is untouched,
+  because all-agree is the valid-by-construction steady state. +4 cargo-portable proofs.
+  `cargo test --bin tool_matrix` 75/0 (1 ignored); full `cargo test --lib` 531/0;
+  snapshots 6/6 byte-identical + book_examples 3/3; clippy/fmt green. Real-tool smoke
+  `/tmp/anvil-divergence-col-smoke` (Verilator 5.046 + Yosys 0.64 both modes): 17/0,
+  `divergence_enabled=true`, subset 2 axes, each subset unit 3× `accept` `diverged=false`,
+  `saw_acceptance_divergence=false` — the all-agree steady state. Default-off / DUT
+  byte-identical. `.2c` closed; frontier advanced to `.2d` (the MCP `divergence` tool +
+  CLI shim). README/USER_GUIDE/book/KM closeout is `.2f`.

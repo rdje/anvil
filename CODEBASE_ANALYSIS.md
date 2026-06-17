@@ -613,10 +613,16 @@ src/
 │                     projection half of `run`, no tool runs) so the `hunt` loop
 │                     classifies the tools `validate` already ran on a finding — the
 │                     `hunt::run` axis (`HuntRequest.divergence` → an
-│                     `acceptance_divergence` finding) is now wired. The
-│                     `tool_matrix` column (`.2c.2`), the MCP `divergence` tool + CLI
-│                     (`.2d`), and the tool-version axis (`.2e`) come next. Default
-│                     `anvil` build / DUT byte-identical.
+│                     `acceptance_divergence` finding) is now wired. `.2c.2` wires
+│                     the second surface: the `tool_matrix --divergence` column
+│                     (`ModuleReport`/`DesignReport.divergence`) reuses the same
+│                     `classify_report` over the per-unit invocations the matrix
+│                     **already ran** (a pure projection — no extra tool spawn, so
+│                     no tool-clean precondition, unlike `--diff-sim`), gated by the
+│                     shared per-axis subset, lighting the opportunistic
+│                     `saw_acceptance_divergence` fact (never a coverage gate). The
+│                     MCP `divergence` tool + CLI (`.2d`) and the tool-version axis
+│                     (`.2e`) come next. Default `anvil` build / DUT byte-identical.
 ├── downstream/      Hardened downstream-tool invocation surface
 │   └── mod.rs        (`AGENT-INTROSPECTION-MCP.5.1`). The single source of
 │                     truth for the acceptance-tool command lines:

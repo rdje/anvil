@@ -2418,9 +2418,12 @@ closed); lane 2's design `.1` ADR is **recorded** (`2026-06-17`, decision `0019`
 and its first code leaves are **done** — `.2a` (the shared
 `downstream::tool_verdict` accept/warn/reject classifier extract), `.2b` (the
 `src/divergence/` library core: `divergence::run` + the report types, reusing
-`validate` + the shared classifier), and `.2c.1` (the `hunt::run` fold:
+`validate` + the shared classifier), `.2c.1` (the `hunt::run` fold:
 `HuntRequest.divergence` → an `acceptance_divergence` finding via the extracted
-`classify_report`); frontier now `.2c.2` (the `tool_matrix` divergence column). The
+`classify_report`), and `.2c.2` (the `tool_matrix --divergence` column reusing
+`classify_report` over the tools the matrix already ran + the opportunistic
+`saw_acceptance_divergence` fact — closing `.2c`); frontier now `.2d` (the MCP
+`divergence` controlled tool + the `anvil` CLI shim). The
 other five remain `active` with a design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
@@ -2455,7 +2458,13 @@ other five remain `active` with a design-first `.1` ADR frontier:
    (`2026-06-17`, the `hunt::run` fold: `HuntRequest.divergence` → an
    `acceptance_divergence` finding via the extracted `classify_report`, classifying
    the tools `validate` already ran — no minimize, the `cross_sim_mismatch`
-   rationale); frontier `.2c.2` (the `tool_matrix` divergence column). Default
+   rationale) **+ `.2c.2` done** (`2026-06-17`, the `tool_matrix --divergence`
+   column: `ModuleReport`/`DesignReport.divergence` populated by the same
+   `classify_report` over the per-unit invocations the matrix already ran — a pure
+   projection, no extra spawn and no tool-clean precondition — gated by the shared
+   per-axis subset, lighting the opportunistic `saw_acceptance_divergence` fact,
+   never a coverage gate; closes `.2c`); frontier `.2d` (the MCP `divergence`
+   controlled tool + the `anvil` CLI shim, decision `0017`). Default
    `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).

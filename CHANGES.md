@@ -1,9 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the tool_matrix --divergence column
+
+**Landed as:** this commit (previous: this `.2c.1` commit). **Default-off / DUT
+byte-identical** (`tests/snapshots.rs` 6/6 + `book_examples` 3/3 unchanged; the
+column is opt-in and emits no RTL). The second of the one-detector-two-surfaces
+pair — `.2c.1` was the `hunt::run` fold; this is the `tool_matrix` column.
+
+**What changed (why)**
+
+- **`src/bin/tool_matrix.rs`** — the opt-in acceptance-divergence column, mirroring
+  the `--diff-sim` column precedent:
+  - `--divergence` CLI flag (default-off); `MatrixReport.divergence_enabled` +
+    `divergence_subset` report-header fields (self-describing, the `diff_sim_*`
+    precedent).
+  - `ModuleReport.divergence` + `DesignReport.divergence:
+    Option<DivergenceReport>` (`#[serde(default, skip_serializing_if)]` — old
+    checkpoints still deserialize, the `diff_sim` precedent).
+  - `unit_divergence(...)` — the per-unit projection. **Crucially it spawns no
+    extra tool**: it gathers the `verilator`/`yosys`/`iverilog_compile`
+    invocations the matrix **already ran** on the unit, assembles a
+    `ValidateReport`, and classifies it through the **one** shared
+    `divergence::classify_report` (the same classifier the hunt loop uses — no
+    second copy, `feedback_full_factorization`). Unlike `--diff-sim` it does **not**
+    require the tools to be clean first — a divergence is most interesting exactly
+    when one tool rejects what another accepts.
+  - Subset reuse: the column is gated by `--divergence` + the **same**
+    `select_diff_sim_subset` / `classify_diff_sim_axis` per-axis selector (its own
+    `.divergence-subset` sentinel, the diff-sim sentinel precedent). The shared
+    membership check was factored into `scenario_in_named_subset` (one impl, used
+    by both `scenario_in_diff_sim_subset` and the new
+    `scenario_in_divergence_subset`).
+  - `CoverageSummary.saw_acceptance_divergence` — the **opportunistic** fact, lit
+    by `summarize_coverage` / `summarize_design_coverage` when a subset unit's
+    report `diverged`, unioned by `merge_coverage`. **Never a required coverage
+    gate** (`compute_coverage_gaps` is untouched): on valid-by-construction RTL the
+    steady state is all-agree, so a divergence is a found bug, not a fixture
+    (decision `0019`).
+- 4 cargo-portable proofs: the CLI flag default/parse; `unit_divergence` off ⇒
+  `None` and on ⇒ classifies a synthetic accept(verilator)+reject(yosys) pair as
+  `accept_reject`; `merge_coverage` unions the fact; `summarize_coverage` lights it
+  only from a `diverged` report (an all-agree report keeps it false).
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo clippy --all-targets -- -D warnings` OK;
+  `cargo fmt --all --check` OK (all under `scripts/ram_guard.sh --threshold 90`).
+- `cargo test --bin tool_matrix` **75 passed / 0 failed / 1 ignored** (the 4 new
+  proofs included); full `cargo test --lib` **531/0** (2 ignored, lib untouched);
+  `tests/snapshots.rs` **6/6 byte-identical**; `tests/book_examples.rs` **3/3**.
+- Real-tool smoke (Verilator 5.046 + Yosys 0.64 both modes, banked at
+  `/tmp/anvil-divergence-col-smoke/tool_matrix_report.json`): 17 scenarios, 17/0
+  Verilator + both Yosys; `divergence_enabled = true`, `divergence_subset` = 2 axes,
+  each subset unit carries 3 labelled `accept` verdicts with `diverged = false`, and
+  `saw_acceptance_divergence = false` — the all-agree steady state, exactly as
+  designed (the column is produced + classified; nothing diverged on clean output).
+
+**Impact**
+
+- `tool_matrix --divergence` now records a per-unit accept/warn/reject matrix for
+  the per-axis subset and an opportunistic coverage fact. No CLI/MCP `anvil`-side
+  arg surface yet (`.2d`); no behaviour/RTL change (default-off). Book/USER_GUIDE/
+  README/KM closeout is `.2f` per the tree's pre-split.
+
+**Files touched:** `src/bin/tool_matrix.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 — fold the acceptance-divergence detector into hunt::run
 
-**Landed as:** this commit (previous: `4028537`). **Default-off / DUT byte-identical**
+**Landed as:** `7142fd7` (previous: `4028537`). **Default-off / DUT byte-identical**
 (`tests/snapshots.rs` + `book_examples` unchanged; the divergence axis is off by
 default and wired into no generate/emit path). The first of the one-detector-two-
 surfaces pair (`.2c` pre-split into `.2c.1` hunt fold + `.2c.2` `tool_matrix` column).
