@@ -32,6 +32,7 @@
 
 use crate::config::Config;
 use crate::diff_sim::{run_agreement, DiffSimReport};
+use crate::divergence::{classify_report, DivergenceReport};
 use crate::downstream::{
     generate_dut_artifact, introspect_dut_artifact, minimize, tool_verdict, validate,
     KnobReduction, MinimizeOptions, MinimizeReport, ToolInvocation, ToolVerdict, ValidateOptions,
@@ -76,6 +77,16 @@ pub struct HuntRequest {
     /// `detection == "cross_sim_mismatch"`. Friendly no-op when either
     /// simulator is absent. Default-off behaviour is `false`.
     pub diff_sim: bool,
+    /// Classify each **finding** for **acceptance divergence**
+    /// (`ACCEPTANCE-DIVERGENCE-HUNTING.2c`): when one selected tool accepted the
+    /// same artifact another rejected/warned, the finding is a cross-tool
+    /// divergence (`detection == "acceptance_divergence"`, with
+    /// [`HuntFailure::divergence`] carrying the report). Computed from the tools
+    /// `validate` already ran (no re-validation) via
+    /// [`crate::divergence::classify_report`]; a divergence is not minimized (the
+    /// `validate` oracle can't preserve a cross-tool disagreement, like
+    /// `cross_sim_mismatch`). Default-off behaviour is `false`.
+    pub divergence: bool,
     /// When set, emit a self-contained **reproducer bundle** directory
     /// `<bundle_root>/<run_id>/` per finding (`repro.sv`, `knobs.json`,
     /// `introspection.json`, `tool-logs/`, `hunt-verdict.json`, and a
@@ -160,18 +171,25 @@ pub struct HuntFailure {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_error: Option<String>,
     /// `"reject"` (non-zero exit), `"warning"` (clean exit, warning folded into
-    /// `success == false`), or `"cross_sim_mismatch"` (the two simulators
-    /// disagreed on a validate-clean artifact).
+    /// `success == false`), `"cross_sim_mismatch"` (the two simulators disagreed
+    /// on a validate-clean artifact), or `"acceptance_divergence"` (one selected
+    /// tool accepted the same artifact another rejected/warned).
     pub detection: String,
     /// The auto-minimize result, when `HuntRequest::minimize` was set. Absent
-    /// for a `cross_sim_mismatch` finding — the `validate`-based minimize oracle
-    /// only shrinks parse/synth failures, not a trace disagreement.
+    /// for a `cross_sim_mismatch` or `acceptance_divergence` finding — the
+    /// `validate`-based minimize oracle only shrinks parse/synth failures, not a
+    /// trace disagreement or a cross-tool acceptance disagreement.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimized: Option<HuntMinimized>,
     /// The cross-simulator agreement report, present on a `cross_sim_mismatch`
     /// finding (carries `ran` / `success` / `n_samples` / `mismatch_excerpt`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff_sim: Option<DiffSimReport>,
+    /// The acceptance-divergence report, present on an `acceptance_divergence`
+    /// finding (the per-tool accept/warn/reject verdicts + the classified
+    /// disagreement). `ACCEPTANCE-DIVERGENCE-HUNTING.2c`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub divergence: Option<DivergenceReport>,
     /// The on-disk reproducer bundle, present iff [`HuntRequest::bundle_root`]
     /// was set (and the bundle wrote). Absent for the default in-memory hunt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -521,6 +539,7 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
                         // trace disagreement, so cross-sim findings aren't shrunk.
                         minimized: None,
                         diff_sim: Some(ds),
+                        divergence: None,
                         bundle: None,
                     };
                     // The bundle reproduces the validate-clean artifact (no
@@ -563,6 +582,25 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
                 None => (String::new(), Vec::new(), None, "reject".to_string()),
             };
 
+        // Optional acceptance-divergence classification (no re-validation — the
+        // tools `validate` already ran are classified). A finding *diverges* only
+        // when some tool accepted the SAME artifact another rejected/warned — a
+        // sharper cross-tool downstream-bug signal than a bare reject. When it
+        // does, this is an `acceptance_divergence` finding; the `failing_tool` /
+        // `failing_argv` / `first_error` still point at the first rejecting tool
+        // so `repro.sh` re-runs it.
+        let divergence = if req.divergence {
+            let dr = classify_report(&report);
+            dr.diverged.then_some(dr)
+        } else {
+            None
+        };
+        let detection = if divergence.is_some() {
+            "acceptance_divergence".to_string()
+        } else {
+            detection
+        };
+
         let mut failure = HuntFailure {
             seed,
             run_id: run_id.clone(),
@@ -572,13 +610,18 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
             detection,
             minimized: None,
             diff_sim: None,
+            divergence,
             bundle: None,
         };
 
         // The bundle reproduces the minimized artifact when minimize confirmed a
         // smaller still-failing reproducer; otherwise the originally-detected one.
+        // An acceptance divergence is not minimized: the `validate` oracle only
+        // knows "some tool fails", so shrinking can destroy the cross-tool
+        // disagreement (the accepting tool may start rejecting the smaller
+        // config) — the same reason a `cross_sim_mismatch` is not minimized.
         let mut bundled_minimized = false;
-        if req.minimize {
+        if req.minimize && failure.divergence.is_none() {
             let mopts = MinimizeOptions {
                 validate: req.validate.clone(),
                 max_oracle_calls: req.max_oracle_calls,
@@ -667,6 +710,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            divergence: false,
             bundle_root: None,
         };
         let report = run(&req).expect("hunt run");
@@ -702,6 +746,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            divergence: false,
             bundle_root: None,
         };
         assert_eq!(seed_config(&req, 100).seed, 100);
@@ -730,6 +775,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            divergence: false,
             bundle_root: None,
         };
         let a = run(&mk()).expect("hunt run a");
@@ -785,6 +831,7 @@ mod tests {
                 detection: "warning".to_string(),
                 minimized: None,
                 diff_sim: None,
+                divergence: None,
                 bundle: None,
             }],
             summary: HuntSummary {
@@ -827,6 +874,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: true,
+            divergence: false,
             bundle_root: None,
         };
         let report = run(&req).expect("hunt run");
@@ -834,6 +882,31 @@ mod tests {
         assert!(report.verdicts.iter().all(|v| v.ok));
         assert_eq!(report.summary.n_clean, 2);
         assert_eq!(report.summary.n_failures, 0);
+    }
+
+    /// The `divergence` flag is inert on a clean sweep: with no tools every seed
+    /// is vacuously clean, so the finding path (where acceptance divergence is
+    /// classified) is never reached and no finding carries a `divergence` report.
+    /// Proves the flag is wired into the loop without perturbing the clean path
+    /// (cargo-portable; the cross-tool classification itself is proven in
+    /// `divergence::tests`).
+    #[test]
+    fn divergence_flag_is_inert_on_a_clean_sweep() {
+        let req = HuntRequest {
+            base_seed: 9,
+            seeds: 2,
+            config: Config::default(),
+            validate: test_validate_opts("divergence-inert"),
+            minimize: false,
+            max_oracle_calls: 50,
+            diff_sim: false,
+            divergence: true,
+            bundle_root: None,
+        };
+        let report = run(&req).expect("hunt run");
+        assert!(report.failures.is_empty());
+        assert!(report.verdicts.iter().all(|v| v.ok));
+        assert!(report.failures.iter().all(|f| f.divergence.is_none()));
     }
 
     /// `shell_quote` single-quotes a token and escapes an embedded single quote.
@@ -896,6 +969,7 @@ mod tests {
             detection: "warning".to_string(),
             minimized: None,
             diff_sim: None,
+            divergence: None,
             bundle: None,
         };
 
@@ -1002,6 +1076,7 @@ mod tests {
             minimize: false,
             max_oracle_calls: 50,
             diff_sim: false,
+            divergence: false,
             bundle_root: Some(root.clone()),
         };
         let report = run(&req).expect("hunt run");

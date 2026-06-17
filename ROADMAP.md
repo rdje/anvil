@@ -2415,12 +2415,13 @@ cross-cutting homes for this deepening.
 
 The seven lanes (north-star-ordered). Lane 1 is **delivered** (`2026-06-17`, tree
 closed); lane 2's design `.1` ADR is **recorded** (`2026-06-17`, decision `0019`)
-and its first two code leaves are **done** — `.2a` (the shared
-`downstream::tool_verdict` accept/warn/reject classifier extract) and `.2b` (the
+and its first code leaves are **done** — `.2a` (the shared
+`downstream::tool_verdict` accept/warn/reject classifier extract), `.2b` (the
 `src/divergence/` library core: `divergence::run` + the report types, reusing
-`validate` + the shared classifier); frontier now `.2c` (the `hunt::run` fold + the
-`tool_matrix` column). The other five remain `active` with a design-first `.1` ADR
-frontier:
+`validate` + the shared classifier), and `.2c.1` (the `hunt::run` fold:
+`HuntRequest.divergence` → an `acceptance_divergence` finding via the extracted
+`classify_report`); frontier now `.2c.2` (the `tool_matrix` divergence column). The
+other five remain `active` with a design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
    MCP-driven fuzz → detect → auto-minimize → reproducer-bundle loop composing the
@@ -2448,13 +2449,14 @@ frontier:
    `saw_acceptance_divergence` is opportunistic (all-agree is the
    valid-by-construction steady state); version-vs-version is the later increment.
    Pre-split `.2` → `.2a`…`.2f`; **`.2a` done** (the shared
-   `downstream::tool_verdict` accept/warn/reject classifier extracted from
-   `hunt::run`, byte-identical; one classifier, no fork) **+ `.2b` done**
-   (`2026-06-17`, the `src/divergence/` library core: `divergence::run` reusing the
-   one `downstream::validate` orchestration + the shared classifier, with the
-   `accept_reject`/`accept_warn`/`warn_reject` classification); frontier `.2c` (the
-   `hunt::run` fold + the `tool_matrix` column). Default `anvil` build / DUT
-   byte-identical.
+   `downstream::tool_verdict` classifier extract) **+ `.2b` done** (the
+   `src/divergence/` library core: `divergence::run` reusing the one
+   `downstream::validate` orchestration + the shared classifier) **+ `.2c.1` done**
+   (`2026-06-17`, the `hunt::run` fold: `HuntRequest.divergence` → an
+   `acceptance_divergence` finding via the extracted `classify_report`, classifying
+   the tools `validate` already ran — no minimize, the `cross_sim_mismatch`
+   rationale); frontier `.2c.2` (the `tool_matrix` divergence column). Default
+   `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).
 4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full

@@ -691,6 +691,10 @@ impl McpServer {
             minimize: parse_bool_arg(args, "minimize", true)?,
             max_oracle_calls: parse_max_oracle_calls(args)?,
             diff_sim: parse_bool_arg(args, "diff_sim", false)?,
+            // Acceptance-divergence classification wiring is
+            // `ACCEPTANCE-DIVERGENCE-HUNTING.2d` (the MCP `divergence` arg);
+            // default-off here keeps this call byte-identical until then.
+            divergence: false,
             // The MCP path never writes an on-disk bundle (decision `0004`: the
             // agent supplies no filesystem path); reproducer artifacts are served
             // from the cache as `anvil://…` resources instead.
@@ -2630,6 +2634,7 @@ mod tests {
                 detection: "warning".to_string(),
                 minimized: None,
                 diff_sim: None,
+                divergence: None,
                 bundle: None,
             }],
             summary: hunt::HuntSummary {

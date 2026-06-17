@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability — acceptance-divergence bug-finder (north star, idea 2)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` design ADR done — decision `0019`; `.2a` shared `tool_verdict` extract done; `.2b` `src/divergence/` core done; frontier `.2c`)
+- Last updated: `2026-06-17` (`.1` ADR `0019` + `.2a` `tool_verdict` + `.2b` `src/divergence/` core + `.2c.1` hunt fold done; frontier `.2c.2` — the `tool_matrix` column)
 - Owner: repo-local workflow
 
 ## Goal
@@ -87,8 +87,24 @@ query — building on the existing hardened `src/downstream/` adapters and the
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c`
   Status: `pending`
-  Goal: `Fold the detector into hunt::run (HuntRequest.divergence: bool → divergence::run on each artifact → an "acceptance_divergence" finding + HuntFailure.divergence: Option<DivergenceReport>, no minimize by default) AND add the tool_matrix column (--divergence, ModuleReport/DesignReport.divergence, the opportunistic saw_acceptance_divergence fact, the classify_diff_sim_axis subset reuse). Cargo-portable proofs. Default-off / DUT byte-identical.`
-  Acceptance: `HuntRequest.divergence + HuntFailure.divergence added; a divergence on a swept artifact is a finding; tool_matrix records the per-unit divergence column + the opportunistic fact; cargo-portable proofs; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged.`
+  Goal: `Fold the detector into hunt::run (HuntRequest.divergence → an "acceptance_divergence" finding + HuntFailure.divergence, no minimize by default) AND add the tool_matrix column (--divergence, ModuleReport/DesignReport.divergence, the opportunistic saw_acceptance_divergence fact, the classify_diff_sim_axis subset reuse). Default-off / DUT byte-identical. Pre-split at pick into .2c.1 (hunt fold) + .2c.2 (tool_matrix column).`
+  Acceptance: `Both .2c.1 + .2c.2 done; a hunt finding where some tool accepted while another rejected/warned is an acceptance_divergence; tool_matrix records the per-unit divergence column + the opportunistic fact; cargo-portable proofs; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged.`
+  Verification: `pending`
+  Commit: `pending`
+  Children: `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1, ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`
+
+- ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1`
+  Status: `done`
+  Goal: `Fold the detector into hunt::run: HuntRequest.divergence: bool + HuntFailure.divergence: Option<DivergenceReport>; on a finding (!report.ok), classify the tools validate ALREADY ran (divergence::classify_report — no re-validation) and, when some tool accepted while another rejected/warned, mark the finding detection="acceptance_divergence" + attach the report. Not minimized (the validate oracle can't preserve a cross-tool disagreement, like cross_sim_mismatch). Cargo-portable proofs. Default-off / DUT byte-identical.`
+  Acceptance: `divergence::classify_report(&ValidateReport) extracted (run refactored to use it, byte-identical); HuntRequest.divergence + HuntFailure.divergence added; the finding path classifies + refines detection; minimize skipped for a divergence finding; MCP run_hunt + CLI build_hunt_request set divergence:false (arg-wiring is .2d, byte-identical); cargo-portable proofs; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged.`
+  Result: `Done. (1) src/divergence/mod.rs: extracted pub fn classify_report(&ValidateReport) -> DivergenceReport (the pure projection half of run; run now = validate + classify_report, byte-identical) so the hunt classifies the tools validate already ran without re-validating; +1 proof classify_report_projects_a_validate_report (divergence:: 7→8). (2) src/hunt/mod.rs: HuntRequest.divergence: bool + HuntFailure.divergence: Option<DivergenceReport> (skip_serializing_if) + import classify_report/DivergenceReport. On the finding path (!report.ok), when req.divergence, classify_report(&report); a diverged result refines detection to "acceptance_divergence" and attaches the report; minimize is skipped for a divergence finding (the validate oracle can't preserve a cross-tool disagreement — the cross_sim_mismatch rationale). Cross-sim + finding HuntFailure sites get divergence: None. +1 proof divergence_flag_is_inert_on_a_clean_sweep (hunt:: 11→12). (3) src/mcp/mod.rs run_hunt + src/main.rs build_hunt_request set divergence: false (default-off; the MCP/CLI arg-wiring is .2d) so both shims stay byte-identical; fixed the mcp test HuntFailure literal. No MCP schema / no CLI flag change yet. Default-off / DUT byte-identical.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test --lib divergence:: 8/8 + hunt:: 12/12; full cargo test --lib 531/0 (529→531); tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs 3/3 (default anvil path untouched — divergence default-off).`
+  Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 commit`
+
+- ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`
+  Status: `pending`
+  Goal: `Add the tool_matrix divergence column: a --divergence opt-in, ModuleReport/DesignReport.divergence: Option<DivergenceReport> (the diff_sim column precedent), the opportunistic saw_acceptance_divergence coverage fact (NEVER a required gate — all-agree is the valid-by-construction steady state), and the classify_diff_sim_axis subset reuse. Cargo-portable proofs. Default-off / DUT byte-identical.`
+  Acceptance: `tool_matrix gains --divergence + the per-unit divergence column via divergence::classify_report over the tools it already ran; the opportunistic saw_acceptance_divergence fact (recorded when seen, not required); cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical.`
   Verification: `pending`
   Commit: `pending`
 
@@ -117,12 +133,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `pending` | Fold the detector into `hunt::run` (`HuntRequest.divergence` → an `acceptance_divergence` finding) + add the `tool_matrix` column (the one detector, two surfaces). |
+| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` | `pending` | The `tool_matrix` divergence column (`--divergence`, `ModuleReport`/`DesignReport.divergence`, the opportunistic `saw_acceptance_divergence` fact, the `classify_diff_sim_axis` subset reuse) — the second of the one-detector-two-surfaces pair. |
 | 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool + CLI shim (decision `0017` gate). |
 | 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis. |
 | 4 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
 
-(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` classifier extract `done 2026-06-17`. `.2b` `src/divergence/` library core `done 2026-06-17` — `divergence::run` + the report types; lib 529/0, snapshots 6/6.)
+(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` extract `done`. `.2b` `src/divergence/` core `done`. `.2c` pre-split → `.2c.1` (hunt fold) `done 2026-06-17` — `HuntRequest.divergence` → an `acceptance_divergence` finding via `classify_report`; lib 531/0, snapshots 6/6 + book_examples. Frontier `.2c.2` (the `tool_matrix` column).)
 
 ## Decisions
 
@@ -175,6 +191,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.1` | `decision 0019 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row + ROADMAP lane-2 note; check_memory_architecture OK; KM gen+check OK (47→48 facts); docs-only (no src/) ⇒ DUT byte-identical` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `downstream::tool_verdict + ToolVerdict{Accept,Warn,Reject} extracted; hunt::classify_detection derives from it (byte-identical); +1 downstream proof; cargo check/clippy/fmt green; cargo test --lib 522/0 (downstream:: 21/0 + hunt:: 11/11); snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `src/divergence/mod.rs + pub mod divergence; DivergenceOptions/ToolDecision/Divergence/DivergenceReport + divergence::run reuses downstream::validate + the shared tool_verdict + classify_divergences (accept_reject/accept_warn/warn_reject, deterministic); 7 cargo-portable proofs; cargo check/clippy/fmt green; cargo test --lib divergence:: 7/7 + full lib 529/0; snapshots 6/6 byte-identical` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `divergence::classify_report extracted (run refactored, byte-identical); hunt::run gains HuntRequest.divergence + HuntFailure.divergence — a finding where some tool accepted while another rejected/warned is classified acceptance_divergence (no minimize, like cross_sim); mcp/main set divergence:false (arg-wiring=.2d); +2 proofs; cargo check/clippy/fmt green; cargo test --lib divergence:: 8/8 + hunt:: 12/12 + full lib 531/0; snapshots 6/6 + book_examples 3/3` | `done` |
 
 ## Commit Log
 
@@ -184,6 +201,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | `ACCEPTANCE-DIVERGENCE-HUNTING.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.1 — design ADR (decision 0019): acceptance-divergence detector (accept/warn/reject verdicts + classifier) shared by the hunt loop, tool_matrix, and MCP` | Design/decision leaf (docs-only). Pins the verdict/classifier/report, the three surfaces (one shared `divergence::run`), the reproducer reuse, the version axis, the honesty boundary; pre-splits `.2` into `.2a`…`.2f`. DUT byte-identical. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a — extract shared downstream::tool_verdict accept/warn/reject classifier from hunt::run` | First code leaf. `ToolVerdict` enum + `tool_verdict` in `src/downstream/mod.rs`; `hunt::classify_detection` derives from it (byte-identical). The one accept/warn/reject classifier `.2b`'s divergence detector reuses. Default-off / DUT byte-identical (snapshots 6/6). |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `ACCEPTANCE-DIVERGENCE-HUNTING.2b — src/divergence/ library core (divergence::run + DivergenceReport, reusing validate + the shared classifier)` | New `src/divergence/mod.rs` + `pub mod divergence`. `divergence::run` reuses the one `downstream::validate` orchestration + the shared `tool_verdict`, classifies disagreement (`accept_reject`/`accept_warn`/`warn_reject`, deterministic). 7 cargo-portable proofs; lib 529/0; snapshots 6/6. No CLI/MCP/version axis yet. Default-off / DUT byte-identical. |
+| `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 — fold the acceptance-divergence detector into hunt::run (classify_report + HuntRequest.divergence)` | `divergence::classify_report` (the pure projection of an already-run `ValidateReport`) + `hunt::run`'s `HuntRequest.divergence`/`HuntFailure.divergence`: a finding where one tool accepted what another rejected/warned is classified `acceptance_divergence` (no minimize). MCP/CLI set `divergence:false` (arg-wiring=`.2d`). lib 531/0; snapshots 6/6 + book_examples. Default-off / DUT byte-identical. |
 
 ## Changelog
 
@@ -230,3 +248,19 @@ query — building on the existing hardened `src/downstream/` adapters and the
   byte-identical; clippy/fmt green. No CLI/MCP yet (`.2c`/`.2d`); no version axis
   (`.2e`). Default-off / DUT byte-identical. Frontier advanced to `.2c` (the
   `hunt::run` fold + the `tool_matrix` column).
+- `2026-06-17`: pre-split `.2c` into `.2c.1` (the `hunt::run` fold) + `.2c.2` (the
+  `tool_matrix` column). `.2c.1` done — extracted
+  `divergence::classify_report(&ValidateReport)` (the pure projection half of `run`;
+  `run` refactored to use it, byte-identical) so the hunt classifies the tools
+  `validate` **already ran** without re-validating. `hunt::run` gains
+  `HuntRequest.divergence: bool` + `HuntFailure.divergence: Option<DivergenceReport>`;
+  on the finding path (`!report.ok`), a result where some tool accepted what another
+  rejected/warned refines `detection` to `"acceptance_divergence"` and attaches the
+  report — and is **not** minimized (the `validate` oracle can't preserve a cross-tool
+  disagreement, the `cross_sim_mismatch` rationale). The MCP `run_hunt` + CLI
+  `build_hunt_request` set `divergence: false` (the arg-wiring is `.2d`,
+  byte-identical until then). +2 proofs (`classify_report_projects_a_validate_report`,
+  `divergence_flag_is_inert_on_a_clean_sweep`). `cargo test --lib` 531/0 (divergence::
+  8/8, hunt:: 12/12); snapshots 6/6 byte-identical + book_examples 3/3; clippy/fmt
+  green. Default-off / DUT byte-identical. Frontier advanced to `.2c.2` (the
+  `tool_matrix` column).

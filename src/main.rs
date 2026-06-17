@@ -829,6 +829,9 @@ fn build_hunt_request(args: &HuntCommand) -> anyhow::Result<anvil::hunt::HuntReq
         minimize: !args.no_minimize,
         max_oracle_calls: args.budget,
         diff_sim: args.diff_sim,
+        // The `--divergence` CLI flag is wired in `ACCEPTANCE-DIVERGENCE-HUNTING.2d`;
+        // default-off here keeps this shim byte-identical until then.
+        divergence: false,
         bundle_root: args.out.clone(),
     })
 }

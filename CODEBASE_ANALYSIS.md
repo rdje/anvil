@@ -608,8 +608,13 @@ src/
 │                     `warn_reject`), deterministic (sorted tools, fixed order).
 │                     Yosys `both` ⇒ two labelled verdicts, so without-abc-vs-
 │                     with-abc is itself a divergence. Adds no generator path and
-│                     no behavioural oracle (decision `0004`). The `hunt`-axis +
-│                     `tool_matrix` column (`.2c`), the MCP `divergence` tool + CLI
+│                     no behavioural oracle (decision `0004`). `.2c.1` adds the pure
+│                     `classify_report(&ValidateReport) -> DivergenceReport` (the
+│                     projection half of `run`, no tool runs) so the `hunt` loop
+│                     classifies the tools `validate` already ran on a finding — the
+│                     `hunt::run` axis (`HuntRequest.divergence` → an
+│                     `acceptance_divergence` finding) is now wired. The
+│                     `tool_matrix` column (`.2c.2`), the MCP `divergence` tool + CLI
 │                     (`.2d`), and the tool-version axis (`.2e`) come next. Default
 │                     `anvil` build / DUT byte-identical.
 ├── downstream/      Hardened downstream-tool invocation surface
@@ -705,6 +710,13 @@ src/
 │                     URIs. Prefers the minimized reproducer when minimize
 │                     confirmed a smaller still-failing config. The MCP `hunt`
 │                     tool (`.2c`) + the `anvil hunt` CLI (`.2d`) shim over `run`.
+│                     `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1` folds the optional
+│                     **acceptance-divergence** axis — when `HuntRequest.divergence`
+│                     is set, a finding where one selected tool accepted what
+│                     another rejected/warned is refined to an
+│                     `acceptance_divergence` (via `divergence::classify_report`
+│                     over the tools `validate` already ran; `HuntFailure.divergence`
+│                     carries the report; not minimized, like `cross_sim_mismatch`).
 │                     Default-off / DUT byte-identical (no generate/emit path).
 ├── introspect/      Agent-introspection emission surface
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned

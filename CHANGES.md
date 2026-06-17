@@ -1,9 +1,57 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2c.1 — fold the acceptance-divergence detector into hunt::run
+
+**Landed as:** this commit (previous: `4028537`). **Default-off / DUT byte-identical**
+(`tests/snapshots.rs` + `book_examples` unchanged; the divergence axis is off by
+default and wired into no generate/emit path). The first of the one-detector-two-
+surfaces pair (`.2c` pre-split into `.2c.1` hunt fold + `.2c.2` `tool_matrix` column).
+
+**What changed (why)**
+
+- **`src/divergence/mod.rs`** — extracted `pub fn classify_report(&ValidateReport)
+  -> DivergenceReport` (the pure projection half of `run`; `run` now = `validate` +
+  `classify_report`, byte-identical), so the `hunt` loop can classify the tools
+  `validate` **already ran** on a finding without re-validating. +1 proof
+  (`classify_report_projects_a_validate_report`).
+- **`src/hunt/mod.rs`** — `HuntRequest.divergence: bool` + `HuntFailure.divergence:
+  Option<DivergenceReport>`. On the finding path (`!report.ok`), when
+  `req.divergence`, `classify_report(&report)`; a `diverged` result (one tool
+  accepted what another rejected/warned — the sharper cross-tool signal) refines
+  `detection` to `"acceptance_divergence"` and attaches the report. **Not
+  minimized** — the `validate` oracle only knows "some tool fails", so shrinking can
+  destroy the disagreement (the accepting tool may reject the smaller config); same
+  rationale as `cross_sim_mismatch`. +1 proof
+  (`divergence_flag_is_inert_on_a_clean_sweep`).
+- **`src/mcp/mod.rs`** + **`src/main.rs`** — the `run_hunt` / `build_hunt_request`
+  `HuntRequest` constructors set `divergence: false` (the MCP `divergence` arg + the
+  `--divergence` CLI flag are `.2d`), keeping both surfaces byte-identical; fixed
+  the `mcp` test `HuntFailure` literal for the new field.
+- **`CODEBASE_ANALYSIS.md`** — the `divergence/` + `hunt/` module entries note
+  `classify_report` and the wired `acceptance_divergence` hunt axis.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo clippy --all-targets -- -D warnings` OK;
+  `cargo fmt --all --check` OK (all under `scripts/ram_guard.sh --threshold 90`).
+- `cargo test --lib divergence::` **8/8**, `hunt::` **12/12**; full `cargo test
+  --lib` **531 passed / 0 failed / 2 ignored** (529 → 531). `tests/snapshots.rs`
+  **6/6 byte-identical**; `tests/book_examples.rs` **3/3** (the default `anvil` path
+  is untouched — divergence is default-off).
+
+**Impact**
+
+- The hunt loop can now flag cross-tool acceptance divergence. No CLI/MCP arg
+  surface yet (`.2d`); the `tool_matrix` column is `.2c.2`. No behaviour/RTL change.
+
+**Files touched:** `src/divergence/mod.rs`, `src/hunt/mod.rs`, `src/mcp/mod.rs`,
+`src/main.rs`, `CODEBASE_ANALYSIS.md`, `docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2b — src/divergence/ library core (divergence::run + DivergenceReport)
 
-**Landed as:** this commit (previous: `dd6c9eb`). **Default-off / DUT byte-identical**
+**Landed as:** `4028537` (previous: `dd6c9eb`). **Default-off / DUT byte-identical**
 (`tests/snapshots.rs` untouched; the detector is wired into no generate/emit path).
 The `.2b` library core of the acceptance-divergence lane — a **composer**, not a new
 engine.

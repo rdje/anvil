@@ -42,7 +42,9 @@
 //! record — renamed here to avoid clashing with the enum).
 
 use crate::config::Config;
-use crate::downstream::{tool_verdict, validate, ToolInvocation, ToolVerdict, ValidateOptions};
+use crate::downstream::{
+    tool_verdict, validate, ToolInvocation, ToolVerdict, ValidateOptions, ValidateReport,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
@@ -131,19 +133,31 @@ pub struct DivergenceReport {
 /// function changes no emitted RTL.
 pub fn run(seed: u64, cfg: &Config, opts: &DivergenceOptions) -> Result<DivergenceReport> {
     let report = validate(seed, cfg, &opts.validate)?;
+    Ok(classify_report(&report))
+}
+
+/// Classify an already-run [`ValidateReport`] into a [`DivergenceReport`] — the
+/// pure projection half of [`run`] (it runs **no** tool). Reused by the `hunt`
+/// loop (`ACCEPTANCE-DIVERGENCE-HUNTING.2c`), which classifies the tools
+/// [`crate::downstream::validate`] already ran on a finding rather than
+/// re-validating — so the one orchestration runs once. Every field is a
+/// `SCHEMA-DERIVED` projection of the report (`run_id` / `lane` / `kind` / `top`
+/// / `sandbox` / `declined` carried through; `verdicts` projected per tool;
+/// `divergences` classified).
+pub fn classify_report(report: &ValidateReport) -> DivergenceReport {
     let verdicts: Vec<ToolDecision> = report.tools.iter().map(to_decision).collect();
     let divergences = classify_divergences(&verdicts);
-    Ok(DivergenceReport {
-        run_id: report.run_id,
-        lane: report.lane,
-        kind: report.kind,
-        top: report.top,
-        sandbox: report.sandbox,
+    DivergenceReport {
+        run_id: report.run_id.clone(),
+        lane: report.lane.clone(),
+        kind: report.kind.clone(),
+        top: report.top.clone(),
+        sandbox: report.sandbox.clone(),
         diverged: !divergences.is_empty(),
         divergences,
         verdicts,
-        declined: report.declined,
-    })
+        declined: report.declined.clone(),
+    }
 }
 
 /// Project one [`ToolInvocation`] into its [`ToolDecision`] via the shared
@@ -316,6 +330,34 @@ mod tests {
         assert!(report.divergences.is_empty());
         assert!(report.declined.is_none());
         assert!(!report.run_id.is_empty());
+    }
+
+    /// `classify_report` projects an already-run `ValidateReport` (the tools the
+    /// hunt loop already ran) into a `DivergenceReport` without re-validating —
+    /// carrying run_id/lane/kind/top/sandbox/declined through and classifying the
+    /// per-tool verdicts. An accept+reject report ⇒ `accept_reject`.
+    #[test]
+    fn classify_report_projects_a_validate_report() {
+        let report = ValidateReport {
+            run_id: "rid".to_string(),
+            lane: "dut".to_string(),
+            kind: "module".to_string(),
+            top: "m".to_string(),
+            sandbox: "/tmp/s".to_string(),
+            tools: vec![
+                inv("verilator", true, Some(0)),
+                inv("yosys-without-abc", false, Some(1)),
+            ],
+            ok: false,
+            declined: None,
+        };
+        let dr = classify_report(&report);
+        assert_eq!(dr.run_id, "rid");
+        assert_eq!(dr.top, "m");
+        assert!(dr.diverged);
+        assert_eq!(dr.divergences.len(), 1);
+        assert_eq!(dr.divergences[0].kind, "accept_reject");
+        assert_eq!(dr.verdicts.len(), 2);
     }
 
     /// The report serialises and round-trips; absent optional fields stay off the

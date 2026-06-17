@@ -5,6 +5,38 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — the `hunt::run` fold — `ACCEPTANCE-DIVERGENCE-HUNTING.2c.1`
+
+Folding the detector into the hunt loop. The non-obvious calls:
+
+- **Acceptance divergence lives on the *finding* path, not the clean path.** The
+  ADR sketched "run the detector on each swept artifact", but think it through:
+  the hunt's `report.ok == true` means *every* selected tool accepted — so there
+  is no disagreement, and a divergence is impossible. A divergence requires some
+  tool to accept while another rejects/warns — which is exactly `report.ok ==
+  false` (the finding path) *with* a mix of verdicts. So the fold belongs where
+  the finding is built, and it *refines* a reject/warning finding into an
+  `acceptance_divergence` when the disagreement is cross-tool. (Contrast the
+  `diff_sim` axis, which is the opposite — it needs all tools to *accept* first,
+  so it lives on the clean path.)
+- **Classify the tools `validate` already ran — don't re-validate.** On the
+  finding path the loop already holds `report: ValidateReport` with every tool's
+  invocation. Calling `divergence::run` there would re-generate + re-run every
+  tool. So `.2c.1` extracts `divergence::classify_report(&ValidateReport)` (the
+  pure projection half of `run`; `run` now = `validate` + `classify_report`,
+  byte-identical) and the hunt calls *that*. One orchestration, run once.
+- **A divergence is not minimized — same reason as `cross_sim_mismatch`.** The
+  `validate` minimize oracle only knows "some tool fails"; shrinking can land on a
+  config where the *accepting* tool also starts rejecting, destroying the
+  divergence. So reporting a minimized `acceptance_divergence` would be misleading;
+  `minimize` is skipped (`failure.divergence.is_none()` guards the minimize block).
+- **Adding a required field to `HuntRequest` rippled to four constructors.** The
+  field is required (not `#[serde(default)]` on the struct — `HuntRequest` isn't
+  deserialized), so every literal had to set it: the hunt tests, the MCP
+  `run_hunt`, and the CLI `build_hunt_request`. The two surface constructors set
+  `divergence: false` with a comment that the actual arg-wiring is `.2d` — so this
+  leaf is byte-identical for the MCP tool and the CLI (no schema/flag change yet).
+
 ## 2026-06-17 — Acceptance-divergence hunting — the `src/divergence/` library core — `ACCEPTANCE-DIVERGENCE-HUNTING.2b`
 
 The detector core. The decisions worth recording:
