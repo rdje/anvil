@@ -1,9 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — DOWNSTREAM-ADAPTER-EXPANSION.2a.2 — `anvil://catalog/adapters` discoverability resource (decision 0017)
+
+**Landed as:** this commit (previous: `c5d0fac`). **Code change — `src/downstream/mod.rs`
++ `src/mcp/mod.rs` + book; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6
+untouched; no introspection `SCHEMA_VERSION` bump). The adapter-catalog discoverability
+surface (owned by leaf `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`).
+
+**What changed (why)**
+
+Decision `0017` (API-completeness) requires an agent to *discover* the downstream
+surface over the API alone — which tools exist and which are installed. This slice
+projects the closed `adapters()` registry as a new MCP resource:
+
+- **`src/downstream/mod.rs`** — a defaulted `Adapter::supports_facts() -> bool`
+  (built-ins `false`; the first fact-bearing adapter, `slang` at `.2c`, overrides it)
+  + a serializable **`AdapterInfo { id, binary, present, supports_facts }`** + **`pub
+  fn adapter_catalog() -> Vec<AdapterInfo>`** — a SCHEMA-DERIVED projection of the
+  registry, in display order, each stamped with a live `tool_version()` PATH probe for
+  `present` (a missing tool ⇒ `present: false`, the friendly-no-op precedent).
+- **`src/mcp/mod.rs`** — `resources_list` advertises **`anvil://catalog/adapters`**
+  (beside `knobs` / `lanes`) and `resources_read` serves
+  `{ "adapters": [ {id, binary, present, supports_facts} … ] }`. No new tool and no
+  introspection schema bump — it is a static catalog resource like `knobs`/`lanes`.
+- **Book** — `book/src/api-resources-prompts.md` static-resource table row +
+  `book/src/agent-mcp.md` resource list.
+
+So an agent can pick a tool for a `tools` array *and* see whether it is installed,
+entirely over the API. Pure projection — no second source of truth, no behavioural
+oracle (decision `0004`/`0011`).
+
+**Validation**
+
+`cargo test --lib` **546/0** (+1: `adapter_catalog_resource_lists_the_registry`);
+`tests/snapshots.rs` **6/6** byte-identical; `cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test
+book_examples` **3/3**. No introspection `SCHEMA_VERSION` change ⇒ DUT byte-identical.
+Heavy steps RAM-guarded (decision `0003`).
+
+**Impact**
+
+A new read-only discoverability resource; no behavioural change to generation or the
+existing tools. `present` is a live environment probe (so it varies by host); the three
+built-ins report `supports_facts: false` until `slang` (`.2c`). Default `anvil` build /
+`--artifact dut` byte-identical.
+
+**Files touched:** `src/downstream/mod.rs`, `src/mcp/mod.rs`,
+`book/src/api-resources-prompts.md`, `book/src/agent-mcp.md`,
+`docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`, `docs/TASK_TREE.md`,
+`CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — DOWNSTREAM-ADAPTER-EXPANSION.2a.1 — closed Adapter registry in `src/downstream` (decision 0020)
 
-**Landed as:** this commit (previous: `412e5ff`). **Code change — `src/downstream/mod.rs`
+**Landed as:** `c5d0fac` (previous: `412e5ff`). **Code change — `src/downstream/mod.rs`
 only; default-off / DUT byte-identical** (`tests/snapshots.rs` 6/6 untouched). The
 first impl leaf of decision `0020`: the closed, compile-time adapter-registry core
 (owned by leaf `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`, split this slice from `.2a`).

@@ -738,7 +738,14 @@ src/
 │                     plug into (`sv2v` `.2b`, `slang` `.2c`); not a runtime plugin /
 │                     not an agent-supplied command, so the `0004` fixed-allow-list
 │                     holds. `validate_tool_specs` + the `tool_matrix` columns route
-│                     through the registry at `.2a.3`; the catalog query is `.2a.2`.
+│                     through the registry at `.2a.3`.
+│                     `.2a.2` adds the **adapter catalog**: a defaulted
+│                     `Adapter::supports_facts()` (built-ins `false`; `slang` `.2c`
+│                     overrides) + `AdapterInfo { id, binary, present, supports_facts }`
+│                     + `pub fn adapter_catalog()` — a `SCHEMA-DERIVED` projection of
+│                     `adapters()` with a live `tool_version()` PATH probe for
+│                     `present`, served as the `anvil://catalog/adapters` MCP resource
+│                     (decision `0017` discoverability).
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`
@@ -893,8 +900,11 @@ src/
 │                     generator as pure/safe **tools** (`generate`,
 │                     `introspect`, `dump_config`) + **resources** (the cached
 │                     `.sv` / introspection document, addressed by the
-│                     content-addressed `run_id`, plus static `knobs`/`lanes`
-│                     catalogs). `.5.2` adds the controlled `validate` tool (a
+│                     content-addressed `run_id`, plus static `knobs`/`lanes`/
+│                     `adapters` catalogs — the last being the
+│                     `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` `anvil://catalog/adapters`
+│                     discoverability resource over `downstream::adapter_catalog()`).
+│                     `.5.2` adds the controlled `validate` tool (a
 │                     thin adapter over `downstream::validate`: parses the
 │                     tool allow-list + `yosys_mode`, fixes the sandbox to the OS
 │                     temp dir, audit-logs each call) and the read-only

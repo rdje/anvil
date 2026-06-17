@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / breadth — more downstream tool reach (north star, idea 3)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.2a.1` done — closed `Adapter` registry core; frontier `.2a.2`)
+- Last updated: `2026-06-17` (`.2a.2` done — `anvil://catalog/adapters` resource; frontier `.2a.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -77,11 +77,11 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`
-  Status: `pending`
+  Status: `done`
   Goal: `The SCHEMA-DERIVED adapter-catalog discoverability surface (decision 0017): project the closed adapters() registry as { id, binary, present (a PATH --version probe), supports_facts } — surfaced as an MCP resource (anvil://catalog/adapters) and/or a pure query, plus the introspection/schema touch if any; book/USER_GUIDE. So an agent can discover which tools exist and which are installed over the API alone.`
-  Acceptance: `pending (refine at pick)`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Landed the new MCP resource anvil://catalog/adapters. downstream gains a defaulted Adapter::supports_facts() (built-ins false; slang overrides at .2c) + a serializable AdapterInfo{id,binary,present,supports_facts} + pub fn adapter_catalog() projecting adapters() with a live tool_version() PATH probe for present. mcp resources_list advertises it + resources_read serves { "adapters": [...] }. No introspection SCHEMA_VERSION bump (a new resource, not a new introspection field). Book: api-resources-prompts.md static-resource table row + agent-mcp.md resource list. +1 mcp proof.`
+  Verification: `cargo test --lib 546/0 (+1: adapter_catalog_resource_lists_the_registry); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt --check clean; mdbook build clean; book_examples 3/3. DUT byte-identical (no generator/introspection-schema change). RAM-guarded.`
+  Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a.3`
   Status: `pending`
@@ -108,13 +108,13 @@ with its results queryable over MCP. Builds on the hardened
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `pending` | The adapter-catalog discoverability surface (decision `0017`): project the closed `adapters()` registry as `{ id, binary, present, supports_facts }` over MCP so an agent can discover installed tools over the API alone. |
-| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `pending` | Route `validate_tool_specs` + the `tool_matrix` columns through the registry (byte-identical fixed columns) — the bridge that makes adding `sv2v` a near-one-line registry add. |
-| 3 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). |
-| 4 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
+| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.3` | `pending` | Route `validate_tool_specs` + the `tool_matrix` columns through the registry (byte-identical fixed columns) — the bridge that makes adding `sv2v` a near-one-line registry add. |
+| 2 | `DOWNSTREAM-ADAPTER-EXPANSION.2b` | `pending` | `sv2v` — the minimal accept/reject transpile column proving the trait end-to-end (absent locally ⇒ no-op + `#[ignore]` gate). |
+| 3 | `DOWNSTREAM-ADAPTER-EXPANSION.2c` | `pending` | `slang` — the richer adapter landing the optional JSON-AST `extract_facts` hook. |
 
 Done: `.1` (design ADR, decision `0020`); `.2a.1` (the closed `Adapter` registry
-core + `validate` routed through it, byte-identical).
+core + `validate` routed through it, byte-identical); `.2a.2` (the
+`anvil://catalog/adapters` discoverability resource, decision `0017`).
 
 ## Decisions
 
@@ -165,6 +165,7 @@ core + `validate` routed through it, byte-identical).
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.1` | `docs-only / DUT byte-identical (no src/); decision 0020 + INDEX + tree + TASK_TREE.md + DEVELOPMENT_NOTES; live-toolchain probe (slang/sv2v/surelog absent); check_memory_architecture + KM gen/check green; mdbook build clean` | `done` |
 | `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `cargo check --all-targets clean; cargo test --lib 545/0 (+2 registry proofs); snapshots 6/6 byte-identical; tool_matrix 75/0; anvil 12/0; clippy -D warnings clean; fmt --check clean; DUT byte-identical (umbrella + snapshots); RAM-guarded` | `done` |
+| `2026-06-17` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `cargo test --lib 546/0 (+1 catalog proof); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt --check clean; mdbook build clean; book_examples 3/3; no introspection SCHEMA_VERSION bump; DUT byte-identical; RAM-guarded` | `done` |
 
 ## Commit Log
 
@@ -173,6 +174,7 @@ core + `validate` routed through it, byte-identical).
 | `DOWNSTREAM-ADAPTER-EXPANSION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.1` | `DOWNSTREAM-ADAPTER-EXPANSION.1 — adapter-interface ADR (decision 0020)` | Design ADR (`412e5ff`); pre-split `.2` → `.2a`/`.2b`/`.2c`; frontier advances to `.2a`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.1 — closed Adapter registry in src/downstream` | The registry core + `validate` routed through it, byte-identical. `.2a` split into `.2a.1`/`.2a.2`/`.2a.3`; frontier advances to `.2a.2`. |
+| `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` | `DOWNSTREAM-ADAPTER-EXPANSION.2a.2 — anvil://catalog/adapters discoverability resource` | The SCHEMA-DERIVED adapter catalog over MCP (decision `0017`); `Adapter::supports_facts` + `AdapterInfo`/`adapter_catalog()`. Frontier advances to `.2a.3`. |
 
 ## Changelog
 
@@ -189,3 +191,10 @@ core + `validate` routed through it, byte-identical).
   ADAPTER_REGISTRY`/`adapters()` + `AcceptanceTool::adapter()`; `validate` routed
   through the registry, byte-identical. Gate green (lib 545/0, snapshots 6/6,
   tool_matrix 75/0, anvil 12/0, clippy/fmt). Frontier advanced to `.2a.2`.
+- `2026-06-17`: **`.2a.2` done** — the `anvil://catalog/adapters` discoverability
+  resource (decision `0017`): `downstream` gains a defaulted `Adapter::supports_facts()`
+  + `AdapterInfo` + `adapter_catalog()` (a SCHEMA-DERIVED projection of `adapters()`
+  with a live `tool_version()` PATH probe for `present`); `mcp` advertises + serves it;
+  book synced (`api-resources-prompts.md` + `agent-mcp.md`). No introspection schema
+  bump. Gate green (lib 546/0, snapshots 6/6, clippy/fmt, mdbook, book_examples 3/3).
+  Frontier advanced to `.2a.3`.

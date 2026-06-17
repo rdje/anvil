@@ -645,6 +645,16 @@ pub trait Adapter: Sync {
     /// verbatim to the existing `run_*` primitives, so their reports stay
     /// byte-identical.
     fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>>;
+
+    /// Whether this adapter exposes a richer structured-fact projection beyond
+    /// the accept/warn/reject verdict (e.g. a JSON-AST). Reported by the adapter
+    /// catalog (`DOWNSTREAM-ADAPTER-EXPANSION.2a.2`) so an agent can discover the
+    /// capability over the API. The three built-ins report `false`; the first
+    /// fact-bearing adapter (`slang`, `.2c`) overrides it when it lands the
+    /// `extract_facts` hook.
+    fn supports_facts(&self) -> bool {
+        false
+    }
 }
 
 /// The Verilator `--lint-only` acceptance adapter.
@@ -731,6 +741,44 @@ static ADAPTER_REGISTRY: [&dyn Adapter; 3] = [&VERILATOR_ADAPTER, &YOSYS_ADAPTER
 /// byte-identical.
 pub fn adapters() -> &'static [&'static dyn Adapter] {
     &ADAPTER_REGISTRY
+}
+
+/// One row of the adapter catalog (`DOWNSTREAM-ADAPTER-EXPANSION.2a.2`): a
+/// `SCHEMA-DERIVED` projection of one registered [`Adapter`] plus its live
+/// install state. Serialized into the `anvil://catalog/adapters` MCP resource so
+/// an agent can discover which downstream tools exist and which are installed
+/// over the API alone (decision `0017`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdapterInfo {
+    /// The adapter's stable selector token / report-label root.
+    pub id: String,
+    /// The fixed, vetted binary name.
+    pub binary: String,
+    /// Whether the binary resolves and runs on this host right now (a
+    /// best-effort `<binary> --version` PATH probe via [`tool_version`]). A
+    /// missing tool is a friendly absent-tool no-op everywhere it is used, never
+    /// a hard failure.
+    pub present: bool,
+    /// Whether the adapter exposes richer structured facts beyond
+    /// accept/warn/reject (the [`Adapter::supports_facts`] capability).
+    pub supports_facts: bool,
+}
+
+/// Project the closed [`adapters`] registry into the discoverable catalog
+/// (`DOWNSTREAM-ADAPTER-EXPANSION.2a.2`, decision `0017`): one [`AdapterInfo`]
+/// per registered adapter, in registry (display) order, each stamped with a live
+/// install-state probe. A pure projection of the registry + the live
+/// environment — no second source of truth, no behavioural oracle.
+pub fn adapter_catalog() -> Vec<AdapterInfo> {
+    adapters()
+        .iter()
+        .map(|adapter| AdapterInfo {
+            id: adapter.id().to_string(),
+            binary: adapter.binary().to_string(),
+            present: tool_version(adapter.binary()).is_some(),
+            supports_facts: adapter.supports_facts(),
+        })
+        .collect()
 }
 
 /// One caller-supplied tool spec for the tool-version-vs-version divergence axis

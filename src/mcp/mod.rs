@@ -24,7 +24,9 @@
 //!   side-effect-free. No filesystem writes, no shell, no external tools.
 //!
 //! Scope: `.4` landed the DUT lane, the three pure tools, resources over the
-//! cache, and two static catalogs (`knobs`, `lanes`). `.5` adds the controlled
+//! cache, and the static catalogs (`knobs`, `lanes`, and — since
+//! `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` — `adapters`, the discoverable downstream
+//! adapter catalog). `.5` adds the controlled
 //! tools that *do* run external tools, sandboxed: `validate` (`.5.2`) and the
 //! `minimize` delta-debugger (`.5.3`), both over [`crate::downstream`] and
 //! audit-logged to the `anvil://audit/log` resource.
@@ -1056,6 +1058,11 @@ impl McpServer {
                 "mimeType": "application/json",
             }),
             json!({
+                "uri": "anvil://catalog/adapters",
+                "name": "downstream adapter catalog (id/binary/present/supports_facts)",
+                "mimeType": "application/json",
+            }),
+            json!({
                 "uri": "anvil://audit/log",
                 "name": "validate audit log",
                 "mimeType": "application/json",
@@ -1113,6 +1120,20 @@ impl McpServer {
                         { "name": "microdesign", "description": "Oracle-backed micro-design (Phase 7)." },
                         { "name": "frontend", "description": "Source-level frontend/elaboration accept (Phase 8)." },
                     ]
+                }))
+                .unwrap_or_default(),
+            ),
+            // The downstream adapter catalog
+            // (`DOWNSTREAM-ADAPTER-EXPANSION.2a.2`, decision `0017`): a
+            // SCHEMA-DERIVED projection of the closed `downstream::adapters()`
+            // registry + a live install-state probe, so an agent can discover
+            // which downstream tools exist and which are installed over the API
+            // alone. A missing tool reports `present: false` (a friendly no-op
+            // everywhere it is used), never a hard failure.
+            "anvil://catalog/adapters" => (
+                "application/json",
+                serde_json::to_string_pretty(&json!({
+                    "adapters": downstream::adapter_catalog(),
                 }))
                 .unwrap_or_default(),
             ),
@@ -2428,6 +2449,46 @@ mod tests {
         let cfg: Config =
             serde_json::from_str(resp["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(cfg.seed, Config::default().seed);
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` — the adapter catalog is listed and
+    /// readable, projecting the closed registry as `{id, binary, present,
+    /// supports_facts}` so an agent can discover the downstream tools over the
+    /// API alone (decision `0017`). `present` is environment-dependent (a live
+    /// probe), so the test asserts the *shape*, not which tools are installed.
+    #[test]
+    fn adapter_catalog_resource_lists_the_registry() {
+        let mut s = McpServer::new();
+        // The catalog is advertised in resources/list.
+        let listed = s.handle(&req(1, "resources/list", json!({}))).unwrap();
+        let uris: Vec<&str> = listed["result"]["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|r| r["uri"].as_str())
+            .collect();
+        assert!(uris.contains(&"anvil://catalog/adapters"));
+
+        // It reads back as the three built-ins, in registry order, each with the
+        // four projected fields.
+        let resp = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": "anvil://catalog/adapters" }),
+            ))
+            .unwrap();
+        let body: Value =
+            serde_json::from_str(resp["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        let entries = body["adapters"].as_array().unwrap();
+        let ids: Vec<&str> = entries.iter().filter_map(|a| a["id"].as_str()).collect();
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog"]);
+        for entry in entries {
+            assert!(entry["binary"].is_string());
+            assert!(entry["present"].is_boolean());
+            // The three built-ins expose no richer facts yet (slang lands that at .2c).
+            assert_eq!(entry["supports_facts"], json!(false));
+        }
     }
 
     #[test]

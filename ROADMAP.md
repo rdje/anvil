@@ -2521,8 +2521,11 @@ other five remain `active` with a design-first `.1` ADR frontier:
    registry core (`trait Adapter` + `AdapterRunCx`/`AdapterTarget` + 3 built-ins
    delegating verbatim to the existing `run_*` + `static ADAPTER_REGISTRY`/
    `adapters()` + `AcceptanceTool::adapter()`), with `validate` routed through it
-   byte-identically (lib 545/0, snapshots 6/6, tool_matrix 75/0). `.2a.2`
-   (adapter-catalog discoverability) / `.2a.3` (orchestrator routing) next.
+   byte-identically (lib 545/0, snapshots 6/6, tool_matrix 75/0). **`.2a.2` done**
+   — the `anvil://catalog/adapters` MCP discoverability resource (`{id, binary,
+   present, supports_facts}` over `downstream::adapter_catalog()`, decision `0017`).
+   `.2a.3` (route `validate_tool_specs` + the `tool_matrix` columns through the
+   registry, byte-identical) next, then `.2b` (sv2v) / `.2c` (slang).
    Default-off / DUT byte-identical.
 4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full
    MCP knob steerability + an API-queryable knob catalog & preset registry.

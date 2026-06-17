@@ -5,6 +5,32 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Adapter catalog — a live `present` probe inside an otherwise-static catalog read — `DOWNSTREAM-ADAPTER-EXPANSION.2a.2`
+
+The `anvil://catalog/adapters` resource projects the registry as `{id, binary,
+present, supports_facts}`. Two choices worth recording:
+
+- **`present` is a *live* probe, so this catalog read is mildly side-effecting —
+  deliberately.** `anvil://catalog/knobs` and `anvil://catalog/lanes` are pure/static
+  (they serialize a default `Config` / a constant). `present` cannot be — "is this
+  tool installed *right now*" is a property of the host, so `adapter_catalog()` runs
+  a best-effort `<binary> --version` (`downstream::tool_version`) per adapter at read
+  time. That is the *point* of the decision-`0017` discoverability surface ("which
+  tools exist AND which are installed"), and it matches the existing `tools_present()`
+  precedent (which already spawns `--version`). It stays SCHEMA-DERIVED in spirit: it
+  projects the registry + the live environment, not a recomputed or stored truth. The
+  cost is three short-lived `--version` spawns per catalog read — acceptable for an
+  explicit agent discovery call, and the probe is best-effort (a missing tool ⇒
+  `present: false`, never an error).
+
+- **`supports_facts` is a defaulted trait flag added *before* the fact hook exists.**
+  The actual `extract_facts` hook lands at `.2c` (slang). But the catalog's schema
+  should be stable from the start, so `Adapter::supports_facts() -> bool` ships now
+  with a `false` default (all three built-ins inherit it); `slang` overrides it to
+  `true` when it lands the hook. A defaulted trait method consumed by the catalog is
+  not dead code, and it keeps the catalog's wire shape from changing when `.2c` adds
+  the first fact-bearing adapter.
+
 ## 2026-06-17 — Downstream adapter registry — the byte-identical "delegate verbatim" trick + the `Sync` static — `DOWNSTREAM-ADAPTER-EXPANSION.2a.1`
 
 The first impl leaf of decision `0020`. Two implementation choices worth recording:
