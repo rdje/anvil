@@ -623,6 +623,17 @@ exercising adversarial axes that previously fired only by chance
   RTL. They guard `anvil`'s own process from the inside, complementing
   `scripts/ram_guard.sh` (which guards external jobs from the outside).
 - `anvil --dump-config` prints the effective knobs as JSON.
+- `anvil hunt` is ANVIL's **first subcommand** (`BUG-HUNT-ORCHESTRATION.2d`): the
+  turnkey downstream bug-hunt loop as one command — fuzz a deterministic seed
+  sweep (`--seed`/`--seeds`), run the vetted tools (`--tools verilator,yosys`,
+  `--yosys-mode`), treat any reject/warning (and, with `--diff-sim`, a
+  cross-simulator trace mismatch) as a finding, auto-minimize each failure
+  (`--no-minimize` / `--budget`), and print a JSON `HuntReport` to stdout. A thin
+  shim over the same `hunt::run` the MCP `hunt` tool drives (decision `0017`);
+  `--out <dir>` additionally drops a self-contained reproducer bundle per finding
+  (the MCP path instead serves each reproducer as an `anvil://artifact/<run_id>/…`
+  resource). The flat-flag default path (`anvil --seed N …`) is unchanged when no
+  subcommand is given ⇒ DUT byte-identical. See `USER_GUIDE.md`.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
   (schema `1.11`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde

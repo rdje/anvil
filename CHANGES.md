@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2d — the `anvil hunt` CLI subcommand (ANVIL's first subcommand)
+
+**Landed as:** this commit (previous: `b2e0228`). **Flat-flag default path
+byte-identical** (the existing `anvil --seed N …` invocation is unchanged when no
+subcommand is given). ANVIL gains its **first subcommand**: the turnkey bug-hunt
+loop on the command line, a thin shim over the same `hunt::run` the MCP `hunt`
+tool drives (decision `0017`: the CLI is never a superset of the API).
+
+**What changed (why)**
+
+- **`src/main.rs`** — the `anvil hunt` subcommand:
+  - **Optional subcommand, flat flags preserved:** `Cli` gains one field —
+    `#[command(subcommand)] command: Option<Commands>` — and keeps every flat
+    flag. `anvil --seed 42` parses with `command == None` ⇒ the existing generate
+    flow runs **entirely unchanged** ⇒ byte-identical default; `anvil hunt …`
+    parses `Some(Commands::Hunt(HuntCommand))`. `main` dispatches the subcommand
+    right after `init_tracing`, returning early; the historical body is the
+    fall-through path.
+  - **`HuntCommand`** is the CLI projection of `HuntRequest`
+    (`--seed`/`--seeds`/`--config`/`--tools`/`--yosys-mode`/`--no-minimize`/
+    `--budget`/`--diff-sim`/`--out`); `--seeds`/`--budget` enforce `≥ 1` via a
+    clap range.
+  - **`build_hunt_request` + `run_hunt_command`:** `build_hunt_request` maps the
+    args to a `HuntRequest` (load `--config` JSON else defaults, stamp `--seed`,
+    validate; empty `--tools` ⇒ the verilator+yosys default; `--out` ⇒
+    `bundle_root` — the on-disk reproducer bundle the MCP path omits; the validate
+    sandbox stays at the OS-temp default). `run_hunt_command` runs the sweep and
+    prints the `HuntReport` as pretty JSON to stdout.
+- **`src/downstream/mod.rs`** — `AcceptanceTool` gains `clap::ValueEnum` (a pure
+  derive) so `--tools verilator,yosys` parses to `Vec<AcceptanceTool>`.
+- **Docs (user-facing surface kept in sync):** `USER_GUIDE.md` — a new
+  `anvil hunt` section (flags table + examples + the clean-sweep expectation);
+  `README.md` — an `anvil hunt` bullet in "Current CLI truth";
+  `book/src/agent-mcp.md` — the hunt tool row notes the `anvil hunt` CLI twin (no
+  runnable block, so `book_examples` is unaffected). The deep book recipe + KM
+  card stay for `.2e`.
+- **Proofs** — 5 new cargo-portable `anvil`-bin proofs:
+  `flat_default_invocation_has_no_subcommand` (the byte-identical-default routing
+  guard), `hunt_subcommand_parses_all_flags`, `hunt_subcommand_defaults`,
+  `hunt_rejects_zero_seeds`, and `build_hunt_request_maps_args_to_request` (the
+  arg → request mapping, no tool run). Plus a manual **real-tool smoke**: `anvil
+  hunt --seed 1 --seeds 3 --tools verilator` returned `n_failures = 0` with
+  distinct per-seed `run_ids` (valid-by-construction ⇒ a clean sweep is expected).
+- **`CODEBASE_ANALYSIS.md`** — the `main.rs` subcommand + `AcceptanceTool`
+  ValueEnum. **`DEVELOPMENT_NOTES.md`** — a `.2d` entry (optional-subcommand
+  pattern; the `build_hunt_request` split for a tool-free proof; `--out` vs the
+  cache-only MCP path). **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`** +
+  **`docs/TASK_TREE.md`** — `.2d` done; frontier → `.2e`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test --bin anvil` 12/0 (incl. the 5 new
+  hunt proofs); `anvil hunt --help` + `anvil --seed 42` smokes; full `cargo test`
+  green incl. **`tests/snapshots.rs` 6/6 byte-identical** + `tests/book_examples.rs`
+  (the flat default path is untouched by the optional subcommand).
+
+**Impact**
+
+- ANVIL is now usable as a downstream bug-finder **straight from the shell** —
+  `anvil hunt …` — not only over MCP. Both surfaces are thin shims over the one
+  `hunt::run`. The real-tool end-to-end gate (with an injected/known failure to
+  exercise the bundle + minimize path) and the full book/USER_GUIDE/README/KM
+  closeout that closes the tree are `.2e`.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2c — the MCP `hunt` controlled tool (turnkey loop, MCP-invocable + queryable)
 
-**Landed as:** this commit (previous: `a7b011f`). **Default `anvil` build / DUT
+**Landed as:** `b2e0228` (previous: `a7b011f`). **Default `anvil` build / DUT
 byte-identical** (the change is confined to the `anvil-mcp` server + a shared
 parse helper). The MCP surface gains its first **orchestration** tool: the whole
 fuzz → detect → minimize loop is now driveable over MCP (decision `0017`), with

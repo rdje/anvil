@@ -5,6 +5,42 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — the `anvil hunt` CLI subcommand — `BUG-HUNT-ORCHESTRATION.2d`
+
+ANVIL's **first subcommand**. The whole risk here is *not perturbing the
+flat-flag default path* — `anvil --seed N …` and every book bash block must stay
+byte-identical. Choices:
+
+- **Optional subcommand, flat flags stay top-level.** `Cli` gains one field —
+  `#[command(subcommand)] command: Option<Commands>` — and keeps all ~60 flat
+  flags. clap then parses `anvil --seed 42` with `command == None` (the existing
+  flow runs untouched) and `anvil hunt …` with `command == Some(Hunt(..))`. No
+  `args_conflicts_with_subcommands`, no required flat flag — both would break one
+  of the two cases. The byte-identical guard is asserted at the parse level
+  (`flat_default_invocation_has_no_subcommand`) on top of `snapshots`/`book_examples`.
+- **Dispatch before the lane/DUT path, return early.** `main` matches
+  `&cli.command` right after `init_tracing` and returns `run_hunt_command(hunt)`
+  for the `Some(Hunt)` case; the entire historical body sits in the fall-through
+  (`None`) path, edited only by being preceded by the early return.
+- **`build_hunt_request` split out for a tool-free proof.** A finding needs a
+  real downstream failure, so the *execution* of `run_hunt_command` isn't
+  cargo-portable. The arg → `HuntRequest` mapping is the new logic, so I factored
+  it into `build_hunt_request(&HuntCommand) -> Result<HuntRequest>` and unit-test
+  *that* (seed stamped into the knob profile, empty `--tools` → the
+  verilator+yosys default, `--no-minimize`/`--budget`/`--diff-sim`/`--out` map
+  through). The end-to-end run is covered by a manual real-tool smoke (a 3-seed
+  verilator sweep returned `n_failures = 0` with distinct per-seed run_ids) and
+  the dedicated `.2e` gate.
+- **`AcceptanceTool` gained `clap::ValueEnum`.** `--tools verilator,yosys` parses
+  straight to `Vec<AcceptanceTool>` (kebab-case of the variants already matches
+  the tool names), mirroring how `YosysMode` is already a `ValueEnum`. A pure
+  derive addition — no behaviour change.
+- **`--out` is the CLI's bundle switch; the MCP path stays cache-only.** The
+  human CLI directs reproducer bundles to `--out <dir>` (→ `HuntRequest.bundle_root`),
+  exactly the human convenience decision 0018 reserves for the CLI; the MCP `hunt`
+  tool keeps `bundle_root = None` and serves artifacts from its cache. The
+  validate sandbox is always the OS-temp default in both (decision 0004).
+
 ## 2026-06-17 — Bug-hunt orchestration — the MCP `hunt` controlled tool — `BUG-HUNT-ORCHESTRATION.2c`
 
 `hunt` becomes the MCP surface's first **orchestration** tool (vs. the existing

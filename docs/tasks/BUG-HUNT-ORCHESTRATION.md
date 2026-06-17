@@ -130,11 +130,12 @@ this lane composes them into one bug-hunt orchestrator.
   Commit: `this BUG-HUNT-ORCHESTRATION.2c commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2d`
-  Status: `pending`
+  Status: `done`
   Goal: `The anvil hunt CLI subcommand (ANVIL's first subcommand) as a thin shim over hunt::run, with --out as a human-only convenience; the byte-identical default-path guard (snapshots 6/6 + book-examples 3/3 unchanged); proofs.`
-  Acceptance: `pending (set when picked)`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `Cli gains an optional #[command(subcommand)] command: Option<Commands> (flat flags preserved ⇒ anvil --seed N … parses with command==None ⇒ existing flow byte-identical); a Commands::Hunt(HuntCommand) variant projecting HuntRequest (--seed/--seeds/--config/--tools/--yosys-mode/--no-minimize/--budget/--diff-sim/--out); main dispatches it before the lane/DUT path via run_hunt_command → build_hunt_request → hunt::run, printing the HuntReport JSON; --out ⇒ bundle_root (the CLI's on-disk bundle; MCP stays cache-only); AcceptanceTool gains clap::ValueEnum for --tools; cargo-portable proofs incl. the flat-default-no-subcommand guard + the arg→request mapping; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged.`
+  Result: `Done. src/main.rs: (1) Cli gains #[command(subcommand)] command: Option<Commands> as the only new field — anvil --seed N … parses with command==None and runs the historical generate flow unchanged (byte-identical); anvil hunt … parses Some(Commands::Hunt(HuntCommand)). main dispatches the subcommand right after init_tracing (return run_hunt_command(hunt)) so the existing body is the fall-through path. (2) HuntCommand mirrors HuntRequest: --seed (0) / --seeds (16, range ≥1) / --config <path> / --tools <verilator,yosys,iverilog> (ValueEnum, comma-delimited) / --yosys-mode (without-abc) / --no-minimize / --budget (200, range ≥1) / --diff-sim / --out <dir>. (3) build_hunt_request(&HuntCommand)->Result<HuntRequest> (factored for a tool-free proof) loads --config JSON else Config::default, stamps --seed, validates; empty --tools ⇒ the verilator+yosys default; --out ⇒ bundle_root (the human-CLI bundle; the MCP path stays cache-only); the validate sandbox is the OS-temp default. run_hunt_command runs the sweep + prints the HuntReport JSON. src/downstream/mod.rs: AcceptanceTool gains clap::ValueEnum (pure derive). 5 cargo-portable anvil-bin proofs: flat_default_invocation_has_no_subcommand (the byte-identical routing guard), hunt_subcommand_parses_all_flags, hunt_subcommand_defaults, hunt_rejects_zero_seeds, build_hunt_request_maps_args_to_request. Manual real-tool smoke: anvil hunt --seed 1 --seeds 3 --tools verilator ⇒ n_failures=0 with distinct per-seed run_ids. Docs kept in sync: USER_GUIDE.md (anvil hunt section), README.md (Current CLI truth bullet), book/src/agent-mcp.md (the hunt row notes the CLI twin, no runnable block). The real-tool e2e gate (injected failure ⇒ bundle) + the full closeout is .2e.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test --bin anvil 12/0 (incl. 5 new hunt proofs); anvil hunt --help + anvil --seed 42 smokes; anvil hunt --seed 1 --seeds 3 --tools verilator ⇒ clean sweep; full cargo test green incl. tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs (flat default path untouched by the optional subcommand).`
+  Commit: `this BUG-HUNT-ORCHESTRATION.2d commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2e`
   Status: `pending`
@@ -147,13 +148,13 @@ this lane composes them into one bug-hunt orchestrator.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim over `hunt::run` (ANVIL's first subcommand) + the byte-identical default-path guard. |
-| 2 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
+| 1 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate (`#[ignore]`, tool-gated: an injected/known failure ⇒ a one-command-reproducible bundle) + the full book/USER_GUIDE/README/KM closeout; closes `.2` and the tree. |
 | — | `BUG-HUNT-ORCHESTRATION.2a` | `done` | Extracted the diff-sim run+compare into `diff_sim::run_agreement` (byte-identical; snapshots 6/6). |
 | — | `BUG-HUNT-ORCHESTRATION.2b.1` | `done` | The `src/hunt/` library core (`hunt::run` + types, reject/warning detection) + the seed-threading fix; cargo-portable proofs; snapshots 6/6. |
 | — | `BUG-HUNT-ORCHESTRATION.2b.2a` | `done` | Folded cross-sim mismatch detection into `hunt::run` (`diff_sim::run_agreement`) + extracted the shared `downstream::generate_dut_artifact`; snapshots 6/6. |
 | — | `BUG-HUNT-ORCHESTRATION.2b.2b` | `done` | The reproducer-bundle emitter (`<bundle_root>/<run_id>/` per finding) + `introspect_dut_artifact`; closes the `.2b` engine. Snapshots 6/6. |
 | — | `BUG-HUNT-ORCHESTRATION.2c` | `done` | The MCP `hunt` controlled tool (`run_hunt` + cache population + audit record) — the loop is now MCP-invocable + queryable (decision `0017`). mcp:: 66/0; snapshots 6/6. |
+| — | `BUG-HUNT-ORCHESTRATION.2d` | `done` | The `anvil hunt` CLI subcommand (ANVIL's first) — optional `command: Option<Commands>` keeps the flat default byte-identical; `--out` ⇒ on-disk bundle. anvil-bin 12/0; snapshots 6/6 + book_examples. |
 
 ## Decisions
 
@@ -205,6 +206,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.2a` | `downstream::generate_dut_artifact extracted (validate byte-identical, downstream 20/0); HuntRequest.diff_sim + HuntFailure.diff_sim + cross_sim_mismatch fold; proof diff_sim_on_clean_artifact_no_ops_without_simulators; cargo check/clippy/fmt green; cargo test --lib hunt:: 7/7; full cargo test green incl. snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.2b` | `downstream::introspect_dut_artifact added; HuntRequest.bundle_root + HuntFailure.bundle (HuntBundle) + write_bundle/repro_script/shell_quote; bundle dir per finding (repro.sv/knobs.json/introspection.json/hunt-verdict.json/tool-logs/repro.sh); 4 cargo-portable proofs (hunt:: 7→11); cargo check/clippy/fmt green; downstream:: 20/0; full cargo test green incl. snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2c` | `MCP hunt controlled tool (hunt_schema + "hunt" dispatch + run_hunt + cache_hunt_failures + hunt audit record); shared parse_max_oracle_calls/parse_hunt_seeds/parse_bool_arg (run_minimize reuses parse_max_oracle_calls, byte-identical); book/src/agent-mcp.md tool list/table; 5 new mcp:: proofs (mcp:: 66/0); no introspection schema bump; cargo check/clippy/fmt green; full cargo test green incl. snapshots 6/6 byte-identical + book_examples` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2d` | `anvil hunt subcommand (Cli command: Option<Commands>; HuntCommand; run_hunt_command/build_hunt_request; AcceptanceTool clap::ValueEnum); USER_GUIDE/README/book agent-mcp synced; 5 anvil-bin proofs (anvil-bin 12/0) incl. flat-default-no-subcommand guard; real-tool smoke anvil hunt --seeds 3 --tools verilator ⇒ n_failures=0; cargo check/clippy/fmt green; full cargo test green incl. snapshots 6/6 byte-identical + book_examples` | `done` |
 
 ## Commit Log
 
@@ -218,6 +220,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `BUG-HUNT-ORCHESTRATION.2b.2a` | `BUG-HUNT-ORCHESTRATION.2b.2a — fold cross-sim mismatch detection into hunt::run + extract downstream::generate_dut_artifact` | Cross-sim fold (`HuntRequest.diff_sim` → `run_agreement` on clean artifacts → `cross_sim_mismatch` finding) + the shared `generate_dut_artifact` helper (validate byte-identical). Default-off / DUT byte-identical. Bundle emitter = `.2b.2b`. |
 | `BUG-HUNT-ORCHESTRATION.2b.2b` | `BUG-HUNT-ORCHESTRATION.2b.2b — reproducer-bundle emitter (write <bundle_root>/<run_id>/ per finding) + introspect_dut_artifact` | `HuntRequest.bundle_root` + `HuntFailure.bundle` (`HuntBundle`); per-finding directory (`repro.sv`/`knobs.json`/`introspection.json`/`hunt-verdict.json`/`tool-logs`/`repro.sh`) via the shared `generate_dut_artifact` + new `introspect_dut_artifact`. Prefers the minimized reproducer. Closes the `.2b` engine. Default-off / DUT byte-identical. |
 | `BUG-HUNT-ORCHESTRATION.2c` | `BUG-HUNT-ORCHESTRATION.2c — the MCP hunt controlled tool (turnkey loop, MCP-invocable + queryable)` | `hunt` tool in `src/mcp` (`run_hunt` shim over `hunt::run` + `cache_hunt_failures` + a `hunt` audit record); shared `parse_max_oracle_calls`/`parse_hunt_seeds`/`parse_bool_arg`; `book/src/agent-mcp.md` tool list/table. `bundle_root=None` (MCP serves artifacts from the cache). Default `anvil` build / DUT byte-identical. |
+| `BUG-HUNT-ORCHESTRATION.2d` | `BUG-HUNT-ORCHESTRATION.2d — the anvil hunt CLI subcommand (ANVIL's first subcommand)` | `anvil hunt` in `src/main.rs` (optional `command: Option<Commands>` keeps the flat default byte-identical; `HuntCommand` + `run_hunt_command`/`build_hunt_request` shim over `hunt::run`; `--out` ⇒ on-disk bundle); `AcceptanceTool` gains `clap::ValueEnum`; USER_GUIDE/README/book synced. Flat default path byte-identical. |
 
 ## Changelog
 
@@ -270,3 +273,16 @@ this lane composes them into one bug-hunt orchestrator.
   (mcp:: 66/0). Default `anvil` build / DUT byte-identical (snapshots 6/6 +
   book_examples). The loop is now MCP-invocable + queryable (decision `0017`).
   Frontier advanced to `.2d` (the `anvil hunt` CLI shim).
+- `2026-06-17`: `.2d` done — the `anvil hunt` CLI subcommand (ANVIL's **first**
+  subcommand). `Cli` gains an optional `#[command(subcommand)] command:
+  Option<Commands>`, so `anvil --seed N …` parses with `command == None` and runs
+  the historical generate flow unchanged (byte-identical default); `anvil hunt …`
+  dispatches `run_hunt_command` → `build_hunt_request` → `hunt::run`, printing the
+  `HuntReport` JSON. `HuntCommand` projects `HuntRequest`; `--out` ⇒ `bundle_root`
+  (the human-CLI on-disk bundle; the MCP path stays cache-only); `AcceptanceTool`
+  gains `clap::ValueEnum` for `--tools`. 5 cargo-portable `anvil`-bin proofs
+  (incl. the flat-default-no-subcommand guard + the arg→request mapping) + a
+  real-tool smoke (`anvil hunt --seed 1 --seeds 3 --tools verilator` ⇒
+  `n_failures = 0`). USER_GUIDE/README/`book/src/agent-mcp.md` synced. Default path
+  byte-identical (snapshots 6/6 + book_examples). Frontier advanced to `.2e` (the
+  real-tool e2e gate + full closeout, which closes the tree).

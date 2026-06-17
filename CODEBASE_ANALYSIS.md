@@ -261,6 +261,23 @@ src/
 │                     `TraceLevel` maps `low=INFO`, `medium=DEBUG`,
 │                     `high/debug=TRACE`, with `debug` additionally
 │                     enabling `trace_verbose!`.
+│                     `BUG-HUNT-ORCHESTRATION.2d` adds ANVIL's **first
+│                     subcommand**: an optional `#[command(subcommand)]
+│                     command: Option<Commands>` on `Cli` (so `anvil --seed N
+│                     …` parses with `command == None` ⇒ the existing generate
+│                     flow runs unchanged ⇒ byte-identical default), the
+│                     `Commands::Hunt(HuntCommand)` variant, and `main` dispatches
+│                     it before the lane/DUT path (`run_hunt_command` →
+│                     `build_hunt_request` → `anvil::hunt::run`, printing the
+│                     `HuntReport` JSON to stdout). `HuntCommand` is the CLI
+│                     projection of `HuntRequest` (`--seed`/`--seeds`/`--config`/
+│                     `--tools`/`--yosys-mode`/`--no-minimize`/`--budget`/
+│                     `--diff-sim`/`--out`); `--out` ⇒ `bundle_root` (the on-disk
+│                     reproducer bundle the MCP path omits). `AcceptanceTool`
+│                     gained `clap::ValueEnum` so `--tools verilator,yosys`
+│                     parses. 5 cargo-portable proofs (flat-default-no-subcommand
+│                     byte-identical guard, full-flag parse, defaults, zero-seeds
+│                     rejected, arg→request mapping).
 │
 ├── lib.rs            Public surface: re-exports Config, Generator, Module.
 │                     Also exposes the `metrics` and `manifest` modules. Trace

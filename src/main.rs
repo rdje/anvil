@@ -2,9 +2,11 @@ use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
     SvVersion,
 };
+use anvil::downstream::{AcceptanceTool, ValidateOptions, YosysMode};
 use anvil::umbrella::{ArtifactLane, FrontendLane, MicrodesignLane};
 use anvil::{Config, Generator};
-use clap::{Parser, ValueEnum};
+use anyhow::Context;
+use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::info;
@@ -98,6 +100,14 @@ fn parse_child_instances_per_depth_arg(s: &str) -> Result<ChildInstancesPerDepth
 #[derive(Parser, Debug)]
 #[command(name = "anvil", version, about = "Random synthesizable RTL generator")]
 struct Cli {
+    /// Optional subcommand (`BUG-HUNT-ORCHESTRATION.2d`). When omitted
+    /// (`None`), the historical flat-flag generate path runs unchanged —
+    /// `anvil --seed N …` is byte-identical to every prior invocation, so the
+    /// `snapshots` / `book_examples` gates are untouched. The only subcommand is
+    /// `hunt` (the turnkey downstream bug-hunt loop).
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     /// Artifact lane to generate
     /// (`PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c`). The default `dut`
     /// preserves byte-identical behaviour with every historical
@@ -479,10 +489,78 @@ struct Cli {
     ram_abort_pct: Option<u32>,
 }
 
+/// ANVIL subcommands (`BUG-HUNT-ORCHESTRATION.2d`). ANVIL is flat-flag by
+/// default; a subcommand is opt-in and never perturbs the default generate path.
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Turnkey downstream bug-hunt: fuzz a deterministic seed sweep, run the
+    /// vetted tools on each artifact, detect any reject/warning (and, with
+    /// `--diff-sim`, a cross-simulator trace mismatch) on legal-by-construction
+    /// RTL, auto-minimize each failure, and print a JSON `HuntReport`. A thin
+    /// shim over the same `hunt::run` the MCP `hunt` tool uses (decision `0017`);
+    /// `--out DIR` additionally drops a self-contained reproducer bundle per
+    /// finding.
+    Hunt(HuntCommand),
+}
+
+/// The `anvil hunt` arguments — the CLI projection of `hunt::HuntRequest`.
+#[derive(Parser, Debug)]
+struct HuntCommand {
+    /// Base seed of the sweep (it fuzzes `seed .. seed + seeds`).
+    #[arg(long, default_value_t = 0)]
+    seed: u64,
+
+    /// Number of consecutive seeds to fuzz.
+    #[arg(long, default_value_t = 16, value_parser = clap::value_parser!(u32).range(1..))]
+    seeds: u32,
+
+    /// Knob profile: a full `Config` JSON (as emitted by `anvil --dump-config`).
+    /// Omit for defaults. The sweep stamps each seed into it.
+    #[arg(long)]
+    config: Option<PathBuf>,
+
+    /// Vetted downstream tools to run (repeat the flag or comma-separate;
+    /// default `verilator,yosys`). A fixed allow-list — no arbitrary binaries.
+    #[arg(long, value_enum, value_delimiter = ',')]
+    tools: Vec<AcceptanceTool>,
+
+    /// Yosys synthesis mode when `yosys` is selected.
+    #[arg(long, value_enum, default_value_t = YosysMode::WithoutAbc)]
+    yosys_mode: YosysMode,
+
+    /// Do not auto-minimize failures (minimize is on by default).
+    #[arg(long)]
+    no_minimize: bool,
+
+    /// Per-failure ceiling on minimize oracle (`validate`) evaluations.
+    #[arg(long, default_value_t = 200, value_parser = clap::value_parser!(u32).range(1..))]
+    budget: u32,
+
+    /// Also run the cross-simulator agreement check (iverilog vs verilator) on
+    /// each downstream-clean artifact; a post-reset trace mismatch is a finding.
+    #[arg(long)]
+    diff_sim: bool,
+
+    /// Write a self-contained reproducer bundle directory per finding under DIR
+    /// (the human-CLI convenience). Omit to report findings without on-disk
+    /// bundles — the MCP `hunt` tool always omits it and serves artifacts from
+    /// its cache instead.
+    #[arg(long)]
+    out: Option<PathBuf>,
+}
+
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     init_tracing(&cli)?;
+
+    // BUG-HUNT-ORCHESTRATION.2d — subcommand dispatch (ANVIL's first subcommand).
+    // When no subcommand is given (`cli.command == None`), the historical
+    // flat-flag generate path below runs entirely unchanged ⇒ byte-identical
+    // default (`snapshots` / `book_examples` untouched).
+    if let Some(Commands::Hunt(hunt)) = &cli.command {
+        return run_hunt_command(hunt);
+    }
 
     // PHASE-9-MULTI-ARTIFACT-UMBRELLA.2c — lane dispatch.
     //
@@ -712,6 +790,63 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Build a [`HuntRequest`](anvil::hunt::HuntRequest) from the `anvil hunt`
+/// arguments — the CLI projection. Factored out of [`run_hunt_command`] so the
+/// arg → request mapping is unit-testable without running any tool: the knob
+/// profile comes from `--config` (else defaults) with `--seed` stamped in, the
+/// validate sandbox stays at the OS-temp default (the same caller-set rule as
+/// the MCP path), `--out` becomes the on-disk `bundle_root` (the human-CLI
+/// convenience), and an empty `--tools` falls back to the `verilator` + `yosys`
+/// default.
+fn build_hunt_request(args: &HuntCommand) -> anyhow::Result<anvil::hunt::HuntRequest> {
+    let mut cfg = match &args.config {
+        Some(path) => {
+            let text = std::fs::read_to_string(path)
+                .with_context(|| format!("read config {}", path.display()))?;
+            serde_json::from_str::<Config>(&text)
+                .with_context(|| format!("parse config {}", path.display()))?
+        }
+        None => Config::default(),
+    };
+    cfg.seed = args.seed;
+    cfg.validate().map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    let tools = if args.tools.is_empty() {
+        ValidateOptions::default().tools
+    } else {
+        args.tools.clone()
+    };
+
+    Ok(anvil::hunt::HuntRequest {
+        base_seed: args.seed,
+        seeds: args.seeds,
+        config: cfg,
+        validate: ValidateOptions {
+            tools,
+            yosys_mode: args.yosys_mode,
+            ..ValidateOptions::default()
+        },
+        minimize: !args.no_minimize,
+        max_oracle_calls: args.budget,
+        diff_sim: args.diff_sim,
+        bundle_root: args.out.clone(),
+    })
+}
+
+/// Run the `anvil hunt` subcommand (`BUG-HUNT-ORCHESTRATION.2d`): a thin shim
+/// over [`anvil::hunt::run`]. It builds the request from the CLI args, runs the
+/// deterministic sweep, and prints the `HuntReport` as pretty JSON to stdout.
+/// The MCP `hunt` tool and this CLI are both shims over the *same* `hunt::run`
+/// (decision `0017`: the CLI is never a superset of the API). `--out` directs
+/// the on-disk reproducer bundle the MCP path leaves to the agent's resource
+/// fetches.
+fn run_hunt_command(args: &HuntCommand) -> anyhow::Result<()> {
+    let req = build_hunt_request(args)?;
+    let report = anvil::hunt::run(&req)?;
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
 /// Wire a `tracing` subscriber. Output is deterministic: no timestamps,
 /// no thread IDs, no ANSI colours — just `LEVEL module::path message`
 /// (plus any structured fields). This keeps trace output diffable
@@ -913,6 +1048,107 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- BUG-HUNT-ORCHESTRATION.2d: the `anvil hunt` subcommand --------------
+
+    /// The historical flat-flag invocation parses with **no** subcommand, so the
+    /// existing generate path runs unchanged — the byte-identical-default guard
+    /// at the parse level.
+    #[test]
+    fn flat_default_invocation_has_no_subcommand() {
+        let cli = Cli::parse_from(["anvil", "--seed", "42"]);
+        assert!(cli.command.is_none());
+        assert_eq!(cli.seed, 42);
+    }
+
+    /// `anvil hunt` with every flag set parses into the expected `HuntCommand`.
+    #[test]
+    fn hunt_subcommand_parses_all_flags() {
+        let cli = Cli::parse_from([
+            "anvil",
+            "hunt",
+            "--seed",
+            "5",
+            "--seeds",
+            "3",
+            "--tools",
+            "verilator,iverilog",
+            "--yosys-mode",
+            "both",
+            "--no-minimize",
+            "--budget",
+            "10",
+            "--diff-sim",
+            "--out",
+            "/tmp/anvil-hunt",
+        ]);
+        let Some(Commands::Hunt(h)) = cli.command else {
+            panic!("expected a hunt subcommand");
+        };
+        assert_eq!(h.seed, 5);
+        assert_eq!(h.seeds, 3);
+        assert_eq!(
+            h.tools,
+            vec![AcceptanceTool::Verilator, AcceptanceTool::Iverilog]
+        );
+        assert_eq!(h.yosys_mode, YosysMode::Both);
+        assert!(h.no_minimize);
+        assert_eq!(h.budget, 10);
+        assert!(h.diff_sim);
+        assert_eq!(h.out, Some(PathBuf::from("/tmp/anvil-hunt")));
+    }
+
+    /// `anvil hunt` with no flags carries the documented defaults (seed 0,
+    /// 16 seeds, minimize on, budget 200, no diff-sim, no bundle, default tools).
+    #[test]
+    fn hunt_subcommand_defaults() {
+        let cli = Cli::parse_from(["anvil", "hunt"]);
+        let Some(Commands::Hunt(h)) = cli.command else {
+            panic!("expected a hunt subcommand");
+        };
+        assert_eq!(h.seed, 0);
+        assert_eq!(h.seeds, 16);
+        assert!(h.tools.is_empty()); // empty ⇒ the verilator+yosys default at build time
+        assert_eq!(h.yosys_mode, YosysMode::WithoutAbc);
+        assert!(!h.no_minimize);
+        assert_eq!(h.budget, 200);
+        assert!(!h.diff_sim);
+        assert!(h.out.is_none());
+    }
+
+    /// `--seeds 0` is rejected by the clap range (the sweep must fuzz ≥ 1 seed).
+    #[test]
+    fn hunt_rejects_zero_seeds() {
+        assert!(Cli::try_parse_from(["anvil", "hunt", "--seeds", "0"]).is_err());
+    }
+
+    /// The arg → `HuntRequest` mapping (no tool run): the seed is stamped into
+    /// the knob profile, an empty `--tools` becomes the `verilator`+`yosys`
+    /// default, `--no-minimize`/`--budget`/`--diff-sim`/`--out` map through.
+    #[test]
+    fn build_hunt_request_maps_args_to_request() {
+        let args = HuntCommand {
+            seed: 9,
+            seeds: 4,
+            config: None,
+            tools: vec![], // empty ⇒ the default tool set
+            yosys_mode: YosysMode::Both,
+            no_minimize: true,
+            budget: 12,
+            diff_sim: true,
+            out: Some(PathBuf::from("/tmp/anvil-hunt-out")),
+        };
+        let req = build_hunt_request(&args).expect("build request");
+        assert_eq!(req.base_seed, 9);
+        assert_eq!(req.seeds, 4);
+        assert_eq!(req.config.seed, 9); // the sweep seed is stamped into the profile
+        assert_eq!(req.validate.tools, ValidateOptions::default().tools);
+        assert_eq!(req.validate.yosys_mode, YosysMode::Both);
+        assert!(!req.minimize); // --no-minimize
+        assert_eq!(req.max_oracle_calls, 12);
+        assert!(req.diff_sim);
+        assert_eq!(req.bundle_root, Some(PathBuf::from("/tmp/anvil-hunt-out")));
+    }
 
     #[test]
     fn identity_mode_cli_parses_directly() {

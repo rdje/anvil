@@ -1755,6 +1755,49 @@ byte-identical contract. Full chapter:
 `book/src/agent-mcp.md`. Wire contract:
 `docs/AGENT_INTROSPECTION_SCHEMA.md`. Architecture: decision `0004`.
 
+### `anvil hunt` (turnkey CLI bug-hunt)
+
+`anvil hunt` is ANVIL's first subcommand (`BUG-HUNT-ORCHESTRATION`): the whole
+fuzz → detect → minimize loop as one command. It fuzzes a deterministic seed
+sweep, runs the vetted downstream tools on each generated artifact, treats any
+reject **or** warning (and, with `--diff-sim`, a cross-simulator trace mismatch)
+as a finding, auto-minimizes each failure, and prints a structured `HuntReport`
+as JSON to stdout. It is a thin shim over the same loop the MCP `hunt` tool
+drives — the CLI is never a superset of the API (decision `0017`).
+
+```bash
+# Fuzz seeds 1..3 against Verilator + Yosys; print a JSON HuntReport.
+anvil hunt --seed 1 --seeds 3 --tools verilator,yosys
+
+# Hunt a specific knob profile, dropping a reproducer bundle per finding.
+anvil --seed 1 --dump-config > profile.json
+anvil hunt --seeds 32 --config profile.json --tools verilator --out ./hunt-bundles
+
+# Add the cross-simulator agreement check (iverilog vs verilator).
+anvil hunt --seeds 16 --tools verilator --diff-sim
+```
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--seed N` | `0` | Base seed; the sweep fuzzes `N .. N+seeds`. |
+| `--seeds K` | `16` | Number of consecutive seeds to fuzz (≥ 1). |
+| `--config <path>` | defaults | A full `Config` JSON (as `--dump-config` emits) — the knob profile every seed is generated under. |
+| `--tools <list>` | `verilator,yosys` | Comma-separated vetted tools (`verilator` / `yosys` / `iverilog`). A fixed allow-list. |
+| `--yosys-mode <m>` | `without-abc` | Yosys mode when `yosys` runs (`without-abc` / `with-abc` / `both`). |
+| `--no-minimize` | (minimize on) | Report failures as-found instead of shrinking them. |
+| `--budget N` | `200` | Per-failure ceiling on minimize `validate` evaluations. |
+| `--diff-sim` | off | Also assert cross-simulator trace agreement on each clean artifact. |
+| `--out <dir>` | (none) | Write a self-contained reproducer bundle directory per finding (`repro.sv`, `knobs.json`, `introspection.json`, `hunt-verdict.json`, `tool-logs/`, a one-command `repro.sh`). |
+
+Because ANVIL output is valid by construction, a clean sweep (`n_failures = 0`)
+is the **expected** result — a finding is a candidate **downstream-tool** bug
+(file it with the seed + knobs), never an ANVIL bug. The whole sweep is
+reproducible from its arguments (seeded, no wall-clock); every tool runs through
+the hardened `verilator`/`yosys`/`iverilog` allow-list in an auto-removed
+sandbox. Omit `--out` and findings are reported in the JSON without on-disk
+bundles (the MCP `hunt` tool always omits the bundle and serves each reproducer
+as an `anvil://artifact/<run_id>/…` resource instead).
+
 ### `--introspect` (one-shot CLI)
 
 Add `--introspect` to a single-artifact run (no `--out`, `--count 1`) to print

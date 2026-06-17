@@ -454,7 +454,7 @@ pub fn escape_paths_for_double_quotes(paths: &[PathBuf]) -> String {
 /// allow-list: there is no arbitrary-command tool and no agent-supplied binary
 /// path — the binaries are the standard names (decision `0004`: "only fixed,
 /// vetted tool invocations").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 pub enum AcceptanceTool {
     Verilator,
     Yosys,
