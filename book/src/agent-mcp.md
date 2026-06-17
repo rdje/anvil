@@ -144,7 +144,7 @@ curl -s -X POST http://127.0.0.1:8765/ \
 ### Tools
 
 ```
-generate · introspect · analyze · dump_config · coverage_gaps · validate · minimize
+generate · introspect · analyze · dump_config · coverage_gaps · validate · minimize · hunt
 ```
 
 | Tool | Pure? | What it does |
@@ -156,14 +156,15 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog`); return per-tool reports + an overall verdict. |
 | `minimize` | controlled | Delta-debug a failing `(seed, config)` to a smaller reproducer, using `validate` as the failure oracle. |
+| `hunt` | controlled | The **turnkey loop**: fuzz a deterministic seed sweep (`seed` .. `seed + seeds`), run the vetted tools on each artifact, detect any reject/warning (and, with `diff_sim`, a cross-simulator trace mismatch), auto-`minimize` each failure, and return a structured `HuntReport` (per-seed `verdicts` + `failures` + `summary`). A thin shim over `validate`/`minimize` — no detector or minimizer of its own. Each failing `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve for the reproducer. |
 
 The five **pure** tools are read-only: no generation side effects, no shell, no
 external tools. (`coverage_gaps` may read a report file you point it at, but it
 *runs* nothing — it relays the gap list `tool_matrix` already computed, so the
 two can never drift; `analyze` only traverses the IR the generator already
-produced — relations, never a behavioural simulation.) The two *controlled*
-tools run real downstream tools, but
-only through ANVIL's existing hardened invocations:
+produced — relations, never a behavioural simulation.) The three *controlled*
+tools (`validate`, `minimize`, and the `hunt` loop that composes them) run real
+downstream tools, but only through ANVIL's existing hardened invocations:
 
 - a **fixed allow-list** of tool names (`verilator`, `yosys`, `iverilog`) — an
   unknown name is a clean error, never a spawn;
@@ -185,7 +186,7 @@ session:
 ```
 anvil://catalog/knobs          the default Config (the knob taxonomy)
 anvil://catalog/lanes          the artifact lanes (dut / microdesign / frontend)
-anvil://audit/log              the append-only validate/minimize audit trail
+anvil://audit/log              the append-only validate/minimize/hunt audit trail
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)

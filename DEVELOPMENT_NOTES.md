@@ -5,6 +5,53 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — the MCP `hunt` controlled tool — `BUG-HUNT-ORCHESTRATION.2c`
+
+`hunt` becomes the MCP surface's first **orchestration** tool (vs. the existing
+single-step tools), a thin shim over `anvil::hunt::run` (decision `0017`: the
+action is MCP-invocable and its results queryable). Choices worth keeping:
+
+- **MCP path: `bundle_root = None`; artifacts come from the cache, not disk.**
+  The decision-0018 reproducer bundle is a *directory*, which is exactly the
+  `anvil hunt --out` CLI convenience (`.2d`). For the MCP tool, writing
+  directories from a server call is messy (cleanup, the "agent never supplies a
+  path" rule) and redundant: `generate`/`introspect` already make artifacts
+  queryable by **caching** them and serving `anvil://artifact/<run_id>/…`
+  resources. So `run_hunt` sets `bundle_root = None` and instead calls
+  `cache_hunt_failures`, which populates `self.cache` for each finding's
+  `run_id` (original + minimized) via the `downstream::introspect_dut_artifact`
+  added in `.2b.2b`. The agent reads the reproducer through the same resource
+  scheme it already uses — no new mechanism, no filesystem side effects beyond
+  the auto-removed validate sandboxes.
+- **The cache key falls out for free.** `cache_artifact` keys on the
+  introspection document's `run_id`, and `introspect_dut_artifact(seed, cfg)`
+  produces a document whose `run_id == content_run_id("dut", seed, cfg)` ==
+  exactly the finding's `run_id` (the sweep stamps `cfg.seed = seed`; minimize
+  holds the seed fixed). So caching the original `(base_cfg with seed)` and the
+  `minimized_config` lands them under the addresses the report already advertises.
+- **One top-level `hunt` audit record, not per-seed.** The library `hunt::run`
+  composes the **library** `downstream::validate`/`minimize`, which do *not*
+  touch `self.audit` (only the MCP `run_validate`/`run_minimize` wrappers do).
+  That is by design — the orchestrator composes the library, not the MCP tools.
+  So a hunt emits one summarizing audit record (sweep params + summary + each
+  finding's seed/run_id/failing_tool/detection), not N per-seed records.
+- **Shared budget parser (full-factorization).** The `max_oracle_calls` parse
+  block was inline in `run_minimize`; I lifted it to a free
+  `parse_max_oracle_calls(args)` and have both `run_minimize` and `run_hunt`
+  call it (byte-identical for minimize), beside new `parse_hunt_seeds` /
+  `parse_bool_arg` helpers — one parser per knob, mirroring
+  `parse_validate_tools`/`parse_yosys_mode_arg`.
+- **No introspection schema bump.** The `HuntReport` is a *tool result*, not a
+  section of the `IntrospectionDocument`; the cache serves the existing
+  schema-`1.11` introspection documents unchanged. The schema constant is
+  untouched.
+- **Cache-population is unit-tested without a real tool.** A finding needs a
+  real downstream failure, which a cargo-portable test can't produce. So
+  `cache_hunt_failures` is exercised directly with a *synthetic* `HuntReport`
+  (one failure), then `resources/read anvil://artifact/<run_id>/sv` is asserted
+  to resolve to the real regenerated SV — the same path the tool runs, minus the
+  unreproducible-without-tools failure.
+
 ## 2026-06-17 — Bug-hunt orchestration — reproducer-bundle emitter — `BUG-HUNT-ORCHESTRATION.2b.2b`
 
 The second-half slice of `.2b.2`: on each finding, `hunt::run` (when

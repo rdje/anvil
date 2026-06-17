@@ -1,9 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2c — the MCP `hunt` controlled tool (turnkey loop, MCP-invocable + queryable)
+
+**Landed as:** this commit (previous: `a7b011f`). **Default `anvil` build / DUT
+byte-identical** (the change is confined to the `anvil-mcp` server + a shared
+parse helper). The MCP surface gains its first **orchestration** tool: the whole
+fuzz → detect → minimize loop is now driveable over MCP (decision `0017`), with
+its results queryable as `anvil://artifact/<run_id>/…` resources.
+
+**What changed (why)**
+
+- **`src/mcp/mod.rs`** — the controlled `hunt` tool, a thin shim over
+  `anvil::hunt::run`:
+  - **Dispatch + schema:** a `"hunt"` arm in `tools_call`, a `hunt` descriptor +
+    `hunt_schema` in `tools_list` (`seed`/`seeds`/`config`/`tools`/`yosys_mode`/
+    `minimize`/`max_oracle_calls`/`diff_sim`, `additionalProperties: false`).
+  - **`run_hunt`** builds a `HuntRequest` from the parsed args, fixes the
+    sandbox to the OS temp dir (the tool allow-list / RAM-guard discipline of
+    `validate`), and sets **`bundle_root = None`** — the MCP path writes no
+    on-disk bundle; the agent reads reproducer artifacts from the cache (decision
+    `0004`: the agent never supplies a filesystem path).
+  - **`cache_hunt_failures`** populates `self.cache` for each finding's `run_id`
+    (original + minimized) via the `downstream::introspect_dut_artifact` added in
+    `.2b.2b`, so `anvil://artifact/<run_id>/{sv,introspection}` resolve for every
+    reproducer. One top-level `hunt` audit record carries the sweep params +
+    summary + per-finding `(seed, run_id, failing_tool, detection)`.
+  - **Shared parser (full-factorization):** lifted the inline `max_oracle_calls`
+    block out of `run_minimize` into `parse_max_oracle_calls(args)` (byte-identical
+    for minimize), beside new `parse_hunt_seeds` / `parse_bool_arg`.
+  - **No introspection schema bump** — the `HuntReport` is a tool result, not a
+    section of the `IntrospectionDocument`.
+- **`book/src/agent-mcp.md`** + **`README.md`** — `hunt` added to the MCP tool
+  list/table (book) and the `anvil-mcp` controlled-tools enumeration (README); the
+  book's "two controlled tools" prose updated to "three"
+  (`validate`/`minimize`/`hunt`) and its audit-log resource line notes `hunt`.
+  (The deeper "bug-hunting loop end to end" rewrite + USER_GUIDE + the KM card
+  stay for `.2e`.)
+- **Proofs** — 5 new cargo-portable `mcp::` proofs:
+  `hunt_tool_no_tools_sweep_round_trips_and_audits` (a `tools: []` sweep
+  round-trips a `HuntReport` + one `hunt` audit entry),
+  `hunt_tool_rejects_unknown_tool_name` (allow-list, not audited),
+  `hunt_tool_rejects_zero_seeds`, `hunt_tool_rejects_non_boolean_flags`, and
+  `hunt_caches_failing_run_ids_so_resources_resolve` (a *synthetic* finding drives
+  `cache_hunt_failures` ⇒ `anvil://artifact/<run_id>/{sv,introspection}` resolve —
+  no real tool needed); the `tools/list` test now expects `hunt`.
+- **`CODEBASE_ANALYSIS.md`** — `mcp/` entry (the `hunt` tool + cache/audit + the
+  shared parsers). **`DEVELOPMENT_NOTES.md`** — a `.2c` entry (cache-not-disk for
+  MCP; one summarizing audit record; the shared budget parser; no schema bump;
+  synthetic-report cache test). **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`** +
+  **`docs/TASK_TREE.md`** — `.2c` done; frontier → `.2d`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test --lib mcp::` 66/0 (incl. the 5 new
+  `hunt` proofs); full `cargo test` green incl. **`tests/snapshots.rs` 6/6
+  byte-identical** + `tests/book_examples.rs` (the default `anvil` build is
+  untouched; `hunt` lives only in the `anvil-mcp` server).
+
+**Impact**
+
+- The bug-hunt loop is now **MCP-driveable end to end** (decision `0017`): an
+  agent calls `hunt` with the sweep controls, gets a structured `HuntReport`
+  back, and fetches each reproducer through `anvil://artifact/<run_id>/…`. The
+  `anvil hunt` CLI shim over the same `hunt::run` is `.2d`; the real-tool e2e gate
+  + the full book/USER_GUIDE/README/KM closeout is `.2e`.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.2b — reproducer-bundle emitter (write `<bundle_root>/<run_id>/` per finding) + introspect_dut_artifact
 
-**Landed as:** this commit (previous: `a5458ef`). **Default-off / DUT
+**Landed as:** `a7b011f` (previous: `a5458ef`). **Default-off / DUT
 byte-identical.** Second-half of the pre-split `.2b.2`: the bug-hunt loop gains
 the on-disk **reproducer bundle**, completing the `src/hunt/` engine (`.2b` /
 `.2b.2` close).

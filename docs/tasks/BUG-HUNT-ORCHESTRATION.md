@@ -122,11 +122,12 @@ this lane composes them into one bug-hunt orchestrator.
   Commit: `this BUG-HUNT-ORCHESTRATION.2b.2b commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2c`
-  Status: `pending`
+  Status: `done`
   Goal: `The MCP hunt controlled tool wired into src/mcp dispatcher: input schema, HuntReport result, failing-run artifact-cache population (so anvil://artifact/<run_id>/{sv,introspection,manifest} reads work), a top-level hunt audit record; introspection/MCP doc + schema note; proofs.`
-  Acceptance: `pending (set when picked)`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `A controlled hunt tool in tools_list (hunt_schema) + tools_call ("hunt" arm → run_hunt) shimming anvil::hunt::run; HuntReport returned as JSON; each finding's run_id cached (original + minimized via downstream::introspect_dut_artifact) so anvil://artifact/<run_id>/{sv,introspection} resolve; a top-level hunt audit record; book/src/agent-mcp.md tool list/table updated; no introspection schema bump (HuntReport is a tool result, not part of the introspection document); cargo-portable proofs; cargo check/test/clippy/fmt green; snapshots 6/6 + book_examples unchanged (default anvil build untouched; hunt lives in anvil-mcp only).`
+  Result: `Done. src/mcp/mod.rs: (1) tools_list gains hunt_schema (seed/seeds/config/tools/yosys_mode/minimize/max_oracle_calls/diff_sim, additionalProperties:false) + the hunt descriptor; tools_call gains the "hunt" arm. (2) run_hunt builds a HuntRequest from the parsed args (sandbox fixed to OS temp dir; bundle_root=None — the MCP path serves artifacts from the cache, never writing an on-disk bundle, decision 0004), calls hunt::run, then cache_hunt_failures populates self.cache for each finding's run_id (original = base cfg with the finding's seed; minimized when reproduced_initial) via downstream::introspect_dut_artifact so anvil://artifact/<run_id>/{sv,introspection} resolve, and pushes one top-level "hunt" audit record (sweep params + summary + per-finding seed/run_id/failing_tool/detection). (3) Lifted run_minimize's inline max_oracle_calls parse into a shared parse_max_oracle_calls (byte-identical for minimize) + added parse_hunt_seeds / parse_bool_arg. No introspection schema bump. book/src/agent-mcp.md: hunt added to the tool list + table, "two controlled tools" → "three", audit-log resource line notes hunt. 5 new cargo-portable mcp:: proofs (no-tools sweep round-trips + audits; unknown-tool rejection not audited; zero-seeds rejected; non-boolean flag rejected; synthetic-finding cache population makes anvil://artifact/<run_id>/{sv,introspection} resolve) + the tools/list test now expects hunt. The anvil hunt CLI shim is .2d; the real-tool e2e gate + full book/USER_GUIDE/README/KM closeout is .2e.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test --lib mcp:: 66/0 (incl. 5 new hunt proofs); full cargo test green incl. tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs (default anvil build untouched — hunt lives only in the anvil-mcp server).`
+  Commit: `this BUG-HUNT-ORCHESTRATION.2c commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2d`
   Status: `pending`
@@ -146,13 +147,13 @@ this lane composes them into one bug-hunt orchestrator.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.2c` | `pending` | The MCP `hunt` controlled tool (decision `0017` invocable + queryable); populates the failing-run artifact cache. |
-| 2 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim + the byte-identical default-path guard. |
-| 3 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
+| 1 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim over `hunt::run` (ANVIL's first subcommand) + the byte-identical default-path guard. |
+| 2 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
 | — | `BUG-HUNT-ORCHESTRATION.2a` | `done` | Extracted the diff-sim run+compare into `diff_sim::run_agreement` (byte-identical; snapshots 6/6). |
 | — | `BUG-HUNT-ORCHESTRATION.2b.1` | `done` | The `src/hunt/` library core (`hunt::run` + types, reject/warning detection) + the seed-threading fix; cargo-portable proofs; snapshots 6/6. |
 | — | `BUG-HUNT-ORCHESTRATION.2b.2a` | `done` | Folded cross-sim mismatch detection into `hunt::run` (`diff_sim::run_agreement`) + extracted the shared `downstream::generate_dut_artifact`; snapshots 6/6. |
 | — | `BUG-HUNT-ORCHESTRATION.2b.2b` | `done` | The reproducer-bundle emitter (`<bundle_root>/<run_id>/` per finding) + `introspect_dut_artifact`; closes the `.2b` engine. Snapshots 6/6. |
+| — | `BUG-HUNT-ORCHESTRATION.2c` | `done` | The MCP `hunt` controlled tool (`run_hunt` + cache population + audit record) — the loop is now MCP-invocable + queryable (decision `0017`). mcp:: 66/0; snapshots 6/6. |
 
 ## Decisions
 
@@ -203,6 +204,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.1` (fix) | `seed-threading bug fixed (Generator seeds from cfg.seed; sweep now stamps seed into a per-iteration seed_config) + new proof seed_config_threads_the_swept_seed; cargo check/clippy/fmt green; cargo test --lib hunt:: 6/6; full cargo test green incl. snapshots 6/6` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.2a` | `downstream::generate_dut_artifact extracted (validate byte-identical, downstream 20/0); HuntRequest.diff_sim + HuntFailure.diff_sim + cross_sim_mismatch fold; proof diff_sim_on_clean_artifact_no_ops_without_simulators; cargo check/clippy/fmt green; cargo test --lib hunt:: 7/7; full cargo test green incl. snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.2b` | `downstream::introspect_dut_artifact added; HuntRequest.bundle_root + HuntFailure.bundle (HuntBundle) + write_bundle/repro_script/shell_quote; bundle dir per finding (repro.sv/knobs.json/introspection.json/hunt-verdict.json/tool-logs/repro.sh); 4 cargo-portable proofs (hunt:: 7→11); cargo check/clippy/fmt green; downstream:: 20/0; full cargo test green incl. snapshots 6/6 byte-identical` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2c` | `MCP hunt controlled tool (hunt_schema + "hunt" dispatch + run_hunt + cache_hunt_failures + hunt audit record); shared parse_max_oracle_calls/parse_hunt_seeds/parse_bool_arg (run_minimize reuses parse_max_oracle_calls, byte-identical); book/src/agent-mcp.md tool list/table; 5 new mcp:: proofs (mcp:: 66/0); no introspection schema bump; cargo check/clippy/fmt green; full cargo test green incl. snapshots 6/6 byte-identical + book_examples` | `done` |
 
 ## Commit Log
 
@@ -215,6 +217,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `BUG-HUNT-ORCHESTRATION.2b.1` (fix) | `BUG-HUNT-ORCHESTRATION.2b.1 — fix: thread the swept seed into the per-iteration config` | Correctness fix: the generator seeds from `cfg.seed`, so the sweep must stamp `seed` into each iteration's config (`seed_config`), not just the `validate` `seed` arg; + the `seed_config_threads_the_swept_seed` proof. Found while grounding `.2b.2`. |
 | `BUG-HUNT-ORCHESTRATION.2b.2a` | `BUG-HUNT-ORCHESTRATION.2b.2a — fold cross-sim mismatch detection into hunt::run + extract downstream::generate_dut_artifact` | Cross-sim fold (`HuntRequest.diff_sim` → `run_agreement` on clean artifacts → `cross_sim_mismatch` finding) + the shared `generate_dut_artifact` helper (validate byte-identical). Default-off / DUT byte-identical. Bundle emitter = `.2b.2b`. |
 | `BUG-HUNT-ORCHESTRATION.2b.2b` | `BUG-HUNT-ORCHESTRATION.2b.2b — reproducer-bundle emitter (write <bundle_root>/<run_id>/ per finding) + introspect_dut_artifact` | `HuntRequest.bundle_root` + `HuntFailure.bundle` (`HuntBundle`); per-finding directory (`repro.sv`/`knobs.json`/`introspection.json`/`hunt-verdict.json`/`tool-logs`/`repro.sh`) via the shared `generate_dut_artifact` + new `introspect_dut_artifact`. Prefers the minimized reproducer. Closes the `.2b` engine. Default-off / DUT byte-identical. |
+| `BUG-HUNT-ORCHESTRATION.2c` | `BUG-HUNT-ORCHESTRATION.2c — the MCP hunt controlled tool (turnkey loop, MCP-invocable + queryable)` | `hunt` tool in `src/mcp` (`run_hunt` shim over `hunt::run` + `cache_hunt_failures` + a `hunt` audit record); shared `parse_max_oracle_calls`/`parse_hunt_seeds`/`parse_bool_arg`; `book/src/agent-mcp.md` tool list/table. `bundle_root=None` (MCP serves artifacts from the cache). Default `anvil` build / DUT byte-identical. |
 
 ## Changelog
 
@@ -255,3 +258,15 @@ this lane composes them into one bug-hunt orchestrator.
   cargo-portable proofs (hunt:: 7→11). Default-off / DUT byte-identical
   (snapshots 6/6). **`.2b.2`/`.2b` close** — the `src/hunt/` engine is complete.
   Frontier advanced to `.2c` (the MCP `hunt` tool).
+- `2026-06-17`: `.2c` done — the MCP `hunt` controlled tool. `run_hunt` shims
+  `hunt::run` (sandbox fixed to OS temp; `bundle_root=None`), `cache_hunt_failures`
+  populates the artifact cache for each finding's `run_id` (original + minimized,
+  via `downstream::introspect_dut_artifact`) so
+  `anvil://artifact/<run_id>/{sv,introspection}` resolve, and one top-level `hunt`
+  audit record carries the sweep params + summary. Lifted the shared
+  `parse_max_oracle_calls` (reused by `minimize`, byte-identical) + new
+  `parse_hunt_seeds`/`parse_bool_arg`. `book/src/agent-mcp.md` tool list/table
+  updated; no introspection schema bump. 5 new cargo-portable `mcp::` proofs
+  (mcp:: 66/0). Default `anvil` build / DUT byte-identical (snapshots 6/6 +
+  book_examples). The loop is now MCP-invocable + queryable (decision `0017`).
+  Frontier advanced to `.2d` (the `anvil hunt` CLI shim).

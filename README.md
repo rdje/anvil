@@ -644,8 +644,11 @@ exercising adversarial axes that previously fired only by chance
   graph), schema `1.11`, unknown query/target ⇒
   `-32602`, and `coverage_gaps` projects the recorded
   `tool_matrix_report.json` gap list read-only), controlled tools
-  (`validate`/`minimize`, run only through the hardened
-  `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded
+  (`validate`/`minimize`/`hunt` — where `hunt` (`BUG-HUNT-ORCHESTRATION.2c`) is the
+  turnkey fuzz → detect → minimize loop over a deterministic seed sweep that
+  returns a structured `HuntReport` and caches each failing `run_id` so its
+  `anvil://artifact/<run_id>/{sv,introspection}` resolve — all run only through
+  the hardened `verilator`/`yosys`/`iverilog` allow-list, sandboxed + RAM-guarded
   + audit-logged), resources (artifact `.sv`/introspection/`manifest`/`analysis`,
   `knobs`/`lanes` catalogs, `audit/log`), and five workflow prompts
   (`find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`,

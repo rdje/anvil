@@ -31,6 +31,7 @@
 
 use crate::config::Config;
 use crate::downstream::{self, AcceptanceTool, MinimizeOptions, ValidateOptions, YosysMode};
+use crate::hunt::{self, HuntReport, HuntRequest};
 use crate::introspect;
 use crate::umbrella::{self, ArtifactLane};
 use crate::{emit, Generator};
@@ -335,6 +336,49 @@ impl McpServer {
             },
             "additionalProperties": false
         });
+        // hunt (`BUG-HUNT-ORCHESTRATION.2c`): the turnkey fuzz → detect →
+        // minimize loop over the DUT lane. A controlled tool — it runs the
+        // vetted downstream tools, so it inherits validate's allow-list /
+        // OS-temp sandbox / RAM-guard / audit discipline.
+        let hunt_schema = json!({
+            "type": "object",
+            "properties": {
+                "seed": { "type": "integer", "minimum": 0,
+                          "description": "Base seed of the sweep (default: the config's seed). \
+                                          The sweep fuzzes seed .. seed+seeds." },
+                "seeds": { "type": "integer", "minimum": 1,
+                           "description": "Number of consecutive seeds to fuzz (default 16)." },
+                "config": { "type": "object",
+                            "description": "Full effective Config (as emitted by dump_config) — the \
+                                            knob profile every seed is generated under. Omit for defaults." },
+                "tools": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog"] },
+                    "description": "Vetted downstream tools to run (default: verilator + yosys). \
+                                    A fixed allow-list — no arbitrary commands or binary paths."
+                },
+                "yosys_mode": {
+                    "type": "string",
+                    "enum": ["without-abc", "with-abc", "both"],
+                    "description": "Yosys synthesis mode when yosys is selected (default without-abc)."
+                },
+                "minimize": {
+                    "type": "boolean",
+                    "description": "Auto-minimize each failure to a smaller reproducer (default true)."
+                },
+                "max_oracle_calls": {
+                    "type": "integer", "minimum": 1,
+                    "description": "Per-failure ceiling on minimize validate evaluations (default 200)."
+                },
+                "diff_sim": {
+                    "type": "boolean",
+                    "description": "Also run the cross-simulator agreement check (iverilog vs verilator) \
+                                    on each downstream-clean artifact; a post-reset trace disagreement is \
+                                    a finding (default false). Friendly no-op when a simulator is absent."
+                }
+            },
+            "additionalProperties": false
+        });
         json!({
             "tools": [
                 {
@@ -407,6 +451,19 @@ impl McpServer {
                                     Unknown query/target -> -32602. Cached + exposed as \
                                     anvil://artifact/<run_id>/analysis/<query>.",
                     "inputSchema": analyze_schema,
+                },
+                {
+                    "name": "hunt",
+                    "description": "Turnkey downstream bug-hunt: fuzz a deterministic seed sweep over the \
+                                    DUT (seed, config) knob profile, run the vetted tools on each artifact, \
+                                    detect any reject/warning (and, with diff_sim, a cross-simulator trace \
+                                    mismatch) on legal-by-construction RTL, auto-minimize each failure, and \
+                                    return a structured HuntReport (per-seed verdicts + failures + summary). \
+                                    A thin shim over the hunt loop — no detector or minimizer of its own. \
+                                    Each failing run_id is cached so anvil://artifact/<run_id>/{sv, \
+                                    introspection} resolve for the reproducer; sandboxed + audit-logged; \
+                                    no arbitrary shell.",
+                    "inputSchema": hunt_schema,
                 },
             ]
         })
@@ -511,6 +568,10 @@ impl McpServer {
                 Ok(text) => ok(id, tool_text(&text)),
                 Err(e) => ok(id, tool_error(&e)),
             },
+            "hunt" => match self.run_hunt(seed, &cfg, &args) {
+                Ok(text) => ok(id, tool_text(&text)),
+                Err(e) => ok(id, tool_error(&e)),
+            },
             other => ok(id, tool_error(&format!("unknown tool: {other}"))),
         }
     }
@@ -560,18 +621,7 @@ impl McpServer {
     /// address, the knob reductions, the spent budget, and the surviving tool
     /// command lines — is audit-logged.
     fn run_minimize(&mut self, seed: u64, cfg: &Config, args: &Value) -> Result<String, String> {
-        let max_oracle_calls = match args.get("max_oracle_calls") {
-            None | Some(Value::Null) => MinimizeOptions::default().max_oracle_calls,
-            Some(v) => {
-                let n = v
-                    .as_u64()
-                    .ok_or_else(|| "`max_oracle_calls` must be a positive integer".to_string())?;
-                if n == 0 {
-                    return Err("`max_oracle_calls` must be >= 1".to_string());
-                }
-                u32::try_from(n).map_err(|_| "`max_oracle_calls` is too large".to_string())?
-            }
-        };
+        let max_oracle_calls = parse_max_oracle_calls(args)?;
         let opts = MinimizeOptions {
             validate: ValidateOptions {
                 tools: parse_validate_tools(args)?,
@@ -610,6 +660,100 @@ impl McpServer {
         }));
 
         serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
+    }
+
+    /// The controlled `hunt` tool (`BUG-HUNT-ORCHESTRATION.2c`): the turnkey
+    /// downstream bug-hunt — fuzz a deterministic seed sweep, run the vetted
+    /// tools on each `(seed, cfg)` artifact, detect any reject/warning (and the
+    /// optional cross-simulator mismatch), auto-minimize each failure, and return
+    /// the structured [`HuntReport`](crate::hunt::HuntReport). A thin shim over
+    /// [`hunt::run`] (decision `0018`); it adds no detection and no minimizer of
+    /// its own. Same guardrails as `validate`/`minimize` — the fixed tool
+    /// allow-list, the OS-temp sandbox (never agent-supplied, decision `0004`),
+    /// the RAM guard, and the audit log — inherited by composing through them.
+    ///
+    /// The MCP path writes **no on-disk reproducer bundle** (`bundle_root =
+    /// None`): instead, each failing `run_id` is cached so the existing
+    /// `anvil://artifact/<run_id>/{sv,introspection}` resource reads resolve (the
+    /// MCP-native artifact mechanism, exactly like `generate`/`introspect` — the
+    /// agent never supplies a filesystem path). The on-disk bundle directory is
+    /// the `anvil hunt --out` CLI convenience (`.2d`).
+    fn run_hunt(&mut self, seed: u64, cfg: &Config, args: &Value) -> Result<String, String> {
+        let req = HuntRequest {
+            base_seed: seed,
+            seeds: parse_hunt_seeds(args)?,
+            config: cfg.clone(),
+            validate: ValidateOptions {
+                tools: parse_validate_tools(args)?,
+                yosys_mode: parse_yosys_mode_arg(args)?,
+                ..ValidateOptions::default()
+            },
+            minimize: parse_bool_arg(args, "minimize", true)?,
+            max_oracle_calls: parse_max_oracle_calls(args)?,
+            diff_sim: parse_bool_arg(args, "diff_sim", false)?,
+            // The MCP path never writes an on-disk bundle (decision `0004`: the
+            // agent supplies no filesystem path); reproducer artifacts are served
+            // from the cache as `anvil://…` resources instead.
+            bundle_root: None,
+        };
+        let report = hunt::run(&req).map_err(|e| e.to_string())?;
+
+        // Cache each failing run_id (original + minimized) so the agent can read
+        // anvil://artifact/<run_id>/{sv,introspection} for every finding.
+        self.cache_hunt_failures(cfg, &report);
+
+        // Audit-log the sweep: the parameters + summary + each finding's seed /
+        // run_id / failing tool / detection kind.
+        self.audit.push(json!({
+            "tool": "hunt",
+            "base_seed": report.base_seed,
+            "seeds": report.seeds,
+            "lane": report.lane,
+            "n_clean": report.summary.n_clean,
+            "n_failures": report.summary.n_failures,
+            "n_declined": report.summary.n_declined,
+            "n_reproduced": report.summary.n_reproduced,
+            "failures": report
+                .failures
+                .iter()
+                .map(|f| {
+                    json!({
+                        "seed": f.seed,
+                        "run_id": f.run_id,
+                        "failing_tool": f.failing_tool,
+                        "detection": f.detection,
+                    })
+                })
+                .collect::<Vec<_>>(),
+        }));
+
+        serde_json::to_string_pretty(&report).map_err(|e| format!("serialize report: {e}"))
+    }
+
+    /// Populate the artifact cache for every finding in `report`, so an agent can
+    /// read `anvil://artifact/<run_id>/{sv,introspection}` for the failing
+    /// artifact (and, when minimize confirmed a smaller reproducer, the minimized
+    /// one). Each insertion regenerates deterministically from `(seed, knobs)`
+    /// through the shared `downstream::introspect_dut_artifact`, so the cached
+    /// `run_id` is exactly the finding's content address. Runs no external tool.
+    fn cache_hunt_failures(&mut self, base_cfg: &Config, report: &HuntReport) {
+        for f in &report.failures {
+            // The originally-detected artifact: the base knob profile stamped
+            // with this finding's seed (the sweep's per-iteration config).
+            let mut original = base_cfg.clone();
+            original.seed = f.seed;
+            self.cache_artifact(&downstream::introspect_dut_artifact(f.seed, &original));
+
+            // The minimized reproducer, when minimize confirmed it still fails.
+            if let Some(m) = &f.minimized {
+                if m.reproduced_initial {
+                    self.cache_artifact(&downstream::introspect_dut_artifact(
+                        f.seed,
+                        &m.minimized_config,
+                    ));
+                }
+            }
+        }
     }
 
     /// The pure `analyze` tool (`SEMANTIC-INTROSPECTION-EXPANSION.2b.2`):
@@ -1097,6 +1241,52 @@ fn parse_yosys_mode_arg(args: &Value) -> Result<YosysMode, String> {
     }
 }
 
+/// Parse the optional `max_oracle_calls` minimize budget — shared by the
+/// `minimize` and `hunt` tools so the bound has one parser. Absent/null ⇒ the
+/// [`MinimizeOptions`] default (200); otherwise a positive integer that fits
+/// `u32` (a bad value ⇒ a clean error the caller maps to a tool error).
+fn parse_max_oracle_calls(args: &Value) -> Result<u32, String> {
+    match args.get("max_oracle_calls") {
+        None | Some(Value::Null) => Ok(MinimizeOptions::default().max_oracle_calls),
+        Some(v) => {
+            let n = v
+                .as_u64()
+                .ok_or_else(|| "`max_oracle_calls` must be a positive integer".to_string())?;
+            if n == 0 {
+                return Err("`max_oracle_calls` must be >= 1".to_string());
+            }
+            u32::try_from(n).map_err(|_| "`max_oracle_calls` is too large".to_string())
+        }
+    }
+}
+
+/// Parse the `hunt` sweep length `seeds`. Absent/null ⇒ `16`; otherwise a
+/// positive integer that fits `u32`.
+fn parse_hunt_seeds(args: &Value) -> Result<u32, String> {
+    match args.get("seeds") {
+        None | Some(Value::Null) => Ok(16),
+        Some(v) => {
+            let n = v
+                .as_u64()
+                .ok_or_else(|| "`seeds` must be a positive integer".to_string())?;
+            if n == 0 {
+                return Err("`seeds` must be >= 1".to_string());
+            }
+            u32::try_from(n).map_err(|_| "`seeds` is too large".to_string())
+        }
+    }
+}
+
+/// Parse an optional boolean tool argument; absent/null ⇒ `default`, a non-bool
+/// ⇒ a clean error (mapped to a `-32602`-style tool error by the caller).
+fn parse_bool_arg(args: &Value, key: &str, default: bool) -> Result<bool, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(default),
+        Some(Value::Bool(b)) => Ok(*b),
+        Some(_) => Err(format!("`{key}` must be a boolean")),
+    }
+}
+
 /// The pure `coverage_gaps` tool (`AGENT-MCP-EXPANSION.2`, decision `0005`):
 /// project the *already-computed* coverage-gap list out of a recorded
 /// `tool_matrix_report.json`. It relays facts `tool_matrix` recorded — it
@@ -1518,7 +1708,8 @@ mod tests {
                 "validate",
                 "minimize",
                 "coverage_gaps",
-                "analyze"
+                "analyze",
+                "hunt"
             ]
         );
     }
@@ -2312,6 +2503,161 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], true);
         assert!(tool_text_of(&resp).contains("max_oracle_calls"));
+    }
+
+    // --- The controlled `hunt` tool (`BUG-HUNT-ORCHESTRATION.2c`) -------------
+
+    /// `tools: []` makes every seed downstream-clean (vacuously), so a hunt
+    /// sweep round-trips a `HuntReport` with all-clean verdicts and is recorded
+    /// as one top-level `hunt` audit entry — no external tool needed (portable).
+    #[test]
+    fn hunt_tool_no_tools_sweep_round_trips_and_audits() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            40,
+            "hunt",
+            json!({ "seed": 7, "seeds": 3, "tools": [] }),
+        );
+        assert_eq!(resp["result"]["isError"], false);
+        let report: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(report["lane"], "dut");
+        assert_eq!(report["base_seed"], 7);
+        assert_eq!(report["seeds"], 3);
+        assert_eq!(report["verdicts"].as_array().unwrap().len(), 3);
+        assert!(report["failures"].as_array().unwrap().is_empty());
+        assert_eq!(report["summary"]["n_clean"], 3);
+        assert_eq!(report["summary"]["n_failures"], 0);
+
+        // The sweep is recorded as a single top-level `hunt` audit entry.
+        let log = s
+            .handle(&req(
+                41,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        let entries = entries.as_array().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["tool"], "hunt");
+        assert_eq!(entries[0]["base_seed"], 7);
+        assert_eq!(entries[0]["seeds"], 3);
+        assert_eq!(entries[0]["n_failures"], 0);
+    }
+
+    /// The `hunt` tool inherits the fixed tool allow-list: an unknown tool name
+    /// is a clean tool error and is not audit-logged (it never ran).
+    #[test]
+    fn hunt_tool_rejects_unknown_tool_name() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 42, "hunt", json!({ "tools": ["bash"] }));
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown tool"));
+        let log = s
+            .handle(&req(
+                43,
+                "resources/read",
+                json!({ "uri": "anvil://audit/log" }),
+            ))
+            .unwrap();
+        let entries: Value =
+            serde_json::from_str(log["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert!(entries.as_array().unwrap().is_empty());
+    }
+
+    /// `seeds: 0` is rejected (the sweep must fuzz at least one seed).
+    #[test]
+    fn hunt_tool_rejects_zero_seeds() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 44, "hunt", json!({ "seeds": 0, "tools": [] }));
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("seeds"));
+    }
+
+    /// A non-boolean `minimize`/`diff_sim` flag is rejected cleanly.
+    #[test]
+    fn hunt_tool_rejects_non_boolean_flags() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            45,
+            "hunt",
+            json!({ "tools": [], "diff_sim": "yes" }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("diff_sim"));
+    }
+
+    /// The cache-population path the hunt tool runs on every finding: a synthetic
+    /// `HuntReport` (no real tool needed) makes
+    /// `anvil://artifact/<run_id>/{sv,introspection}` resolve for the failing
+    /// artifact's content address, deterministically regenerated from
+    /// `(seed, knobs)`.
+    #[test]
+    fn hunt_caches_failing_run_ids_so_resources_resolve() {
+        let mut s = McpServer::new();
+        let base = Config::default();
+        let mut cfg1 = base.clone();
+        cfg1.seed = 1;
+        let run_id = introspect::content_run_id("dut", 1, &cfg1);
+        let uri = format!("anvil://artifact/{run_id}/sv");
+
+        // Before: nothing cached for this run_id ⇒ resource read is a clean error.
+        let before = s
+            .handle(&req(50, "resources/read", json!({ "uri": uri.clone() })))
+            .unwrap();
+        assert!(before.get("error").is_some());
+
+        // A synthetic finding drives the same cache-population the tool runs.
+        let report = HuntReport {
+            base_seed: 1,
+            seeds: 1,
+            lane: "dut".to_string(),
+            verdicts: vec![hunt::HuntVerdict {
+                seed: 1,
+                run_id: run_id.clone(),
+                ok: false,
+                declined: None,
+            }],
+            failures: vec![hunt::HuntFailure {
+                seed: 1,
+                run_id: run_id.clone(),
+                failing_tool: "verilator".to_string(),
+                failing_argv: vec![],
+                first_error: Some("%Warning-WIDTH: ...".to_string()),
+                detection: "warning".to_string(),
+                minimized: None,
+                diff_sim: None,
+                bundle: None,
+            }],
+            summary: hunt::HuntSummary {
+                n_seeds: 1,
+                n_clean: 0,
+                n_failures: 1,
+                n_declined: 0,
+                n_reproduced: 0,
+            },
+        };
+        s.cache_hunt_failures(&base, &report);
+
+        // After: the failing artifact's sv + introspection resolve.
+        let after = s
+            .handle(&req(51, "resources/read", json!({ "uri": uri })))
+            .unwrap();
+        let sv = after["result"]["contents"][0]["text"].as_str().unwrap();
+        assert!(sv.contains("module "));
+        let intro = s
+            .handle(&req(
+                52,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/introspection") }),
+            ))
+            .unwrap();
+        let doc: Value =
+            serde_json::from_str(intro["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(doc["request"]["run_id"], run_id);
     }
 
     // --- Agent-workflow prompts (`AGENT-INTROSPECTION-MCP.6`) ----------------

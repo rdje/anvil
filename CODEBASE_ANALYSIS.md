@@ -834,6 +834,22 @@ src/
 │                     in a `CachedArtifact.analyses` map and served as
 │                     `anvil://artifact/<run_id>/analysis/<query>` (added to
 │                     `resources_list`/`resources_read`). No FS/spawn — pure.
+│                     `BUG-HUNT-ORCHESTRATION.2c` adds the controlled `hunt`
+│                     tool (`run_hunt`): a thin shim over `anvil::hunt::run`
+│                     parsing `seeds`/`minimize`/`max_oracle_calls`/`diff_sim`
+│                     (shared `parse_max_oracle_calls`/`parse_hunt_seeds`/
+│                     `parse_bool_arg` helpers; `run_minimize` now reuses
+│                     `parse_max_oracle_calls`) + the same tool allow-list /
+│                     OS-temp sandbox. `bundle_root = None` for MCP (no on-disk
+│                     bundle — the agent reads artifacts from the cache);
+│                     `cache_hunt_failures` populates `self.cache` for each
+│                     finding's `run_id` (original + minimized, via
+│                     `downstream::introspect_dut_artifact`) so
+│                     `anvil://artifact/<run_id>/{sv,introspection}` resolve, and
+│                     one top-level `hunt` audit record carries the sweep
+│                     params + summary + per-finding tool/detection. No
+│                     introspection schema bump (the `HuntReport` is a tool
+│                     result, not part of the introspection document).
 │   └── http.rs      (`AGENT-MCP-EXPANSION.4b`). The optional hand-rolled
 │                     HTTP/1.1 POST transport beside stdio, re-exported as
 │                     `mcp::serve_http` + `mcp::resolve_http_addr`. Pure framing
