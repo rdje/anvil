@@ -336,6 +336,21 @@ pub struct Metrics {
     /// the introspection projection additive (schema `1.10`).
     #[serde(default)]
     pub num_emitted_combinational_tasks: usize,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.10b.2` — number of combinational
+    /// **cones** this module emits as a multi-gate `function automatic`
+    /// projection (`Module.cone_function_gates.len()`; the
+    /// `cone_function_emit_prob` knob, decision `0016`). Each counted cone is
+    /// a root gate plus its absorbed single-use interior gates rendered as one
+    /// behaviour-preserving `function automatic` over the cone's boundary
+    /// leaves. Zero unless `cone_function_emit_prob > 0.0` selected qualifying
+    /// cones. Separate from `num_emitted_combinational_functions` (the
+    /// single-gate `function_emit_prob` surface). A post-hoc structural count
+    /// of an emitter-surface annotation — adding it changes no emitted RTL
+    /// (default-off byte-identical). `#[serde(default)]` keeps the
+    /// introspection projection additive (schema `1.11`).
+    #[serde(default)]
+    pub num_emitted_cone_functions: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -922,6 +937,11 @@ pub fn compute(m: &Module) -> Metrics {
     // projects as a `task automatic` (an emitter-surface annotation;
     // structural, post-hoc, RTL-invisible).
     out.num_emitted_combinational_tasks = m.task_emit_gates.len();
+
+    // `STRUCTURED-EMISSION-EXPANSION.10b.2` — count of combinational cones the
+    // emitter projects as a multi-gate `function automatic` (an emitter-surface
+    // annotation; structural, post-hoc, RTL-invisible).
+    out.num_emitted_cone_functions = m.cone_function_gates.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3260,6 +3280,31 @@ mod tests {
         // Marked ⇒ counted.
         m.task_emit_gates.insert(g);
         assert_eq!(compute(&m).num_emitted_combinational_tasks, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_cone_functions() {
+        // `STRUCTURED-EMISSION-EXPANSION.10b.2` — the metric is the count of
+        // combinational cones marked for the multi-gate `function automatic`
+        // emit-projection (one entry per cone root → its absorbed interiors).
+        let mut m = Module {
+            name: "cf".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // id 0
+        let (interior, _) = m.intern_gate(GateOp::And, vec![0, 0], 4, DepSet::from_port(0));
+        let (root, _) = m.intern_gate(GateOp::Or, vec![interior, 0], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_cone_functions, 0);
+        // Marked ⇒ counted (one cone: root absorbs the single-use interior).
+        m.cone_function_gates.insert(root, vec![interior]);
+        assert_eq!(compute(&m).num_emitted_cone_functions, 1);
     }
 
     #[test]

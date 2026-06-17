@@ -310,7 +310,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.10`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.11`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
 
 The `--sv-version 2023` target unlocks the first version-distinctive
 **up-opt**, a config-file knob (no CLI flag, like `aggregate_prob`):
@@ -884,6 +884,23 @@ Useful options:
   `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a
   task / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both modes /
   Icarus compile 12/0).
+- `--cone-function-gate` to run the repo-owned multi-gate-cone `function
+  automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.10b.2`) and fail unless
+  the report proves the fifth richer-structured emission surface (decision
+  `0016`) fires **by construction** and is downstream-accepted. It forces
+  `cone_function_emit_prob = 1.0` over a comb-only single-module DUT across all
+  three construction strategies, so every qualifying combinational cone (a root
+  gate plus its single-use interior gates) is projected to one
+  behaviour-preserving `function automatic` over the cone's boundary leaves,
+  and requires the `saw_cone_function_emit` fact (a genuinely-emitted cone
+  function, detected from the emitted SV text's `<root>__cf(` token, accepted
+  by Verilator **and** Yosys). Separate from `--function-emit-gate` (the
+  single-gate surface). Like a single-gate function, a cone function is
+  universally synthesizable, so the gate runs the full Verilator + both Yosys
+  modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-cone-function-gate-r1` (3 scenarios / 12 modules / 12 emitting a
+  cone function / 148 cone functions / `coverage_gaps = []` / Verilator 12/0 /
+  Yosys 12/0 both modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

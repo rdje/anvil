@@ -196,6 +196,23 @@ into four explicit gaps:
    scenarios, 12 modules, 12 emitting a task, `coverage_gaps = []`, `12/0`
    Verilator + both Yosys modes + Icarus compile). Default `task_emit_prob =
    0.0` emission stays byte-identical.
+   The multi-gate-cone `function automatic` emit gate landed the same way as
+   `STRUCTURED-EMISSION-EXPANSION.10b.2`: a new
+   `ScenarioSet::ConeFunctionSweep` + the opt-in `--cone-function-gate` flag +
+   `build_cone_function_sweep_scenarios` (one comb-only
+   `cone_function_focus_config` DUT × three construction strategies, all forcing
+   `Config::cone_function_emit_prob = 1.0`; `terminal_reuse_prob = 0.3` keeps
+   single-use cone interiors plentiful) + the `saw_cone_function_emit` coverage
+   fact + a new `ModuleReport.emitted_cone_function` field (set from
+   `prepared.sv_text.contains("__cf(")`, distinct from the single-gate
+   `<wire>__f(` surface); `summarize_coverage` lights the fact on Verilator +
+   Yosys acceptance (a cone function is universally synthesizable, like a
+   single-gate function), and `compute_coverage_gaps` early-returns after the
+   one fact. `MatrixReport.cone_function_gate` records the run. Banked
+   downstream-clean at `/tmp/anvil-cone-function-gate-r1` (3 scenarios, 12
+   modules, 12 emitting a cone function / 148 cone functions, `coverage_gaps =
+   []`, `12/0` Verilator + both Yosys modes + Icarus compile). Default
+   `cone_function_emit_prob = 0.0` emission stays byte-identical.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is
@@ -589,7 +606,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.10"`
+│                     only the envelope metadata (`schema_version` `"1.11"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -600,7 +617,9 @@ src/
 │                     1.8→1.9 the `Metrics::num_emitted_generate_loops`
 │                     count (`STRUCTURED-EMISSION-EXPANSION.4b.2a`), and
 │                     1.9→1.10 the `Metrics::num_emitted_combinational_tasks`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.6b.2a`);
+│                     count (`STRUCTURED-EMISSION-EXPANSION.6b.2a`), and
+│                     1.10→1.11 the `Metrics::num_emitted_cone_functions`
+│                     count (`STRUCTURED-EMISSION-EXPANSION.10b.2`);
 │                     the default introspection-document shape is unchanged.
 │                     The sibling `DerivedAnalysisDocument` +
 │                     `derived_analysis_document` builder reuse this envelope

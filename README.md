@@ -624,7 +624,7 @@ exercising adversarial axes that previously fired only by chance
   `scripts/ram_guard.sh` (which guards external jobs from the outside).
 - `anvil --dump-config` prints the effective knobs as JSON.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.10`) for a single-artifact run instead of SystemVerilog
+  (schema `1.11`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
   truth), with a content-addressed `run_id`. Requires a single-artifact stdout
@@ -641,7 +641,7 @@ exercising adversarial axes that previously fired only by chance
   fan-out (`input_reach`: what a source reaches), per-flop reset/data
   provenance (`flop_reset_provenance`), and per-module reachability from the top
   (`module_reachability`: which modules in a design are reachable via the instance
-  graph), schema `1.10`, unknown query/target ⇒
+  graph), schema `1.11`, unknown query/target ⇒
   `-32602`, and `coverage_gaps` projects the recorded
   `tool_matrix_report.json` gap list read-only), controlled tools
   (`validate`/`minimize`, run only through the hardened
@@ -851,6 +851,26 @@ exercising adversarial axes that previously fired only by chance
   task, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Default `task_emit_prob = 0.0` emission stays byte-identical; the
   gate is the opt-in proof axis.
+- `tool_matrix --cone-function-gate` runs the repo-owned multi-gate-cone
+  `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.10b.2`) and
+  fails on coverage gaps unless the report proves the fifth richer-structured
+  emission surface (decision `0016`) fires by construction and is
+  downstream-accepted. It forces `cone_function_emit_prob = 1.0` over a
+  comb-only single-module DUT across all three construction strategies, so
+  every qualifying combinational cone (a root gate plus its single-use interior
+  gates) is projected to one behaviour-preserving `function automatic` over the
+  cone's boundary leaves (one function-local per absorbed interior gate), and
+  requires the `saw_cone_function_emit` fact (a genuinely-emitted cone function
+  — detected from the emitted SV text's `<root>__cf(` token — accepted by
+  Verilator **and** Yosys). Like a single-gate function (and unlike the
+  `union soft` up-opt), a cone function is universally synthesizable, so the
+  gate runs the full Verilator + both Yosys modes (+ Icarus when
+  `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-cone-function-gate-r1` (3 scenarios, 12 modules, 12 emitting a
+  cone function / 148 cone functions, `coverage_gaps = []`, `12/0` Verilator +
+  both Yosys + Icarus compile). Separate from `--function-emit-gate` (the
+  single-gate surface); default `cone_function_emit_prob = 0.0` emission stays
+  byte-identical; the gate is the opt-in proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

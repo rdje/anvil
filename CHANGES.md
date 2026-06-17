@@ -1,9 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10b.2 — cone-function metric (schema 1.10→1.11) + repo-owned `--cone-function-gate`
+
+**Landed as:** this commit (previous: `081583d`). **Metric + repo-owned
+downstream gate for the fifth structured surface; default-off / DUT
+byte-identical.** Surfaces the cone-function count in introspection and adds the
+repo-owned acceptance gate, templated on `--task-emit-gate` /
+`--function-emit-gate`. Closes `.10b.2`; frontier → `.10b.3` (user docs).
+
+**What changed (why)**
+
+- **`src/metrics.rs`** — `Metrics::num_emitted_cone_functions: usize`
+  (`#[serde(default)]`), computed in `compute()` as `m.cone_function_gates.len()`
+  — a post-hoc structural count of an emitter-surface annotation (RTL-invisible).
+  Separate from `num_emitted_combinational_functions` (the single-gate surface).
+  Lib proof `metrics_count_emitted_cone_functions` (unmarked 0, marked 1).
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.10 → 1.11` (the new derived
+  `Metrics` field bumps; the `.10b.1` knob rode the version — the `.6b.2a`
+  precedent) + doc comment + 2 `schema_version` assertions.
+- **`src/mcp/mod.rs`** — 7 `schema_version` assertions `1.10 → 1.11`.
+- **`docs/AGENT_INTROSPECTION_SCHEMA.md`** — new `1.10 → 1.11` changelog entry +
+  the two current-version references + the checklist line (historical
+  attributions left intact).
+- **`src/bin/tool_matrix.rs`** — `--cone-function-gate` +
+  `ScenarioSet::ConeFunctionSweep` + `build_cone_function_sweep_scenarios` /
+  `cone_function_focus_config` (comb-only `cone_function_emit_prob = 1.0` × 3
+  construction strategies; `terminal_reuse_prob = 0.3` keeps single-use cone
+  interiors plentiful) + `ModuleReport.emitted_cone_function` (`"__cf("` SV-text
+  detection, distinct from the single-gate `"__f("` surface) +
+  `CoverageSummary.saw_cone_function_emit` (lit on Verilator + Yosys acceptance) +
+  `MatrixReport.cone_function_gate` + the early-return gap arm + mutual-exclusion
+  + units floor + 5 cargo-portable proofs + 6 `ModuleReport` fixture updates +
+  the `test_cli` default.
+- **README / USER_GUIDE / CODEBASE_ANALYSIS** — current introspect-schema
+  references bumped to `1.11` (historical metric attributions intact); the
+  `--cone-function-gate` gate entry added; the 5 `book/src/agent-mcp.md` example
+  JSONs bumped to `1.11`.
+
+**Validation**
+
+- `cargo check --lib --bin tool_matrix` clean; `cargo clippy --all-targets -- -D
+  warnings` clean; `cargo fmt --all --check` clean.
+- `cargo test --lib` **502 passed** / 2 ignored (501 + 1 new metric proof; all
+  `schema_version` assertions green at `1.11`); `cargo test --bin tool_matrix`
+  **73 passed** / 1 ignored (68 + 5 new cone-function gate proofs); `cargo test
+  --test snapshots` **6/6 byte-identical** (default-off; metric changes no RTL).
+- End-to-end `--introspect`: default seed ⇒ `schema_version "1.11"` +
+  `num_emitted_cone_functions 0`; forced `cone_function_emit_prob = 1.0`
+  (seed 42) ⇒ `1.11` + `14`.
+- **Banked clean** `/tmp/anvil-cone-function-gate-r1` (`--cone-function-gate
+  --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **12
+  emitting a cone function** / **148 cone functions** / `coverage_gaps = []` /
+  `12/0` Verilator + `12/0` Yosys without-abc + `12/0` Yosys with-abc + `12/0`
+  Icarus compile; `saw_cone_function_emit = true`.
+- `mdbook build book` OK; `check_memory_architecture` + `check_knowledge_map` OK.
+
+**Impact**
+
+- Default-off (`cone_function_emit_prob == 0.0`) ⇒ DUT byte-identical (snapshots
+  untouched). Additive MINOR schema bump (`#[serde(default)]` → a `1.10` consumer
+  ignores the new key). The single-gate `function_emit_prob` surface is untouched.
+  Nothing retired. `.10b.3` (book/knobs/USER_GUIDE/README/KM closeout) remains.
+
+**Files touched:** `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`src/bin/tool_matrix.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`,
+`USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `book/src/agent-mcp.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10b.1 — multi-gate-cone `function automatic` emit-projection (live surface)
 
-**Landed as:** this commit (previous: `2d3a0ca`). **First source change of the
+**Landed as:** `081583d` (previous: `2d3a0ca`). **First source change of the
 fifth structured surface; default-off / DUT byte-identical.** Implements decision
 `0016` per the `.10a` design — the live emitter surface of the multi-gate-cone
 `function automatic` (the metric + schema bump land at `.10b.2`, the user docs at

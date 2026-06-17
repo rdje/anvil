@@ -5,6 +5,40 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Structured emission — cone-function metric + repo-owned gate — `STRUCTURED-EMISSION-EXPANSION.10b.2`
+
+The fifth surface's metric (`Metrics::num_emitted_cone_functions`,
+`= m.cone_function_gates.len()`) bumps the introspection schema `1.10 → 1.11`
+(the `.6b.2a` precedent: a new derived `Metrics` field bumps; the `.10b.1` knob
+rode the version via `#[serde(default)]`). The repo-owned
+`tool_matrix --cone-function-gate` is templated on `--task-emit-gate` /
+`--function-emit-gate`. Two non-obvious choices worth recording:
+
+1. **Detection token is `__cf(`, not `function automatic`.** The cone surface
+   renders `function automatic logic [..] <root>__cf(...)`, so its emitted SV
+   *also* contains `"function automatic"` — the same substring the single-gate
+   `emitted_combinational_function` probe matches. Reusing that probe would
+   blur the two surfaces (and, in the cone sweep, light
+   `saw_combinational_function_emit` too). `ModuleReport.emitted_cone_function`
+   therefore probes the cone-specific `"__cf("` token (the call + decl name
+   suffix), which is disjoint from the single-gate `"__f("` token. The
+   `ConeFunctionSweep` gap arm checks only `saw_cone_function_emit`, so any
+   incidental `saw_combinational_function_emit` lighting is harmless.
+
+2. **`cone_function_focus_config` uses `terminal_reuse_prob = 0.3`, not `0.9`.**
+   The `function_emit` / `task_emit` focus configs use `terminal_reuse_prob =
+   0.9` — fine for those single-gate surfaces, which absorb a gate regardless of
+   its fanout. The cone surface absorbs an interior gate **only when it is
+   single-use** (`use_count == 1`; the `.10b.1` soundness rule). Heavier
+   terminal reuse drives more CSE-induced sharing under node-id + e-graph, which
+   turns interior gates multi-use → boundary params → smaller (or empty) cones.
+   Dropping the focus config's reuse to the default `0.3` keeps single-use
+   interior gates plentiful so the gate reliably fires. Empirically the gate
+   emits a cone function in **12/12** modules (148 cone functions total) at
+   `0.3`. Banked clean `/tmp/anvil-cone-function-gate-r1` (3 scenarios / 12
+   modules / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus).
+   Default-off / DUT byte-identical (snapshots 6/6).
+
 ## 2026-06-17 — Structured emission — multi-gate-cone `function automatic` live surface — `STRUCTURED-EMISSION-EXPANSION.10b.1`
 
 The fifth surface (decision `0016`, designed at `.10a`) goes live. Two
