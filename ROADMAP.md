@@ -2413,13 +2413,21 @@ structure-first / no-shadow-simulator ceiling (decision `0004`, steering gap 4)
 is unchanged. `SEMANTIC-INTROSPECTION-EXPANSION` + `AGENT-MCP-EXPANSION` are the
 cross-cutting homes for this deepening.
 
-The seven lanes (north-star-ordered; all `active` with a design-first `.1` ADR
-frontier, no code yet):
+The seven lanes (north-star-ordered). Lane 1 is **delivered** (`2026-06-17`, tree
+closed); the other six remain `active` with a design-first `.1` ADR frontier:
 
-1. `BUG-HUNT-ORCHESTRATION` — a turnkey, MCP-driven fuzz → detect → auto-minimize
-   → reproducer-bundle loop (`anvil hunt` + an `hunt` MCP tool) composing the
-   existing `tool_matrix` / `downstream` / `diff-sim` / introspect surfaces. The
-   single biggest usability multiplier — ANVIL as a direct bug-finder.
+1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
+   MCP-driven fuzz → detect → auto-minimize → reproducer-bundle loop composing the
+   existing `downstream` (`validate`/`minimize`) + extracted `diff-sim`
+   (`run_agreement`) + `introspect` surfaces into one `hunt::run`, surfaced **two
+   ways** — the `anvil hunt` CLI subcommand (ANVIL's first) and the controlled
+   `hunt` MCP tool (decision `0017`: both thin shims over the same loop). Findings
+   carry an auto-minimized reproducer; the CLI's `--out` drops a self-contained
+   bundle directory per finding, the MCP path serves each reproducer from its
+   cache. The single biggest usability multiplier — ANVIL as a direct bug-finder.
+   Decision [`0018`](docs/decisions/0018-bug-hunt-orchestration-loop.md); tree
+   `BUG-HUNT-ORCHESTRATION` (`.1`–`.2e`), default `anvil` build / DUT
+   byte-identical.
 2. `ACCEPTANCE-DIVERGENCE-HUNTING` — a "tool A accepts / tool B rejects" (and
    version-vs-version) divergence finder + report, complementing `--diff-sim`.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +

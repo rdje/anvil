@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2e — real-tool e2e gate + closeout (closes the tree)
+
+**Landed as:** this commit (previous: `6172041`). **Default `anvil` build / DUT
+byte-identical** (test + docs only — no `src/` generator/emitter change). This is
+the **final leaf**: it closes `.2`, the `BUG-HUNT-ORCHESTRATION` tree, and the
+root node. ANVIL is now a turnkey downstream bug-finder, proven end-to-end against
+the real toolchain.
+
+**What changed (why)**
+
+- **`tests/hunt_e2e.rs`** (new) — two `#[ignore]` tool-gated proofs (mirroring
+  `tests/diff_sim.rs`; the portable `cargo test` stays green tool-less):
+  - `hunt_cli_clean_sweep_against_real_verilator` — drives the **real `anvil
+    hunt` binary** (`CARGO_BIN_EXE_anvil`) against real Verilator over a 3-seed
+    sweep, parses the `HuntReport`, and asserts `n_failures == 0` (clean — the
+    valid-by-construction steady state) with one distinct content-addressed
+    `run_id` per seed.
+  - `hunt_reproducer_recipe_is_byte_identical_and_accepted` — proves the
+    reproducer **recipe** a finding's `repro.sh` runs is faithful: `anvil --seed
+    S --config <dumped knobs>` reproduces `anvil --seed S` **byte-for-byte**, and
+    real Verilator accepts the regenerated `repro.sv`.
+  - **Honest boundary documented in the file header:** ANVIL output is valid by
+    construction, so there is no by-construction way to manufacture a real
+    downstream rejection (a genuine one would be an actual downstream-tool bug —
+    the thing the loop *surfaces*). The reproducer **bundle directory format**
+    itself is proven cargo-portably by `.2b.2b`'s `write_bundle…` unit test; this
+    gate adds the real-tool loop + recipe proof.
+- **`Cargo.toml`** — `serde_json` added to `[dev-dependencies]` (integration
+  tests link the crate as an external crate and can't name its regular
+  `[dependencies]`), for the typed `HuntReport` parse. Same major as the regular
+  dep ⇒ Cargo unifies it; no shipped-binary change.
+- **`book/src/agent-mcp.md`** — the "The bug-hunting loop, end to end" section
+  rewritten with a **"One command: the `hunt` loop"** subsection presenting the
+  turnkey `anvil hunt` CLI **and** the MCP `hunt` tool as the two shims over the
+  same loop, the bundle contents, and the clean-sweep expectation (the
+  tool-requiring bash block carries the `book-test: skip` sentinel, so
+  `book_examples` is unaffected).
+- **`docs/knowledge/bug-hunt-cli.md`** (new KM how-to card) — usage-focused
+  retrieval keys ("how do I run anvil hunt", "how do I get a reproducer bundle",
+  …) pointing to USER_GUIDE + the book, `reverify = cargo test --test hunt_e2e --
+  --ignored`. KM regenerated: **46 → 47 facts**.
+- **`ROADMAP.md`** — owner-directed lane 1 (`BUG-HUNT-ORCHESTRATION`) marked
+  **DONE** (`2026-06-17`, tree closed); the other six lanes stay design-first.
+- **Task tree** — `docs/tasks/BUG-HUNT-ORCHESTRATION.md` (`.2e` + `.2` + root all
+  `done`, tree closed) + `docs/TASK_TREE.md` row → `done`.
+
+**Validation**
+
+- `cargo test --test hunt_e2e -- --ignored` 2/2 against real Verilator; portable
+  `cargo test --test hunt_e2e` 0 run / 2 ignored (tool-less-safe). `cargo check
+  --all-targets` OK; `cargo clippy --all-targets -- -D warnings` OK; `cargo fmt
+  --all --check` OK; full `cargo test` green incl. **`tests/snapshots.rs` 6/6
+  byte-identical** + `tests/book_examples.rs`. KM gen+check OK (47 facts).
+
+**Impact**
+
+- **The `BUG-HUNT-ORCHESTRATION` tree is closed.** The engine (`hunt::run`),
+  both invocation surfaces (the `anvil hunt` CLI + the MCP `hunt` tool), the
+  reproducer bundle, and the real-tool end-to-end gate are all delivered. ANVIL
+  is directly usable as a downstream-tool bug-finder — the north star — from the
+  shell *and* over MCP, both thin shims over one loop.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2d — the `anvil hunt` CLI subcommand (ANVIL's first subcommand)
 
-**Landed as:** this commit (previous: `b2e0228`). **Flat-flag default path
+**Landed as:** `6172041` (previous: `b2e0228`). **Flat-flag default path
 byte-identical** (the existing `anvil --seed N …` invocation is unchanged when no
 subcommand is given). ANVIL gains its **first subcommand**: the turnkey bug-hunt
 loop on the command line, a thin shim over the same `hunt::run` the MCP `hunt`

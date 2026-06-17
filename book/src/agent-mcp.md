@@ -441,15 +441,15 @@ Run this tool chain in order:
 
 ## The bug-hunting loop, end to end
 
-Putting it together — this is what `find_downstream_bug` automates:
+The loop, step by step:
 
 1. **`generate`** a DUT for a seed.
 2. **`validate`** it against `verilator` + `yosys`.
 3. If the verdict is **`ok`**, the RTL is downstream-clean — pick another seed
    and repeat.
-4. If a vetted tool **rejected** valid-by-construction RTL, that is a candidate
-   **downstream-tool bug** (not an ANVIL bug). **`minimize`** shrinks the knobs
-   to a small reproducer, holding the seed fixed.
+4. If a vetted tool **rejected** (or warned on) valid-by-construction RTL, that is
+   a candidate **downstream-tool bug** (not an ANVIL bug). **`minimize`** shrinks
+   the knobs to a small reproducer, holding the seed fixed.
 5. Read **`anvil://audit/log`** for the exact, reproducible command lines and
    file it.
 
@@ -457,6 +457,47 @@ Because ANVIL's output is legal by construction, *a rejection is the signal*.
 The agent is an experiment driver and explainer; it is **never** a signoff
 oracle — ANVIL's manifests, metrics, and the real tools' results remain the
 source of truth.
+
+### One command: the `hunt` loop
+
+You do not have to wire those steps together by hand. The **`hunt`** tool runs
+the whole loop — fuzz a deterministic seed sweep → detect any reject/warning
+(and, with `diff_sim`, a cross-simulator trace mismatch) → auto-`minimize` each
+failure → emit a reproducer — and returns one structured `HuntReport`
+(per-seed `verdicts` + `failures` + `summary`). It is a thin shim over
+`validate`/`minimize`; it adds no detector and no minimizer of its own.
+
+It is available **two ways, both shims over the same loop** (decision `0017`):
+
+- the **MCP `hunt` tool** — an agent calls it with the sweep controls and reads
+  each failing reproducer back as an `anvil://artifact/<run_id>/{sv,introspection}`
+  resource (the cache is populated for every finding); the sweep is recorded in
+  `anvil://audit/log`;
+- the **`anvil hunt` CLI subcommand** — the same loop from the shell, printing the
+  `HuntReport` JSON to stdout, with `--out <dir>` additionally dropping a
+  self-contained reproducer bundle directory per finding.
+
+<!-- book-test: skip — runs the real downstream tools (verilator/yosys); the hunt loop is tool-gated -->
+```bash
+# Fuzz seeds 1..16 against Verilator + Yosys; print a JSON HuntReport.
+anvil hunt --seed 1 --seeds 16 --tools verilator,yosys
+
+# Hunt a knob profile, dropping a reproducer bundle per finding.
+anvil --seed 1 --dump-config > profile.json
+anvil hunt --seeds 64 --config profile.json --tools verilator --out ./hunt-bundles
+```
+
+Each `--out` bundle is a directory `<run_id>/` carrying everything needed to
+re-file the bug independently: `repro.sv` (the emitted RTL), `knobs.json` (the
+effective/minimized `Config`), `introspection.json` (construction truth),
+`hunt-verdict.json` (the finding), `tool-logs/`, and a one-command `repro.sh`
+that regenerates the `.sv` from `(seed, knobs.json)` and re-runs the failing
+tool. Because ANVIL is reproducible, `repro.sh` reproduces the artifact
+byte-for-byte. (Full CLI flags: the User Guide's *`anvil hunt`* section.)
+
+Since ANVIL's output is legal by construction, a clean sweep (`n_failures = 0`)
+is the **expected** result — `hunt` is the engine that surfaces the rare
+genuine downstream-tool bug, not a generator of ANVIL failures.
 
 ## What this lane deliberately does *not* do
 

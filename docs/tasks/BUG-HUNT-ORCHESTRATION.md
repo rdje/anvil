@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `BUG-HUNT-ORCHESTRATION`
-- Status: `active`
+- Status: `done` (closed `2026-06-17`)
 - Roadmap lane: `Usability — turnkey bug-finder (north star, idea 1)`
 - Created: `2026-06-17`
 - Last updated: `2026-06-17`
@@ -51,8 +51,9 @@ this lane composes them into one bug-hunt orchestrator.
 ## Task Tree
 
 - ID: `BUG-HUNT-ORCHESTRATION`
-  Status: `active`
+  Status: `done`
   Goal: `A turnkey, MCP-driven fuzz → detect → minimize → reproducer-bundle bug-hunt loop over the existing tool_matrix / downstream / diff-sim / introspect surfaces.`
+  Result: `Done — closed 2026-06-17. ANVIL is now directly usable as a downstream-tool bug-finder. The src/hunt/ engine (hunt::run) composes downstream::validate/minimize + the extracted diff_sim::run_agreement + introspect into one deterministic fuzz → detect (reject/warning/cross-sim mismatch) → auto-minimize → reproducer loop, surfaced two ways — the anvil hunt CLI subcommand (ANVIL's first) and the controlled hunt MCP tool — both thin shims over the same hunt::run (decision 0017). Findings carry an auto-minimized reproducer + a self-contained bundle directory (CLI --out) or cache-served anvil:// resources (MCP). Default anvil build / DUT byte-identical throughout. Leaves .1 (ADR 0018) / .2a (diff-sim extract) / .2b.1 (loop core) / .2b.2a (cross-sim fold + generate_dut_artifact) / .2b.2b (bundle emitter + introspect_dut_artifact) / .2c (MCP tool) / .2d (CLI) / .2e (real-tool e2e gate + closeout) all done.`
   Children: `BUG-HUNT-ORCHESTRATION.1`
 
 - ID: `BUG-HUNT-ORCHESTRATION.1`
@@ -64,11 +65,12 @@ this lane composes them into one bug-hunt orchestrator.
   Commit: `this BUG-HUNT-ORCHESTRATION.1 commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Implement the .1 design: the hunt orchestrator + the MCP hunt tool + the CLI shim + the reproducer-bundle emitter + proofs + a real-tool end-to-end gate + book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. Pre-split at .1 into .2a..2e (below).`
   Acceptance: `All of .2a..2e done; hunt loop runs end-to-end against a real downstream tool and drops a one-command-reproducible bundle; decision-0017 API-completeness gate met (hunt MCP-invocable + results queryable + CLI a shim); snapshots 6/6 + book-examples 3/3 unchanged; downstream-clean; documented; committed per COMMIT.md.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done — all of .2a..2e landed. The engine (.2a diff-sim extract / .2b.1 loop core / .2b.2a cross-sim fold / .2b.2b bundle emitter), both surfaces (.2c MCP hunt tool / .2d anvil hunt CLI), and the closeout (.2e real-tool e2e gate + book/USER_GUIDE/README/KM) are complete. The hunt runs end-to-end against real Verilator (tests/hunt_e2e.rs, clean sweep + byte-identical reproducer recipe); the bundle directory format is unit-proven (.2b.2b); decision-0017 met (MCP-invocable + cache-queryable + CLI a shim over the same hunt::run); snapshots 6/6 + book_examples unchanged; default anvil build / DUT byte-identical; documented in book/src/agent-mcp.md + USER_GUIDE + README + KM card bug-hunt-cli.`
+  Verification: `cargo check/test/clippy/fmt green across .2a..2e; tests/hunt_e2e.rs 2/2 against real Verilator (--ignored), 0 portable; full cargo test green incl. tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs; KM 47 facts (bug-hunt-cli folded in).`
+  Commit: `closed by the .2e commit (last child)`
   Children: `BUG-HUNT-ORCHESTRATION.2a, .2b (.2b.1/.2b.2), .2c, .2d, .2e`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2a`
@@ -138,17 +140,20 @@ this lane composes them into one bug-hunt orchestrator.
   Commit: `this BUG-HUNT-ORCHESTRATION.2d commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2e`
-  Status: `pending`
+  Status: `done`
   Goal: `A real-tool end-to-end gate (#[ignore], tool-gated) that runs a hunt against Verilator/Yosys and produces a one-command-reproducible bundle for an injected/known failure; book/src/agent-mcp.md + USER_GUIDE + README + a KM card; close .2 and the tree.`
-  Acceptance: `pending (set when picked)`
-  Verification: `pending`
-  Commit: `pending`
+  Acceptance: `A #[ignore] tool-gated tests/hunt_e2e.rs that drives the real anvil hunt binary against real Verilator and proves the loop + the reproducer recipe end-to-end (tool-less ⇒ skips green); the book "bug-hunting loop end to end" rewritten to feature the turnkey hunt (CLI + MCP); a KM how-to card; ROADMAP lane 1 marked delivered; the tree + .2 + the root node closed; cargo check/test/clippy/fmt green incl. snapshots 6/6 + book_examples.`
+  Result: `Done — closes the tree. (1) tests/hunt_e2e.rs: two #[ignore] tool-gated proofs — hunt_cli_clean_sweep_against_real_verilator (the real anvil hunt binary runs a 3-seed sweep against real Verilator, n_failures=0 with distinct per-seed run_ids — valid-by-construction ⇒ a clean sweep is the steady state) + hunt_reproducer_recipe_is_byte_identical_and_accepted (anvil --seed S --config <dumped knobs> reproduces anvil --seed S byte-for-byte AND Verilator accepts the regenerated repro.sv — the repro.sh recipe). Documented honestly that ANVIL has no by-construction downstream failure to manufacture (a real rejection would be an actual downstream-tool bug, the thing the loop surfaces); the bundle DIRECTORY format is unit-proven cargo-portably by .2b.2b's write_bundle test. Added serde_json to [dev-dependencies] (integration tests can't name regular deps) for the typed HuntReport parse. (2) book/src/agent-mcp.md "The bug-hunting loop, end to end" rewritten with a "One command: the hunt loop" subsection featuring both the anvil hunt CLI and the MCP hunt tool (tool-requiring bash block marked book-test:skip). (3) KM how-to card docs/knowledge/bug-hunt-cli.md (usage-focused, points to USER_GUIDE + book, reverify = cargo test --test hunt_e2e -- --ignored) — KM 46→47 facts. (4) ROADMAP lane 1 marked DONE; the tree, .2, and the root node closed. Default anvil build / DUT byte-identical (test + docs only; no src/ generator/emitter change).`
+  Verification: `cargo test --test hunt_e2e -- --ignored 2/2 against real Verilator; portable cargo test --test hunt_e2e 0 run/2 ignored (tool-less-safe); cargo check --all-targets OK; cargo clippy --all-targets -- -D warnings OK; cargo fmt --all --check OK; full cargo test green incl. tests/snapshots.rs 6/6 byte-identical + tests/book_examples.rs; KM gen+check OK (47 facts).`
+  Commit: `this BUG-HUNT-ORCHESTRATION.2e commit`
 
 ## Current Frontier
 
+**Tree closed `2026-06-17`.** No frontier — all leaves done.
+
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate (`#[ignore]`, tool-gated: an injected/known failure ⇒ a one-command-reproducible bundle) + the full book/USER_GUIDE/README/KM closeout; closes `.2` and the tree. |
+| — | `BUG-HUNT-ORCHESTRATION.2e` | `done` | The real-tool e2e gate (`tests/hunt_e2e.rs`, 2 `#[ignore]` proofs against real Verilator) + the book "end to end" rewrite + the `bug-hunt-cli` KM card; closes `.2`, the tree, and the root node. |
 | — | `BUG-HUNT-ORCHESTRATION.2a` | `done` | Extracted the diff-sim run+compare into `diff_sim::run_agreement` (byte-identical; snapshots 6/6). |
 | — | `BUG-HUNT-ORCHESTRATION.2b.1` | `done` | The `src/hunt/` library core (`hunt::run` + types, reject/warning detection) + the seed-threading fix; cargo-portable proofs; snapshots 6/6. |
 | — | `BUG-HUNT-ORCHESTRATION.2b.2a` | `done` | Folded cross-sim mismatch detection into `hunt::run` (`diff_sim::run_agreement`) + extracted the shared `downstream::generate_dut_artifact`; snapshots 6/6. |
@@ -207,6 +212,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.2b` | `downstream::introspect_dut_artifact added; HuntRequest.bundle_root + HuntFailure.bundle (HuntBundle) + write_bundle/repro_script/shell_quote; bundle dir per finding (repro.sv/knobs.json/introspection.json/hunt-verdict.json/tool-logs/repro.sh); 4 cargo-portable proofs (hunt:: 7→11); cargo check/clippy/fmt green; downstream:: 20/0; full cargo test green incl. snapshots 6/6 byte-identical` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2c` | `MCP hunt controlled tool (hunt_schema + "hunt" dispatch + run_hunt + cache_hunt_failures + hunt audit record); shared parse_max_oracle_calls/parse_hunt_seeds/parse_bool_arg (run_minimize reuses parse_max_oracle_calls, byte-identical); book/src/agent-mcp.md tool list/table; 5 new mcp:: proofs (mcp:: 66/0); no introspection schema bump; cargo check/clippy/fmt green; full cargo test green incl. snapshots 6/6 byte-identical + book_examples` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2d` | `anvil hunt subcommand (Cli command: Option<Commands>; HuntCommand; run_hunt_command/build_hunt_request; AcceptanceTool clap::ValueEnum); USER_GUIDE/README/book agent-mcp synced; 5 anvil-bin proofs (anvil-bin 12/0) incl. flat-default-no-subcommand guard; real-tool smoke anvil hunt --seeds 3 --tools verilator ⇒ n_failures=0; cargo check/clippy/fmt green; full cargo test green incl. snapshots 6/6 byte-identical + book_examples` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2e` | `tests/hunt_e2e.rs (2 #[ignore] tool-gated proofs vs real Verilator: clean sweep + byte-identical reproducer recipe) 2/2 --ignored, 0 portable; serde_json dev-dep; book "end to end" rewrite (turnkey hunt CLI+MCP); KM card bug-hunt-cli (47 facts); ROADMAP lane 1 DONE; tree + .2 + root closed; cargo check/clippy/fmt green; full cargo test green incl. snapshots 6/6 byte-identical + book_examples` | `done` |
 
 ## Commit Log
 
@@ -221,6 +227,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `BUG-HUNT-ORCHESTRATION.2b.2b` | `BUG-HUNT-ORCHESTRATION.2b.2b — reproducer-bundle emitter (write <bundle_root>/<run_id>/ per finding) + introspect_dut_artifact` | `HuntRequest.bundle_root` + `HuntFailure.bundle` (`HuntBundle`); per-finding directory (`repro.sv`/`knobs.json`/`introspection.json`/`hunt-verdict.json`/`tool-logs`/`repro.sh`) via the shared `generate_dut_artifact` + new `introspect_dut_artifact`. Prefers the minimized reproducer. Closes the `.2b` engine. Default-off / DUT byte-identical. |
 | `BUG-HUNT-ORCHESTRATION.2c` | `BUG-HUNT-ORCHESTRATION.2c — the MCP hunt controlled tool (turnkey loop, MCP-invocable + queryable)` | `hunt` tool in `src/mcp` (`run_hunt` shim over `hunt::run` + `cache_hunt_failures` + a `hunt` audit record); shared `parse_max_oracle_calls`/`parse_hunt_seeds`/`parse_bool_arg`; `book/src/agent-mcp.md` tool list/table. `bundle_root=None` (MCP serves artifacts from the cache). Default `anvil` build / DUT byte-identical. |
 | `BUG-HUNT-ORCHESTRATION.2d` | `BUG-HUNT-ORCHESTRATION.2d — the anvil hunt CLI subcommand (ANVIL's first subcommand)` | `anvil hunt` in `src/main.rs` (optional `command: Option<Commands>` keeps the flat default byte-identical; `HuntCommand` + `run_hunt_command`/`build_hunt_request` shim over `hunt::run`; `--out` ⇒ on-disk bundle); `AcceptanceTool` gains `clap::ValueEnum`; USER_GUIDE/README/book synced. Flat default path byte-identical. |
+| `BUG-HUNT-ORCHESTRATION.2e` | `BUG-HUNT-ORCHESTRATION.2e — real-tool e2e gate + closeout (closes the tree)` | `tests/hunt_e2e.rs` (2 `#[ignore]` tool-gated proofs vs real Verilator: clean sweep + byte-identical reproducer recipe); `serde_json` dev-dep; book "bug-hunting loop end to end" rewrite (turnkey `hunt` CLI+MCP); KM card `bug-hunt-cli`; ROADMAP lane 1 DONE; **tree + `.2` + root closed**. Default `anvil` build / DUT byte-identical (test + docs only). |
 
 ## Changelog
 
@@ -286,3 +293,18 @@ this lane composes them into one bug-hunt orchestrator.
   `n_failures = 0`). USER_GUIDE/README/`book/src/agent-mcp.md` synced. Default path
   byte-identical (snapshots 6/6 + book_examples). Frontier advanced to `.2e` (the
   real-tool e2e gate + full closeout, which closes the tree).
+- `2026-06-17`: `.2e` done — **the tree is CLOSED.** Added `tests/hunt_e2e.rs`:
+  two `#[ignore]` tool-gated proofs that drive the real `anvil hunt` binary
+  against real Verilator — `hunt_cli_clean_sweep_against_real_verilator` (clean
+  3-seed sweep, `n_failures=0`, distinct per-seed `run_id`s) and
+  `hunt_reproducer_recipe_is_byte_identical_and_accepted` (`anvil --config
+  <dumped knobs>` reproduces `anvil --seed` byte-for-byte + Verilator accepts the
+  regenerated `repro.sv`). Documented the honest boundary: ANVIL has no
+  by-construction downstream failure to manufacture (a real rejection would be an
+  actual downstream-tool bug — the thing the loop surfaces); the bundle directory
+  format is unit-proven by `.2b.2b`. Added `serde_json` to `[dev-dependencies]`
+  for the typed `HuntReport` parse. Rewrote the book's "bug-hunting loop end to
+  end" with a turnkey `hunt` (CLI + MCP) subsection; added the `bug-hunt-cli` KM
+  how-to card (KM 46→47); marked ROADMAP lane 1 DONE; closed the tree, `.2`, and
+  the root node. Default `anvil` build / DUT byte-identical (test + docs only).
+  **No frontier — `BUG-HUNT-ORCHESTRATION` is complete.**

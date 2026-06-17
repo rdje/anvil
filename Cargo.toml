@@ -24,6 +24,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 # formatting and mass-invalidate baselines. Pinned to the version in
 # the local registry cache (offline-safe).
 insta = "=1.47.2"
+# Test-only: integration tests link the crate as an external crate and so
+# cannot name its regular `[dependencies]`; the `BUG-HUNT-ORCHESTRATION.2e`
+# real-tool e2e gate parses the `anvil hunt` `HuntReport` JSON. Same major as
+# the regular dependency, so Cargo unifies it (no second build of serde_json).
+serde_json = "1"
 
 [[bin]]
 name = "anvil"

@@ -5,6 +5,42 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — real-tool e2e gate + tree closeout — `BUG-HUNT-ORCHESTRATION.2e`
+
+The tree's **final leaf**. The crux was the honest design of the e2e gate:
+
+- **There is no manufacturable ANVIL failure — and that's the point.** ANVIL
+  output is valid by construction, so no `(seed, knobs)` makes a real tool reject
+  it; a genuine rejection would be an actual downstream-tool bug — the thing the
+  loop exists to *surface* — not a test fixture (fabricating one would mean
+  emitting illegal RTL, which the project forbids). So `tests/hunt_e2e.rs` does
+  **not** pretend to find a synthetic bug. It proves the two things that *are*
+  provable end-to-end with the real toolchain: (1) the whole `anvil hunt` loop
+  runs **clean** against real Verilator (`n_failures == 0`, the steady state),
+  and (2) the reproducer **recipe** is byte-identical-faithful (`anvil --config
+  <dumped knobs>` reproduces `anvil --seed` byte-for-byte + the tool accepts the
+  regenerated `.sv` — exactly `repro.sh`'s two steps). The bundle **directory
+  format** is the cargo-portable job of `.2b.2b`'s `write_bundle…` unit test.
+  This split keeps every proof honest and every layer covered.
+- **The e2e test drives the real binary, not a library re-entry.** It uses
+  `env!("CARGO_BIN_EXE_anvil")` + `std::process::Command`, so it exercises the
+  actual `anvil hunt` argv path (clap parse → `run_hunt_command` → `hunt::run`),
+  the same thing a user runs — the strongest end-to-end signal.
+- **`serde_json` had to move into `[dev-dependencies]`.** Integration tests link
+  the crate as an *external* crate and cannot name its regular `[dependencies]`,
+  so parsing the `HuntReport` JSON needed `serde_json` as a dev-dep (same major ⇒
+  Cargo unifies it; the shipped binary is unchanged). Substring assertions on the
+  pretty JSON would have avoided the dep but are brittle; the typed parse into
+  `anvil::hunt::HuntReport` is the signoff-quality choice.
+- **Book over a runnable example.** The book's "bug-hunting loop end to end" now
+  features the turnkey `hunt` (CLI + MCP), but its `anvil hunt …` block carries
+  the `book-test: skip` sentinel — the loop is tool-gated, and `book_examples`
+  must stay green on a tool-less CI. USER_GUIDE (not scanned by `book_examples`)
+  carries the runnable examples.
+- **Closure bookkeeping.** `.2e` closes `.2`, the tree, and the root node; ROADMAP
+  owner-directed lane 1 flips to DONE. No `src/` generator/emitter change ⇒ DUT
+  byte-identical; the only code is `tests/` + a dev-dep.
+
 ## 2026-06-17 — Bug-hunt orchestration — the `anvil hunt` CLI subcommand — `BUG-HUNT-ORCHESTRATION.2d`
 
 ANVIL's **first subcommand**. The whole risk here is *not perturbing the
