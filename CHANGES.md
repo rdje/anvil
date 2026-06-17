@@ -1,9 +1,57 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2a — extract shared downstream::tool_verdict accept/warn/reject classifier
+
+**Landed as:** this commit (previous: `e7a3de8`). **First code leaf of lane 2 — a
+pure byte-identical refactor; default-off / DUT byte-identical** (`tests/snapshots.rs`
+untouched). The `BUG-HUNT-ORCHESTRATION.2a` extract-then-reuse precedent.
+
+**What changed (why)**
+
+- **`src/downstream/mod.rs`** — added the shared accept/warn/reject classifier so
+  the upcoming divergence detector (`.2b`) and the `hunt` loop derive from **one**
+  definition (no second classifier; `feedback_full_factorization`):
+  - `pub enum ToolVerdict { Accept, Warn, Reject }` —
+    `#[derive(…, Serialize, Deserialize)] #[serde(rename_all = "snake_case")]` ⇒
+    the stable `"accept"`/`"warn"`/`"reject"` wire form. Placed beside
+    `ToolInvocation` (the type it projects) and `first_tool_warning`.
+  - `pub fn tool_verdict(inv: &ToolInvocation) -> ToolVerdict` — `success ⇒ Accept`
+    (success already folds warning-as-failure); clean exit `Some(0)` + `!success`
+    ⇒ `Warn` (a warning fired); non-zero/unknown exit ⇒ `Reject`. A SCHEMA-DERIVED
+    projection of one `ToolInvocation` — no new computed truth, no oracle.
+- **`src/hunt/mod.rs`** — `classify_detection` now derives from
+  `downstream::tool_verdict` (`Warn ⇒ "warning"`, `Accept | Reject ⇒ "reject"`)
+  instead of the inline `exit_code == Some(0) ? "warning" : "reject"`. **Byte-
+  identical**: `first_failing_tool` only yields a non-succeeding invocation, so the
+  live arms are `Warn`/`Reject` (the `Accept` arm is unreachable there, folded in
+  with `Reject` defensively rather than `unreachable!()`). Imported `tool_verdict` +
+  `ToolVerdict`.
+- **`CODEBASE_ANALYSIS.md`** — the `downstream` helper enumeration gains
+  `tool_verdict`/`ToolVerdict`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo clippy --all-targets -- -D warnings` OK;
+  `cargo fmt --all --check` OK (all under `scripts/ram_guard.sh --threshold 90`).
+- `cargo test --lib` **522 passed / 0 failed / 2 ignored** — incl. the new
+  `downstream::tests::tool_verdict_classifies_accept_warn_reject` (the three verdicts
+  + the success-keys-over-exit-code case + the `"warn"` wire form) and the unchanged
+  `hunt::tests::classify_detection_distinguishes_warning_from_reject` (proves the
+  refactor is byte-identical). `tests/snapshots.rs` **6/6 byte-identical**.
+
+**Impact**
+
+- No behaviour/RTL change; no CLI/MCP/knob surface change. Lands the one classifier
+  the `.2b` `src/divergence/` core (the next leaf) reuses.
+
+**Files touched:** `src/downstream/mod.rs`, `src/hunt/mod.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.1 — design ADR (decision 0019): acceptance-divergence detector
 
-**Landed as:** this commit (previous: `d2ddbbf`). **Docs-only — no `src/` touched ⇒
+**Landed as:** `e7a3de8` (previous: `d2ddbbf`). **Docs-only — no `src/` touched ⇒
 default `anvil` build / DUT byte-identical.** The `.1` design/decision leaf of the
 `ACCEPTANCE-DIVERGENCE-HUNTING` tree (owner-directed usability lane 2),
 autonomously PNT-picked at the no-frontier boundary right after the

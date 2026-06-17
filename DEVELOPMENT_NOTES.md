@@ -5,6 +5,42 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — shared accept/warn/reject classifier extract — `ACCEPTANCE-DIVERGENCE-HUNTING.2a`
+
+The first code leaf of lane 2, a **pure byte-identical refactor** (the
+`BUG-HUNT-ORCHESTRATION.2a` extract-then-reuse precedent that lifted
+`diff_sim::run_agreement`). Notes:
+
+- **One classifier, lifted to the primitive layer.** `hunt::run` already
+  classified a failing `ToolInvocation` into warning-vs-reject inline. The
+  divergence detector (`.2b`) needs the *same* trinary, so the logic moves to
+  `downstream::tool_verdict(&ToolInvocation) -> ToolVerdict{Accept,Warn,Reject}`
+  beside `ToolInvocation` (the type it projects) and `first_tool_warning` (the
+  warning detector that already folded warning into `success=false`). Both
+  consumers now derive from one definition — the `feedback_full_factorization`
+  "no second classifier" rule, and the same reason `validate`/`run_*` live in
+  `downstream` rather than being re-implemented per caller.
+- **The trinary adds `Accept`; the old inline code only saw failures.**
+  `hunt::classify_detection` is only ever called on `first_failing_tool`'s output
+  (a `!success` invocation), so it only needed warn-vs-reject. `tool_verdict`
+  generalises to the full trinary (`success ⇒ Accept`) because divergence compares
+  *every* tool including the accepting ones. To keep `classify_detection`
+  byte-identical I map `Warn ⇒ "warning"` and `Accept | Reject ⇒ "reject"`: the
+  `Accept` arm is **unreachable** there (the input is a failing tool), folded in
+  with `Reject` defensively rather than `unreachable!()` so a future caller can't
+  panic it. The live arms (`Warn`/`Reject`) are exactly the old
+  `exit_code == Some(0) ? "warning" : "reject"`.
+- **Why `tool_verdict` keys on `success`, not on `exit_code` alone.** `success`
+  already folds warning-as-failure (`first_tool_warning`), so `success ⇒ Accept`
+  is the honest "clean accept". A non-zero exit that somehow reported `success`
+  still classifies `Accept` (keys on the folded verdict, not the raw code) — proven
+  in the unit test so the precedence is explicit.
+- **Wire shape.** `ToolVerdict` is `#[serde(rename_all = "snake_case")]` ⇒
+  `"accept"`/`"warn"`/`"reject"`, the stable form the `.2b` `DivergenceReport` and
+  the eventual MCP/`tool_matrix` surfaces serialise. `ToolInvocation`'s shape is
+  untouched ⇒ banked matrix reports + `--resume` checkpoints stay valid; snapshots
+  6/6 byte-identical.
+
 ## 2026-06-17 — Acceptance-divergence hunting — design ADR — `ACCEPTANCE-DIVERGENCE-HUNTING.1`
 
 The `.1` design leaf (decision `0019`), autonomously PNT-picked as usability lane 2

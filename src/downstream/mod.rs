@@ -86,6 +86,47 @@ pub struct ToolInvocation {
     pub error: Option<String>,
 }
 
+/// A per-tool **acceptance verdict** — the trinary the downstream tools actually
+/// express, derived from one [`ToolInvocation`]. `SCHEMA-DERIVED`: a pure
+/// projection of the recorded invocation (no new computed truth, no behavioural
+/// oracle — decision `0004`/`0011`).
+///
+/// This is the **single accept/warn/reject classifier** in ANVIL. The `hunt`
+/// loop's finding detection (`BUG-HUNT-ORCHESTRATION`) and the
+/// acceptance-divergence detector (`ACCEPTANCE-DIVERGENCE-HUNTING`, decision
+/// `0019`) both derive from [`tool_verdict`], so the accept/warn/reject
+/// definition lives in exactly one place — never a second, drift-prone classifier
+/// (`feedback_full_factorization`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolVerdict {
+    /// The tool accepts the artifact: a clean run that succeeded
+    /// (`ToolInvocation.success == true`).
+    Accept,
+    /// The tool exited cleanly (`exit_code == Some(0)`) but did **not** succeed —
+    /// a warning fired (`first_tool_warning` folds it into `success == false`).
+    /// ANVIL output is warning-clean by construction, so any warning is a finding.
+    Warn,
+    /// The tool rejects the artifact: a non-zero (or unknown) exit code.
+    Reject,
+}
+
+/// Classify one [`ToolInvocation`] into its [`ToolVerdict`]. The single source of
+/// truth for "what did this tool decide about this artifact?" — reused by the
+/// `hunt` loop's finding detection and the acceptance-divergence detector
+/// (`ACCEPTANCE-DIVERGENCE-HUNTING`), so the accept/warn/reject definition is not
+/// forked. Byte-identical in effect to the prior inline `hunt::classify_detection`
+/// for a non-succeeding invocation (`exit_code == Some(0)` ⇒ warn, else reject).
+pub fn tool_verdict(inv: &ToolInvocation) -> ToolVerdict {
+    if inv.success {
+        ToolVerdict::Accept
+    } else if inv.exit_code == Some(0) {
+        ToolVerdict::Warn
+    } else {
+        ToolVerdict::Reject
+    }
+}
+
 /// Run `verilator --lint-only` on a single emitted module.
 ///
 /// `language` is the optional `SV-VERSION-TARGETING.2b.2` per-version
@@ -1287,6 +1328,42 @@ pub fn minimize(seed: u64, cfg: &Config, opts: &MinimizeOptions) -> Result<Minim
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn inv(success: bool, exit_code: Option<i32>) -> ToolInvocation {
+        ToolInvocation {
+            tool: "verilator".to_string(),
+            argv: vec!["verilator".to_string(), "--lint-only".to_string()],
+            success,
+            exit_code,
+            stdout_log: None,
+            stderr_log: None,
+            error: if success {
+                None
+            } else {
+                Some("%Warning-WIDTH: ...".to_string())
+            },
+        }
+    }
+
+    /// The shared accept/warn/reject classifier (`ACCEPTANCE-DIVERGENCE-HUNTING.2a`)
+    /// projects a `ToolInvocation` into the trinary: success ⇒ Accept, a clean exit
+    /// that did not succeed ⇒ Warn, a non-zero/unknown exit ⇒ Reject. This is the
+    /// one definition `hunt`'s detection and the divergence detector both derive
+    /// from. The snake_case serde form is the stable wire shape.
+    #[test]
+    fn tool_verdict_classifies_accept_warn_reject() {
+        assert_eq!(tool_verdict(&inv(true, Some(0))), ToolVerdict::Accept);
+        assert_eq!(tool_verdict(&inv(false, Some(0))), ToolVerdict::Warn);
+        assert_eq!(tool_verdict(&inv(false, Some(1))), ToolVerdict::Reject);
+        assert_eq!(tool_verdict(&inv(false, None)), ToolVerdict::Reject);
+        // A non-zero exit that somehow reports success is still treated as accept
+        // (the verdict keys on `success`, which already folds warning-as-failure).
+        assert_eq!(tool_verdict(&inv(true, Some(2))), ToolVerdict::Accept);
+        assert_eq!(
+            serde_json::to_string(&ToolVerdict::Warn).unwrap(),
+            "\"warn\""
+        );
+    }
 
     #[test]
     fn yosys_mode_expands_to_expected_invocations() {

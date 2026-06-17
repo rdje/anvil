@@ -2414,9 +2414,10 @@ is unchanged. `SEMANTIC-INTROSPECTION-EXPANSION` + `AGENT-MCP-EXPANSION` are the
 cross-cutting homes for this deepening.
 
 The seven lanes (north-star-ordered). Lane 1 is **delivered** (`2026-06-17`, tree
-closed); lane 2's design `.1` ADR is **recorded** (`2026-06-17`, decision `0019`;
-frontier now the implementation `.2a`); the other five remain `active` with a
-design-first `.1` ADR frontier:
+closed); lane 2's design `.1` ADR is **recorded** (`2026-06-17`, decision `0019`)
+and its first code leaf `.2a` (the shared `downstream::tool_verdict` accept/warn/
+reject classifier extract) is **done** (frontier now `.2b`, the `src/divergence/`
+core); the other five remain `active` with a design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
    MCP-driven fuzz → detect → auto-minimize → reproducer-bundle loop composing the
@@ -2443,8 +2444,10 @@ design-first `.1` ADR frontier:
    CLI shim (decision `0017`). Reproducers reuse the hunt bundle / matrix retention;
    `saw_acceptance_divergence` is opportunistic (all-agree is the
    valid-by-construction steady state); version-vs-version is the later increment.
-   Pre-split `.2` → `.2a`…`.2f`; frontier `.2a`. Default `anvil` build / DUT
-   byte-identical.
+   Pre-split `.2` → `.2a`…`.2f`; **`.2a` done `2026-06-17`** (the shared
+   `downstream::tool_verdict` accept/warn/reject classifier extracted from
+   `hunt::run`, byte-identical; one classifier, no fork); frontier `.2b` (the
+   `src/divergence/` core). Default `anvil` build / DUT byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).
 4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full

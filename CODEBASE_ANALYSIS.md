@@ -599,7 +599,12 @@ src/
 │                     `run_iverilog_compile(_design)` + the `*_argv` builders
 │                     (`-g2012`), the spawn core `run_tool` +
 │                     `first_tool_warning` (warning-as-failure), the
-│                     `ToolInvocation` report row, `yosys_mode_slug`, and the
+│                     `ToolInvocation` report row, the shared
+│                     `tool_verdict(&ToolInvocation) -> ToolVerdict`
+│                     accept/warn/reject classifier (`ACCEPTANCE-DIVERGENCE-
+│                     HUNTING.2a` — the single accept/warn/reject definition,
+│                     reused by `hunt`'s detection and the upcoming divergence
+│                     detector; no second classifier), `yosys_mode_slug`, and the
 │                     double-quote escapers. Extracted verbatim from
 │                     `bin/tool_matrix.rs` (which now `use`s them) so the
 │                     `.5.2`/`.5.3` agent `validate`/`minimize` tools reuse the

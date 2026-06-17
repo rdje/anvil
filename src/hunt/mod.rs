@@ -33,8 +33,9 @@
 use crate::config::Config;
 use crate::diff_sim::{run_agreement, DiffSimReport};
 use crate::downstream::{
-    generate_dut_artifact, introspect_dut_artifact, minimize, validate, KnobReduction,
-    MinimizeOptions, MinimizeReport, ToolInvocation, ValidateOptions, ValidateReport,
+    generate_dut_artifact, introspect_dut_artifact, minimize, tool_verdict, validate,
+    KnobReduction, MinimizeOptions, MinimizeReport, ToolInvocation, ToolVerdict, ValidateOptions,
+    ValidateReport,
 };
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -235,15 +236,18 @@ fn first_failing_tool(tools: &[ToolInvocation]) -> Option<&ToolInvocation> {
     tools.iter().find(|t| !t.success)
 }
 
-/// Classify a failing invocation: a clean exit (`Some(0)`) that still didn't
-/// succeed is a **warning** (warning-clean output is the by-construction
-/// contract, so any warning is a finding); a non-zero / unknown exit is a
-/// **reject**.
+/// Classify a failing invocation's `detection` string by deriving from the
+/// shared `downstream::tool_verdict` classifier (`ACCEPTANCE-DIVERGENCE-HUNTING.2a`
+/// — one accept/warn/reject definition, no second classifier): a clean exit
+/// (`Some(0)`) that still didn't succeed is a **warning** (warning-clean output is
+/// the by-construction contract, so any warning is a finding); a non-zero /
+/// unknown exit is a **reject**. `first_failing_tool` only yields a non-succeeding
+/// invocation, so `Accept` is unreachable here; it is treated as a reject
+/// defensively. Byte-identical to the prior inline classification.
 fn classify_detection(t: &ToolInvocation) -> &'static str {
-    if t.exit_code == Some(0) {
-        "warning"
-    } else {
-        "reject"
+    match tool_verdict(t) {
+        ToolVerdict::Warn => "warning",
+        ToolVerdict::Accept | ToolVerdict::Reject => "reject",
     }
 }
 

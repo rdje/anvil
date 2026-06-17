@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability — acceptance-divergence bug-finder (north star, idea 2)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17` (`.1` design ADR done — decision `0019`; frontier `.2a`)
+- Last updated: `2026-06-17` (`.1` design ADR done — decision `0019`; `.2a` shared `tool_verdict` classifier extract done; frontier `.2b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -70,11 +70,12 @@ query — building on the existing hardened `src/downstream/` adapters and the
   Children: `ACCEPTANCE-DIVERGENCE-HUNTING.2a, .2b, .2c, .2d, .2e, .2f`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2a`
-  Status: `pending`
+  Status: `done`
   Goal: `Extract the inline accept/warn/reject classifier from hunt::run into a shared downstream::tool_verdict(&ToolInvocation) -> ToolVerdict (pure refactor; the BUG-HUNT-ORCHESTRATION.2a extract-then-reuse precedent) so the divergence detector and the hunt share one classifier. Byte-identical hunt behaviour. Orderable first.`
   Acceptance: `downstream::tool_verdict + a ToolVerdict{Accept,Warn,Reject} enum (serde) live in src/downstream/mod.rs; hunt::run's HuntFailure.detection derives from it (reject/warning unchanged on the wire); cargo check/test/clippy/fmt green; hunt:: tests unchanged; snapshots 6/6 byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Result: `Done. (1) src/downstream/mod.rs: added pub enum ToolVerdict{Accept,Warn,Reject} (Serialize/Deserialize, #[serde(rename_all="snake_case")]) + pub fn tool_verdict(&ToolInvocation)->ToolVerdict (success ⇒ Accept; clean exit Some(0) + !success ⇒ Warn; non-zero/unknown ⇒ Reject) — the single accept/warn/reject classifier, a SCHEMA-DERIVED projection of one ToolInvocation (no new computed truth; feedback_full_factorization). (2) src/hunt/mod.rs: classify_detection now derives from downstream::tool_verdict (Warn ⇒ "warning", Accept|Reject ⇒ "reject"; first_failing_tool only yields a non-succeeding invocation so Accept is unreachable, treated as reject defensively) — byte-identical to the prior inline exit_code==Some(0)?"warning":"reject"; imported tool_verdict + ToolVerdict. (3) Proof downstream::tests::tool_verdict_classifies_accept_warn_reject (the 3 verdicts + the unreachable success/exit!=0 case + the "warn" wire form). The hunt classify_detection_distinguishes_warning_from_reject proof still passes unchanged (byte-identical). No CLI/MCP/divergence-core yet (those are .2b+). Default-off / DUT byte-identical.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; cargo test --lib downstream:: 21/0 (2 ignored; +1 new tool_verdict proof) + hunt:: 11/11 (classify_detection proof unchanged); full cargo test --lib 522/0 (2 ignored); tests/snapshots.rs 6/6 byte-identical (the refactor is byte-identical; ToolInvocation wire shape unchanged).`
+  Commit: `this ACCEPTANCE-DIVERGENCE-HUNTING.2a commit`
 
 - ID: `ACCEPTANCE-DIVERGENCE-HUNTING.2b`
   Status: `pending`
@@ -115,14 +116,13 @@ query — building on the existing hardened `src/downstream/` adapters and the
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `pending` | Extract the shared `downstream::tool_verdict` accept/warn/reject classifier from `hunt::run` (byte-identical hunt) so the divergence detector and the hunt share one classifier — the `BUG-HUNT-ORCHESTRATION.2a` extract-then-reuse precedent. |
-| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `pending` | The `src/divergence/` library core (`divergence::run` + `DivergenceReport`) composing the existing `run_*` primitives. |
-| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `pending` | Fold into `hunt::run` + add the `tool_matrix` column (the one detector, two surfaces). |
-| 4 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool + CLI shim (decision `0017` gate). |
-| 5 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis. |
-| 6 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
+| 1 | `ACCEPTANCE-DIVERGENCE-HUNTING.2b` | `pending` | The `src/divergence/` library core (`divergence::run` + `DivergenceReport`/`Divergence`/`DivergenceOptions`) composing the existing `run_*` primitives + the shared `downstream::tool_verdict` (now landed by `.2a`) + the multi-tool same-version divergence classifier. |
+| 2 | `ACCEPTANCE-DIVERGENCE-HUNTING.2c` | `pending` | Fold into `hunt::run` + add the `tool_matrix` column (the one detector, two surfaces). |
+| 3 | `ACCEPTANCE-DIVERGENCE-HUNTING.2d` | `pending` | The MCP `divergence` controlled tool + CLI shim (decision `0017` gate). |
+| 4 | `ACCEPTANCE-DIVERGENCE-HUNTING.2e` | `pending` | The tool-version-vs-version axis. |
+| 5 | `ACCEPTANCE-DIVERGENCE-HUNTING.2f` | `pending` | The real-tool e2e gate + book/USER_GUIDE/README/KM closeout; closes the tree. |
 
-(`.1` design ADR `done 2026-06-17` — decision `0019`.)
+(`.1` design ADR `done 2026-06-17` — decision `0019`. `.2a` shared `downstream::tool_verdict` classifier extract `done 2026-06-17` — byte-identical hunt; lib 522/0, snapshots 6/6.)
 
 ## Decisions
 
@@ -173,6 +173,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | --- | --- | --- | --- |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.1` | `decision 0019 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row + ROADMAP lane-2 note; check_memory_architecture OK; KM gen+check OK (47→48 facts); docs-only (no src/) ⇒ DUT byte-identical` | `done` |
+| `2026-06-17` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `downstream::tool_verdict + ToolVerdict{Accept,Warn,Reject} extracted; hunt::classify_detection derives from it (byte-identical); +1 downstream proof; cargo check/clippy/fmt green; cargo test --lib 522/0 (downstream:: 21/0 + hunt:: 11/11); snapshots 6/6 byte-identical` | `done` |
 
 ## Commit Log
 
@@ -180,6 +181,7 @@ query — building on the existing hardened `src/downstream/` adapters and the
 | --- | --- | --- |
 | `ACCEPTANCE-DIVERGENCE-HUNTING` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `ACCEPTANCE-DIVERGENCE-HUNTING.1` | `ACCEPTANCE-DIVERGENCE-HUNTING.1 — design ADR (decision 0019): acceptance-divergence detector (accept/warn/reject verdicts + classifier) shared by the hunt loop, tool_matrix, and MCP` | Design/decision leaf (docs-only). Pins the verdict/classifier/report, the three surfaces (one shared `divergence::run`), the reproducer reuse, the version axis, the honesty boundary; pre-splits `.2` into `.2a`…`.2f`. DUT byte-identical. |
+| `ACCEPTANCE-DIVERGENCE-HUNTING.2a` | `ACCEPTANCE-DIVERGENCE-HUNTING.2a — extract shared downstream::tool_verdict accept/warn/reject classifier from hunt::run` | First code leaf. `ToolVerdict` enum + `tool_verdict` in `src/downstream/mod.rs`; `hunt::classify_detection` derives from it (byte-identical). The one accept/warn/reject classifier `.2b`'s divergence detector reuses. Default-off / DUT byte-identical (snapshots 6/6). |
 
 ## Changelog
 
@@ -197,3 +199,15 @@ query — building on the existing hardened `src/downstream/` adapters and the
   extract), `.2b` (`src/divergence/` core), `.2c` (hunt fold + matrix column), `.2d`
   (MCP tool + CLI), `.2e` (version axis), `.2f` (real-tool gate + docs). Frontier
   advanced to `.2a`. Docs-only / DUT byte-identical.
+- `2026-06-17`: `.2a` done — extracted the inline accept/warn/reject classifier from
+  `hunt::run` into a shared `pub fn downstream::tool_verdict(&ToolInvocation) ->
+  ToolVerdict` (+ a `ToolVerdict{Accept,Warn,Reject}` snake_case-serde enum), the
+  single accept/warn/reject definition `.2b`'s `divergence::run` will reuse (no
+  second classifier; `feedback_full_factorization`). `hunt::classify_detection` now
+  derives from it — byte-identical (`Warn` ⇒ `"warning"`, else ⇒ `"reject"`;
+  `first_failing_tool` only yields a non-succeeding invocation, so `Accept` is
+  unreachable and treated as reject defensively). +1 `downstream` proof; the `hunt`
+  `classify_detection` proof passes unchanged. `cargo test --lib` 522/0 (downstream::
+  21/0, hunt:: 11/11); snapshots 6/6 byte-identical; clippy/fmt green. First code
+  leaf; default-off / DUT byte-identical. Frontier advanced to `.2b` (the
+  `src/divergence/` library core).
