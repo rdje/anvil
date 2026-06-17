@@ -5,6 +5,60 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Acceptance-divergence hunting — design ADR — `ACCEPTANCE-DIVERGENCE-HUNTING.1`
+
+The `.1` design leaf (decision `0019`), autonomously PNT-picked as usability lane 2
+right after the `BUG-HUNT-ORCHESTRATION` tree closed — decision `0018` itself names
+this lane as "the natural next detector that plugs into the just-completed hunt
+engine". Docs-only; no `src/` touched ⇒ DUT byte-identical. The non-obvious calls:
+
+- **One detector, three surfaces — not three detectors.** The tree's load-bearing
+  open question was "does divergence detection *ride the hunt loop* or is it an
+  *independent `tool_matrix` column*?". The answer is **both, via one shared
+  `divergence::run`** — a `hunt::run` axis, a `tool_matrix` column, and a controlled
+  MCP `divergence` tool all shim the same library entry. Forking the detector per
+  surface would have re-created the very drift `BUG-HUNT-ORCHESTRATION` avoided by
+  composing `downstream::validate` rather than re-parsing tool output. (decision
+  `0017` also *requires* the MCP surface + the CLI-as-shim, so "matrix-column-only"
+  was never admissible anyway.)
+- **The verdict is a trinary projection, and the classifier is *extracted*, not
+  rewritten.** `hunt::run` already classifies a `ToolInvocation` into reject
+  (non-zero exit) vs warning (clean exit + `!success`, from `first_tool_warning`).
+  Acceptance divergence needs exactly that trinary (accept/warn/reject), so `.2a`
+  *extracts* the inline logic into a shared `downstream::tool_verdict` and both
+  consumers derive from it — the `feedback_full_factorization` "no second classifier"
+  rule, mirroring how `.2a` of the hunt tree extracted `diff_sim::run_agreement`. A
+  fresh divergence-specific parser was rejected for the same drift reason.
+- **Why a trinary and not `validate`'s binary `ok`.** `validate` folds warning into
+  `ok = false` — right for "is this a finding?", wrong here: an *accept-vs-warn*
+  lint-severity divergence would collapse into the accept-vs-reject bucket and lose
+  signal. Divergence must keep the three states distinct. (And it runs **every**
+  tool to completion — no fold, no short-circuit on first reject — because it needs
+  every verdict, the key behavioural difference from `validate`.)
+- **Labelled tools, so `--yosys-mode both` can diverge with itself.** The unit of
+  comparison is a *labelled* tool (`verilator` / `yosys-without-abc` /
+  `yosys-with-abc` / `iverilog`), not a tool *kind*. That makes a without-abc vs
+  with-abc disagreement a first-class divergence — a real signal the repo has
+  already seen (ABC-flow warnings on valid designs, README "Current CLI truth").
+- **The honesty boundary (the same one `.2e` of the hunt tree hit).** On
+  valid-by-construction RTL the steady state is *all tools accept* — a real
+  divergence would be an actual downstream-tool bug (the thing the lane *surfaces*),
+  not a fixture. So `saw_acceptance_divergence` is **opportunistic, never a required
+  coverage gate** (a required-divergence gate would fail on clean output, i.e.
+  always). The gates instead prove the matrix is *produced, classified, and
+  queryable* — via a synthetic injected accept/reject `ToolInvocation` set in a
+  cargo-portable unit test + an all-agree real-tool run recording `diverged=false`.
+- **Version-vs-version is deferred to `.2e`, deliberately.** Multi-tool same-version
+  divergence is portable (no extra install) and higher-leverage, so it ships first;
+  version pinning needs the caller to supply two binaries (environment-specific), so
+  it folds in later — the hunt's "reject/warning first, cross-sim later" cadence.
+  The allow-list stays by *kind* (`AcceptanceTool::from_name`); only the *binary*
+  for that kind may be caller-supplied. ANVIL never manages tool installs.
+- **No new reproducer format.** A divergence finding reuses `write_bundle`
+  (hunt path) or the `tool_matrix` `.sv`+log retention (matrix path); only `repro.sh`
+  changes to record *each* labelled tool's `argv` so the disagreement reproduces,
+  not just one side. Nothing retired (`feedback_never_retire_strategies`).
+
 ## 2026-06-17 — Bug-hunt orchestration — real-tool e2e gate + tree closeout — `BUG-HUNT-ORCHESTRATION.2e`
 
 The tree's **final leaf**. The crux was the honest design of the e2e gate:

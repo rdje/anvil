@@ -1,9 +1,96 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.1 — design ADR (decision 0019): acceptance-divergence detector
+
+**Landed as:** this commit (previous: `d2ddbbf`). **Docs-only — no `src/` touched ⇒
+default `anvil` build / DUT byte-identical.** The `.1` design/decision leaf of the
+`ACCEPTANCE-DIVERGENCE-HUNTING` tree (owner-directed usability lane 2),
+autonomously PNT-picked at the no-frontier boundary right after the
+`BUG-HUNT-ORCHESTRATION` tree closed — decision `0018` names this lane as "the
+natural next detector that plugs into the just-completed hunt engine".
+
+**What changed (why)**
+
+- **`docs/decisions/0019-acceptance-divergence-hunting.md`** (new) — the design ADR.
+  Grounded in the real current surfaces (exact signatures verified this session via
+  a code-surface recon agent). It pins:
+  - **The verdict** — a per-tool **accept/warn/reject** trinary that is a
+    SCHEMA-DERIVED projection of one `ToolInvocation` (`accept` = `success`; `warn` =
+    `exit_code==Some(0)` + `!success`, i.e. `first_tool_warning` fired; `reject` =
+    non-zero exit) — the *exact* classification `hunt::run` already does inline. To
+    avoid a second classifier (`feedback_full_factorization`) it is **extracted**
+    into a shared `downstream::tool_verdict(&ToolInvocation) -> ToolVerdict` (the
+    `BUG-HUNT-ORCHESTRATION.2a` extract-then-reuse precedent).
+  - **The classifier** — a divergence = "not all *labelled-tool* verdicts equal",
+    classed `accept_reject` | `accept_warn` | `warn_reject` | `version_mismatch`.
+    Labelled tools are `verilator` / `yosys-without-abc` / `yosys-with-abc` /
+    `iverilog`, so `--yosys-mode both` can itself diverge.
+  - **The detector + report** — a library composer `src/divergence/`'s
+    `divergence::run(seed, cfg, &DivergenceOptions) -> DivergenceReport` (symmetry
+    with `src/diff_sim/` + `src/hunt/`) that regenerates via
+    `downstream::generate_dut_artifact` and runs **every** enabled tool/mode to
+    completion (no fold, no short-circuit — the key difference from `validate`) over
+    the existing `run_verilator`/`run_yosys`/`run_iverilog_compile` primitives. The
+    `DivergenceReport{run_id,lane,kind,top,sandbox,verdicts:[ToolVerdict],diverged,
+    divergences:[Divergence],declined}` is SCHEMA-DERIVED — no new computed truth, no
+    behavioural oracle (decision `0004`/`0011` ceiling preserved).
+  - **Three surfaces, one detector** (resolves the tree's "hunt vs matrix" open
+    question to **both**, satisfying decision `0017`): a `hunt::run` axis
+    (`HuntRequest.divergence` → an `acceptance_divergence` finding +
+    `HuntFailure.divergence`), a `tool_matrix` column
+    (`ModuleReport`/`DesignReport.divergence` + the opportunistic
+    `saw_acceptance_divergence` fact + the `classify_diff_sim_axis` subset reuse),
+    and a controlled MCP `divergence` tool (cache + audit) + a CLI shim.
+  - **Reproducer reuse** (no new format) — `write_bundle` on the hunt path / the
+    `tool_matrix` `.sv`+log retention on the matrix path; only `repro.sh` records
+    *each* labelled tool's `argv` so the disagreement reproduces.
+  - **The version-vs-version axis** deferred to `.2e` (caller supplies binaries +
+    labels; the *kind* stays allow-listed; ANVIL never manages installs).
+  - **The honesty boundary** — `saw_acceptance_divergence` is opportunistic, **never
+    a required coverage gate** (all-agree is the valid-by-construction steady state);
+    the gates prove the matrix is produced/classified/queryable (mirrors
+    `BUG-HUNT-ORCHESTRATION.2e`).
+  - Pre-split `.2` into `.2a` (classifier extract), `.2b` (`src/divergence/` core),
+    `.2c` (hunt fold + matrix column), `.2d` (MCP tool + CLI), `.2e` (version axis),
+    `.2f` (real-tool gate + docs).
+- **`docs/decisions/INDEX.md`** — new `0019` row.
+- **`docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`** — `.1` → `done` (Result +
+  Verification + Commit); `.2` pre-split into `.2a`…`.2f` with goals/acceptance;
+  frontier → `.2a`; both open questions resolved; Decisions/Verification/Commit/
+  Changelog rows added; metadata `Last updated` refreshed.
+- **`docs/TASK_TREE.md`** — `ACCEPTANCE-DIVERGENCE-HUNTING` row updated (`.1` done +
+  decision `0019` + the pre-split + frontier `.2a`).
+- **`DEVELOPMENT_NOTES.md`** — a dated entry on the non-obvious calls (one detector
+  not three; the extracted trinary classifier; trinary-vs-`validate`-binary;
+  labelled tools; the honesty boundary; the deferred version axis; no new bundle).
+- **`ROADMAP.md`** — lane-2 bullet + the intro line annotated (`.1` ADR recorded,
+  decision `0019`, frontier `.2a`).
+- **`MEMORY.md`** — resume pointer refreshed.
+- **Knowledge Map** — the `0019` card folds into `KNOWLEDGE_MAP.md` (47 → 48 facts)
+  via its `answers:` front-matter.
+
+**Validation**
+
+- Docs-only / no `src/` ⇒ `cargo check`/`test`/`clippy`/`fmt` unaffected (code state
+  = green `BUG-HUNT-ORCHESTRATION.2e` baseline; introspection schema `1.11`). DUT
+  byte-identical (`tests/snapshots.rs` untouched).
+- `bash scripts/check_memory_architecture.sh` OK; knowledge-map gen + check OK
+  (48 facts).
+
+**Impact**
+
+- Pins the design for usability lane 2 (acceptance divergence). No behaviour/RTL
+  change this leaf; the engine + surfaces land under `.2a`…`.2f`.
+
+**Files touched:** `docs/decisions/0019-acceptance-divergence-hunting.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/ACCEPTANCE-DIVERGENCE-HUNTING.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `ROADMAP.md`, `MEMORY.md`, `CHANGES.md`,
+`KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2e — real-tool e2e gate + closeout (closes the tree)
 
-**Landed as:** this commit (previous: `6172041`). **Default `anvil` build / DUT
+**Landed as:** `d2ddbbf` (previous: `6172041`). **Default `anvil` build / DUT
 byte-identical** (test + docs only — no `src/` generator/emitter change). This is
 the **final leaf**: it closes `.2`, the `BUG-HUNT-ORCHESTRATION` tree, and the
 root node. ANVIL is now a turnkey downstream bug-finder, proven end-to-end against

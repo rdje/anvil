@@ -2414,7 +2414,9 @@ is unchanged. `SEMANTIC-INTROSPECTION-EXPANSION` + `AGENT-MCP-EXPANSION` are the
 cross-cutting homes for this deepening.
 
 The seven lanes (north-star-ordered). Lane 1 is **delivered** (`2026-06-17`, tree
-closed); the other six remain `active` with a design-first `.1` ADR frontier:
+closed); lane 2's design `.1` ADR is **recorded** (`2026-06-17`, decision `0019`;
+frontier now the implementation `.2a`); the other five remain `active` with a
+design-first `.1` ADR frontier:
 
 1. `BUG-HUNT-ORCHESTRATION` — **DONE (`2026-06-17`, tree closed).** A turnkey,
    MCP-driven fuzz → detect → auto-minimize → reproducer-bundle loop composing the
@@ -2428,8 +2430,21 @@ closed); the other six remain `active` with a design-first `.1` ADR frontier:
    Decision [`0018`](docs/decisions/0018-bug-hunt-orchestration-loop.md); tree
    `BUG-HUNT-ORCHESTRATION` (`.1`–`.2e`), default `anvil` build / DUT
    byte-identical.
-2. `ACCEPTANCE-DIVERGENCE-HUNTING` — a "tool A accepts / tool B rejects" (and
-   version-vs-version) divergence finder + report, complementing `--diff-sim`.
+2. `ACCEPTANCE-DIVERGENCE-HUNTING` — **`.1` design ADR done (`2026-06-17`,
+   decision [`0019`](docs/decisions/0019-acceptance-divergence-hunting.md)).** A
+   "tool A accepts / tool B rejects" (and version-vs-version) divergence finder +
+   report, complementing `--diff-sim` (cross-sim trace agreement) with the
+   orthogonal *acceptance* axis. Pinned as a **first-class, default-off,
+   SCHEMA-DERIVED detector with one shared home** (`src/divergence/`'s
+   `divergence::run`, composing the existing `run_verilator`/`run_yosys`/
+   `run_iverilog_compile` + a `tool_verdict` accept/warn/reject classifier
+   extracted from `hunt::run`) reused by **three surfaces** — a `hunt::run`
+   detection axis, a `tool_matrix` column, and a controlled MCP `divergence` tool +
+   CLI shim (decision `0017`). Reproducers reuse the hunt bundle / matrix retention;
+   `saw_acceptance_divergence` is opportunistic (all-agree is the
+   valid-by-construction steady state); version-vs-version is the later increment.
+   Pre-split `.2` → `.2a`…`.2f`; frontier `.2a`. Default `anvil` build / DUT
+   byte-identical.
 3. `DOWNSTREAM-ADAPTER-EXPANSION` — a generic, API-selectable adapter interface +
    new acceptance columns (slang / sv2v / Surelog-UHDM / commercial wrappers).
 4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full
