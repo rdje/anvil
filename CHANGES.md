@@ -1,9 +1,60 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.1 — src/hunt/ library core (hunt::run loop + types, reject/warning detection)
+
+**Landed as:** this commit (previous: `8a4fbab`). **New default-off library
+module — DUT byte-identical.** The engine of decision `0018`, first half of the
+pre-split `.2b` (`.2b.1` loop-core + `.2b.2` cross-sim+bundle). A **thin
+orchestrator**: `hunt::run` composes the existing `downstream::validate` /
+`minimize` into one deterministic fuzz → detect (reject/warning) → minimize loop,
+adding no detector and no minimizer of its own.
+
+**What changed (why)**
+
+- **`src/hunt/mod.rs`** (new) + **`src/lib.rs`** (`pub mod hunt;`) — the library
+  core:
+  - `HuntRequest` (`base_seed`, `seeds`, `config`, `validate: ValidateOptions`,
+    `minimize`, `max_oracle_calls`) — embeds `ValidateOptions` so the sandbox is
+    caller-set (decision `0004`) and the same guardrails gate the minimize oracle.
+  - `hunt::run(&HuntRequest) -> Result<HuntReport>` — sweeps
+    `base_seed .. base_seed+seeds`, calls `validate` per seed (declined → declined
+    verdict; `ok` → clean verdict; else a finding), classifies the finding
+    `reject` (non-zero exit) vs `warning` (clean exit + `!success`), and — when
+    `minimize` — composes `downstream::minimize` (oracle = the same
+    `ValidateOptions`). Detection reuses `!ValidateReport.ok` (warning already
+    folded in) — no new parser.
+  - `HuntVerdict` / `HuntFailure` / `HuntMinimized` / `HuntSummary` / `HuntReport`
+    — all serde, every field a **SCHEMA-DERIVED** projection of `ValidateReport` /
+    `MinimizeReport` / `ToolInvocation` (decision `0017`'s queryable gate; no new
+    computed truth, no shadow oracle per decision `0004`).
+  - 5 cargo-portable proofs (no real tools): `run_no_tool_smoke_is_all_clean`
+    (empty tool list ⇒ vacuously-clean sweep, seeds swept consecutively),
+    `run_is_reproducible` (identical run_ids), `classify_detection_*`,
+    `first_failing_tool_*`, `report_serializes_and_round_trips`.
+- **`CODEBASE_ANALYSIS.md`** — new `hunt/` module entry. **`DEVELOPMENT_NOTES.md`**
+  — a `.2b.1` entry (thin-orchestrator-proven-by-imports; `HuntRequest` embeds
+  `ValidateOptions`; SCHEMA-DERIVED report; cargo-portable no-tool proof).
+  **`docs/tasks/BUG-HUNT-ORCHESTRATION.md`** + **`docs/TASK_TREE.md`** — `.2b`
+  pre-split into `.2b.1` (done) + `.2b.2`; frontier → `.2b.2`.
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test --lib hunt::` 5/5; full
+  `cargo test` green — **lib 505→510** (the 5 hunt proofs) + all other suites,
+  and **`tests/snapshots.rs` 6/6 byte-identical** (`hunt` is default-off and
+  wired into no generate/emit path ⇒ DUT output untouched).
+
+**Impact**
+
+- No user-visible / CLI / MCP surface yet (library core only). The MCP `hunt`
+  tool (`.2c`) and the `anvil hunt` CLI (`.2d`) shim over `hunt::run`; the
+  cross-sim mismatch detector + the reproducer-bundle emitter land in `.2b.2`.
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2a — extract diff-sim run+compare into reusable diff_sim::run_agreement
 
-**Landed as:** this commit (previous: `b8c1e8b`). **Pure, byte-identical
+**Landed as:** `8a4fbab` (previous: `b8c1e8b`). **Pure, byte-identical
 refactor — first implementation leaf of decision `0018`'s pre-split `.2`.** The
 per-module diff-sim run+compare pipeline moves out of the `tool_matrix` binary
 into the `anvil::diff_sim` library so the bug-hunt loop (`.2b`) and the

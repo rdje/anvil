@@ -611,6 +611,25 @@ src/
 │                     `Config::validate` before the generator; hard-capped by
 │                     `max_oracle_calls`). Reports `reduced` knobs +
 │                     `final_validation` (the surviving failure).
+├── hunt/            Turnkey downstream bug-hunt loop
+│   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
+│                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`
+│                     — that composes `downstream::validate` / `minimize` into one
+│                     deterministic fuzz → detect (reject/warning) → minimize
+│                     loop over a seed sweep (`base_seed .. +seeds`). Adds **no**
+│                     detector (detection is `!ValidateReport.ok`, which already
+│                     folds reject+warning) and **no** minimizer of its own. The
+│                     `HuntRequest` carries a `ValidateOptions` (so the sandbox is
+│                     caller-set, never agent-supplied — decision `0004`); the
+│                     `HuntReport` (`verdicts` / `failures` / `summary`) is a
+│                     `SCHEMA-DERIVED` projection of `ValidateReport` /
+│                     `MinimizeReport` / `ToolInvocation` — no new computed truth,
+│                     no shadow oracle (decisions `0017` / `0004`). `.2b.1` is the
+│                     library core (reject/warning detection); the cross-sim
+│                     mismatch detector (`diff_sim::run_agreement`) + the
+│                     reproducer-bundle emitter are `.2b.2`; the MCP `hunt` tool
+│                     (`.2c`) + the `anvil hunt` CLI (`.2d`) shim over `run`.
+│                     Default-off / DUT byte-identical (no generate/emit path).
 ├── introspect/      Agent-introspection emission surface
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.3`). Builds the versioned
 │                     introspection document specified in

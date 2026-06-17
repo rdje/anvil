@@ -69,7 +69,7 @@ this lane composes them into one bug-hunt orchestrator.
   Acceptance: `All of .2a..2e done; hunt loop runs end-to-end against a real downstream tool and drops a one-command-reproducible bundle; decision-0017 API-completeness gate met (hunt MCP-invocable + results queryable + CLI a shim); snapshots 6/6 + book-examples 3/3 unchanged; downstream-clean; documented; committed per COMMIT.md.`
   Verification: `pending`
   Commit: `pending`
-  Children: `BUG-HUNT-ORCHESTRATION.2a, .2b, .2c, .2d, .2e`
+  Children: `BUG-HUNT-ORCHESTRATION.2a, .2b (.2b.1/.2b.2), .2c, .2d, .2e`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2a`
   Status: `done`
@@ -80,8 +80,24 @@ this lane composes them into one bug-hunt orchestrator.
   Commit: `this BUG-HUNT-ORCHESTRATION.2a commit`
 
 - ID: `BUG-HUNT-ORCHESTRATION.2b`
+  Status: `active`
+  Goal: `The src/hunt/ library core: HuntRequest/HuntReport/HuntFailure types + hunt::run(&HuntRequest)->HuntReport composing downstream::validate/minimize (+ optional diff-sim via .2a) over a deterministic seed sweep + the reproducer-bundle emitter; cargo-portable proofs. No CLI/MCP yet. Default-off / DUT byte-identical. Pre-split at pick into .2b.1 (loop core + types, reject/warning detection) + .2b.2 (cross-sim detection via run_agreement + the reproducer-bundle emitter).`
+  Acceptance: `Both .2b.1 + .2b.2 done; hunt::run composes validate/minimize/run_agreement; the reproducer bundle is emitted as a directory; cargo-portable proofs; default-off / DUT byte-identical (snapshots 6/6).`
+  Verification: `pending`
+  Commit: `pending`
+  Children: `BUG-HUNT-ORCHESTRATION.2b.1, .2b.2`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2b.1`
+  Status: `done`
+  Goal: `The src/hunt/ library core (loop + types) with reject/warning detection: HuntRequest/HuntReport/HuntVerdict/HuntFailure/HuntMinimized/HuntSummary + hunt::run(&HuntRequest)->HuntReport composing downstream::validate (detection = !ValidateReport.ok, which already unifies reject+warning) + optional downstream::minimize over a deterministic seed sweep. Every report field SCHEMA-DERIVED. No cross-sim, no on-disk bundle, no CLI/MCP yet. Cargo-portable proofs. Default-off / DUT byte-identical.`
+  Acceptance: `src/hunt/mod.rs + lib.rs pub mod hunt; hunt::run sweeps base_seed..base_seed+seeds, validates each, classifies reject/warning, optionally minimizes, returns HuntReport{verdicts,failures,summary}; cargo-portable proofs (no real tools) green; cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical (hunt wired into no generate/emit path).`
+  Result: `Done. New src/hunt/mod.rs: HuntRequest (base_seed/seeds/config/validate:ValidateOptions/minimize/max_oracle_calls), HuntVerdict, HuntFailure, HuntMinimized (projected from MinimizeReport), HuntSummary, HuntReport — all serde, every field a SCHEMA-DERIVED projection of ValidateReport/MinimizeReport/ToolInvocation (decision 0017's queryable gate; no new computed truth, no shadow oracle). hunt::run composes downstream::validate per seed (declined→declined verdict; ok→clean verdict; else a finding), classifies reject (non-zero exit) vs warning (clean exit + !success), and—when minimize—composes downstream::minimize (oracle = the same ValidateOptions). Registered pub mod hunt in lib.rs. 5 cargo-portable proofs: no-tool smoke is all-clean + seeds swept consecutively, reproducible run_ids, classify_detection warning-vs-reject, first_failing_tool, HuntReport serde round-trip (+ skip_serializing_if keeps absent fields out of the wire form). The library core only — cross-sim detection (diff_sim::run_agreement from .2a) + the reproducer-bundle emitter are .2b.2; the MCP tool is .2c, the CLI is .2d.`
+  Verification: `cargo check --all-targets OK; cargo fmt --all --check OK; cargo clippy --all-targets -- -D warnings OK; focused cargo test --lib hunt:: = 5/5; full cargo test green incl. tests/snapshots.rs 6/6 byte-identical (hunt is default-off, wired into no generate/emit path ⇒ DUT byte-identical).`
+  Commit: `this BUG-HUNT-ORCHESTRATION.2b.1 commit`
+
+- ID: `BUG-HUNT-ORCHESTRATION.2b.2`
   Status: `pending`
-  Goal: `The src/hunt/ library core: HuntRequest/HuntReport/HuntFailure types + hunt::run(&HuntRequest)->HuntReport composing downstream::validate/minimize (+ optional diff-sim via .2a) over a deterministic seed sweep + the reproducer-bundle emitter; cargo-portable proofs. No CLI/MCP yet. Default-off / DUT byte-identical.`
+  Goal: `Fold the cross-simulator mismatch detector (anvil::diff_sim::run_agreement from .2a) into hunt::run as an optional detection axis (detection = "cross_sim_mismatch"), AND add the reproducer-bundle emitter: write <bundle_root>/<run_id>/ with repro.sv, knobs.json, introspection.json, manifest.json (non-DUT), tool-logs/, hunt-verdict.json, repro.sh. HuntFailure gains the bundle ref. Cargo-portable proofs (bundle emitted to a temp dir; cross-sim no-op when sims absent). Default-off / DUT byte-identical.`
   Acceptance: `pending (set when picked)`
   Verification: `pending`
   Commit: `pending`
@@ -111,11 +127,12 @@ this lane composes them into one bug-hunt orchestrator.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BUG-HUNT-ORCHESTRATION.2b` | `pending` | The `src/hunt/` library core (`hunt::run`) + the reproducer-bundle emitter — the engine both the MCP tool (`.2c`) and the CLI (`.2d`) shim over. With `.2a` done, the cross-sim detector is now a hardened `diff_sim::run_agreement` call. |
+| 1 | `BUG-HUNT-ORCHESTRATION.2b.2` | `pending` | Fold cross-sim mismatch detection (`diff_sim::run_agreement`) into `hunt::run` + add the reproducer-bundle emitter (the directory). Completes the `.2b` engine. |
 | 2 | `BUG-HUNT-ORCHESTRATION.2c` | `pending` | The MCP `hunt` controlled tool (decision `0017` invocable + queryable). |
 | 3 | `BUG-HUNT-ORCHESTRATION.2d` | `pending` | The `anvil hunt` CLI shim + the byte-identical default-path guard. |
 | 4 | `BUG-HUNT-ORCHESTRATION.2e` | `pending` | The real-tool end-to-end gate + book/USER_GUIDE/README/KM; closes the tree. |
 | — | `BUG-HUNT-ORCHESTRATION.2a` | `done` | Extracted the diff-sim run+compare into `diff_sim::run_agreement` (byte-identical; snapshots 6/6). |
+| — | `BUG-HUNT-ORCHESTRATION.2b.1` | `done` | The `src/hunt/` library core (`hunt::run` + types, reject/warning detection); 5 cargo-portable proofs; snapshots 6/6. |
 
 ## Decisions
 
@@ -162,6 +179,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.1` | `decision 0018 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row; check_memory_architecture OK; KM gen+check OK; docs-only (no src/) ⇒ DUT byte-identical` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2a` | `cargo check/test/clippy/fmt green; lib 502→505, tool_matrix 73→71+ignored, tests/diff_sim.rs 2 pass/2 gated, snapshots 6/6 byte-identical; run_agreement extracted; tool_matrix_report.json schema unchanged` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.1` | `cargo check/clippy/fmt green; cargo test --lib hunt:: 5/5; full cargo test green incl. snapshots 6/6 byte-identical (hunt default-off, no generate/emit path)` | `done` |
 
 ## Commit Log
 
@@ -170,6 +188,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `BUG-HUNT-ORCHESTRATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `BUG-HUNT-ORCHESTRATION.1` | `BUG-HUNT-ORCHESTRATION.1 — design ADR (decision 0018): turnkey fuzz→detect→minimize→bundle loop + MCP hunt tool + anvil hunt CLI` | Design/decision leaf (docs-only). Pins the loop/bundle/MCP+CLI/detection/sandbox; pre-splits `.2` into `.2a`…`.2e`. DUT byte-identical. |
 | `BUG-HUNT-ORCHESTRATION.2a` | `BUG-HUNT-ORCHESTRATION.2a — extract diff-sim run+compare into reusable diff_sim::run_agreement` | Pure byte-identical refactor; `src/diff_sim/` now owns `run_agreement` + `DiffSimReport` + the SV-text testbench; `tool_matrix` wraps it. First impl leaf of `.2`. |
+| `BUG-HUNT-ORCHESTRATION.2b.1` | `BUG-HUNT-ORCHESTRATION.2b.1 — src/hunt/ library core (hunt::run loop + types, reject/warning detection)` | New `src/hunt/mod.rs` + `pub mod hunt`; composes `downstream::validate`/`minimize`; SCHEMA-DERIVED `HuntReport`; 5 cargo-portable proofs; default-off / DUT byte-identical. Cross-sim + bundle = `.2b.2`. |
 
 ## Changelog
 
@@ -183,3 +202,9 @@ this lane composes them into one bug-hunt orchestrator.
   `ACCEPTANCE-DIVERGENCE-HUNTING` now reuse it). `tool_matrix`'s
   `run_diff_sim_for_module` is a thin wrapper; snapshots 6/6 byte-identical.
   Frontier advanced to `.2b` (the `src/hunt/` core).
+- `2026-06-17`: pre-split `.2b` into `.2b.1` (loop core + types,
+  reject/warning detection) + `.2b.2` (cross-sim detection + reproducer-bundle
+  emitter). `.2b.1` done — new `src/hunt/mod.rs` (`hunt::run` + the SCHEMA-DERIVED
+  `HuntRequest`/`HuntReport`/`HuntFailure`/`HuntMinimized`/`HuntSummary`)
+  composing `downstream::validate`/`minimize`; 5 cargo-portable proofs;
+  default-off / DUT byte-identical (snapshots 6/6). Frontier advanced to `.2b.2`.

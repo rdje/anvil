@@ -39,6 +39,15 @@ pub mod emit;
 /// rejected.
 pub mod frontend;
 pub mod gen;
+/// Turnkey downstream bug-hunt loop (`BUG-HUNT-ORCHESTRATION`, decision
+/// `0018`). A **thin orchestrator** — `hunt::run(&HuntRequest) -> HuntReport`
+/// — composing `downstream::validate` / `minimize` into one deterministic
+/// fuzz → detect (reject/warning) → minimize loop. Both the MCP `hunt` tool
+/// and the `anvil hunt` CLI shim over it (decision `0017`). Adds no detector /
+/// no minimizer / no generation path of its own; default-off / DUT
+/// byte-identical. `.2b.1` is the library core; cross-sim detection + the
+/// reproducer bundle land in `.2b.2`.
+pub mod hunt;
 /// Agent-introspection emission surface (`AGENT-INTROSPECTION-MCP.3`).
 /// Builds the versioned introspection document specified in
 /// `docs/AGENT_INTROSPECTION_SCHEMA.md` from facts ANVIL already records

@@ -5,6 +5,56 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — `src/hunt/` library core — `BUG-HUNT-ORCHESTRATION.2b.1`
+
+The engine of decision `0018`, as the first half of `.2b` (pre-split into
+`.2b.1` loop-core + `.2b.2` cross-sim+bundle). `src/hunt/mod.rs` +
+`pub mod hunt`. Design points worth recording:
+
+1. **Thin orchestrator, proven by what it imports.** `hunt::run` imports
+   `downstream::{validate, minimize}` and *nothing that detects or generates*.
+   Detection is `!ValidateReport.ok` — and because `validate`'s
+   `first_tool_warning` already folds a warning into `ok == false`, reject and
+   warning are one signal with **zero** new parsing in `hunt`. The only
+   `hunt`-local logic is (a) the seed sweep, (b) classifying a found failure as
+   `reject` vs `warning` (`exit_code == Some(0)` ⇒ warning, else reject), and
+   (c) projecting `ValidateReport`/`MinimizeReport` into the report shape.
+
+2. **`HuntRequest` embeds `ValidateOptions`, not a parallel knob set.** The
+   per-seed downstream run is configured by the existing `ValidateOptions`
+   (tools / yosys_mode / mem_limits / **caller-set sandbox_root** / keep_sandbox),
+   reused verbatim as the `MinimizeOptions.validate` oracle so a minimized
+   reproducer is gated by the *same* guardrails. This keeps the sandbox path
+   caller-set (never agent-supplied — decision `0004`) and avoids a second copy
+   of the tool/sandbox policy.
+
+3. **Every `HuntReport` field is SCHEMA-DERIVED.** `HuntVerdict` / `HuntFailure`
+   / `HuntMinimized` / `HuntSummary` are pure projections of
+   `ValidateReport.{run_id,ok,declined,tools}`, `ToolInvocation.{tool,argv,error,
+   exit_code,success}`, and `MinimizeReport.{reproduced_initial,reductions,
+   oracle_calls,budget_exhausted,final_validation}` — no new computed truth, no
+   behavioural oracle (decisions `0017` / `0004`). `minimized_run_id` reads
+   `final_validation.run_id` when the search reproduced, else falls back to the
+   original `run_id` (the minimized config then echoes the input, so the
+   addresses coincide) — avoiding a dependency on `content_run_id` visibility.
+
+4. **Cargo-portable proofs without real tools.** The key proof
+   (`run_no_tool_smoke_is_all_clean`) sets `ValidateOptions.tools = vec![]` — a
+   no-tool smoke `validate` (generate + sandbox only) returns `ok == true`
+   vacuously — so the loop's sweep + aggregation are proven against a real
+   `validate` without iverilog/verilator/yosys present. Plus: reproducible
+   run_ids (content addressing), `classify_detection` warning-vs-reject,
+   `first_failing_tool`, and a `HuntReport` serde round-trip (confirming the
+   `skip_serializing_if` fields stay absent in the wire form the MCP tool will
+   serve). lib 505→510; `tests/snapshots.rs` 6/6 byte-identical — `hunt` is
+   wired into no generate/emit path, so DUT output is untouched.
+
+5. **Scope held to the library core.** No cross-sim detection, no on-disk
+   bundle, no CLI/MCP — those are `.2b.2` / `.2c` / `.2d`. `HuntFailure.detection`
+   already reserves `"cross_sim_mismatch"` for `.2b.2`; the report's `lane` is
+   `"dut"` (validate/minimize are DUT-only; non-DUT is a future extension noted
+   in the type docs).
+
 ## 2026-06-17 — Bug-hunt orchestration — extract diff-sim run+compare — `BUG-HUNT-ORCHESTRATION.2a`
 
 First implementation leaf of decision `0018`'s pre-split `.2`. A pure,
