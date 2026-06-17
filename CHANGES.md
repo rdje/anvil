@@ -1,9 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BOOK-API-REFERENCE.1 — comprehensive industry-standard API reference in the mdBook
+
+**Landed as:** this commit (previous: `5d3c430`). **Pure-mdBook docs — no `src/`
+touched ⇒ DUT byte-identical** (`tests/snapshots.rs` untouched). Addresses the
+owner directive (`2026-06-17`): *"Ensure ANVIL's API is accurately, thoroughly
+documented in the mdBook, using the most top-notch, industry-recommended way to
+describe APIs."* Tracked by the new `BOOK-API-REFERENCE` tree (pure-docs, so
+task-tree-exempt; tracked for continuity).
+
+**What changed (why)**
+
+A formal, **JSON-Schema-faithful API Reference** added to the mdBook *Reference*
+part as four child pages under the existing `agent-mcp.md` tutorial (progressive
+disclosure per `feedback_book_doctrine`; the tutorial leads, the reference gives
+depth on demand). The schemas are derived **verbatim from the code** —
+`src/mcp/mod.rs` (`tools_list` / `resources_list` / `prompts`) and
+`docs/AGENT_INTROSPECTION_SCHEMA.md` — so the reference is the precise contract,
+not a paraphrase.
+
+- **`book/src/api-reference.md`** — Overview & Protocol: the two entry points
+  (`anvil --introspect` + `anvil-mcp`), the JSON-RPC 2.0 envelope, the stdio /
+  HTTP transports (loopback-default security note), the 8 lifecycle methods
+  (`initialize` / `ping` / `tools.*` / `resources.*` / `prompts.*`), the
+  **two-layer error model** (protocol errors `-32700` parse / `-32601`
+  method-not-found / `-32602` invalid-params **vs** tool-level `isError: true`
+  results), content-addressing / determinism, and the **versioning & stability**
+  contract (`protocolVersion 2024-11-05`, `schema_version 1.11` MINOR/MAJOR, the
+  `SCHEMA-DERIVED` no-new-truth invariant).
+- **`book/src/api-tools.md`** — the **9 tools** (`generate`, `introspect`,
+  `dump_config`, `analyze`, `coverage_gaps` [pure]; `validate`, `minimize`,
+  `hunt`, `divergence` [controlled]), each with a parameter table
+  (name / type / required / default / constraints / description), the result
+  shape, the errors, and a request → response example.
+- **`book/src/api-resources-prompts.md`** — the `anvil://…` resources (the 3
+  static catalogs/audit + the 4 per-artifact URIs, each with mimeType + content +
+  when-present) and the **5 workflow prompts** (args + required-ness + rendered
+  chain + the string-argument rule).
+- **`book/src/api-introspection.md`** — the `--introspect` document envelope
+  (field table + payload-by-kind), the **four `analyze` query result schemas**
+  (`output_support` / `input_reach` / `flop_reset_provenance` /
+  `module_reachability`, each with its payload key + field table), and the
+  `schema_version` stability contract + the wire-contract pointer.
+- **`book/src/SUMMARY.md`** — the four child entries under `agent-mcp.md`;
+  **`book/src/agent-mcp.md`** — a tutorial→reference cross-link callout;
+  **`docs/knowledge/api-reference.md`** — a KM how-to card (KM 49→50).
+
+**Validation**
+
+- `mdbook build book` clean; `cargo test --test book_examples` 3/3 (found-and-
+  fixed two missing `book-test: skip` sentinels — a `curl` block and the
+  illustrative `anvil --introspect` block; the new tool/resource/introspection
+  pages are JSON/text-only and add no runnable bash).
+- `scripts/check_memory_architecture.sh` OK; KM gen + check OK (49→50 facts).
+- No `src/` touched ⇒ DUT byte-identical; `tests/snapshots.rs` untouched.
+
+**Impact**
+
+- ANVIL's agent/automation API now has a complete, industry-standard reference in
+  the book (the user-facing surface) — every method, parameter, result, resource,
+  prompt, and error documented and accurate to the code, with worked examples and
+  a versioning/stability contract. Realises the API-first mandate (decision
+  `0017`) on the documentation axis. `BOOK-API-REFERENCE` tree closed.
+
+**Files touched:** `book/src/api-reference.md` (new), `book/src/api-tools.md`
+(new), `book/src/api-resources-prompts.md` (new), `book/src/api-introspection.md`
+(new), `book/src/SUMMARY.md`, `book/src/agent-mcp.md`,
+`docs/knowledge/api-reference.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/BOOK-API-REFERENCE.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-17 — ACCEPTANCE-DIVERGENCE-HUNTING.2f — real-tool e2e gate + version-axis surfacing decision + docs closeout (closes the tree)
 
-**Landed as:** this commit (previous: `0836655`). **Default-off / DUT
+**Landed as:** `5d3c430` (previous: `0836655`). **Default-off / DUT
 byte-identical** (`tests/snapshots.rs` 6/6 unchanged; the only code/test artifact
 is `tests/divergence_e2e.rs`, which touches no generator/emit path — every other
 change is pure-docs). The **closing leaf** of `ACCEPTANCE-DIVERGENCE-HUNTING`

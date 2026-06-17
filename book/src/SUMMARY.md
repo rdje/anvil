@@ -35,6 +35,10 @@
 
 - [Knobs and Reproducibility](knobs.md)
 - [Driving anvil from an AI Agent (Introspection + MCP)](agent-mcp.md)
+  - [API Reference: Overview & Protocol](api-reference.md)
+  - [API Reference: Tools](api-tools.md)
+  - [API Reference: Resources & Prompts](api-resources-prompts.md)
+  - [API Reference: Introspection & Analysis Schemas](api-introspection.md)
 - [FAQ](faq.md)
 - [Architecture of the Rust Implementation](architecture.md)
 - [What We Explicitly Do Not Do](non-goals.md)

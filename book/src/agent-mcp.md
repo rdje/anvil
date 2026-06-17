@@ -16,6 +16,12 @@ Everything here is **opt-in and default-off**. The plain `anvil` build, and
 the byte-for-byte `--artifact dut` contract, are completely unaffected. If you
 never use these features, nothing changes.
 
+> **This chapter is the tutorial.** For the precise, machine-readable contract —
+> every method, parameter, result, resource, prompt, and error — see the formal
+> **API Reference**: [Overview & Protocol](api-reference.md) ·
+> [Tools](api-tools.md) · [Resources & Prompts](api-resources-prompts.md) ·
+> [Introspection & Analysis Schemas](api-introspection.md).
+
 [mcp]: https://modelcontextprotocol.io
 
 ## The two entry points
