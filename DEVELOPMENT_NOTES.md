@@ -5,6 +5,22 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Bug-hunt orchestration — seed-threading gotcha — `BUG-HUNT-ORCHESTRATION.2b.1` (fix)
+
+A correctness fix to `.2b.1`'s loop, found while grounding `.2b.2` against the
+real `validate` body. **Gotcha worth remembering for any future
+`validate`/`minimize` caller:** the `seed` *argument* to `validate(seed, cfg,
+…)` feeds only the `run_id` (the content address) and the audit log — the
+**generator seeds from `cfg.seed`** (`Generator::new(cfg)` →
+`ChaCha8Rng::seed_from_u64(cfg.seed)`). The two must agree, and the established
+convention is the caller stamps it (`config_from_args` does `cfg.seed = seed`
+before every `validate`/`minimize`). A sweep that passes a fixed profile config
+and only varies the `seed` arg gets **distinct run_ids over an identical
+artifact** — a silent no-op fuzz. `hunt::run` now stamps `seed` into a
+per-iteration `seed_config(req, seed)` clone. The lesson: when threading a seed
+sweep through `validate`/`minimize`, vary `Config::seed`, not just the `seed`
+argument.
+
 ## 2026-06-17 — Bug-hunt orchestration — `src/hunt/` library core — `BUG-HUNT-ORCHESTRATION.2b.1`
 
 The engine of decision `0018`, as the first half of `.2b` (pre-split into

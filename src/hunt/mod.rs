@@ -191,6 +191,16 @@ fn classify_detection(t: &ToolInvocation) -> &'static str {
     }
 }
 
+/// The per-iteration config for `seed`: the request's knob profile with its
+/// `seed` field stamped to the sweep seed. Load-bearing — the generator seeds
+/// from `Config::seed`, so without this every sweep position would regenerate
+/// the same artifact (see [`run`]).
+fn seed_config(req: &HuntRequest, seed: u64) -> Config {
+    let mut cfg = req.config.clone();
+    cfg.seed = seed;
+    cfg
+}
+
 /// Run the bug-hunt loop: fuzz a deterministic seed sweep, detect any
 /// reject/warning, auto-minimize each failure (when requested), and return a
 /// structured [`HuntReport`].
@@ -208,7 +218,14 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
 
     for k in 0..req.seeds {
         let seed = req.base_seed.wrapping_add(k as u64);
-        let report = validate(seed, &req.config, &req.validate)?;
+        // The generator seeds from `Config::seed` (`Generator::new`), and
+        // `validate`/`minimize` follow the caller convention of threading the
+        // sweep seed into the config (`config_from_args` sets `cfg.seed = seed`).
+        // So the sweep MUST stamp `seed` into the per-iteration config; passing
+        // the request config unchanged would regenerate the *same* artifact for
+        // every seed under different run_ids.
+        let cfg = seed_config(req, seed);
+        let report = validate(seed, &cfg, &req.validate)?;
         let run_id = report.run_id.clone();
 
         if let Some(reason) = &report.declined {
@@ -258,7 +275,7 @@ pub fn run(req: &HuntRequest) -> Result<HuntReport> {
                 validate: req.validate.clone(),
                 max_oracle_calls: req.max_oracle_calls,
             };
-            let m = minimize(seed, &req.config, &mopts)?;
+            let m = minimize(seed, &cfg, &mopts)?;
             Some(HuntMinimized::from_report(&m, &run_id))
         } else {
             None
@@ -354,6 +371,38 @@ mod tests {
         // Seeds are swept consecutively from base_seed.
         let seeds: Vec<u64> = report.verdicts.iter().map(|v| v.seed).collect();
         assert_eq!(seeds, vec![42, 43, 44]);
+    }
+
+    /// The sweep stamps each position's seed into the config the generator
+    /// actually seeds from — without this the "sweep" would regenerate one
+    /// artifact under N run_ids (the bug `seed_config` fixes).
+    #[test]
+    fn seed_config_threads_the_swept_seed() {
+        let req = HuntRequest {
+            base_seed: 100,
+            seeds: 4,
+            // A profile whose own seed field is deliberately unrelated to the
+            // sweep, to prove the sweep — not the profile — sets the seed.
+            config: Config {
+                seed: 999,
+                ..Config::default()
+            },
+            validate: test_validate_opts("seed-thread"),
+            minimize: false,
+            max_oracle_calls: 50,
+        };
+        assert_eq!(seed_config(&req, 100).seed, 100);
+        assert_eq!(seed_config(&req, 103).seed, 103);
+        assert_ne!(seed_config(&req, 100).seed, seed_config(&req, 101).seed);
+        // The rest of the profile is preserved verbatim (only `seed` changes).
+        let base = Config {
+            seed: 100,
+            ..req.config.clone()
+        };
+        assert_eq!(
+            serde_json::to_string(&seed_config(&req, 100)).unwrap(),
+            serde_json::to_string(&base).unwrap(),
+        );
     }
 
     /// The sweep is reproducible: same request ⇒ identical run_ids (content

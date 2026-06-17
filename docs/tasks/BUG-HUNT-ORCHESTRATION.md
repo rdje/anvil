@@ -180,6 +180,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.1` | `decision 0018 + INDEX + DEVELOPMENT_NOTES + MEMORY + CHANGES + docs/TASK_TREE row; check_memory_architecture OK; KM gen+check OK; docs-only (no src/) ⇒ DUT byte-identical` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2a` | `cargo check/test/clippy/fmt green; lib 502→505, tool_matrix 73→71+ignored, tests/diff_sim.rs 2 pass/2 gated, snapshots 6/6 byte-identical; run_agreement extracted; tool_matrix_report.json schema unchanged` | `done` |
 | `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.1` | `cargo check/clippy/fmt green; cargo test --lib hunt:: 5/5; full cargo test green incl. snapshots 6/6 byte-identical (hunt default-off, no generate/emit path)` | `done` |
+| `2026-06-17` | `BUG-HUNT-ORCHESTRATION.2b.1` (fix) | `seed-threading bug fixed (Generator seeds from cfg.seed; sweep now stamps seed into a per-iteration seed_config) + new proof seed_config_threads_the_swept_seed; cargo check/clippy/fmt green; cargo test --lib hunt:: 6/6; full cargo test green incl. snapshots 6/6` | `done` |
 
 ## Commit Log
 
@@ -189,6 +190,7 @@ this lane composes them into one bug-hunt orchestrator.
 | `BUG-HUNT-ORCHESTRATION.1` | `BUG-HUNT-ORCHESTRATION.1 — design ADR (decision 0018): turnkey fuzz→detect→minimize→bundle loop + MCP hunt tool + anvil hunt CLI` | Design/decision leaf (docs-only). Pins the loop/bundle/MCP+CLI/detection/sandbox; pre-splits `.2` into `.2a`…`.2e`. DUT byte-identical. |
 | `BUG-HUNT-ORCHESTRATION.2a` | `BUG-HUNT-ORCHESTRATION.2a — extract diff-sim run+compare into reusable diff_sim::run_agreement` | Pure byte-identical refactor; `src/diff_sim/` now owns `run_agreement` + `DiffSimReport` + the SV-text testbench; `tool_matrix` wraps it. First impl leaf of `.2`. |
 | `BUG-HUNT-ORCHESTRATION.2b.1` | `BUG-HUNT-ORCHESTRATION.2b.1 — src/hunt/ library core (hunt::run loop + types, reject/warning detection)` | New `src/hunt/mod.rs` + `pub mod hunt`; composes `downstream::validate`/`minimize`; SCHEMA-DERIVED `HuntReport`; 5 cargo-portable proofs; default-off / DUT byte-identical. Cross-sim + bundle = `.2b.2`. |
+| `BUG-HUNT-ORCHESTRATION.2b.1` (fix) | `BUG-HUNT-ORCHESTRATION.2b.1 — fix: thread the swept seed into the per-iteration config` | Correctness fix: the generator seeds from `cfg.seed`, so the sweep must stamp `seed` into each iteration's config (`seed_config`), not just the `validate` `seed` arg; + the `seed_config_threads_the_swept_seed` proof. Found while grounding `.2b.2`. |
 
 ## Changelog
 

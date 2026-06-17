@@ -1,9 +1,40 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.1 — fix: thread the swept seed into the per-iteration config
+
+**Landed as:** this commit (previous: `f4fc9c8`). **Correctness fix to the
+`.2b.1` hunt loop — found while grounding `.2b.2`.** DUT byte-identical (only
+`src/hunt/mod.rs`).
+
+**Root cause.** `Generator::new(cfg)` seeds the RNG from `cfg.seed`, and
+`validate`/`minimize` follow the caller convention (`config_from_args` does
+`cfg.seed = seed`) of threading the run seed into the config the generator
+seeds from. The `.2b.1` `hunt::run` passed the request config **unchanged** for
+every sweep position, so `validate(seed, &req.config, …)` computed a *different*
+`run_id` per seed (the `run_id` hashes the `seed` arg) but **regenerated the
+same artifact every time** (generation reads `req.config.seed`, which never
+moved). The sweep was therefore fuzzing one artifact under N run_ids. The
+`.2b.1` proofs missed it: the no-tool smoke is clean regardless, and the
+reproducibility check only compares two identical runs.
+
+**Fix.** A `seed_config(req, seed)` helper stamps `seed` into a per-iteration
+clone of the profile (only `Config::seed` changes); `hunt::run` now validates
+and minimizes against that seed-set config. New proof
+`seed_config_threads_the_swept_seed` asserts the swept seed lands in the
+generated config and that the rest of the profile is preserved verbatim (via a
+serde-string compare, since `Config` is not `PartialEq`).
+
+**Validation**
+
+- `cargo check --all-targets` OK; `cargo fmt --all --check` OK; `cargo clippy
+  --all-targets -- -D warnings` OK; `cargo test --lib hunt::` 6/6; full
+  `cargo test` green incl. `tests/snapshots.rs` 6/6 byte-identical (the fix
+  touches only `src/hunt/`, which is wired into no generate/emit path).
+
 ## 2026-06-17 — BUG-HUNT-ORCHESTRATION.2b.1 — src/hunt/ library core (hunt::run loop + types, reject/warning detection)
 
-**Landed as:** this commit (previous: `8a4fbab`). **New default-off library
+**Landed as:** `f4fc9c8` (previous: `8a4fbab`). **New default-off library
 module — DUT byte-identical.** The engine of decision `0018`, first half of the
 pre-split `.2b` (`.2b.1` loop-core + `.2b.2` cross-sim+bundle). A **thin
 orchestrator**: `hunt::run` composes the existing `downstream::validate` /
