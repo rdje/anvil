@@ -6,7 +6,28 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-17` (**`.8b` landed — the FOURTH structured surface
+- Last updated: `2026-06-17` (**`.9` landed — picked the FIFTH structured
+  surface (the multi-gate-cone `function automatic`); decision `0016`;
+  design/decision leaf, no source change; frontier → `.10` (impl, pre-split
+  `.10a`/`.10b`).** At a no-active-frontier boundary, autonomously selected per
+  `feedback_pick_and_roll_at_no_frontier`. A fresh empirical probe
+  (`/tmp/anvil-se9-probe/`, Verilator 5.046 `-Wall` + Yosys 0.64 both modes +
+  Icarus 13.0) accepts a multi-gate-cone function (function-local temps + a
+  topo-ordered statement body) with **zero `%Warning`** and iverilog-sim-proves
+  it bit-equal to the inline cone over 4000 random vectors; the same probe
+  confirms a multi-output `task` is also clean + sim-equiv (the deferred
+  runner-up — policy-laden co-supported-sink source) and that nested/multi-level
+  `generate` is clean but has no routine by-construction 2D source (factorization
+  collapses `{N{ {M{x}} }}`). The fifth surface **deepens the FIRST surface**
+  (decision `0012` took a single gate over its direct operands; the cone
+  projection was its recorded follow-up): params = the cone's support leaves,
+  body = topo-ordered function-local temps for the interior gates, return = root
+  — behaviour-identical to the inline cone. Needs its **own** opt-in
+  `cone_function_emit_prob` knob (so the shipped single-gate `function_emit_prob`
+  surface stays byte-identical; nothing retired) + a `num_emitted_cone_functions`
+  metric (schema `1.10 → 1.11` at impl) + a `--cone-function-gate` /
+  `saw_cone_function_emit`. Split `.9` (design, done) + `.10` (impl, pending;
+  pre-split `.10a`/`.10b`) + future `.11+`. Prior: **`.8b` landed — the FOURTH structured surface
   (the wider-lane `generate for` part-select) is delivered end-to-end; `.8b` /
   `.8` close; the lane returns to no-active-frontier (open-ended).** First source
   change of the fourth surface — two surgical edits: `src/ir/generate_loop.rs`
@@ -256,8 +277,8 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. FOUR surfaces delivered end-to-end: combinational function automatic (.1+.2), generate for loop (.3+.4), combinational task automatic (.5+.6), and the wider-lane generate for part-select (.7 design + .8 impl, decision 0015). Open-ended lane with no current frontier: nested/multi-level generate / interface-modport / richer tasks are future (.9+), each its own decision.`
-  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. FOUR surfaces delivered end-to-end: combinational function automatic (.1+.2), generate for loop (.3+.4), combinational task automatic (.5+.6), and the wider-lane generate for part-select (.7 design + .8 impl, decision 0015). The FIFTH surface (the multi-gate-cone function automatic, decision 0016) is picked: .9 design done, .10 impl pending (pre-split .10a/.10b) — the current frontier. Future surfaces (multi-output tasks / nested-multi-level generate / interface-modport) are .11+, each its own decision.`
+  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`, `STRUCTURED-EMISSION-EXPANSION.9`, `STRUCTURED-EMISSION-EXPANSION.10`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
   Status: `done`
@@ -487,23 +508,57 @@ behaviour.
   Verification: `cargo check --all-targets clean; cargo clippy --all-targets -- -D warnings clean; cargo fmt --all --check clean; cargo test --lib 493 passed / 2 ignored (incl. the 4 changed/new generate_loop proofs: wide_lane_replication_qualifies, mismatched_result_width_replication_does_not_qualify, marked_wide_lane_gate_emits_part_select_loop, marked_one_bit_lane_keeps_index_body_byte_identical); cargo test --test snapshots 6/6 byte-identical (default-off). Forced per-seed ON-vs-OFF wider-lane downstream sweep (/tmp/anvil-gl8b/, 8 seeds 58/94/97/110/118/126/147/148): 9 wider-lane part-selects emitted, Verilator -Wall delta=0 on every seed, Yosys without-abc + with-abc + Icarus rc=0/0-warnings. Existing gate /tmp/anvil-generate-loop-gate-8b regression-clean (12/0 all tools, coverage_gaps=[], saw_generate_loop_emit=true). mdbook build book clean; bash knowledge-map/scripts/gen_knowledge_map.sh (42 facts / 341 keys) + check_knowledge_map.sh OK; cargo test --test book_examples 3/3 (the new fourth-surface repro block skip-sentinelled). Book before/after byte-verified vs the release binary (seed 74, generate_loop_emit_prob 0.0 vs 1.0 diff = exactly the {2{i_2}} assign becoming the genvar/generate-for + [gi*2 +: 2] body).`
   Commit: `done`
 
+- ID: `STRUCTURED-EMISSION-EXPANSION.9`
+  Status: `done`
+  Goal: `Design/decision leaf: at the no-active-frontier boundary, pick the FIFTH structured surface, define its valid-by-construction discipline + opt-in knob + downstream gate, re-confirm with a fresh empirical tool-acceptance probe, and split the tree — before any code.`
+  Acceptance: `A decision record naming the fifth surface, its construction discipline, and its downstream gate, grounded in a fresh empirical probe; no source change; self-checks clean.`
+  Result: `Decision 0016. The fifth richer-structured surface is a default-off, opt-in, valid-by-construction multi-gate-cone function automatic — a behaviour-preserving deepening of the FIRST surface (decision 0012, which took a single gate over its DIRECT operands; the cone projection was its recorded follow-up) from one gate to an entire combinational cone. For a selected root gate whose combinational fan-in (stopping at the output_support support-leaf boundary: primary inputs / flop Qs / instance outputs / constants) has >= 2 interior gates, the emitter renders function automatic logic[W-1:0] <root>__cf(<support-leaf params>) with one function-local logic temp per interior gate in topological order + return root, and the use site becomes a call — behaviour-identical to the inline per-gate chain. Chosen on the DECISIVE by-construction-source axis (decision 0015): any cone with >= 2 interior gates qualifies (pervasive), vs the multi-output task's policy-laden co-supported-sink groups and nested generate's absent 2D source. Fresh empirical probe (/tmp/anvil-se9-probe/, Verilator 5.046 -Wall + Yosys 0.64 both modes + Icarus 13.0): the cone function is accepted with ZERO %Warning across all tools + iverilog-sim-proven bit-equal to the inline cone over 4000 vectors; the same probe confirms a multi-output task is also clean+sim-equiv (the deferred runner-up) and nested generate clean-but-no-2D-source. Discipline: rules-first (mark a root at construction time; never generate-then-filter); its OWN opt-in cone_function_emit_prob knob (default 0.0 => byte-identical, snapshots untouched) SEPARATE from function_emit_prob so the shipped single-gate surface is untouched (reusing function_emit_prob REJECTED — would change that knob's output / blur two surfaces); mutually exclusive with the four existing per-gate projections (the cone absorbs its interior gates); combinational only (stops at the support-leaf boundary); no new IR node / no new computed truth. Metric num_emitted_cone_functions (schema 1.10 -> 1.11 at impl). Downstream gate: a new tool_matrix --cone-function-gate (templated on --function-emit-gate) forcing cone_function_emit_prob=1.0 over comb-only DUTs across the three strategies, gated on saw_cone_function_emit, full Verilator + both Yosys + Icarus. Rejected: multi-output task fifth (deferred — policy-laden source), nested generate fifth (no by-construction 2D source), interface/modport (disqualified at 0015), reusing function_emit_prob, a semantic IR node, generate-then-filter, changing the default. Split into .9 (done) + .10 (impl) + future (.11+: multi-output task, nested/multi-level generate, interface/modport). Pre-split .10 -> .10a (design-detail) + .10b (impl).`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.10`
+  Status: `pending`
+  Goal: `Implement the fifth structured surface (the multi-gate-cone function automatic) per decision 0016: the cone_function_emit_prob knob (separate from function_emit_prob) + the rules-first cone selection (root with >= 2 interior gates, cone-walk to the output_support support-leaf boundary, mutually exclusive with the four existing per-gate projections) + the emitter rendering (function automatic decl with support-leaf params + function-local temps + topo-ordered body + return root + call site) + the num_emitted_cone_functions metric (schema 1.10 -> 1.11) + a downstream-clean --cone-function-gate / saw_cone_function_emit + book/USER_GUIDE/KM. Default-off / DUT byte-identical (snapshots untouched; the shipped single-gate function_emit surface untouched).`
+  Children: `STRUCTURED-EMISSION-EXPANSION.10a`, `STRUCTURED-EMISSION-EXPANSION.10b`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. new cone-function proofs + the single-gate function_emit proofs unchanged; cargo test --test snapshots 6/6 byte-identical (default-off); the --cone-function-gate bank clean and proves a cone function emitted + accepted across Verilator + both Yosys + Icarus; book/USER_GUIDE/KM updated; each child committed through COMMIT.md with its leaf id.`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.10a`
+  Status: `pending`
+  Goal: `Design-detail leaf (no source): ground decision 0016 in the real src/ir/function_emit.rs (annotate_function_emit_gates + gate_qualifies — the single-gate predicate to fork from), src/introspect/analyze.rs (output_support — the cone-walk to the support-leaf boundary to reuse), and src/emit/sv.rs (the <wire>__f function decl/body/call path to extend to a multi-statement body). Pin: (1) the knob name (cone_function_emit_prob proposed) + the per-module roll/selection shape (mark a root then walk, or walk roots and roll per cone); (2) the interior-node admissibility set (which GateOps may be locals vs force a cone boundary — Slice/structured selectors/sibling-marked nodes), and fanout-interior-node handling (boundary-stop vs duplicate-into-function); (3) the topo-ordering + function-local-naming scheme; (4) the pass ordering + mutual-exclusion bookkeeping vs function_emit/generate_loop/task_emit/soft_union; (5) the num_emitted_cone_functions metric (schema 1.10 -> 1.11) + the --cone-function-gate / saw_cone_function_emit scenario shape. DEVELOPMENT_NOTES design-detail entry + the .10b impl shape.`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the five points grounded in real code; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.10b`
+  Status: `pending`
+  Goal: `Implement the .10a design: the cone_function_emit_prob knob + the new annotate_cone_function_gates pass (root selection + cone-walk + mutual exclusion) + the multi-statement function rendering in src/emit/sv.rs + lib proofs (cone mark; multi-statement emit shape with locals; single-gate function_emit unchanged; identity/node-count untouched; emit/sim faithfulness) + the num_emitted_cone_functions metric + schema 1.10 -> 1.11 + the --cone-function-gate proof (Verilator + both Yosys + Icarus) + book/USER_GUIDE/KM closeout. Default-off / DUT byte-identical (snapshots untouched). Pre-split further (.10b.1 live + .10b.2 metric/gate + .10b.3 docs) if warranted when picked.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. the new cone-function proofs; cargo test --test snapshots 6/6 byte-identical (default-off); the --cone-function-gate bank clean and proves a cone function emitted + accepted; book/USER_GUIDE/KM updated; committed through COMMIT.md with the leaf id.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
-**No current frontier.** The tree stays `active` as an **open-ended capability
-lane** (richer structured emission, ROADMAP steering gap 1). **Four** structured
-surfaces are now delivered end-to-end: the combinational `function automatic`
-(`.1`+`.2`), the `generate for` loop (`.3`+`.4`), the combinational
-`task automatic` (`.5`+`.6`), and the **wider-lane `generate for` part-select**
-(`.7` design + `.8` impl, closed `2026-06-17` by `.8b`, decision `0015`). Future
-surfaces — nested/multi-level `generate`, `interface` / `modport`, and richer
-(multi-output) tasks — are `.9+`, each its own decision when picked (none
-retired). When PNT next selects this lane, open `.9` with a design/decision leaf
-naming the next surface.
-
-_No active leaves — the lane has no current frontier. The most recent completions:_
+**Frontier: `STRUCTURED-EMISSION-EXPANSION.10a`** (the design-detail leaf of the
+fifth surface's impl). The tree stays `active`. **Four** structured surfaces are
+delivered end-to-end — the combinational `function automatic` (`.1`+`.2`), the
+`generate for` loop (`.3`+`.4`), the combinational `task automatic` (`.5`+`.6`),
+and the wider-lane `generate for` part-select (`.7`+`.8`, decision `0015`) — and
+the **FIFTH** surface is now picked: the **multi-gate-cone `function automatic`**
+(`.9` design done, decision `0016`; `.10` impl pending, pre-split `.10a`/`.10b`).
+Future surfaces — multi-output tasks, nested/multi-level `generate`,
+`interface` / `modport` — are `.11+`, each its own decision when picked (none
+retired).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| 1 | `STRUCTURED-EMISSION-EXPANSION.10a` | `pending` | Design-detail of the fifth surface: ground decision `0016` in the real `src/ir/function_emit.rs` (the single-gate predicate to fork), `src/introspect/analyze.rs` (`output_support` cone-walk to reuse), and `src/emit/sv.rs` (the `<wire>__f` decl/call path to extend to a multi-statement body); pin the `cone_function_emit_prob` knob, the interior-node admissibility set + fanout handling, the topo-order/local-naming scheme, the pass ordering + mutual exclusion vs the four sibling projections, and the `num_emitted_cone_functions` metric (schema `1.10 → 1.11`) + `--cone-function-gate` / `saw_cone_function_emit`. No source change. |
+| 2 | `STRUCTURED-EMISSION-EXPANSION.10b` | `pending` | Impl of `.10a`: the `cone_function_emit_prob` knob + `annotate_cone_function_gates` (root selection + cone-walk + mutual exclusion) + the multi-statement function rendering + lib proofs + the metric/schema bump + the `--cone-function-gate` proof + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split `.10b.1`/`.10b.2`/`.10b.3` if warranted. |
+
+_Most recent completions:_
+
+| Order | Leaf | Status | Why next |
+| --- | --- | --- | --- |
+| — | `STRUCTURED-EMISSION-EXPANSION.9` | `done` | Decision `0016`: picked the FIFTH structured surface — the **multi-gate-cone `function automatic`** (deepen the first surface from a single gate to a whole combinational cone: params = support leaves, body = topo-ordered function-local temps for interior gates, return = root). Chosen on the by-construction-source axis (decision `0015`): any cone with `>= 2` interior gates qualifies (pervasive), vs the multi-output task's policy-laden source + nested generate's absent 2D source. Fresh probe (`/tmp/anvil-se9-probe/`, Verilator `-Wall` + both Yosys + Icarus): zero `%Warning` + iverilog-sim-proven `==` the inline cone (4000 vec); multi-output task also clean+sim-equiv (deferred runner-up); nested generate clean-but-no-source. Its **own** `cone_function_emit_prob` knob (single-gate surface stays byte-identical; reusing `function_emit_prob` rejected) + `num_emitted_cone_functions` (schema `1.10→1.11` at impl) + `--cone-function-gate`. Split `.9` (design) + `.10` (impl, pre-split `.10a`/`.10b`) + future `.11+`. No source change. |
 | — | `STRUCTURED-EMISSION-EXPANSION.8b` | `done` | Impl of the fourth surface (the wider-lane `generate for` part-select): relaxed `src/ir/generate_loop.rs` `gate_qualifies` to `LW >= 1` (`width == N*LW`) + the `src/emit/sv.rs` `render_generate_loop_block` `[gi*LW +: LW]` branch (`LW==1` `[gi]` kept byte-identical) + 4 lib proofs (`wide_lane_replication_qualifies`, `mismatched_result_width_replication_does_not_qualify`, `marked_wide_lane_gate_emits_part_select_loop`, `marked_one_bit_lane_keeps_index_body_byte_identical`) + book/knobs/USER_GUIDE/README/CODEBASE_ANALYSIS/KM closeout. Downstream-clean: a per-seed ON-vs-OFF sweep (8 seeds) emits 9 wider-lane part-selects with Verilator `-Wall` Δ=0 + Yosys both + Icarus rc=0; `--generate-loop-gate` regression-clean (12/0). Reuses `generate_loop_emit_prob` + `num_emitted_generate_loops` (no new knob / no schema bump). `cargo test --lib` 493; snapshots 6/6 byte-identical. Closes `.8b` / `.8` — the fourth structured surface delivered end-to-end. |
 | — | `STRUCTURED-EMISSION-EXPANSION.8a` | `done` | Design-detail (no source): resolved decision `0015`'s open questions against the real `generate_loop.rs` `gate_qualifies` + `sv.rs` `generate_loop_gate`/`render_generate_loop_block` — keep `generate_loop_gate` returning `(lane, N)` (recompute `LW` in the renderer); branch `LW==1` (verbatim `[gi]`) vs `LW>1` (`[gi*LW +: LW]`); relax the predicate to `LW >= 1` / `width == N*LW` (exclusions unchanged); byte-identity contract for the shipped 1-bit surface; downstream proof = a deterministic lib emit-test + the existing `--generate-loop-gate`. **Corpus-liveness proven**: a 300-module sweep emits 20 multi-bit-lane replications (of 448) — the surface fires on real generation, not hand-built-only. No new knob / no schema bump. |
 | — | `STRUCTURED-EMISSION-EXPANSION.7` | `done` | Decision `0015`: picked the FOURTH structured surface — the **wider-lane `generate for` part-select** (broaden the `generate for` lane from 1-bit to `LW >= 1`, rendering `assign <wire>[gi*LW +: LW] = <x>;`, closing the recorded wider-lane follow-up). A fresh empirical probe (Verilator 5.046 `-Wall` + Yosys 0.64 both modes + Icarus 13.0) accepts it warning-clean + iverilog-sim-proves it `== {N{x}}`; `interface`/`modport` empirically DISQUALIFIED (Icarus syntax-fail + both-Yosys implicit-decl warn); nested-generate recorded clean-but-bigger-blast-radius. Reuses the existing `generate_loop_emit_prob` knob + `num_emitted_generate_loops` metric (no new knob / no schema bump). Split `.7` (design) + `.8` (impl, pre-split `.8a`/`.8b`) + future `.9+`. No source change. |
@@ -527,6 +582,47 @@ _No active leaves — the lane has no current frontier. The most recent completi
 | — | `STRUCTURED-EMISSION-EXPANSION.1` | `done` | Decision `0012`: picked the combinational `function automatic` emit-projection as the first surface (over interface/modport + nested generate), with its valid-by-construction discipline, opt-in `function_emit_prob`, and downstream gate. Split `.1`/`.2`/future. No source change. |
 
 ## Decisions
+
+- `2026-06-17` (`.9`, decision [`0016`](../decisions/0016-structured-emission-fifth-surface-cone-function.md)):
+  picked the **fifth** richer-structured surface autonomously at a
+  no-active-frontier boundary (`feedback_pick_and_roll_at_no_frontier`). It is a
+  default-off, opt-in, **valid-by-construction multi-gate-cone `function
+  automatic`** — a behaviour-preserving **deepening of the first surface**
+  (decision `0012`, which took a single gate over its direct operands; the cone
+  projection was its recorded follow-up) from one gate to an entire combinational
+  cone. For a selected root gate whose combinational fan-in (stopping at the
+  `output_support` support-leaf boundary: primary inputs / flop `Q`s / instance
+  outputs / constants) has `>= 2` interior gates, the emitter renders `function
+  automatic logic[W-1:0] <root>__cf(<support-leaf params>)` with one
+  function-local `logic` temp per interior gate in topological order + `return
+  root`, and the use site becomes a call — behaviour-identical to the inline
+  per-gate chain. Chosen on the **decisive by-construction-source axis** (decision
+  `0015`): any cone with `>= 2` interior gates qualifies (pervasive), vs the
+  multi-output task's policy-laden co-supported-sink groups and nested generate's
+  absent 2D source. Empirically grounded this session (`/tmp/anvil-se9-probe/`):
+  the cone function is accepted with **zero `%Warning`** by Verilator 5.046
+  `-Wall` + both repo Yosys modes + Icarus `iverilog -g2012`, and iverilog
+  simulation proves it **bit-equal to the inline cone** over 4000 random vectors;
+  the same probe confirms a multi-output `task` is also clean + sim-equiv (the
+  deferred runner-up) and nested `generate` clean-but-no-2D-source. Discipline:
+  rules-first (mark a root at construction time; never generate-then-filter); its
+  **own** opt-in `cone_function_emit_prob` knob (default `0.0` ⇒ byte-identical /
+  snapshots untouched), **separate from `function_emit_prob`** so the shipped
+  single-gate surface stays byte-identical (reusing `function_emit_prob`
+  **rejected** — it would change that knob's output / blur two surfaces);
+  mutually exclusive with the four existing per-gate projections (the cone absorbs
+  its interior gates); combinational only (stops at the support-leaf boundary); no
+  new IR node / no new computed truth. A new `num_emitted_cone_functions` metric
+  MINOR-bumps the introspection schema `1.10 → 1.11` at the impl. Downstream gate:
+  a new `tool_matrix --cone-function-gate` (templated on `--function-emit-gate`)
+  forces `cone_function_emit_prob = 1.0` over comb-only DUTs across the three
+  strategies, gated on `saw_cone_function_emit`, full Verilator + both Yosys +
+  Icarus. Rejected: multi-output task fifth (deferred — policy-laden source),
+  nested generate fifth (no by-construction 2D source), `interface`/`modport`
+  (disqualified at `0015`), reusing `function_emit_prob`, a semantic IR node,
+  generate-then-filter, and changing the default. Split `.9` (done) + `.10`
+  (impl, pre-split `.10a`/`.10b`) + future `.11+` (multi-output task, nested/
+  multi-level generate, interface/modport). No source change.
 
 - `2026-06-17` (`.7`, decision [`0015`](../decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md)):
   picked the **fourth** richer-structured surface autonomously at a
@@ -642,6 +738,7 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.9` | **Design/decision leaf, no source change.** Decision `0016` (`docs/decisions/0016-structured-emission-fifth-surface-cone-function.md`) + `INDEX.md` row + tree split (`.9` done + `.10` impl pending, pre-split `.10a`/`.10b`; frontier → `.10a`). **Fresh empirical tool-acceptance probe** (this session, `/tmp/anvil-se9-probe/`): a multi-gate-cone `function automatic` (function-local `logic` temps + a topo-ordered statement body, params = the cone support leaves) accepted with **zero `%Warning`** by **Verilator 5.046 `-Wall --lint-only`** + **Yosys 0.64 both modes** (`synth -noabc` and `abc -fast; opt -fast; check`) + **Icarus `iverilog -g2012`**, and **iverilog simulation proves it bit-equal to the inline cone `((a&b)|c)^a`** over 4000 random vectors (`CONE-FN SIM EQUIV OK`); the same probe confirms a **multi-output combinational `task automatic`** is also warning-clean across all tools + sim-equiv over 4000 vectors (`MULTI-TASK SIM EQUIV OK`) — the deferred runner-up (policy-laden co-supported-sink source) — and records **nested/multi-level `generate`** clean across all tools but with no routine by-construction 2D source (factorization collapses `{N{ {M{x}} }}`). `bash scripts/check_memory_architecture.sh` ✅ (`0016` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` (42→43 facts) + `check_knowledge_map.sh` ✅ (decision `0016` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected (`cargo check --all-targets` was clean at session start, `cargo test --lib` 493 + snapshots 6/6 per the `.8b` bank). | `done` |
 | `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.8b` | **Live emitter change** (`src/ir/generate_loop.rs` `gate_qualifies` relaxed to `LW >= 1` / `width == N*LW` + module/predicate doc; `src/emit/sv.rs` `generate_loop_gate` defensive re-check mirrored + `render_generate_loop_block` `lw==1` `[gi]` vs `lw>1` `[gi*LW +: LW]` branch + doc; 4 generate_loop test changes; `book/src/structured-emission.md` + `book/src/knobs.md` + `USER_GUIDE.md` + `README.md` + `CODEBASE_ANALYSIS.md` + `docs/knowledge/generate-loop-emit.md` updated). `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **493 passed** / 2 ignored (incl. `wide_lane_replication_qualifies`, `mismatched_result_width_replication_does_not_qualify`, `marked_wide_lane_gate_emits_part_select_loop`, `marked_one_bit_lane_keeps_index_body_byte_identical`); `cargo test --test snapshots` **6/6 byte-identical** (default-off — the wider-lane branch is reached only when the knob is on). **Forced per-seed ON-vs-OFF wider-lane downstream sweep** (`/tmp/anvil-gl8b/`, 8 seeds 58/94/97/110/118/126/147/148 each with a wider-lane replication): **9 wider-lane part-selects emitted** (e.g. `[gi*14 +: 14]`, `[gi*16 +: 16]`), Verilator `-Wall` **delta = 0** on every seed, Yosys without-abc + with-abc + Icarus `iverilog -g2012` **rc=0 / 0 warnings**. Existing gate `/tmp/anvil-generate-loop-gate-8b` (`--generate-loop-gate --yosys-mode both --iverilog-compile`) **regression-clean**: 3 scenarios / 12 modules / `coverage_gaps = []` / `saw_generate_loop_emit = true` / `12/0` Verilator + both Yosys + Icarus. `mdbook build book` clean; `bash knowledge-map/scripts/gen_knowledge_map.sh` (42 facts / 341 keys) + `check_knowledge_map.sh` **OK**; `cargo test --test book_examples` **3/3** (the new fourth-surface repro block skip-sentinelled). Book before/after byte-verified vs the release binary (seed 74: `{2{i_2}}` → the genvar/generate-for + `[gi*2 +: 2]` body, fully `-Wall` clean). No new knob / no new metric / no schema bump. | `done` |
 | `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.8a` | **Design-detail leaf, no source change** (a `DEVELOPMENT_NOTES.md` design-detail entry; no `src/` touched). Grounded in a fresh read of `src/ir/generate_loop.rs` (`gate_qualifies`) + `src/emit/sv.rs` (`generate_loop_gate` ~1512, `render_generate_loop_block` ~1548) and a **corpus-liveness probe** (`/tmp/anvil-widelane-probe/`: a 300-module comb-only sweep emits 448 `{N{x}}` replications, **20 with a multi-bit lane** — `{2{i_4}}` 7b→14b, `{3{case_mux_0}}` 12b→36b, `{6{i_1}}` 8b→48b, `{4{concat_7}}` 20b→80b — proving the broadened predicate fires on real generation, ~4.5%, not hand-built-only). Resolved every open question (keep `generate_loop_gate -> (lane, N)` + recompute `LW` in the renderer; `LW==1` `[gi]` byte-identical vs `LW>1` `[gi*LW +: LW]` branch; predicate `LW >= 1` / `width == N*LW` with exclusions unchanged; byte-identity contract; downstream proof = deterministic lib emit-test + the existing `--generate-loop-gate`). `bash scripts/check_memory_architecture.sh` ✅; `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (no card change — `0015` already carries `answers:`). No source touched ⇒ `cargo check/clippy/fmt` unaffected. | `done` |
 | `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.7` | **Design/decision leaf, no source change.** Decision `0015` (`docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md`) + `INDEX.md` row + tree split (`.7` done + `.8` impl pending, pre-split `.8a`/`.8b`). **Fresh empirical tool-acceptance probe** (this session, `/tmp/anvil-probe-se4/`): a wider-lane `generate for` part-select (`assign y[gi*8 +: 8] = b;` ≡ `{4{b}}`) accepted warning-clean by **Verilator 5.046 `-Wall --lint-only`** (with the `DECLFILENAME` filename-artifact suppressed) + **Yosys 0.64 both modes** (`synth -noabc` and `abc -fast; opt -fast; check`) + **Icarus `iverilog -g2012`**, and **iverilog simulation proves it bit-equal to `{4{b}}`** across sampled inputs (`ALL-MATCH`); the same probe **disqualifies `interface`/`modport`** (Icarus syntax-fails the modport-typed port; both Yosys modes warn `Identifier '\p.data'/'\intf.data' is implicitly declared`) and records nested-generate clean-but-bigger-blast-radius + `generate if` clean-but-dead-branch. `bash scripts/check_memory_architecture.sh` ✅ (`0015` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (decision `0015` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected (`cargo check --all-targets` was clean at session start). | `done` |
@@ -669,6 +766,7 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.9` | `STRUCTURED-EMISSION-EXPANSION.9 — pick cone-function surface + decision 0016` | Design/decision leaf (no source): decision `0016` picks the fifth structured surface — a default-off, valid-by-construction **multi-gate-cone `function automatic`** (deepen the first surface from a single gate to a whole combinational cone: params = support leaves, body = topo-ordered function-local temps for interior gates, return = root), the recorded cone-projection follow-up of decision `0012`. Chosen on the by-construction-source axis (decision `0015`): any cone with `>= 2` interior gates qualifies (pervasive). Fresh empirical probe (`/tmp/anvil-se9-probe/`, Verilator `-Wall` + both Yosys + Icarus) accepts it with zero `%Warning` + iverilog-sim-proves it `== {inline cone}` (4000 vec); it **disqualifies nothing new** but **defers** the multi-output task (also clean+sim-equiv, but policy-laden source) and nested generate (clean, no by-construction 2D source); `interface`/`modport` stays disqualified (`0015`). Its **own** `cone_function_emit_prob` knob (single-gate surface stays byte-identical; reusing `function_emit_prob` rejected) + `num_emitted_cone_functions` metric (schema `1.10 → 1.11` at impl) + `--cone-function-gate` / `saw_cone_function_emit`. `INDEX.md` row; KM card `structured-emission-fifth-surface-cone-function`; tree split `.9`/`.10` (pre-split `.10a`/`.10b`)/`.11+`; frontier → `.10a`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.8b` | `STRUCTURED-EMISSION-EXPANSION.8b — wide-lane generate-loop part-select surface` | Impl of the fourth structured surface: relaxed `generate_loop.rs` `gate_qualifies` to `LW >= 1` (`width == N*LW`) + the `sv.rs` `render_generate_loop_block` `[gi*LW +: LW]` branch (`LW==1` `[gi]` kept byte-identical) + the mirrored `generate_loop_gate` re-check + 4 lib proofs + book/knobs/USER_GUIDE/README/CODEBASE_ANALYSIS/KM closeout. Reuses `generate_loop_emit_prob` + `num_emitted_generate_loops` (no new knob / no schema bump). Downstream-clean (per-seed ON-vs-OFF sweep: 9 wider-lane part-selects, Verilator `-Wall` Δ=0 + Yosys both + Icarus; `--generate-loop-gate` regression-clean 12/0). `cargo test --lib` 493 + snapshots 6/6. Closes `.8b` / `.8` — the fourth structured surface delivered end-to-end; lane returns to no-frontier. |
 | `STRUCTURED-EMISSION-EXPANSION.8a` | `STRUCTURED-EMISSION-EXPANSION.8a — wide-lane generate-loop impl design-detail` | Design-detail (no source): a `DEVELOPMENT_NOTES.md` entry grounding decision `0015` in the real `generate_loop.rs` `gate_qualifies` + `sv.rs` `generate_loop_gate`/`render_generate_loop_block` + a corpus-liveness probe (20/448 replications are multi-bit-lane ⇒ the surface fires on real generation). Resolved every open question: keep `generate_loop_gate -> (lane, N)` (recompute `LW` in the renderer); `LW==1` `[gi]` byte-identical vs `LW>1` `[gi*LW +: LW]` branch; predicate `LW >= 1` / `width == N*LW`; byte-identity contract; the lib-emit-test + `--generate-loop-gate` proof plan. No new knob / no schema bump. Split `.8` into `.8a` (done) + `.8b` (impl pending); frontier → `.8b`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.7` | `STRUCTURED-EMISSION-EXPANSION.7 — pick wide-lane generate-loop surface + decision 0015` | Design/decision leaf (no source): decision `0015` picks the fourth structured surface — a default-off, valid-by-construction **wider-lane `generate for` part-select** (broaden the `generate for` lane from 1-bit to `LW >= 1`, render `assign <wire>[gi*LW +: LW] = <x>;`, keep `LW==1` byte-identical), the recorded wider-lane follow-up to the second surface. Chosen via a fresh empirical probe (Verilator `-Wall` + both Yosys + Icarus clean + iverilog-sim-proven `== {N{x}}`) that **disqualifies** `interface`/`modport` (Icarus syntax-fail + both-Yosys implicit-decl warn) and records nested-generate as bigger-blast-radius. Reuses the existing `generate_loop_emit_prob` knob + `num_emitted_generate_loops` metric (no new knob / no schema bump). `INDEX.md` row; tree split `.7`/`.8` (pre-split `.8a`/`.8b`)/`.9+`; frontier → `.8a`. No source change; self-checks clean. |
@@ -694,6 +792,31 @@ _No active leaves — the lane has no current frontier. The most recent completi
 
 ## Changelog
 
+- `2026-06-17`: **`.9` landed — picked the FIFTH structured surface (the
+  multi-gate-cone `function automatic`); decision `0016`; design/decision leaf,
+  no source change; frontier → `.10a`.** At a no-active-frontier boundary,
+  autonomously selected per `feedback_pick_and_roll_at_no_frontier`. The fifth
+  surface deepens the first surface (decision `0012` took a single gate over its
+  direct operands; the cone projection was its recorded follow-up): for a root
+  gate whose combinational fan-in cone (to the `output_support` support-leaf
+  boundary) has `>= 2` interior gates, render `function automatic ... <root>__cf`
+  with function-local temps (interior gates, topo order) + `return root` — a
+  multi-statement procedural function body, behaviour-identical to the inline
+  per-gate chain. Chosen on the by-construction-source axis (decision `0015`): any
+  deep cone qualifies (pervasive), vs the multi-output task's policy-laden source
+  + nested generate's absent 2D source. Fresh empirical probe
+  (`/tmp/anvil-se9-probe/`, Verilator 5.046 `-Wall` + Yosys 0.64 both modes +
+  Icarus 13.0): zero `%Warning` across all tools + iverilog-sim-proven bit-equal
+  to the inline cone over 4000 vectors; the multi-output task is also clean +
+  sim-equiv (deferred runner-up); nested generate clean-but-no-source. Its **own**
+  opt-in `cone_function_emit_prob` knob (so the shipped single-gate
+  `function_emit_prob` surface stays byte-identical; reusing it rejected) + a
+  `num_emitted_cone_functions` metric (schema `1.10 → 1.11` at impl) + a
+  `--cone-function-gate` / `saw_cone_function_emit`. Decision `0016` +
+  `INDEX.md` row + KM card `structured-emission-fifth-surface-cone-function`.
+  Split `.9` (design, done) + `.10` (impl, pending; pre-split `.10a`/`.10b`) +
+  future `.11+`. `scripts/check_memory_architecture.sh` + KM gen/check +
+  `mdbook build book` clean. No source change; nothing retired.
 - `2026-06-17`: **`.8b` landed — the FOURTH structured surface (the wider-lane
   `generate for` part-select) is delivered end-to-end; `.8b` / `.8` close; the
   lane returns to no-active-frontier (open-ended).** First source change of the

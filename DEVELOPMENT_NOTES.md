@@ -5,6 +5,69 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Structured emission — picking the fifth surface (the multi-gate-cone `function automatic`) — `STRUCTURED-EMISSION-EXPANSION.9` (decision `0016`)
+
+Design/decision leaf, **no source change**. At a no-active-frontier boundary
+(the fourth surface closed at `.8b`), autonomously selected the fifth structured
+surface per `feedback_pick_and_roll_at_no_frontier`. The reasoning the decision
+record (`docs/decisions/0016-…`) condenses:
+
+**The decisive axis is by-construction source, not downstream cleanliness.** A
+fresh probe (`/tmp/anvil-se9-probe/`) ran the three recorded candidates through
+Verilator 5.046 `-Wall` + both Yosys 0.64 modes + Icarus 13.0, and *all three*
+came back with **zero `%Warning`**:
+- a **multi-gate-cone `function automatic`** (function-local `logic` temps + a
+  topo-ordered statement body) — sim-proven bit-equal to the inline cone
+  `((a&b)|c)^a` over 4000 random vectors;
+- a **multi-output combinational `task automatic`** — also clean + sim-equiv over
+  4000 vectors (this *clears* the decision-`0012` "multi-output task" caution with
+  fresh evidence; the caution was really about side-effecting tasks);
+- **nested/multi-level `generate`** — clean across all tools.
+
+Since cleanliness doesn't discriminate, the tiebreaker is the axis decision
+`0015` already flagged: **does the surface have a routine by-construction
+source?** The cone-function wins decisively — *any* combinational cone with `>= 2`
+interior gates qualifies, which is pervasive in real generation — whereas the
+multi-output task needs *groups* of sink gates sharing a support set (a
+policy-laden grouping heuristic) and nested generate needs a 2-D replication
+`{N{ {M{x}} }}` that **full factorization collapses** to `{N*M{x}}`, so there is
+no node to project. So: cone-function fifth; multi-output task is the leading
+deferred runner-up; nested generate deferred again (now with fresh evidence);
+`interface`/`modport` stays disqualified (`0015`: Icarus syntax-fail + both-Yosys
+implicit-decl warnings).
+
+**It deepens the first surface, so it needs its own knob.** Decision `0012`
+deliberately narrowed the first cut to a *single gate over its direct operands*
+and recorded the *cone* (a Gate + its fan-in to the support-leaf boundary) as the
+follow-up. The fifth surface is exactly that recorded follow-up. Critically, it
+must **not** reuse `function_emit_prob`: that knob marks individual gates, and
+folding cone selection into it would change its existing emitted output (no longer
+byte-identical for that knob's users) and blur two distinct surfaces. So the fifth
+surface gets its **own** default-off `cone_function_emit_prob` — the shipped
+single-gate surface is untouched, nothing retired (`feedback_never_retire_strategies`).
+
+**Why it's a genuinely new shape (not cosmetic).** The single-gate function body
+is one line (`f = a OP b;`, no locals). The cone-function body is a sequence of
+**function-local `logic` declarations** + topo-ordered blocking assignments for
+the interior gates + the return — a real new elaboration construct (function-local
+nets + an internal statement sequence) a downstream tool must handle.
+
+**Reuse / blast radius.** The cone-walk to the support-leaf boundary is exactly
+the existing `src/introspect/analyze.rs` `output_support` traversal; the rendering
+extends the existing `<wire>__f` function decl/call path in `src/emit/sv.rs` to a
+multi-statement body; the annotation mirrors `src/ir/function_emit.rs`. No new IR
+node, no new whole-module behaviour — the `function_emit`/`generate_loop`/
+`task_emit`/`soft_union` emit-projection precedent.
+
+The `.10a` design-detail leaf will pin: the knob name + selection shape; the
+interior-node admissibility set + fanout-node handling (boundary-stop vs
+duplicate-into-function); the topo-order/local-naming scheme; the pass ordering +
+mutual-exclusion bookkeeping vs the four sibling projections; and the
+`num_emitted_cone_functions` metric (schema `1.10 → 1.11`) + the
+`--cone-function-gate` / `saw_cone_function_emit` scenario.
+
+---
+
 ## 2026-06-17 — Structured emission — wider-lane `generate for` part-select impl design-detail — `STRUCTURED-EMISSION-EXPANSION.8a`
 
 Grounds decision `0015` in the real emitter and resolves the three open questions
