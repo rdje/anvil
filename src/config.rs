@@ -106,6 +106,10 @@ fn default_task_emit_prob() -> f64 {
     0.0
 }
 
+fn default_cone_function_emit_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -834,6 +838,38 @@ pub struct Config {
     #[serde(default = "default_task_emit_prob")]
     pub task_emit_prob: f64,
 
+    /// `STRUCTURED-EMISSION-EXPANSION.10b` — the fifth richer-structured
+    /// emission surface (decision `0016`). Probability, per qualifying
+    /// **combinational cone** (a non-structured, non-`Slice` `Node::Gate`
+    /// *root* — the same admissible op set as `function_emit_prob` — whose
+    /// combinational fan-in, walked to the support-leaf boundary
+    /// [primary inputs / flop `Q`s / instance outputs / constants, exactly the
+    /// `output_support` boundary], absorbs `>= 1` interior gate; an interior
+    /// gate is absorbed only if it is admissible, **used exactly once in the
+    /// module**, and not already marked for a sibling projection), that the
+    /// emitter renders the whole cone as a single behaviour-preserving
+    /// **multi-gate-cone `function automatic`**: a `<root>__cf` function whose
+    /// parameters are the cone's boundary leaves, whose body is a topo-ordered
+    /// sequence of function-local `logic` temporaries (one per absorbed interior
+    /// gate, constants folded inline as literals), and which returns the root;
+    /// the use site becomes a call. The decision `0012` single-gate
+    /// `function_emit_prob` deepened from one gate to a whole cone — a genuinely
+    /// new shape (function-local declarations + a multi-statement procedural
+    /// body). Separate from `function_emit_prob` so the shipped single-gate
+    /// surface stays byte-identical. Marked at construction time by the
+    /// post-construction
+    /// `crate::ir::cone_function_emit::annotate_cone_function_gates` pass (the
+    /// `function_emit`/`generate_loop`/`task_emit`/`soft_union` emit-projection
+    /// precedent), an emitter-surface annotation only — the flat IR body,
+    /// validators, CSE keys and `canonical_module_signature` are all unaffected,
+    /// and no new IR node / no new computed truth is introduced. The function
+    /// returns exactly the cone's value, so the projection is valid by
+    /// construction (rules-first; never generate-then-filter). `default = 0.0`
+    /// keeps every existing output byte-identical. See decision `0016` +
+    /// `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+    #[serde(default = "default_cone_function_emit_prob")]
+    pub cone_function_emit_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1059,6 +1095,7 @@ impl Default for Config {
             function_emit_prob: default_function_emit_prob(),
             generate_loop_emit_prob: default_generate_loop_emit_prob(),
             task_emit_prob: default_task_emit_prob(),
+            cone_function_emit_prob: default_cone_function_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             multi_clock_prob: default_multi_clock_prob(),
@@ -1420,6 +1457,7 @@ impl Config {
             ("function_emit_prob", self.function_emit_prob),
             ("generate_loop_emit_prob", self.generate_loop_emit_prob),
             ("task_emit_prob", self.task_emit_prob),
+            ("cone_function_emit_prob", self.cone_function_emit_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("multi_clock_prob", self.multi_clock_prob),

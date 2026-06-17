@@ -124,6 +124,16 @@ impl Generator {
             let p = self.cfg.task_emit_prob;
             crate::ir::task_emit::annotate_task_emit_gates(&mut m, &mut self.rng, p);
         }
+        // `STRUCTURED-EMISSION-EXPANSION.10b` — opt-in multi-gate-cone
+        // `function automatic` emit-projection marker (decision `0016`). Runs
+        // LAST so all four sibling marks are visible and excluded (a
+        // sibling-marked gate is never a cone root or absorbed interior).
+        // Default `cone_function_emit_prob = 0.0` ⇒ no roll ⇒ byte-identical
+        // stream + output. Mirrors the task_emit call-site roll.
+        if self.cfg.cone_function_emit_prob > 0.0 {
+            let p = self.cfg.cone_function_emit_prob;
+            crate::ir::cone_function_emit::annotate_cone_function_gates(&mut m, &mut self.rng, p);
+        }
         m
     }
 
@@ -329,6 +339,22 @@ impl Generator {
             let p = self.cfg.task_emit_prob;
             for module in &mut design.modules {
                 crate::ir::task_emit::annotate_task_emit_gates(module, &mut self.rng, p);
+            }
+        }
+        // `STRUCTURED-EMISSION-EXPANSION.10b` — opt-in multi-gate-cone
+        // `function automatic` emit-projection marker (design path), mirroring
+        // the single-module roll in `generate_module`. Runs LAST so all four
+        // sibling marks are visible and excluded. Default
+        // `cone_function_emit_prob = 0.0` ⇒ no roll ⇒ every module
+        // byte-identical.
+        if self.cfg.cone_function_emit_prob > 0.0 {
+            let p = self.cfg.cone_function_emit_prob;
+            for module in &mut design.modules {
+                crate::ir::cone_function_emit::annotate_cone_function_gates(
+                    module,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
         design

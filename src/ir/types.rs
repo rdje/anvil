@@ -470,6 +470,31 @@ pub struct Module {
     /// `generate_loop_gates` / `soft_union_slice_gates` by construction (the
     /// task pass runs after the others and excludes already-marked gates).
     pub task_emit_gates: BTreeSet<NodeId>,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.10b` — map from a **cone root**
+    /// `Node::Gate` `NodeId` to the topo-ordered list of **absorbed interior
+    /// gate** `NodeId`s the emitter should fold into a single behaviour-
+    /// preserving multi-gate-cone `function automatic` (`<root>__cf`) instead
+    /// of the inline per-gate `assign` chain (decision `0016`). The function's
+    /// parameters are the cone's boundary leaves, its body is one function-local
+    /// `logic` per interior gate in dependency order (constants folded inline),
+    /// and it returns the root; the root's `assign` becomes a call. Each
+    /// absorbed interior gate is used exactly once in the module (so suppressing
+    /// its module-level `wire` declaration **and** its inline `assign` is safe),
+    /// and the root has `>= 1` absorbed interior gate (so the body is genuinely
+    /// multi-statement — a zero-interior cone is left to `function_emit`).
+    /// Populated by the post-construction `crate::ir::cone_function_emit` pass
+    /// under the opt-in `Config::cone_function_emit_prob` knob. Empty (the
+    /// `Default`) ⇒ byte-identical emission. The deepening of the decision
+    /// `0012` single-gate `function_emit_gates` from one gate to a whole cone;
+    /// like the sibling emit-projection markers this is an emitter-surface
+    /// annotation only — the flat IR body, validators, CSE keys and
+    /// `canonical_module_signature` are all unaffected and it is deliberately
+    /// not hashed into identity. The roots and absorbed interiors are disjoint
+    /// from `function_emit_gates` / `generate_loop_gates` / `task_emit_gates` /
+    /// `soft_union_slice_gates` by construction (the cone pass runs last and
+    /// excludes already-marked gates as both roots and interiors).
+    pub cone_function_gates: BTreeMap<NodeId, Vec<NodeId>>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

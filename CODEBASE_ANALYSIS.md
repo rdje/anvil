@@ -458,6 +458,42 @@ src/
 │                     both modes + Icarus (`/tmp/anvil-te-r1/`). Metric +
 │                     repo-owned gate + coverage fact = `.6b.2`.
 │
+├── ir/cone_function_emit.rs  STRUCTURED-EMISSION-EXPANSION.10b.1 — the
+│                     fifth richer-structured emit surface (decision 0016).
+│                     Gen-time `annotate_cone_function_gates(m, rng, prob)`
+│                     pass (rolled at the `gen/mod.rs` call site LAST, after
+│                     all four sibling projections; param-env modules
+│                     skipped) walks combinational cones: a root `Node::Gate`
+│                     (admissible — non-structured, non-`Slice`, ≥1 operand,
+│                     not sibling-marked) absorbs its **single-use** interior
+│                     gates (use-count == 1 across all module consumers —
+│                     gate operands + drives + flop d/mux + instance inputs —
+│                     so suppressing each is provably safe), needing ≥1
+│                     interior, into the new emitter-surface
+│                     `Module.cone_function_gates` (BTreeMap<NodeId,
+│                     Vec<NodeId>> root→topo-ordered interiors, not hashed
+│                     into identity, disjoint from the sibling gate sets).
+│                     The emitter (`emit/sv.rs::render_cone_function_decl` +
+│                     `render_cone_function_call` + `render_cone_gate_expr` +
+│                     `cone_function_params`/`cone_operand_ref`) renders each
+│                     cone as one behaviour-preserving `function automatic
+│                     <root>__cf(<boundary-leaf params>)` with one
+│                     function-local per interior gate (topo order, constants
+│                     folded inline) returning the root, rewrites the root's
+│                     assign to a call, and **suppresses each interior gate's
+│                     module wire AND inline assign** (it lives only as a
+│                     function-local). Deepens the decision 0012 single-gate
+│                     `function_emit` to a whole cone (multi-statement body +
+│                     function-local decls); its OWN `cone_function_emit_prob`
+│                     knob so the single-gate surface stays byte-identical
+│                     (nothing retired). Default-off
+│                     (`cone_function_emit_prob == 0.0`) byte-identical
+│                     (snapshots 6/6). Forced `cone_function_emit_prob=1.0`
+│                     sweep: 18 cone functions / 8 seeds clean across
+│                     Verilator `--lint-only` (+`-Wall` Δ=0 vs OFF) + Yosys
+│                     both modes + Icarus (`/tmp/anvil-cf-sweep/`). Metric +
+│                     repo-owned gate + coverage fact = `.10b.2`.
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded

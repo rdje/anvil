@@ -1,9 +1,90 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10b.1 — multi-gate-cone `function automatic` emit-projection (live surface)
+
+**Landed as:** this commit (previous: `2d3a0ca`). **First source change of the
+fifth structured surface; default-off / DUT byte-identical.** Implements decision
+`0016` per the `.10a` design — the live emitter surface of the multi-gate-cone
+`function automatic` (the metric + schema bump land at `.10b.2`, the user docs at
+`.10b.3`). Splits `.10b` → `.10b.1` (done) + `.10b.2` + `.10b.3`; frontier →
+`.10b.2`.
+
+**What changed (why)**
+
+- **`src/config.rs`** — `cone_function_emit_prob` knob (default `0.0`,
+  config-file-only, `#[serde(default)]`, `0.0..=1.0` validated, in `dump-config`).
+  **Separate** from `function_emit_prob` so the shipped single-gate surface stays
+  byte-identical (decision `0016`; reusing it was rejected).
+- **`src/ir/types.rs`** — `Module.cone_function_gates: BTreeMap<NodeId,
+  Vec<NodeId>>` (root → topo-ordered absorbed interior gate ids), an
+  emitter-surface annotation only (not hashed into identity; disjoint from the
+  four sibling gate sets).
+- **`src/ir/cone_function_emit.rs`** (new) — `annotate_cone_function_gates`:
+  `compute_use_counts` over **all** value-consumer sites (gate operands + output
+  `drives` + flop `d`/`mux` [`OneHot` arms + `Encoded` sel/data] + instance
+  `inputs`); `admissible` / `sibling_marked` / `should_absorb` predicates; the
+  post-order `absorb_children` **single-use** cone-walk (absorb a gate only when
+  its global use-count is exactly `1` — its sole consumer is the cone edge, so
+  suppressing it is provably safe); greedy node-order root selection rolling
+  `gen_bool(prob)` per non-empty cone, reserving committed roots + interiors;
+  `param_env` modules skipped. Runs **last** so all four sibling marks are visible
+  and excluded. 8 lib proofs.
+- **`src/ir/mod.rs`** — register the new module.
+- **`src/gen/mod.rs`** — two guarded call-site rolls (single-module + design
+  paths), after `task_emit`, gated on `cone_function_emit_prob > 0.0`.
+- **`src/emit/sv.rs`** — a `cone_interior` set built once from
+  `m.cone_function_gates`; the net-declaration loop **and** the gate-assign loop
+  both skip absorbed interior gates (they have no module wire and no inline
+  assign — they live only as function-locals); a cone-function declaration
+  section; the root's assign rewritten to a `<root>__cf(...)` call; and four new
+  helpers — `render_cone_function_decl` (params = boundary leaves, body = one
+  `logic` local per interior gate in topo order + constants folded inline +
+  return root), `render_cone_function_call`, `render_cone_gate_expr` (a
+  resolver-based operator renderer), and `cone_function_params` /
+  `cone_operand_ref`.
+
+**Two implementation wrinkles (recorded in `DEVELOPMENT_NOTES.md`)**
+
+1. `node_ref` resolves `PrimaryInput` / `Constant` / `FlopQ` (and `MemRead` /
+   `FsmOut`) **intrinsically**, ignoring the `names` array — so the function body
+   cannot reuse `render_gate` with a per-function `names` override; it needs a
+   dedicated `render_cone_gate_expr` mapping each operand to its in-function name
+   (interior → local wire name; constant → literal; boundary → `a{i}`).
+2. An absorbed interior gate must have its module-level **wire declaration**
+   suppressed (not just its inline assign) — else it would be undriven ⇒ `-Wall`
+   warning. The `use_count == 1` rule makes both suppressions provably safe.
+
+**Validation**
+
+- `cargo check --lib` clean; `cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean; `cargo test --lib` **501 passed** / 2 ignored
+  (493 + 8 new `cone_function_emit` proofs; umbrella DUT-byte-identical proofs
+  still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off).
+- **Forced `cone_function_emit_prob=1.0` downstream sweep** (`/tmp/anvil-cf-sweep/`,
+  8 seeds): **18 cone functions emitted**; Verilator `--lint-only` `-Wall` **delta
+  = 0 vs OFF** on every seed (seed 2024's lone warning is pre-existing, identical
+  ON/OFF); Yosys without-abc + with-abc + Icarus `iverilog -g2012` all clean.
+  Sample (seed 1): `xor_0__cf(a0)` with a function-local `shl_0 = a0 << 2'h2;`,
+  return `a0 ^ shl_0 ^ 8'h38` (constant folded inline), call
+  `assign xor_0 = xor_0__cf(i_2);`, the interior `shl_0` wire + assign suppressed.
+
+**Impact**
+
+- Default-off (`cone_function_emit_prob == 0.0`) ⇒ DUT byte-identical (snapshots
+  untouched); the single-gate `function_emit_prob` surface is untouched. No metric
+  / no introspection schema bump in this slice (those land at `.10b.2`). Nothing
+  retired.
+
+**Files touched:** `src/config.rs`, `src/ir/types.rs`,
+`src/ir/cone_function_emit.rs` (new), `src/ir/mod.rs`, `src/gen/mod.rs`,
+`src/emit/sv.rs`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10a — multi-gate-cone `function automatic` impl design-detail
 
-**Landed as:** this commit (previous: `46a377e`). **Design-detail leaf —
+**Landed as:** `2d3a0ca` (previous: `46a377e`). **Design-detail leaf —
 docs-only, no source change; DUT byte-identical (no source touched).** Grounds
 decision `0016` in the real emitter + cone-walk and resolves its five open
 questions, ahead of the `.10b` implementation. Splits `.10` → `.10a` (done) +

@@ -307,6 +307,14 @@ fn to_sv_with_modules(
         writeln!(out).unwrap();
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.10b` — the set of gates absorbed as
+    // multi-gate-cone `function automatic` interiors (decision `0016`). Each is
+    // used exactly once, so its module-level `wire` declaration and inline
+    // `assign` are both suppressed below — it lives only as a function-local.
+    // Default-off: `cone_function_gates` empty ⇒ set empty ⇒ byte-identical.
+    let cone_interior: std::collections::BTreeSet<NodeId> =
+        m.cone_function_gates.values().flatten().copied().collect();
+
     // Internal signal declarations for every Gate node and every
     // instance-output node. Most gates are driven by continuous assigns
     // (`wire`); structured case/casez/for-fold gates are declared as
@@ -318,6 +326,12 @@ fn to_sv_with_modules(
     for (idx, node) in m.nodes.iter().enumerate() {
         match node {
             Node::Gate { op, width, .. } => {
+                // `STRUCTURED-EMISSION-EXPANSION.10b` — a gate absorbed as a
+                // cone-function interior has no module-level wire (it is a
+                // function-local). Default-off ⇒ never taken.
+                if cone_interior.contains(&(idx as NodeId)) {
+                    continue;
+                }
                 let decl_kind = if matches!(
                     op,
                     GateOp::CaseMux | GateOp::CasezMux | GateOp::ForFold { .. }
@@ -428,6 +442,26 @@ fn to_sv_with_modules(
         writeln!(out).unwrap();
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.10b` — multi-gate-cone `function automatic`
+    // declarations for cones marked by the `crate::ir::cone_function_emit` pass
+    // (the cone-function projection, decision `0016`). Each cone root's value is
+    // computed by a `<root>__cf` function whose body folds the root + its
+    // single-use interior gates into a topo-ordered straight-line body over the
+    // cone's boundary leaves; the root's continuous assign below becomes a call,
+    // and the interior gates' module wires + assigns are suppressed. Default-off:
+    // `cone_function_gates` empty ⇒ nothing emitted ⇒ byte-identical. The
+    // function returns exactly the cone's value, so this is behaviour-preserving
+    // by construction. Emitted in root-NodeId order (`BTreeMap`) for
+    // determinism.
+    let mut emitted_cone_function = false;
+    for (&root, interior) in &m.cone_function_gates {
+        out.push_str(&render_cone_function_decl(m, root, interior, &names));
+        emitted_cone_function = true;
+    }
+    if emitted_cone_function {
+        writeln!(out).unwrap();
+    }
+
     // Combinational assigns for every gate. Fully static structured
     // gates are lowered here too; keeping them out of `always_comb`
     // avoids empty-sensitivity warnings in strict downstream tools.
@@ -445,6 +479,13 @@ fn to_sv_with_modules(
             // `assign <wire> = {N{x}};`. Checked first (the generate-loop and
             // function-emit / soft_union projections are disjoint by the
             // annotation rule). Default-off ⇒ never taken.
+            // `STRUCTURED-EMISSION-EXPANSION.10b` — a gate absorbed as a
+            // cone-function interior has no inline assign (it is a
+            // function-local inside the cone's `<root>__cf`; its module wire is
+            // suppressed above). Checked first. Default-off => never taken.
+            if cone_interior.contains(&(idx as NodeId)) {
+                continue;
+            }
             if generate_loop_gate(m, idx).is_some() {
                 continue;
             }
@@ -495,6 +536,18 @@ fn to_sv_with_modules(
             if task_emit_gate(m, idx).is_some() {
                 let name = names[idx].as_ref().unwrap();
                 writeln!(out, "    assign {name} = {name}__tv;").unwrap();
+                continue;
+            }
+            // `STRUCTURED-EMISSION-EXPANSION.10b` — a cone *root* is driven by a
+            // call to its `<root>__cf` multi-gate-cone `function automatic`
+            // (declared above) instead of the inline operation. Mutually
+            // exclusive with the other projections (the cone pass runs last and
+            // excludes their marks; a root is never sibling-marked).
+            // Default-off => never taken.
+            if let Some(interior) = m.cone_function_gates.get(&(idx as NodeId)) {
+                let name = names[idx].as_ref().unwrap();
+                let call = render_cone_function_call(m, idx as NodeId, interior, &names);
+                writeln!(out, "    assign {name} = {call};").unwrap();
                 continue;
             }
             let rhs = render_gate(*op, operands, m, &names);
@@ -1397,6 +1450,205 @@ fn render_gate_function_call(
 ) -> String {
     let args: Vec<String> = operands.iter().map(|id| node_ref(*id, m, names)).collect();
     format!("{name}__f({})", args.join(", "))
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.10b` — the boundary-leaf **parameters** of a
+/// cone (`root` + topo-ordered `interior` gates), sorted ascending `NodeId`
+/// (deduped): every operand of the root or an interior gate that is itself
+/// neither an interior gate (those become function-locals) nor a `Constant`
+/// (those fold inline as literals). Used to render both the function
+/// declaration's parameter list and the call's argument list in the same order.
+fn cone_function_params(m: &Module, root: NodeId, interior: &[NodeId]) -> Vec<NodeId> {
+    let interior_set: BTreeSet<NodeId> = interior.iter().copied().collect();
+    let mut params: BTreeSet<NodeId> = BTreeSet::new();
+    for &gate in std::iter::once(&root).chain(interior.iter()) {
+        if let Node::Gate { operands, .. } = &m.nodes[gate as usize] {
+            for &op in operands {
+                if interior_set.contains(&op) {
+                    continue;
+                }
+                if matches!(m.nodes[op as usize], Node::Constant { .. }) {
+                    continue;
+                }
+                params.insert(op);
+            }
+        }
+    }
+    params.into_iter().collect()
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.10b` — the in-function reference for operand
+/// `o` of a cone gate: an interior gate → its module wire name (reused as the
+/// function-local); a `Constant` → its literal (folded inline); otherwise a
+/// boundary leaf → its positional parameter `a{i}` (`i` = its index in
+/// `params`).
+fn cone_operand_ref(
+    o: NodeId,
+    m: &Module,
+    interior_set: &BTreeSet<NodeId>,
+    params: &[NodeId],
+    names: &[Option<String>],
+) -> String {
+    if interior_set.contains(&o) {
+        return names[o as usize]
+            .clone()
+            .expect("interior gate name assigned");
+    }
+    if let Node::Constant { width, value } = m.nodes[o as usize] {
+        return const_literal(width, value);
+    }
+    let i = params
+        .iter()
+        .position(|&p| p == o)
+        .expect("boundary operand is a parameter");
+    format!("a{i}")
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.10b` — the body expression of a cone gate over
+/// its in-function operand refs ([`cone_operand_ref`]). Mirrors [`render_gate`]'s
+/// operator formatting; `Slice` / procedural-structured gates never occur in a
+/// cone (excluded from candidacy) and are `unreachable!`.
+fn render_cone_gate_expr(
+    op: GateOp,
+    operands: &[NodeId],
+    m: &Module,
+    interior_set: &BTreeSet<NodeId>,
+    params: &[NodeId],
+    names: &[Option<String>],
+) -> String {
+    use GateOp::*;
+    let r = |i: usize| cone_operand_ref(operands[i], m, interior_set, params, names);
+    let joined = |sep: &str| -> String {
+        operands
+            .iter()
+            .map(|&id| cone_operand_ref(id, m, interior_set, params, names))
+            .collect::<Vec<_>>()
+            .join(sep)
+    };
+    match op {
+        And => joined(" & "),
+        Or => joined(" | "),
+        Xor => joined(" ^ "),
+        Add => joined(" + "),
+        Mul => joined(" * "),
+        Sub => format!("{} - {}", r(0), r(1)),
+        Not => format!("~{}", r(0)),
+        Eq => format!("{} == {}", r(0), r(1)),
+        Neq => format!("{} != {}", r(0), r(1)),
+        Lt => format!("{} < {}", r(0), r(1)),
+        Gt => format!("{} > {}", r(0), r(1)),
+        Le => format!("{} <= {}", r(0), r(1)),
+        Ge => format!("{} >= {}", r(0), r(1)),
+        Mux => format!("({}) ? ({}) : ({})", r(0), r(1), r(2)),
+        Concat => {
+            if operands.len() >= 2 && operands.iter().all(|id| *id == operands[0]) {
+                return format!("{{{}{{{}}}}}", operands.len(), r(0));
+            }
+            let parts: Vec<String> = operands
+                .iter()
+                .map(|&id| cone_operand_ref(id, m, interior_set, params, names))
+                .collect();
+            format!("{{{}}}", parts.join(", "))
+        }
+        RedAnd => format!("&({})", r(0)),
+        RedOr => format!("|({})", r(0)),
+        RedXor => format!("^({})", r(0)),
+        Shl => format!("{} << {}", r(0), r(1)),
+        Shr => format!("{} >> {}", r(0), r(1)),
+        CaseMux | CasezMux | ForFold { .. } | Slice { .. } => {
+            unreachable!("Slice / structured gates are excluded from cone-function candidacy")
+        }
+    }
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.10b` — render the multi-gate-cone `function
+/// automatic` declaration for cone `root` over its topo-ordered `interior`: the
+/// return type is the root width, the positional params `a0..` carry the
+/// boundary-leaf widths, the body declares one `logic` local per interior gate
+/// (reusing its module wire name) and assigns them in dependency order, then
+/// returns the root expression.
+fn render_cone_function_decl(
+    m: &Module,
+    root: NodeId,
+    interior: &[NodeId],
+    names: &[Option<String>],
+) -> String {
+    let interior_set: BTreeSet<NodeId> = interior.iter().copied().collect();
+    let params = cone_function_params(m, root, interior);
+    let root_name = names[root as usize]
+        .as_ref()
+        .expect("cone root name assigned");
+    let fname = format!("{root_name}__cf");
+    let root_width = m.nodes[root as usize].width();
+    let param_decls: Vec<String> = params
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| {
+            format!(
+                "input logic {} a{}",
+                param_width_decl_w(m, m.nodes[p as usize].width()),
+                i
+            )
+        })
+        .collect();
+    let mut s = String::new();
+    writeln!(
+        s,
+        "    function automatic logic {} {}({});",
+        param_width_decl_w(m, root_width),
+        fname,
+        param_decls.join(", ")
+    )
+    .unwrap();
+    // Function-local declarations, one per absorbed interior gate.
+    for &g in interior {
+        let gname = names[g as usize]
+            .as_ref()
+            .expect("interior gate name assigned");
+        writeln!(
+            s,
+            "        logic {} {};",
+            param_width_decl_w(m, m.nodes[g as usize].width()),
+            gname
+        )
+        .unwrap();
+    }
+    // Topo-ordered interior assignments (children before parents).
+    for &g in interior {
+        let gname = names[g as usize]
+            .as_ref()
+            .expect("interior gate name assigned");
+        if let Node::Gate { op, operands, .. } = &m.nodes[g as usize] {
+            let expr = render_cone_gate_expr(*op, operands, m, &interior_set, &params, names);
+            writeln!(s, "        {gname} = {expr};").unwrap();
+        }
+    }
+    // Return the root.
+    if let Node::Gate { op, operands, .. } = &m.nodes[root as usize] {
+        let expr = render_cone_gate_expr(*op, operands, m, &interior_set, &params, names);
+        writeln!(s, "        {fname} = {expr};").unwrap();
+    }
+    writeln!(s, "    endfunction").unwrap();
+    s
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.10b` — the call-site expression
+/// `<root>__cf(<boundary-leaf refs>)` that replaces a cone root's inline
+/// `assign` RHS. The arguments are the cone's boundary leaves rendered with the
+/// normal module-level [`node_ref`], in the same ascending-`NodeId` order as the
+/// declaration's parameters.
+fn render_cone_function_call(
+    m: &Module,
+    root: NodeId,
+    interior: &[NodeId],
+    names: &[Option<String>],
+) -> String {
+    let root_name = names[root as usize]
+        .as_ref()
+        .expect("cone root name assigned");
+    let params = cone_function_params(m, root, interior);
+    let args: Vec<String> = params.iter().map(|&p| node_ref(p, m, names)).collect();
+    format!("{root_name}__cf({})", args.join(", "))
 }
 
 /// `STRUCTURED-EMISSION-EXPANSION.6b.1` — if the gate at `idx` is marked for

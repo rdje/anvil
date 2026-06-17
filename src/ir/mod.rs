@@ -2,6 +2,7 @@
 
 pub mod aggregate;
 pub mod compact;
+pub mod cone_function_emit;
 pub mod dedup;
 pub mod function_emit;
 pub mod generate_loop;

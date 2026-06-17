@@ -5,6 +5,65 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-17 — Structured emission — multi-gate-cone `function automatic` live surface — `STRUCTURED-EMISSION-EXPANSION.10b.1`
+
+The fifth surface (decision `0016`, designed at `.10a`) goes live. Two
+implementation wrinkles surfaced during the build that the `.10a` design-detail
+under-specified — recorded here so the next session does not re-derive them:
+
+1. **`node_ref` resolves intrinsic-name nodes by *kind*, ignoring the `names`
+   array.** For `Node::PrimaryInput` / `Constant` / `FlopQ` / `MemRead` /
+   `FsmOut`, `node_ref` returns the port name / literal / flop name etc. *without*
+   consulting `names[id]` (only `Gate` / `InstanceOutput` use `names[id]`). So the
+   tempting shortcut — reuse `render_gate` with a per-function `names` override
+   mapping boundary inputs to `a{i}` — does **not** work (an input boundary param
+   would still render as its port name inside the function). The fix is a
+   dedicated `render_cone_gate_expr` that maps each operand `NodeId` → its
+   in-function name via an explicit resolver (`cone_operand_ref`): interior gate →
+   its module wire name (the function-local), `Constant` → its literal (folded
+   inline), boundary leaf → `a{i}`. It mirrors `render_gate`'s operator match (a
+   third sibling of `render_gate` / `render_gate_function_body`; a future cleanup
+   could DRY the three behind one resolver, but keeping them separate preserved
+   the byte-identical contract on the hot `render_gate` path).
+
+2. **Absorbing an interior gate must suppress its module-level WIRE declaration,
+   not just its inline `assign`.** Unlike the sibling projections (whose marked
+   gate keeps a driven module wire), an absorbed cone interior gate lives *only*
+   inside the function. Leaving its `wire <name>;` declaration at module level
+   would make it undriven ⇒ `-Wall` UNDRIVEN/UNUSED. So the net-declaration loop
+   *and* the gate-assign loop both skip the `cone_interior` set (built once from
+   `m.cone_function_gates.values()`).
+
+**Soundness of suppression — the single-use rule, conservatively realized.** An
+interior gate is absorbed only when its **global use-count == 1** (counted across
+*all* value-consumer references: gate operands + output `drives` + flop `d` /
+`mux` (`OneHot` arms + `Encoded` sel/data) + instance `inputs` — the complete set
+of `NodeId` reference sites in a non-param module). A use-count of 1 means the
+gate's sole consumer is the cone edge that reached it, so suppressing both its
+wire and its assign is provably safe — nothing else reads it. This is the
+conservative subset of the `.10a` "single-use-within-cone" rule (a gate shared
+even *within* one cone has count ≥ 2 and stays a boundary param); broadening to
+true within-cone sharing is a recorded follow-up. Constants fold inline (a leaf
+that is not a support source); structural leaves and multi-use / sibling-marked /
+`Slice` / structured gates are boundary params.
+
+**Live shape.** `Config::cone_function_emit_prob` (default `0.0`, config-file-only,
+separate from `function_emit_prob`) + `Module.cone_function_gates: BTreeMap<NodeId,
+Vec<NodeId>>` + new `src/ir/cone_function_emit.rs` (`annotate_cone_function_gates`
+— the use-count, the post-order single-use cone-walk, greedy node-order selection
+with interior reservation, run last) + two guarded `gen/mod.rs` rolls (single +
+design, after `task_emit`) + the `src/emit/sv.rs` cone-decl section +
+interior-suppression in the net-decl + gate-assign loops + the four render helpers
++ 8 lib proofs. No metric / no schema bump (the metric `num_emitted_cone_functions`
++ schema `1.10 → 1.11` land at `.10b.2`, the `.6b.1`/`.4b.1` precedent).
+Default-off / DUT byte-identical (snapshots 6/6; lib 493 → 501). Forced
+`cone_function_emit_prob=1.0` sweep (`/tmp/anvil-cf-sweep/`, 8 seeds, 18 cone
+functions): Verilator `--lint-only` `-Wall` Δ=0 vs OFF + Yosys both modes + Icarus
+all clean. `.10b` pre-split → `.10b.1` (this) / `.10b.2` (metric + gate) / `.10b.3`
+(user docs).
+
+---
+
 ## 2026-06-17 — Structured emission — multi-gate-cone `function automatic` impl design-detail — `STRUCTURED-EMISSION-EXPANSION.10a`
 
 Grounds decision `0016` in the real emitter + cone-walk and resolves the five
