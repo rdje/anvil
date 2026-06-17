@@ -577,6 +577,43 @@ instead of creating fresh logic.
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
 
+- `cone_function_emit_prob` (config-file only — no CLI flag, like
+  `function_emit_prob` / `generate_loop_emit_prob` / `task_emit_prob`; default
+  `0.0` ⇒ byte-identical; validated `0.0..=1.0`) — the **fifth richer-structured
+  emission surface** (decision `0016`). Probability, per *qualifying*
+  combinational **cone** (a root gate plus the chain of interior gates feeding
+  it), that anvil re-renders the whole cone as one multi-statement `function
+  automatic` over the cone's boundary leaves instead of an inline per-gate
+  `assign` chain:
+
+  ```systemverilog
+  function automatic logic [3:0] sub_0__cf(input logic [3:0] a0, input logic [3:0] a1, input logic [3:0] a2);
+      logic [3:0] xor_0;        // one local per absorbed interior gate
+      xor_0 = a0 ^ a2;
+      sub_0__cf = a1 - xor_0;   // return the root
+  endfunction
+  assign sub_0 = sub_0__cf(i_1, i_2, i_3);   // was: xor_0 = i_1 ^ i_3; sub_0 = i_2 - xor_0;
+  ```
+
+  It **deepens** the single-gate `function_emit_prob` projection from one gate
+  to a whole cone, so it has its **own** knob — the shipped single-gate surface
+  stays byte-identical (reusing `function_emit_prob` was rejected). The body is
+  a topologically-ordered sequence of function-locals (one per interior gate,
+  constants folded inline) returning the root, so it is **behaviour-preserving**
+  and adds no new IR truth. An interior gate is absorbed only when it is
+  **used exactly once** in the module (so suppressing its module wire + inline
+  assign is safe); a multi-use gate stays a boundary parameter. Selection is
+  rules-first at construction time; `Slice` / structured selectors are excluded.
+  The five emit-projections (`function_emit` / `generate_loop` / `task_emit` /
+  `cone_function` / `soft_union`) are mutually exclusive on a gate — the cone
+  pass runs last and never roots or absorbs an already-marked gate.
+  Combinational only. `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `num_emitted_cone_functions` metric in `--introspect` (schema `1.11`). Proven
+  downstream-clean by the repo-owned `tool_matrix --cone-function-gate`
+  (Verilator + both Yosys modes + Icarus; `saw_cone_function_emit`). See
+  [Structured Emission Surfaces](structured-emission.md) for the full
+  walk-through.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`

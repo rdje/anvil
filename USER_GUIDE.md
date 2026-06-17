@@ -395,6 +395,30 @@ knobs (no CLI flag, like `soft_union_slice_prob`):
   matrix section below). Full walk-through:
   `book/src/structured-emission.md`.
 
+- `cone_function_emit_prob` (config-file only — no CLI flag, like
+  `function_emit_prob` / `generate_loop_emit_prob` / `task_emit_prob`;
+  decision `0016`) is the **fifth richer-structured emission surface**, a
+  **deepening of the single-gate `function_emit_prob` surface** from one gate
+  to a whole combinational **cone**. Per qualifying cone (a root gate plus the
+  interior gates feeding it, the root having `>= 1` absorbable interior), it is
+  the probability the emitter re-renders the whole cone as one `function
+  automatic` over the cone's boundary leaves — one function-local per absorbed
+  interior gate in topological order, constants folded inline, returning the
+  root — instead of the inline per-gate `assign` chain. An interior gate is
+  absorbed only when it is **used exactly once** in the module (so suppressing
+  its module wire + inline assign is safe); a multi-use gate stays a boundary
+  parameter. It is an **emit-time projection** (behaviour-preserving, no new IR
+  truth) with its **own** knob, so the shipped single-gate surface stays
+  byte-identical. The five emit-projections are mutually exclusive on a gate
+  (the cone pass runs last). Combinational only. `default = 0.0` is
+  byte-identical; the emitted-cone-function count is surfaced as
+  `num_emitted_cone_functions` in `--introspect` (schema `1.11`). Set it in a
+  `--config` JSON, e.g.
+  `{ "seed": 4, "cone_function_emit_prob": 1.0, "flop_prob": 0.0, … }`. The
+  surface is proven downstream-clean by `tool_matrix --cone-function-gate` (see
+  the matrix section below). Full walk-through:
+  `book/src/structured-emission.md`.
+
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
 before emission, so the emitted module interface matches the live logic

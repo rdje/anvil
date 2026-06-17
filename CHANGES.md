@@ -1,9 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10b.3 — multi-gate-cone `function automatic` user docs (fifth surface end-to-end)
+
+**Landed as:** this commit (previous: `015a09b`). **User-facing docs closeout
+(docs-only / DUT byte-identical).** Closes `.10b.3` / `.10b` / `.10` — the fifth
+structured surface (the multi-gate-cone `function automatic`, decision `0016`) is
+delivered end-to-end. The lane returns to no current frontier (future surfaces —
+multi-output tasks, nested/multi-level `generate`, `interface`/`modport` — are
+`.11+`, each its own decision when picked).
+
+**What changed (why)**
+
+- **`book/src/structured-emission.md`** — a new `## The fifth surface: a
+  multi-gate-cone function automatic` section (a **byte-verified seed-4
+  before/after** — the inline `xor_0 = i_1 ^ i_3; sub_0 = i_2 - xor_0;` cone
+  becomes one `function automatic sub_0__cf(a0, a1, a2)` with a function-local
+  `xor_0 = a0 ^ a2;` + return `sub_0__cf = a1 - xor_0;` + the call `assign sub_0
+  = sub_0__cf(i_1, i_2, i_3);`, the interior `xor_0` wire + assign suppressed):
+  the single-use-interior absorption rule, the separate `cone_function_emit_prob`
+  knob vs single-gate `function_emit_prob`, the five-way mutual exclusion, the
+  metric @ schema `1.11` + the `--cone-function-gate`, a skip-sentinelled repro
+  block. The chapter intro updated to list the whole-cone `function` as a current
+  surface.
+- **`book/src/knobs.md`** — a `cone_function_emit_prob` entry in the
+  `### Structured emission` subsection (the fifth surface; the deepening of the
+  single-gate surface; the single-use rule; metric @ `1.11`; the gate).
+- **`USER_GUIDE.md`** — the `cone_function_emit_prob` config-knob bullet (after
+  `task_emit_prob`).
+- **`README.md`** — the `cone_function_emit_prob` bullet in "Current CLI truth"
+  (config-file-only knob).
+- **`docs/knowledge/multi-gate-cone-function-emit.md`** (new) — a KM how-to card
+  (id `multi-gate-cone-function-emit`) with how-to question keys + a validated
+  `reverify` (dump-config → set `cone_function_emit_prob=1.0` + comb-only → seed
+  4 → grep `__cf(` → `verilator --lint-only`); cross-links to the decision card
+  and the single-gate sibling. KM regenerated 43→44 facts / 351→364 question
+  keys.
+
+**Validation**
+
+- Docs-only / DUT byte-identical (no `src/` touched). `mdbook build book` OK;
+  `bash knowledge-map/scripts/gen_knowledge_map.sh` (44 facts / 364 keys) +
+  `check_knowledge_map.sh` OK; `bash scripts/check_memory_architecture.sh` OK;
+  `cargo test --test book_examples` **3/3** (75s; the new repro block carries the
+  `<!-- book-test: skip -->` sentinel, preserving the byte-identical book-runnable
+  contract).
+- The book before/after is byte-verified against `anvil --seed 4` output and the
+  ON form is downstream-clean (Verilator `-Wall` rc=0 / both Yosys rc=0 / Icarus
+  rc=0).
+
+**Impact**
+
+- Docs-only. With this leaf the fifth structured surface is delivered end-to-end
+  (`.9` design + `.10a` design-detail + `.10b.1` live + `.10b.2` metric+gate +
+  `.10b.3` docs). Nothing retired.
+
+**Files touched:** `book/src/structured-emission.md`, `book/src/knobs.md`,
+`README.md`, `USER_GUIDE.md`, `docs/knowledge/multi-gate-cone-function-emit.md`,
+`KNOWLEDGE_MAP.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-17 — STRUCTURED-EMISSION-EXPANSION.10b.2 — cone-function metric (schema 1.10→1.11) + repo-owned `--cone-function-gate`
 
-**Landed as:** this commit (previous: `081583d`). **Metric + repo-owned
+**Landed as:** `015a09b` (previous: `081583d`). **Metric + repo-owned
 downstream gate for the fifth structured surface; default-off / DUT
 byte-identical.** Surfaces the cone-function count in introspection and adds the
 repo-owned acceptance gate, templated on `--task-emit-gate` /

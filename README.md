@@ -796,6 +796,30 @@ exercising adversarial axes that previously fired only by chance
   (`tests/snapshots.rs` untouched); the emitted-task count is surfaced as
   `num_emitted_combinational_tasks` in `--introspect` (schema `1.10`). Set it
   via `--config` JSON. See `book/src/structured-emission.md`.
+- `cone_function_emit_prob` is a default-off config-file knob (no CLI flag, like
+  `function_emit_prob` / `generate_loop_emit_prob` / `task_emit_prob`;
+  `STRUCTURED-EMISSION-EXPANSION.10b.1`, decision `0016`) — ANVIL's **fifth
+  richer-structured emission surface**, a **deepening of the first surface** from
+  a single gate to a whole combinational **cone**. Per *qualifying* combinational
+  cone (a root gate plus the interior gates feeding it; the root is an
+  admissible — non-structured, non-`Slice` — gate whose cone has `>= 1`
+  absorbable interior gate), it is the probability the emitter re-renders the
+  whole cone as one `function automatic` over the cone's boundary leaves — body
+  = one function-local `logic` per absorbed interior gate in topological order +
+  constants folded inline + `return` the root; the use site becomes a call
+  (`assign <root> = <root>__cf(<leaf refs>);`) — instead of the inline per-gate
+  `assign` chain. An interior gate is absorbed only when it is **used exactly
+  once** in the module (so suppressing its module wire + inline assign is safe);
+  a multi-use gate stays a boundary parameter. It is a behaviour-preserving
+  **emit-time projection** (no new IR node / no new computed truth — the
+  `function_emit` precedent), rules-first. It has its **own** knob (separate from
+  `function_emit_prob`) so the shipped single-gate surface stays byte-identical
+  (reusing it rejected). The five emit-projections (`function_emit` /
+  `generate_loop` / `task_emit` / `cone_function` / `soft_union`) are mutually
+  exclusive on a gate; the cone pass runs last. Combinational only. Default `0.0`
+  ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the emitted-cone-function
+  count is surfaced as `num_emitted_cone_functions` in `--introspect` (schema
+  `1.11`). Set it via `--config` JSON. See `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first

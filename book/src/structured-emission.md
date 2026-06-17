@@ -10,9 +10,10 @@ By default that shape is deliberately flat: a `module`, one `assign`
 output drives. Every downstream parser, elaborator, linter, and synth
 tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
-construction in a richer SystemVerilog surface — today a `function`, a
-`generate for` loop, and a `task`, and later nested `generate` or an
-`interface` — so the tools have more legal structural variety to ingest,
+construction in a richer SystemVerilog surface — today a single-gate
+`function`, a `generate for` loop, a `task`, and a whole-cone `function`,
+and later nested `generate` or an `interface` — so the tools have more legal
+structural variety to ingest,
 and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds
 *shape*, never *behaviour*.)
@@ -505,4 +506,120 @@ anvil --seed 74 --config base.json
 ```
 
 Flip `generate_loop_emit_prob` back to `0.0` and the output is byte-identical to
+the default lane.
+
+## The fifth surface: a multi-gate-cone `function automatic`
+
+The fifth surface **deepens the [first surface](#the-first-surface-a-combinational-function-automatic)**.
+The first cut wrapped a *single* gate over its direct operands — a one-line
+function body. The fifth surface wraps a whole combinational **cone**: a root
+gate plus the chain of interior gates that feed it, rendered as one `function
+automatic` whose body is a topologically-ordered sequence of function-local
+temporaries (one per interior gate) and whose return value is the root. The
+function's parameters are the cone's **boundary leaves** (the primary inputs,
+flop `Q`s, instance outputs, and other signals the cone reads), so it evaluates
+to exactly the inline per-gate chain — **behaviour-preserving by construction**.
+
+It uses its **own** knob,
+[`cone_function_emit_prob`](knobs.md#structured-emission) (default `0.0`),
+*separate* from the single-gate `function_emit_prob`, so the shipped single-gate
+surface stays byte-identical and the two surfaces never blur. A new
+[`num_emitted_cone_functions`](agent-mcp.md) metric counts the cones it emits,
+bumping the introspection schema to `1.11`.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the default). The
+cone `i_2 - (i_1 ^ i_3)` is built as two inline gates:
+
+```systemverilog
+    wire [3:0] xor_0;
+    wire [3:0] sub_0;
+
+    assign xor_0 = i_1 ^ i_3;
+    assign sub_0 = i_2 - xor_0;
+
+    assign o_0 = sub_0;
+```
+
+With `cone_function_emit_prob = 1.0`, the *same* cone is projected to one
+`function automatic`. The root `sub_0` becomes a call over the cone's three
+boundary leaves; the interior gate `xor_0` becomes a function-local temporary;
+and `xor_0`'s module wire **and** its inline `assign` are suppressed (it now
+lives only inside the function):
+
+```systemverilog
+    wire [3:0] sub_0;
+
+    function automatic logic [3:0] sub_0__cf(input logic [3:0] a0, input logic [3:0] a1, input logic [3:0] a2);
+        logic [3:0] xor_0;
+        xor_0 = a0 ^ a2;
+        sub_0__cf = a1 - xor_0;
+    endfunction
+
+    assign sub_0 = sub_0__cf(i_1, i_2, i_3);
+
+    assign o_0 = sub_0;
+```
+
+The function computes `xor_0 = i_1 ^ i_3` then returns `i_2 - xor_0` — exactly
+the inline chain — so the module's behaviour is unchanged. Only the cone root's
+drive changes; the output drive `assign o_0 = sub_0;` is byte-identical.
+
+### What gets wrapped (and what doesn't)
+
+- **The root** is any admissible combinational gate (not a `Slice`, not a
+  procedural structured selector — the `function_emit` candidate rules) whose
+  cone has **at least one** absorbable interior gate. A root with only leaf
+  operands has no interior to absorb, so it is left to the single-gate surface.
+- **An interior gate is absorbed only when it is used exactly once** in the whole
+  module. Then its sole consumer is the cone edge that reached it, so suppressing
+  its module wire and inline assign is provably safe. A **multi-use** (shared)
+  gate stays a boundary parameter — keeping its own wire and assign — so the
+  function still reads it by name. This keeps the emission `-Wall` clean: every
+  parameter is used, and nothing is left undriven.
+- **Constants fold inline** as literals inside the function body (they are not
+  parameters).
+- The cone surface is **mutually exclusive** with the four per-gate projections
+  (single-gate `function`, `generate for` loop, `task`, `union soft`): it runs
+  last and never absorbs or roots a gate already marked by one of them.
+- **Combinational only** — the cone walk stops at flop `Q`s, instance outputs,
+  and primary inputs (the support-leaf boundary).
+
+### How anvil proves it
+
+- The [`num_emitted_cone_functions`](agent-mcp.md) metric (a post-hoc count of
+  `Module.cone_function_gates`) is surfaced in `--introspect` at schema `1.11`,
+  so a sweep can confirm the surface fired.
+- The repo-owned `tool_matrix --cone-function-gate` forces
+  `cone_function_emit_prob = 1.0` over comb-only DUTs across all three
+  construction strategies and requires the `saw_cone_function_emit` coverage
+  fact — a genuinely-emitted cone function (detected from the SV text's
+  `<root>__cf(` token, distinct from the single-gate `<wire>__f(`) accepted by
+  Verilator **and** Yosys. Banked clean (3 scenarios / 12 modules / 148 cone
+  functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus).
+- Library tests pin the cone walk: a single-use interior is absorbed, a
+  multi-use interior stays a boundary parameter, a zero-interior root is not
+  marked, a sibling-marked gate is excluded, and a marked cone emits the
+  multi-statement function while the unmarked default stays the inline chain.
+
+The picked-fifth rationale (a multi-gate cone over the deferred multi-output
+`task` and the source-less nested `generate`, with `interface` / `modport` still
+disqualified) is recorded in decision `0016`
+(`docs/decisions/0016-structured-emission-fifth-surface-cone-function.md`).
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 4 --dump-config > base.json
+# edit base.json: set "cone_function_emit_prob": 1.0 (a small comb-only shape
+# makes the one cone easy to read: "flop_prob": 0.0, "constant_prob": 0.0,
+# "gate_struct_weight": 0, "terminal_reuse_prob": 0.1, "min_width": 4,
+# "max_width": 4, "min_inputs": 3, "max_inputs": 4, "min_outputs": 1,
+# "max_outputs": 1, "max_depth": 2)
+anvil --seed 4 --config base.json
+```
+
+Flip `cone_function_emit_prob` back to `0.0` and the output is byte-identical to
 the default lane.
