@@ -312,8 +312,9 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.11`). The first **up-opt** now ships — see `--soft-union-slice-prob`. |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.12`). The first **up-opt** now ships — see `--soft-union-slice-prob`. |
 | `--profile`             | none     | Apply a curated knob preset *before* explicit flags: `arithmetic-heavy` / `deep-hierarchy` / `structured-emission-max` / `sv2023-upopts`. Explicit flags override the preset. See "Presets" below |
+| `--steer`               | none     | Bias construction-time coverage steering: repeatable `--steer <key>=<weight>` (knob name or category → a non-negative probability multiplier). Layers after `--profile`. See "Coverage steering" below |
 | `--function-emit-prob`  | 0.0      | Per-qualifying-gate probability of the `function automatic` emit-projection |
 | `--generate-loop-emit-prob` | 0.0  | Per-qualifying-replication probability of the `generate for` emit-projection |
 | `--task-emit-prob`      | 0.0      | Per-qualifying-gate probability of the `task automatic` emit-projection |
@@ -356,6 +357,43 @@ and a preset overrides the `--config`/default base. A given
 `(seed, profile, explicit overrides)` is byte-stable; **not** passing
 `--profile` (and none of the promoted flags) is byte-identical to before.
 An unknown profile name errors and lists the valid names.
+
+### Coverage steering (`--steer`)
+
+`--steer <key>=<weight>` (`COVERAGE-STEERED-GENERATION`, decision `0023`) biases
+generation toward under-exercised constructs at **construction time** — a
+probability **prior**, never a generate-then-filter. ANVIL multiplies the named
+roll's probability by `weight` before its single seeded draw; with no `--steer`
+(or a neutral `=1.0`) the output is byte-identical to today. `key` is either a
+**knob name** (e.g. `flop_prob`, `coefficient_prob`) or one of the six coarse
+**categories** — `state` / `selectors` / `datapath` / `terminals` / `sharing` /
+`hierarchy` — so one entry can emphasise a whole family; `weight` is a
+non-negative multiplier (`>1` emphasises, `<1` de-emphasises, `0` suppresses).
+The flag is repeatable and layers after `--profile` (explicit wins per key); an
+unknown key errors naming the categories, and a negative/non-finite weight is
+rejected. The same target is also settable in `--config` JSON under `steering`
+(so it rides every MCP call too).
+
+```bash
+# Emphasize state (flops) 4x and a datapath knob 3x; halve the selector family.
+anvil --seed 42 --steer state=4 --steer coefficient_prob=3 --steer selectors=0.5
+```
+
+**The measure → derive → re-steer loop.** Steering is most useful as an outer
+feedback loop (the feedback lives in your orchestration; each generation pass
+stays a pure, reproducible function):
+
+1. **Measure** — read the achieved coverage of a run: `anvil --seed N
+   --introspect` exposes a `coverage_readout` (per-knob and per-category fire
+   rates + construct histograms), and the MCP `coverage` tool returns the same.
+2. **Derive** — turn the readout into a steering target. The library helper
+   `introspect::coverage::derive_steering_from_coverage(&readout, &params)` does
+   it deterministically (under-hit categories → weight `> 1`); an agent can also
+   eyeball the fire rates and pick weights by hand.
+3. **Re-steer** — regenerate with that target (`--steer …` or the `steering`
+   config block). Byte-stable per `(seed, knobs, steering-config)`, so a finding
+   pins to a reproducible target. See `book/src/agent-mcp.md`
+   ("Coverage-steered generation").
 
 The 16 knobs documented below as "config-file" knobs are now **also**
 first-class CLI flags (the kebab-case of the field name, listed in the

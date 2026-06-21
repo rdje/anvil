@@ -328,3 +328,49 @@ alignment pass before emission: it drops construction-only
 `Flop.mux` operand references, compacts unreachable nodes, then
 shrinks/prunes primary inputs so the emitted port surface matches
 the live logic instead of a provisional wider first draft.
+
+## Construction-time coverage steering
+
+Every probabilistic choice in the algorithm above — *is this leaf a flop?
+a priority encoder? a sibling-routed child input?* — flows through one
+helper, `roll_knob(g, m, knob, prob)`, which takes exactly one seeded
+`gen_bool(prob)` draw and records the attempt/fire for telemetry. **Coverage
+steering** biases those choices toward under-exercised constructs by adjusting
+that probability — and **only** that probability — *before* the draw:
+
+```text
+effective_prob = clamp01( prob * weight(knob) )    // weight defaults to 1.0
+fired          = rng.gen_bool(effective_prob)        // still exactly ONE draw
+```
+
+`weight(knob)` is a deterministic lookup in the steering target (a
+`SteeringConfig`): the per-knob weight if set, else the per-category weight, else
+the neutral `1.0`. That is the entire mechanism, and the design choices that make
+it safe are deliberate:
+
+- **It is a prior, not a filter.** Steering bends the *distribution of a
+  decision*; it never builds an artifact and discards it for missing a target.
+  There is no rejection path and no second artifact — the project's first
+  doctrine (*rules-first, no generate-then-filter*) holds by construction. A
+  filter would be the forbidden mode; a probability multiplier is not.
+- **The draw count is unchanged.** Exactly one `gen_bool` per `roll_knob`, just
+  as without steering — so output stays byte-stable per `(seed, knobs,
+  steering-config)`.
+- **Unsteered is byte-identical to today.** With no steering target every
+  `weight` is `1.0`, and the helper short-circuits to the exact `prob.min(1.0)`
+  it always computed — so the default path is provably unchanged (the snapshot
+  tests prove it), and even an *explicit* neutral weight of `1.0` reproduces the
+  same bytes.
+
+The target is set programmatically (the `steering` block of `Config`, so it
+rides every API call) or with the `--steer <key>=<weight>` CLI shim. A `key` is a
+knob name (`flop_prob`) or one of the six coarse categories — `state`,
+`selectors`, `datapath`, `terminals`, `sharing`, `hierarchy` — so one entry can
+emphasise a whole family. The *achieved* coverage to steer toward is read back
+from the introspection [`coverage_readout`](agent-mcp.md#anvil---introspect) /
+the MCP `coverage` tool, and the
+[measure → derive → re-steer loop](agent-mcp.md#coverage-steered-generation)
+closes it. First cut: only the `roll_knob`-mediated knobs are steerable (the
+instrumented surface); routing the remaining raw `gen_bool` / weighted-choice
+sites through `roll_knob` so they gain telemetry *and* steerability together is a
+recorded follow-up.

@@ -180,11 +180,13 @@ Two independent version numbers govern compatibility:
 - **`protocolVersion`** — the MCP wire protocol, currently **`2024-11-05`**.
   Reported by `initialize`.
 - **`schema_version`** — the version of the **introspection / analysis
-  documents** (`--introspect`, the `introspect` and `analyze` tools), currently
-  **`1.11`**. It follows a MINOR/MAJOR policy:
-  - a **MINOR** bump (`1.10 → 1.11`) is **additive** — a new optional field or a
+  documents** (`--introspect`, the `introspect`, `analyze`, and `coverage`
+  tools), currently **`1.12`**. It follows a MINOR/MAJOR policy:
+  - a **MINOR** bump (`1.11 → 1.12`) is **additive** — a new optional field or a
     new payload section, with prior replies left byte-identical (new sections use
-    `skip_serializing_if`, so a query that doesn't use them is unchanged);
+    `skip_serializing_if`, so a query that doesn't use them is unchanged). `1.12`
+    added the `coverage_readout` section (the achieved-coverage readout) + the
+    standalone `coverage` tool document;
   - a **MAJOR** bump would be a breaking change to an existing field.
 
 Underpinning both is the **`SCHEMA-DERIVED` invariant**: every value the API
@@ -196,7 +198,7 @@ construction, the API does not invent it.
 
 ## Where to go next
 
-- [Tools](api-tools.md) — the 9 callable actions, with full input schemas.
+- [Tools](api-tools.md) — the 10 callable actions, with full input schemas.
 - [Resources & Prompts](api-resources-prompts.md) — the `anvil://…` data and the
   packaged workflows.
 - [Introspection & Analysis Schemas](api-introspection.md) — the document

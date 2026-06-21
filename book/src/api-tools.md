@@ -1,6 +1,6 @@
 # API Reference: Tools
 
-The `anvil-mcp` server exposes **9 tools**, called with `tools/call`:
+The `anvil-mcp` server exposes **10 tools**, called with `tools/call`:
 
 ```json
 { "jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -23,6 +23,7 @@ fixed allow-list, sandboxed + RAM-guarded + audit-logged).
 | [`introspect`](#introspect) | pure | the versioned introspection document for `(seed, lane, knobs)` |
 | [`dump_config`](#dump_config) | pure | the effective `Config` after validation |
 | [`analyze`](#analyze) | pure | a derived-relation query over the DUT IR graph |
+| [`coverage`](#coverage) | pure | the DUT run's achieved-coverage readout (per-knob/category fire rates + histograms) |
 | [`coverage_gaps`](#coverage_gaps) | pure | project the gap list out of a recorded `tool_matrix` report |
 | [`validate`](#validate) | controlled | run the vetted tools on one artifact; per-tool reports + verdict |
 | [`minimize`](#minimize) | controlled | delta-debug a failing `(seed, knobs)` to a smaller reproducer |
@@ -100,13 +101,14 @@ Schemas](api-introspection.md).
 { "name": "introspect", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.11", "anvil_version": "0.1.0", "lane": "dut",
+{ "schema_version": "1.12", "anvil_version": "0.1.0", "lane": "dut",
   "request": { "seed": 42, "lane": "dut", "knobs": { "…": "Config" },
                "run_id": "3f1cad578805bd04" },
   "artifact": { "kind": "module", "top": "mod_42_0000",
                 "sv": { "uri": "anvil://artifact/3f1cad578805bd04/mod_42_0000.sv",
                         "bytes": 80383 } },
-  "introspection": { "module_metrics": { "…": "Metrics" } },
+  "introspection": { "module_metrics": { "…": "Metrics" },
+                     "coverage_readout": { "…": "achieved coverage (schema 1.12)" } },
   "warnings": [ "coverage section absent: single-artifact generate" ] }
 ```
 
@@ -158,11 +160,43 @@ flop D-cone); `input_reach` → a source (input name, `"flop:<id>"` Q, or
   "arguments": { "seed": 7, "query": "output_support", "target": "o_0" } }
 ```
 ```json
-{ "schema_version": "1.11", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
+{ "schema_version": "1.12", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
   "analysis": { "query": "output_support",
     "results": [ { "target": "o_0", "support_inputs": ["i_1"],
                    "support_flops": [], "support_instance_outputs": [],
                    "cone_nodes": 3, "cone_depth": 2 } ] } }
+```
+
+### `coverage`
+
+Return the DUT `(seed, config)` run's **achieved-coverage readout** — the **read**
+half of [coverage steering](agent-mcp.md#coverage-steered-generation). A pure
+projection of the metrics ANVIL already records (no new truth, no tool spawn); the
+same readout is also embedded in [`introspect`](#introspect)'s `coverage_readout`.
+DUT lane only.
+
+**Parameters:** `seed`, `config`, `profile` (all optional — same shape as
+`dump_config`).
+
+**Result** — a `CoverageDocument` (the `introspect` envelope with a `coverage`
+payload): `knob_fire_rates` and `category_fire_rates` (each `{ attempts, fires,
+fire_rate }`, where `fire_rate = fires / attempts` over the construction-time
+rolls), plus the `gate_kind_histogram`, `gate_operand_count_histogram`, and
+`gate_depth_histogram`. For a hierarchy `design` the counts aggregate across all
+child modules. `fire_rate` is rounded to parts-per-million so the document is
+byte-stable; `attempts`/`fires` are the exact integers.
+
+```json
+{ "name": "coverage", "arguments": { "seed": 42 } }
+```
+```json
+{ "schema_version": "1.12", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
+  "coverage": {
+    "knob_fire_rates": { "flop_prob": { "attempts": 295, "fires": 36, "fire_rate": 0.122034 } },
+    "category_fire_rates": { "state": { "attempts": 331, "fires": 53, "fire_rate": 0.160121 } },
+    "gate_kind_histogram": { "and": 136, "mux": 158 },
+    "gate_operand_count_histogram": { "2": 497, "3": 269 },
+    "gate_depth_histogram": { "1": 21, "2": 26 } } }
 ```
 
 ### `coverage_gaps`

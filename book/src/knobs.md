@@ -1396,3 +1396,19 @@ counts taken during construction. The empirical fire-rate
 
 This is the measurability doctrine in its most direct form:
 every probability dial's effect is a simple division away.
+
+### From measuring rolls to steering them
+
+These same attempt/fire counters are the foundation of **coverage steering**:
+the achieved fire-rate `fires / attempts` *is* the achieved coverage, and the
+introspection `coverage_readout` (schema `1.12`) and the MCP `coverage` tool
+surface it per-knob and per-category. Steering bends those rates toward the
+under-exercised constructs by multiplying a knob's probability *before* its
+single roll — a construction-time prior, never a generate-then-filter, and
+byte-identical when unset. Set a target with `--steer <key>=<weight>` (a knob
+name or a category — `state` / `selectors` / `datapath` / `terminals` /
+`sharing` / `hierarchy`) or the `steering` config block. See
+[The Fanin Cone Algorithm](algorithm.md#construction-time-coverage-steering) for
+the mechanism and
+[Driving anvil from an AI Agent](agent-mcp.md#coverage-steered-generation) for
+the measure → derive → re-steer loop.

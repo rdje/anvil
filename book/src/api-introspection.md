@@ -31,7 +31,7 @@ Every document is a thin, versioned envelope:
 
 ```json
 {
-  "schema_version": "1.11",
+  "schema_version": "1.12",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -48,7 +48,9 @@ Every document is a thin, versioned envelope:
     "manifest": null
   },
   "introspection": {
-    "module_metrics": { "avg_fanout": "…", "gates_by_kind": { "…": "…" } }
+    "module_metrics": { "avg_fanout": "…", "gates_by_kind": { "…": "…" } },
+    "coverage_readout": { "knob_fire_rates": { "…": "…" }, "category_fire_rates": { "…": "…" },
+                          "gate_kind_histogram": { "…": "…" } }
   },
   "warnings": [ "coverage section absent: single-artifact generate, not a tool_matrix run" ]
 }
@@ -56,7 +58,7 @@ Every document is a thin, versioned envelope:
 
 | Field | Meaning |
 | --- | --- |
-| `schema_version` | the document schema version (currently `1.11`) — see [stability](#schema_version-stability-contract) |
+| `schema_version` | the document schema version (currently `1.12`) — see [stability](#schema_version-stability-contract) |
 | `anvil_version` | the generating `anvil` crate version |
 | `lane` | `dut` / `microdesign` / `frontend` |
 | `request` | the echoed `seed` / `lane` / `knobs` plus the content-addressed `run_id` |
@@ -73,9 +75,47 @@ Every document is a thin, versioned envelope:
   (`microdesign_manifest` / `frontend_manifest`), also served as the
   `anvil://artifact/<run_id>/manifest` resource.
 
-`coverage` is **absent** for a single artifact — a lone module cannot prove a
-`saw_*` coverage fact; coverage is a property of a `tool_matrix` sweep, and the
-document says so in `warnings`.
+Since schema `1.12`, a DUT **module** or **design** also carries
+`coverage_readout` — the achieved-coverage readout (below).
+
+`coverage` (the matrix `saw_*` facts) is **absent** for a single artifact — a
+lone module cannot prove a `saw_*` coverage fact; that coverage is a property of a
+`tool_matrix` sweep, and the document says so in `warnings`. It is **distinct**
+from the per-run `coverage_readout`, which every DUT artifact carries.
+
+### `coverage_readout` — the achieved-coverage readout (schema `1.12`)
+
+`coverage_readout` is the **read** half of coverage steering
+(`COVERAGE-STEERED-GENERATION`): a SCHEMA-DERIVED projection of the per-knob roll
+telemetry + construct histograms ANVIL already records. The same object is
+returned standalone by the [`coverage`](api-tools.md#coverage) tool (wrapped in
+the envelope as a `CoverageDocument`'s `coverage` payload).
+
+```json
+{
+  "knob_fire_rates": {
+    "flop_prob": { "attempts": 295, "fires": 36, "fire_rate": 0.122034 }
+  },
+  "category_fire_rates": {
+    "state": { "attempts": 331, "fires": 53, "fire_rate": 0.160121 }
+  },
+  "gate_kind_histogram": { "and": 136, "mux": 158 },
+  "gate_operand_count_histogram": { "2": 497, "3": 269 },
+  "gate_depth_histogram": { "1": 21, "2": 26 }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `knob_fire_rates` | per-knob (keyed by knob name) `{ attempts, fires, fire_rate }` — the empirical fire rate `fires / attempts` over the construction-time rolls. Only knobs rolled at least once appear. |
+| `category_fire_rates` | the same cell pooled over each coarse category (`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy`) — attempt-weighted. |
+| `gate_kind_histogram` | count of emitted gates per `GateOp` kind. |
+| `gate_operand_count_histogram` | histogram of gate operand counts (arity). |
+| `gate_depth_histogram` | histogram of per-gate combinational depth. |
+
+For a **design** the counts aggregate across all child modules. `attempts` /
+`fires` are the exact integers; `fire_rate` is rounded to parts-per-million so the
+document stays byte-stable.
 
 ## `analyze` result schemas
 
@@ -176,13 +216,15 @@ A dead (unreachable) module is reported `reachable: false` with no `depth`.
 
 ## `schema_version` stability contract
 
-The document schema is **`1.11`** and evolves under a strict MINOR/MAJOR policy:
+The document schema is **`1.12`** and evolves under a strict MINOR/MAJOR policy:
 
-- a **MINOR** bump (e.g. `1.10 → 1.11`) is purely **additive** — a new optional
+- a **MINOR** bump (e.g. `1.11 → 1.12`) is purely **additive** — a new optional
   field or a whole new payload array — and leaves every prior reply
-  **byte-identical** (new arrays are `skip_serializing_if`, so a query that does
+  **byte-identical** (new sections are `skip_serializing_if`, so a query that does
   not use them is unchanged). Adding the four `analyze` query kinds was a sequence
-  of MINOR bumps, each leaving the earlier queries' bytes untouched.
+  of MINOR bumps, each leaving the earlier queries' bytes untouched; `1.11 → 1.12`
+  added the `coverage_readout` section + the standalone `coverage` tool document
+  the same way.
 - a **MAJOR** bump would be a breaking change to an existing field — none has
   occurred.
 

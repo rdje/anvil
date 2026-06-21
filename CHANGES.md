@@ -1,9 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — COVERAGE-STEERED-GENERATION.2c.2 — steering-lane docs + close `.2` (book / USER_GUIDE / KM)
+
+**Landed as:** this commit (previous: `12416c1`). **The docs/close slice — no
+`src` change; DUT byte-identical. Closes `.2c`, `.2`, and the whole
+`COVERAGE-STEERED-GENERATION` tree.** Documents the now-shipped steering lane
+(decision [`0023`](docs/decisions/0023-coverage-steered-generation.md)) and
+refreshes the schema-`1.11→1.12` book examples that `.2a`/`.2b` deferred (the
+owner-sanctioned tracked drift). Task-tree-owned by
+`COVERAGE-STEERED-GENERATION.2c.2`.
+
+**What changed (why)**
+
+- **`book/src/algorithm.md`** — new "Construction-time coverage steering" section:
+  the `roll_knob` probability-prior **multiplier** (`effective_prob = clamp01(prob
+  * weight)`, one draw), why it is a prior and not a filter (rules-first), the
+  byte-identical-when-unset guarantee, and the first-cut scope + the
+  raw-`gen_bool`-site follow-up.
+- **`book/src/agent-mcp.md`** — new "Coverage-steered generation" section (the
+  outer measure → derive → re-steer loop using the `coverage` tool /
+  `coverage_readout` + `derive_steering_from_coverage` + `--steer`); the `coverage`
+  tool row + "six pure tools"; the `coverage_readout` documented in the
+  `--introspect` section; schema `1.11→1.12` example refresh.
+- **`book/src/api-tools.md`** — the `coverage` tool reference (call surface +
+  result example) + summary-table row + "10 tools"; schema example refresh.
+- **`book/src/api-introspection.md`** — the `coverage_readout` schema section
+  (`CoverageDocument` payload) + envelope/contract `1.11→1.12`.
+- **`book/src/api-reference.md`** — `schema_version` `1.12` (+ the `1.11→1.12`
+  policy note) + "10 callable actions".
+- **`book/src/knobs.md`** — a "From measuring rolls to steering them" cross-ref
+  tying the per-knob roll-rate telemetry to the readout + `--steer`.
+- **`USER_GUIDE.md`** — a `--steer` knobs-table row + a "Coverage steering"
+  subsection (the shim + the measure→derive→re-steer recipe) + schema `1.12`.
+- **`ROADMAP.md`** — lane 6 marked **DONE** (tree closed) with the delivery
+  summary, mirroring lanes 1–2.
+- **`docs/decisions/0023-…`** (the **KM card**) — 4 shipped-surface answer keys
+  (`--steer`, the `coverage` tool, `coverage_readout`, the derive helper) + status
+  → **delivered**; `KNOWLEDGE_MAP.md` regenerated (**58 facts, 519 question
+  keys**, +4; check green).
+
+**Validation** — `mdbook build book` clean; `cargo test --test book_examples`
+3/3 (the new runnable `--steer` book example builds the release binary and
+executes, exit 0); `knowledge-map` regen + check green; `check_memory_architecture`
+green (run by the commit hook). Docs-only ⇒ no `src` change ⇒ DUT byte-identical
+(snapshots untouched).
+
+**Files touched** — `book/src/{algorithm.md, agent-mcp.md, api-tools.md,
+api-introspection.md, api-reference.md, knobs.md}`, `USER_GUIDE.md`, `ROADMAP.md`,
+`docs/decisions/0023-coverage-steered-generation.md`, `KNOWLEDGE_MAP.md`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
+**Lane closed.** `COVERAGE-STEERED-GENERATION` is `done` — every acceptance
+criterion met (`.2a` mechanism, `.2b` readout/MCP query, `.2c.1` derive +
+`--steer`, `.2c.2` docs). Optional open-ended follow-ups (the in-generator
+adaptive schedule; routing raw `gen_bool` sites through `roll_knob`) are future
+`.N` leaves that do not reopen the closed scope (`feedback_never_retire_strategies`).
+
 ## 2026-06-21 — COVERAGE-STEERED-GENERATION.2c.1 — outer-loop derive helper + `--steer` CLI shim
 
-**Landed as:** this commit (previous: `5151891`). **Third CODE slice of the
+**Landed as:** `12416c1` (previous: `5151891`). **Third CODE slice of the
 coverage-steering lane — the steering-OUT half (derive + the ergonomic shim);
 unsteered default DUT byte-identical.** Implements decision
 [`0023`](docs/decisions/0023-coverage-steered-generation.md) §4 (the outer

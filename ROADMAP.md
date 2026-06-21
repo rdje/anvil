@@ -2531,9 +2531,22 @@ other five remain `active` with a design-first `.1` ADR frontier:
    MCP knob steerability + an API-queryable knob catalog & preset registry.
 5. `CI-PACKAGING-DISTRIBUTION` — prebuilt binaries + a drop-in GitHub Action for
    continuous downstream fuzzing, driven through the same API.
-6. `COVERAGE-STEERED-GENERATION` — construction-time coverage-feedback steering
-   (rules-first, never generate-then-filter; byte-stable per steering-config)
-   with an API-settable target + API-queryable achieved coverage.
+6. `COVERAGE-STEERED-GENERATION` — **DONE (`2026-06-22`, tree closed; decision
+   [`0023`](docs/decisions/0023-coverage-steered-generation.md)).**
+   Construction-time coverage-feedback steering (rules-first, never
+   generate-then-filter; byte-stable per steering-config) with an API-settable
+   target + API-queryable achieved coverage. Delivered as `.2a` (the `roll_knob`
+   per-category/per-knob probability-prior **multiplier** — measurable
+   distribution shift, no filter, byte-identical when unset), `.2b` (the
+   SCHEMA-DERIVED `coverage_readout` in `--introspect` + the MCP `coverage` tool,
+   schema `1.12`), `.2c.1` (the `derive_steering_from_coverage` helper + the
+   `--steer` CLI shim; target also settable via `Config.steering` over
+   MCP/`--config` per decision `0017`), and `.2c.2` (book/USER_GUIDE/KM). Every
+   acceptance criterion met; snapshots 6/6 byte-identical throughout. The
+   in-generator adaptive schedule + routing the remaining raw `gen_bool` /
+   weighted-choice sites through `roll_knob` are open-ended follow-ups (decision
+   `0023`'s Rejected alternatives) that land as optional new `.N` leaves without
+   reopening the closed scope.
 7. `CAPABILITY-BREADTH-EXPANSION` — more SV-2017/2023 up-opts (enum/typedef,
    packed multidim arrays, more 2023 constructs as proven up-opts continuing the
    `union soft` pattern) + Mealy FSM outputs (extending the Phase-6 Moore-only

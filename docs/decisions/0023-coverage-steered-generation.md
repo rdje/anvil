@@ -11,6 +11,10 @@ answers:
   - "how do I query ANVIL's achieved construct coverage"
   - "does coverage steering stay reproducible and byte-stable"
   - "what is the ANVIL steering-config"
+  - "how do I use the anvil --steer flag"
+  - "what is the anvil coverage MCP tool"
+  - "what is the coverage_readout in anvil --introspect"
+  - "how do I derive an anvil steering config from coverage"
 date: 2026-06-21
 status: accepted
 tags: [coverage, steering, generation, rules-first, reproducible, byte-identical, mcp, api, knobs, roll-knob, north-star, effectiveness, design]
@@ -20,8 +24,11 @@ evidence: docs/decisions/0023-coverage-steered-generation.md; docs/decisions/001
 # 0023 - Coverage-steered generation: a construction-time prior, not a filter
 
 - Date: 2026-06-21
-- Status: accepted (design; implementation pending under the pre-split `.2`)
-- Tree: `COVERAGE-STEERED-GENERATION.1` (design/decision leaf; no code yet).
+- Status: accepted — **delivered** (`.2a` steering core + `.2b` achieved-coverage
+  readout / MCP `coverage` tool + `.2c.1` `derive_steering_from_coverage` helper +
+  `--steer` CLI shim; `.2c.2` docs/close). The implementation matches this design
+  exactly; the surfaces below are live.
+- Tree: `COVERAGE-STEERED-GENERATION.1` (design/decision leaf).
 - Binds: decision [`0017`](0017-api-first-everything-mcp-accessible.md) (the
   steering **target** is API-settable; the **achieved coverage** is
   API-queryable; the CLI is a shim over that surface).

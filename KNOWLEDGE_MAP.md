@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **58** facts · **515** question keys.
+> **58** facts · **519** question keys.
 
 ## Questions → fact
 
@@ -147,6 +147,7 @@
 - "how do I confirm the anvil hunt loop works end to end" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I confirm the divergence detector works end to end" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I continuously fuzz my downstream tool against ANVIL" -> [ci-packaging-prebuilt-binaries-and-github-action](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md) · 2026-06-18
+- "how do I derive an anvil steering config from coverage" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "how do I detect tool-version-vs-version disagreement" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I detect when one tool accepts and another rejects ANVIL output" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I drive the bug-hunt loop without writing my own script" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
@@ -189,6 +190,7 @@
 - "how do I turn on task_emit_prob" -> [combinational-task-emit](docs/knowledge/combinational-task-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
 - "how do I turn on the tool_matrix divergence column" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I use a locally-built anvil with the Action (anvil-bin)" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
+- "how do I use the anvil --steer flag" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "how do non-DUT lanes reach the MCP interface" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how does ANVIL add a new downstream tool" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "how does ANVIL address a flop D cone in analyze" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
@@ -400,12 +402,14 @@
 - "what is the adapter catalog query" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "what is the anvil action.yml uses snippet" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
 - "what is the anvil analyze MCP tool" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
+- "what is the anvil coverage MCP tool" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "what is the anvil hunt command" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
 - "what is the anvil introspection schema_version" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
 - "what is the anvil-mcp protocolVersion" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
 - "what is the bisimulation flop merge bucket cap" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what is the bisimulation flop merge budget" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
 - "what is the commit workflow" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
+- "what is the coverage_readout in anvil --introspect" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "what is the cross-module bisimulation state correspondence" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "what is the current post-phase frontier" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "what is the derived-analysis introspection section" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
@@ -662,7 +666,7 @@ _How ANVIL emits a combinational `task automatic` — the `task_emit_prob` gate 
 ### coverage-steered-generation
 _Construction-time coverage steering — a deterministic per-category probability-prior multiplier at the roll_knob site (rules-first, never generate-then-filter), an outer measure→derive→re-steer feedback loop, with an API-settable target + API-queryable achieved coverage (decision 0017)_
 
-- **answers:** can ANVIL bias generation toward under-exercised constructs | does ANVIL have coverage-steered or coverage-feedback generation | how does ANVIL steer generation without generate-then-filter | is coverage steering rules-first or post-hoc filtering | how do I make ANVIL emit more of a specific construct | can I set a coverage target over the ANVIL API | how do I query ANVIL's achieved construct coverage | does coverage steering stay reproducible and byte-stable | what is the ANVIL steering-config
+- **answers:** can ANVIL bias generation toward under-exercised constructs | does ANVIL have coverage-steered or coverage-feedback generation | how does ANVIL steer generation without generate-then-filter | is coverage steering rules-first or post-hoc filtering | how do I make ANVIL emit more of a specific construct | can I set a coverage target over the ANVIL API | how do I query ANVIL's achieved construct coverage | does coverage steering stay reproducible and byte-stable | what is the ANVIL steering-config | how do I use the anvil --steer flag | what is the anvil coverage MCP tool | what is the coverage_readout in anvil --introspect | how do I derive an anvil steering config from coverage
 - **date:** 2026-06-21 · **status:** accepted
 - **evidence:** `docs/decisions/0023-coverage-steered-generation.md; docs/decisions/0017-api-first-everything-mcp-accessible.md; docs/decisions/0011-semantic-introspection-derived-query-surface.md; src/gen/cone.rs (the roll_knob site); src/ir/types.rs (KnobId + knob_rolls telemetry); src/metrics.rs (knob_roll_attempts/knob_roll_fires + gate/operand/depth histograms); docs/tasks/COVERAGE-STEERED-GENERATION.md`
 - **source:** [`docs/decisions/0023-coverage-steered-generation.md`](docs/decisions/0023-coverage-steered-generation.md)

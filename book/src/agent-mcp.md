@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.11",
+  "schema_version": "1.12",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -64,7 +64,18 @@ cargo run --release -- --seed 42 --introspect
     "manifest": null
   },
   "introspection": {
-    "module_metrics": { "avg_fanout": "...", "gates_by_kind": { "...": "..." } }
+    "module_metrics": { "avg_fanout": "...", "gates_by_kind": { "...": "..." } },
+    "coverage_readout": {
+      "knob_fire_rates": {
+        "flop_prob": { "attempts": 295, "fires": 36, "fire_rate": 0.122034 }
+      },
+      "category_fire_rates": {
+        "state": { "attempts": 331, "fires": 53, "fire_rate": 0.160121 }
+      },
+      "gate_kind_histogram": { "and": 136, "mux": 158, "...": 0 },
+      "gate_operand_count_histogram": { "2": 497, "3": 269 },
+      "gate_depth_histogram": { "1": 21, "2": 26, "...": 0 }
+    }
   },
   "warnings": [
     "coverage section absent: single-artifact generate, not a tool_matrix run"
@@ -83,9 +94,20 @@ Things worth knowing:
 - **`module_metrics`** here *is* `metrics::compute(&module)` — the same metrics
   the manifest already carries — re-projected under a stable key. A `design`
   run carries `design_metrics` and a per-child `modules` list instead.
-- **`coverage` is absent** for a single artifact: a lone module can't prove a
-  `saw_recursive_hierarchy_*` coverage fact. Coverage is a property of a
-  `tool_matrix` sweep, and the document says so in `warnings`.
+- **`coverage_readout`** (schema `1.12`) is the run's **achieved coverage** —
+  per-knob and per-category empirical fire rates (`fires / attempts` over the
+  construction-time rolls) plus the gate-kind / operand-arity / depth histograms.
+  It is a SCHEMA-DERIVED projection of the metrics ANVIL already records (no new
+  truth), and it is the **read** half of [coverage steering](#coverage-steered-generation):
+  you read what was exercised, then steer the next run toward what wasn't. For a
+  `design` it aggregates across all child modules. (The same readout is also
+  returned standalone by the MCP [`coverage`](#tools) tool.) The `fire_rate` is
+  rounded to parts-per-million so the document is byte-stable;
+  `attempts`/`fires` are the exact integers.
+- **The matrix-only `coverage` section is absent** for a single artifact: a lone
+  module can't prove a `saw_recursive_hierarchy_*` coverage fact. That kind of
+  coverage is a property of a `tool_matrix` sweep, and the document says so in
+  `warnings`. (It is distinct from the per-run `coverage_readout` above.)
 
 `--introspect` is additive: omit it and you get SystemVerilog exactly as
 before.
@@ -150,14 +172,15 @@ curl -s -X POST http://127.0.0.1:8765/ \
 ### Tools
 
 ```
-generate · introspect · analyze · dump_config · coverage_gaps · validate · minimize · hunt · divergence
+generate · introspect · analyze · coverage · dump_config · coverage_gaps · validate · minimize · hunt · divergence
 ```
 
 | Tool | Pure? | What it does |
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
-| `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics) for that `lane`. |
+| `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics + the `coverage_readout`) for that `lane`. |
 | `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). Relations, not behaviour. |
+| `coverage` | ✅ pure | Return the DUT `(seed, config)` run's **achieved-coverage readout** — per-knob **and** per-category empirical fire rates (`fires / attempts`) plus the gate-kind / operand-arity / depth histograms (for a hierarchy design, aggregated across child modules). The **read** half of [coverage steering](#coverage-steered-generation): read what was exercised, then steer the next run. SCHEMA-DERIVED from the metrics ANVIL already records — no new truth, no tool spawn. The same readout is also embedded in `introspect`'s `coverage_readout`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
 | `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog` / `sv2v` / `slang`); return per-tool reports + an overall verdict. |
@@ -165,11 +188,12 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | `hunt` | controlled | The **turnkey loop**: fuzz a deterministic seed sweep (`seed` .. `seed + seeds`), run the vetted tools on each artifact, detect any reject/warning (and, with `diff_sim`, a cross-simulator trace mismatch; and, with `divergence`, a cross-*tool* acceptance disagreement), auto-`minimize` each failure, and return a structured `HuntReport` (per-seed `verdicts` + `failures` + `summary`). A thin shim over `validate`/`minimize` — no detector or minimizer of its own. Each failing `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve for the reproducer. Also available as the `anvil hunt` CLI subcommand (the same `hunt::run` over the command line, where `--out` drops an on-disk reproducer bundle per finding instead — see the User Guide). |
 | `divergence` | controlled | **Acceptance-divergence detector**: generate the `(seed, config)` artifact, run the selected vetted tools on it, and classify whether they **disagree** on its legality — one accepts while another warns or rejects. On legal-by-construction RTL every such disagreement is a real downstream-tool bug. Returns a `DivergenceReport` (per-tool `accept`/`warn`/`reject` verdicts + the classified `divergences`, e.g. `accept_reject`). The complement of `diff_sim`'s cross-*simulator* **trace** axis — this is the cross-*tool* **acceptance** axis. `yosys_mode = both` contributes two labelled verdicts, so a without-abc-vs-with-abc disagreement is itself a divergence. Each divergent `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve. A single-`(seed, config)` shim over the same detector the `hunt` `divergence` axis uses — to sweep many seeds, call `hunt` with `divergence: true`. |
 
-The five **pure** tools are read-only: no generation side effects, no shell, no
+The six **pure** tools are read-only: no generation side effects, no shell, no
 external tools. (`coverage_gaps` may read a report file you point it at, but it
 *runs* nothing — it relays the gap list `tool_matrix` already computed, so the
-two can never drift; `analyze` only traverses the IR the generator already
-produced — relations, never a behavioural simulation.) The four *controlled*
+two can never drift; `analyze` and `coverage` only project the IR / metrics the
+generator already produced — relations and counts, never a behavioural
+simulation.) The four *controlled*
 tools (`validate`, `minimize`, the `hunt` loop that composes them, and the
 `divergence` detector) run real downstream tools, but only through ANVIL's
 existing hardened invocations:
@@ -470,6 +494,51 @@ Run this tool chain in order:
    knobs shaped it. Do not claim whole-module intended behavior — ANVIL
    generates legal structure, not a spec.
 ```
+
+## Coverage-steered generation
+
+By default ANVIL is uniform-random-ish: every construction-time choice is a
+seeded roll against a fixed knob probability, so most draws land on common
+constructs and rare ones stay under-exercised. **Coverage steering** biases that
+choice distribution toward the under-hit constructs — so a fixed runtime budget
+probes more of the legal design space and finds bugs faster. It is a
+**construction-time prior, never a filter**: ANVIL multiplies a knob's
+probability *before* the single roll; it never builds artifacts and discards the
+off-target ones (the project's first doctrine — rules-first, no
+generate-then-filter). Output stays byte-stable per `(seed, knobs,
+steering-config)`, and with no steering it is byte-identical to today.
+
+The three pieces form an **outer** measure → derive → re-steer loop (the feedback
+lives in *your* orchestration, not inside the generator — each pass is still a
+pure function of its inputs):
+
+1. **Measure** — read the achieved coverage. Call the `coverage` tool (or read
+   `coverage_readout` from `introspect`): per-category and per-knob empirical fire
+   rates over the last run's rolls.
+2. **Derive** — turn that readout into a steering target. The library helper
+   `introspect::coverage::derive_steering_from_coverage(&readout, &params)` does
+   it deterministically: for each category, `weight = clamp(target_share /
+   max(observed_share, ε), 0, max_weight)`, so an **under-hit** category gets a
+   weight `> 1` (more emphasis) and an over-hit one gets `< 1`. The result is a
+   `SteeringConfig` (a map of category/knob → weight).
+3. **Re-steer** — generate again with that steering target. Set it via the
+   `config` block (the `steering` field is part of `Config`, so it rides every
+   `generate` / `introspect` / `validate` / `hunt` call), or, from the CLI, with
+   the `--steer` shim:
+
+```bash
+# Emphasize state (flops) and a specific knob; de-emphasize the selector family.
+cargo run --release -- --seed 42 --steer state=4 --steer coefficient_prob=3 --steer selectors=0.5
+```
+
+The steering target is the durable, reproducible artifact a sweep or a CI finding
+pins to: re-running with the same `(seed, knobs, steering-config)` is
+byte-identical forever. The taxonomy a category key uses is the fixed set
+`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy`; a key
+may also be any individual knob name (e.g. `flop_prob`). See
+[Knobs and Reproducibility](knobs.md) for the per-knob roll-rate contract and
+[The Fanin Cone Algorithm](algorithm.md#construction-time-coverage-steering) for
+the steering mechanism.
 
 ## The bug-hunting loop, end to end
 
