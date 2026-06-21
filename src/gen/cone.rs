@@ -40,7 +40,15 @@ pub type FlopWorklist = Vec<FlopId>;
 /// probability (knob-effectiveness validation per the
 /// measurability doctrine).
 fn roll_knob(g: &mut Generator, m: &mut Module, knob: KnobId, prob: f64) -> bool {
-    let fired = g.rng.gen_bool(prob.min(1.0));
+    // COVERAGE-STEERED-GENERATION.2a (decision 0023): apply the steering
+    // prior — a construction-time probability *multiplier* — before the
+    // single gen_bool draw. Rules-first: there is no rejection path and
+    // the draw count is unchanged (exactly one gen_bool per roll), so
+    // output stays byte-stable per (seed, knobs, steering-config). When
+    // steering is unset, effective_prob() short-circuits to today's exact
+    // `prob.min(1.0)`, so the unsteered path is byte-identical.
+    let effective_prob = g.cfg.steering.effective_prob(knob, prob);
+    let fired = g.rng.gen_bool(effective_prob);
     m.knob_rolls.record(knob, fired);
     fired
 }

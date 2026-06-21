@@ -363,6 +363,14 @@ src/
 │                     --profile -> explicit -> seed -> validate) used by
 │                     the CLI (and the MCP surface in .2b.2). New
 │                     ConfigError::UnknownProfile.
+│                     COVERAGE-STEERED-GENERATION.2a (decision 0023):
+│                     SteeringConfig type (per_knob/per_category
+│                     BTreeMaps of emphasis weights + weight()/
+│                     effective_prob()/is_empty()/validate()), added to
+│                     Config as `steering` (the only skip_serializing_if
+│                     field ⇒ empty block omitted ⇒ --dump-config/
+│                     --introspect byte-identical when unset). New
+│                     ConfigError::SteeringWeight (finite, >= 0.0).
 │                     ConstructionStrategy enum (clap::ValueEnum +
 │                     serde): Sequential, Shuffled, Interleaved
 │                     (default). GraphFirst variant retained as a
@@ -1661,6 +1669,7 @@ In code (constructors / generator):
 - The full catalog of enforced invariants lives in `book/src/structural-rules.md`. This file's invariants lists above are a summary with pointers to the catalog.
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
 - `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every leaf/cone probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`. Hierarchy binding helpers separately record the hierarchy probability knobs into the same `m.knob_rolls` sink: `hierarchy_sibling_route_prob`, `hierarchy_registered_sibling_route_prob`, `hierarchy_registered_child_input_cone_prob`, `hierarchy_child_input_cone_prob`, `hierarchy_parent_cone_instance_prob`, and `hierarchy_parent_flop_prob`.
+- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): `roll_knob` now applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: `state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
 - `Config::validate()` still enforces the legacy exact wrapper lane
   (`hierarchy_depth ∈ {0,1}`, `num_leaf_modules >= 1` when exact

@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)
+
+**Landed as:** this commit (previous: `02a960d`). **First CODE slice of the
+coverage-steering lane; rules-first; DUT byte-identical when unset.** Implements
+decision [`0023`](docs/decisions/0023-coverage-steered-generation.md) exactly as the
+tree's "Implementation Notes (for `.2a`)" pre-pinned it. Task-tree-owned by
+`COVERAGE-STEERED-GENERATION.2a` (created before the edit, per doctrine).
+
+**What changed (why)**
+
+- **`src/ir/types.rs`** — `KnobId::category()`: an exhaustive (wildcard-free)
+  match over all 21 `KnobId` variants into a fixed 6-name taxonomy
+  (`state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`). Lets a
+  steering-config up- or down-weight a whole family of knobs in one entry; a future
+  knob must declare a category or the build fails (no silent drift).
+- **`src/config.rs`** — new `SteeringConfig` type: `per_knob` (keyed by
+  `KnobId::name()`) + `per_category` (keyed by `KnobId::category()`) `BTreeMap`s of
+  non-negative emphasis weights, with `weight()` (per-knob → per-category → neutral
+  `1.0`), `effective_prob()` (`clamp01(prob * weight)`, short-circuiting to the exact
+  `prob.min(1.0)` when empty), `is_empty()`, and `validate()`. Added to `Config` as
+  the `steering` field — the **first** `#[serde(default, skip_serializing_if = …)]`
+  in `Config`, so an empty block is omitted from serialization ⇒ `--dump-config` /
+  `--introspect` stay byte-identical when unset (the introspection schema bump is
+  correctly deferred to `.2b`, the readout). New `ConfigError::SteeringWeight`
+  (weights must be finite and `>= 0.0`), wired into `Config::validate()`.
+- **`src/gen/cone.rs`** — `roll_knob` now applies the steering prior before its
+  single `gen_bool` draw: `gen_bool(g.cfg.steering.effective_prob(knob, prob))`. This
+  is the whole mechanism — a construction-time probability **multiplier**, not a
+  filter. Exactly one draw per roll, no rejection branch ⇒ byte-stable per `(seed,
+  knobs, steering-config)`.
+
+**Why this is rules-first (`feedback_rules_first_generation`)**
+
+Steering biases the *prior* of a decision; it never builds-then-discards. There is
+no second artifact and no rejection path — the proof is architectural (the unchanged
+single-`gen_bool` structure) plus the byte-stability tests. The forbidden
+generate-then-filter mode is rejected outright in decision `0023`.
+
+**Validation**
+
+- New tests, all green:
+  - `tests/snapshots.rs` 6/6 untouched — **byte-identical default** (proof i).
+  - `tests/pipeline.rs::steering_shifts_achieved_construct_distribution` —
+    **measurable distribution shift** (proof ii): up-weighting category `state` 4×
+    raises the empirical `flop_prob` fire-rate `>0.1` above the unsteered baseline
+    over a 40-seed sweep.
+  - `tests/pipeline.rs::neutral_steering_weight_is_byte_identical_to_unsteered` —
+    an explicit neutral weight (`1.0`) yields byte-identical SV across 16 seeds,
+    proving the multiplier is exact at `1.0` (not merely the `is_empty()`
+    short-circuit) — the **no-filter** + byte-stability contract (proof iii).
+  - 6 `src/config.rs` unit tests: weight resolution order, neutral exactness,
+    clamp, validation accept/reject (negative + non-finite), serde omission.
+- Full `COMMIT.md` cargo gate (`.2a` is a generator code change): `cargo check
+  --all-targets`, `cargo test`, `cargo clippy --all-targets -- -D warnings`,
+  `cargo fmt --all --check` — all green (run under `scripts/ram_guard.sh
+  --threshold 90`).
+
+**Impact**
+
+- The `steering` block is now `--config`-JSON-settable and MCP-settable (it rides on
+  `Config`), but its *effect is not yet observable* without the `.2b`
+  achieved-coverage readout — so the user-facing book/USER_GUIDE/KM-card and the
+  `--steer` CLI shim intentionally wait for `.2c` per the decision-`0023` pre-split.
+  Default-off / DUT byte-identical when unset. No phase label changed.
+
+**Files touched:** `src/ir/types.rs`, `src/config.rs`, `src/gen/cone.rs`,
+`tests/pipeline.rs`, `docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/TASK_TREE.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-21 — COVERAGE-STEERED-GENERATION.1 — record `.2a` integration notes (handoff)
 
 **Landed as:** this commit (previous: `8f14705`). **Docs-only — a pre-implementation

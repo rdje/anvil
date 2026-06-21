@@ -7854,6 +7854,101 @@ fn peephole_layer_fires_at_default_knobs() {
     );
 }
 
+/// COVERAGE-STEERED-GENERATION.2a (decision 0023): the construction-time
+/// steering prior **measurably shifts the achieved construct distribution**.
+/// Up-weighting the `state` category raises the empirical fire rate of
+/// `flop_prob` (`fires / attempts`) well above the unsteered baseline across
+/// a fixed seed sweep. The shift is achieved rules-first — the weight only
+/// multiplies the single existing `gen_bool` draw at `roll_knob`, with no
+/// rejection path — and stays byte-stable per `(seed, knobs,
+/// steering-config)`.
+#[test]
+fn steering_shifts_achieved_construct_distribution() {
+    fn flop_fire_rate(steering: anvil::config::SteeringConfig) -> f64 {
+        let mut attempts = 0u64;
+        let mut fires = 0u64;
+        for seed in 0..40u64 {
+            let cfg = Config {
+                seed,
+                steering: steering.clone(),
+                ..Config::default()
+            };
+            let m = anvil::Generator::new(cfg).generate_module();
+            let metrics = anvil::metrics::compute(&m);
+            attempts += metrics
+                .knob_roll_attempts
+                .get("flop_prob")
+                .copied()
+                .unwrap_or(0);
+            fires += metrics
+                .knob_roll_fires
+                .get("flop_prob")
+                .copied()
+                .unwrap_or(0);
+        }
+        assert!(attempts > 0, "expected flop_prob rolls across the sweep");
+        fires as f64 / attempts as f64
+    }
+
+    let baseline = flop_fire_rate(anvil::config::SteeringConfig::default());
+
+    let mut per_category = std::collections::BTreeMap::new();
+    per_category.insert("state".to_string(), 4.0);
+    let steered = flop_fire_rate(anvil::config::SteeringConfig {
+        per_category,
+        ..Default::default()
+    });
+
+    assert!(
+        steered > baseline + 0.1,
+        "expected up-weighting the `state` category to raise the flop_prob \
+         fire rate well above baseline; got steered={steered:.4} vs \
+         baseline={baseline:.4}"
+    );
+}
+
+/// COVERAGE-STEERED-GENERATION.2a: an **explicit neutral** steering weight
+/// (`1.0`) produces byte-identical SystemVerilog to the unsteered path. This
+/// proves the steering multiplier (`clamp01(prob * weight)`) is exact at
+/// weight `1.0` — not merely the `is_empty()` short-circuit — so a steering
+/// config that names a category but leaves it neutral changes nothing. It is
+/// the no-filter + byte-stability contract in one: there is no second
+/// artifact and no rejection branch.
+#[test]
+fn neutral_steering_weight_is_byte_identical_to_unsteered() {
+    for seed in 0..16u64 {
+        let unsteered = anvil::emit::to_sv(
+            &anvil::Generator::new(Config {
+                seed,
+                ..Config::default()
+            })
+            .generate_module(),
+        );
+
+        let mut per_category = std::collections::BTreeMap::new();
+        per_category.insert("state".to_string(), 1.0);
+        per_category.insert("hierarchy".to_string(), 1.0);
+        let neutral = anvil::config::SteeringConfig {
+            per_category,
+            ..Default::default()
+        };
+        let steered_neutral = anvil::emit::to_sv(
+            &anvil::Generator::new(Config {
+                seed,
+                steering: neutral,
+                ..Config::default()
+            })
+            .generate_module(),
+        );
+
+        assert_eq!(
+            unsteered, steered_neutral,
+            "explicit neutral steering (weight 1.0) must be byte-identical \
+             to unsteered output at seed {seed}"
+        );
+    }
+}
+
 /// Doctrine guard: the `compact_node_ids` pass keeps Rule 18
 /// (zero orphan gates) holding across all strategies and seeds,
 /// and records a non-zero `nodes_compacted` count whenever the

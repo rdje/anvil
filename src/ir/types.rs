@@ -617,6 +617,39 @@ impl KnobId {
             KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
         }
     }
+
+    /// Coarse coverage **category** for construction-time steering
+    /// roll-ups (`COVERAGE-STEERED-GENERATION`, decision `0023`). A
+    /// steering-config can up- or down-weight a whole family of related
+    /// knobs with one `per_category` entry instead of naming each
+    /// `KnobId` individually. The taxonomy is intentionally small and
+    /// fixed: `state`, `selectors`, `datapath`, `terminals`, `sharing`,
+    /// `hierarchy`. Every `KnobId` maps to exactly one category (the
+    /// match is exhaustive, so a new knob must declare its category).
+    pub fn category(&self) -> &'static str {
+        match self {
+            KnobId::FlopProb | KnobId::FlopQFeedbackProb => "state",
+            KnobId::CombMuxProb
+            | KnobId::PriorityEncoderProb
+            | KnobId::CaseMuxProb
+            | KnobId::CasezMuxProb
+            | KnobId::ForFoldProb
+            | KnobId::CombMuxEncodingProb
+            | KnobId::FlopMuxEncodingProb => "selectors",
+            KnobId::CoefficientProb | KnobId::ConstShiftAmountProb | KnobId::ConstComparandProb => {
+                "datapath"
+            }
+            KnobId::ConstantProb | KnobId::TerminalReuseProb => "terminals",
+            KnobId::ShareProb => "sharing",
+            KnobId::HierarchySiblingRouteProb
+            | KnobId::HierarchyRegisteredSiblingRouteProb
+            | KnobId::HierarchyRegisteredSiblingMixedSupportProb
+            | KnobId::HierarchyRegisteredChildInputConeProb
+            | KnobId::HierarchyChildInputConeProb
+            | KnobId::HierarchyParentConeInstanceProb
+            | KnobId::HierarchyParentFlopProb => "hierarchy",
+        }
+    }
 }
 
 /// Live per-knob roll counters. `record(knob, fired)` is called

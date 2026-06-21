@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-21`
+- Last updated: `2026-06-21` (`.2a` steering core landed; frontier `.2b`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -67,12 +67,34 @@ design space while preserving every lane invariant.
 
   Children: `COVERAGE-STEERED-GENERATION.2a` (steering core), `.2b` (coverage readout + MCP query), `.2c` (outer loop + docs + close).
 
+- ID: `COVERAGE-STEERED-GENERATION.2a`
+  Status: `done`
+  Goal: `The steering CORE (code): a SteeringConfig type (per_knob/per_category emphasis weights) + the weight() lookup + the roll_knob prior multiplier (effective_prob = clamp01(prob * weight), one gen_bool draw preserved), with the three load-bearing proofs.`
+  Acceptance: `(i) byte-identical when unset (tests/snapshots.rs 6/6 untouched); (ii) measurable distribution shift vs unsteered on a fixed seed sweep (up-weighted category's empirical fire-rate rises); (iii) no-filter (one gen_bool per roll, no rejection branch); weights validated finite & >= 0.0; full COMMIT.md cargo gate green.`
+  Verification: `done — KnobId::category() (exhaustive 21-variant match → state/selectors/datapath/terminals/sharing/hierarchy); SteeringConfig in config.rs (per_knob/per_category BTreeMaps + weight()/effective_prob()/is_empty()/validate()); Config.steering field (the only skip_serializing_if ⇒ empty omitted ⇒ --dump-config/--introspect byte-identical when unset); ConfigError::SteeringWeight; roll_knob applies effective_prob before the single gen_bool. Proofs: snapshots 6/6 (byte-identical default); steering_shifts_achieved_construct_distribution (flop_prob fire-rate rises >0.1 over a 40-seed sweep when category "state" is up-weighted 4x); neutral_steering_weight_is_byte_identical_to_unsteered (explicit weight 1.0 = byte-identical SV across 16 seeds, proving the multiplier is exact at 1.0, not just the short-circuit); 6 config unit tests (weight resolution, neutral exactness, clamp, validation accept/reject, serde omission). Full gate green: cargo check --all-targets, cargo test, cargo clippy --all-targets -D warnings, cargo fmt --check. Rules-first / DUT byte-identical when unset.`
+  Commit: `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)`
+
+- ID: `COVERAGE-STEERED-GENERATION.2b`
+  Status: `pending`
+  Goal: `The achieved-coverage READOUT: a SCHEMA-DERIVED projection of knob_roll_attempts/fires + the gate/operand/depth histograms in --introspect (schema MINOR bump) + an MCP coverage query (decision 0017), with the byte-identical-elsewhere guarantee.`
+  Acceptance: `set at .1 (decision 0023).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `COVERAGE-STEERED-GENERATION.2c`
+  Status: `pending`
+  Goal: `The outer measure→derive→re-steer convenience (a deterministic derive_steering_from_coverage helper) + the --steer CLI shim + book (algorithm.md steering subsection + agent-mcp.md) + USER_GUIDE + a KM card; close .2.`
+  Acceptance: `set at .1 (decision 0023).`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `COVERAGE-STEERED-GENERATION.1` | `done` | Design ADR (decision `0023`) pinned the rules-first steering primitive (a prior multiplier at `roll_knob`, not a filter), the byte-stability contract, the `SteeringConfig` target model, the SCHEMA-DERIVED achieved-coverage readout, the outer measure→derive→re-steer loop, and the decision-`0017` API surface. |
-| 2 | `COVERAGE-STEERED-GENERATION.2a` | `pending` | First impl slice: the `SteeringConfig` + the `roll_knob` prior multiplier, with the byte-identical-when-unset + distribution-shift + no-filter proofs. Code; task-tree-owned. |
+| 2 | `COVERAGE-STEERED-GENERATION.2a` | `done` | Steering core landed: `KnobId::category()`, `SteeringConfig` + `weight()`/`effective_prob()`, the `roll_knob` prior multiplier, `ConfigError::SteeringWeight`. All three proofs green (byte-identical default via snapshots 6/6; measurable distribution shift; no-filter architectural) + full cargo gate. |
+| 3 | `COVERAGE-STEERED-GENERATION.2b` | `pending` | The SCHEMA-DERIVED achieved-coverage readout in `--introspect` (schema MINOR bump) + the MCP coverage query (decision `0017`); byte-identical elsewhere. Code; task-tree-owned. |
 
 ## Decisions
 
@@ -153,6 +175,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | --- | --- | --- | --- |
 | `2026-06-17` | `COVERAGE-STEERED-GENERATION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.1` | `decision 0023 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
+| `2026-06-21` | `COVERAGE-STEERED-GENERATION.2a` | `SteeringConfig + KnobId::category() + roll_knob prior multiplier + ConfigError::SteeringWeight; cargo check --all-targets, cargo test (snapshots 6/6 + new steering unit/integration tests), cargo clippy -D warnings, cargo fmt --check all green; rules-first / DUT byte-identical when unset` | `done` |
 
 ## Commit Log
 
@@ -160,9 +183,14 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | --- | --- | --- |
 | `COVERAGE-STEERED-GENERATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `COVERAGE-STEERED-GENERATION.1` | `COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023)` | Design-only; pins the rules-first prior-multiplier steering primitive at `roll_knob`, the byte-stability contract, the `SteeringConfig` target, the SCHEMA-DERIVED coverage readout, the outer feedback loop, and the API surface; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
+| `COVERAGE-STEERED-GENERATION.2a` | `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)` | First code slice: `KnobId::category()` (exhaustive 21-variant taxonomy), `SteeringConfig` (`per_knob`/`per_category` weights + `weight()`/`effective_prob()`/`is_empty()`/`validate()`), `Config.steering` (only `skip_serializing_if`), `ConfigError::SteeringWeight`, the `roll_knob` prior multiplier. Three proofs green (byte-identical default; distribution shift; no-filter) + full cargo gate. Rules-first / DUT byte-identical when unset. |
 
 ## Changelog
 
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
 - `2026-06-21`: `.1` design ADR landed (decision `0023`); frontier advances to
   `.2a` (the steering core). Docs-only / DUT byte-identical.
+- `2026-06-21`: `.2a` steering core landed (code): `SteeringConfig` + the `roll_knob`
+  prior multiplier + the three proofs + full cargo gate. Frontier advances to `.2b`
+  (the SCHEMA-DERIVED achieved-coverage readout + MCP coverage query). Rules-first /
+  DUT byte-identical when unset.

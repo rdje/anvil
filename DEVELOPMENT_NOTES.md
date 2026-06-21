@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — Coverage-steered generation core — `COVERAGE-STEERED-GENERATION.2a`
+
+The first **code** slice of the steering lane: the `SteeringConfig` type + the
+`weight()` lookup + the one-line prior multiplier at `roll_knob`. Implements
+decision [`0023`](docs/decisions/0023-coverage-steered-generation.md) exactly as
+the tree's "Implementation Notes (for `.2a`)" pre-pinned it. Engineering notes
+worth keeping:
+
+- **Byte-identity tactic, two layers of safety.** The unsteered path must stay
+  byte-identical. `roll_knob` was `gen_bool(prob.min(1.0))`; it is now
+  `gen_bool(steering.effective_prob(knob, prob))`. `effective_prob` **short-circuits
+  to `prob.min(1.0)` when the config is empty** (the default), so the truly-default
+  path is byte-identical by construction — independent of any float reasoning. The
+  multiplier path `(prob * weight).clamp(0.0, 1.0)` is *also* bit-exact at
+  `weight == 1.0` for `prob ∈ [0,1]` (multiplication by 1.0 is exact; clamp is a
+  no-op in range; `clamp(0,1) == min(1.0)` there), proven by
+  `neutral_steering_weight_is_byte_identical_to_unsteered` (explicit `1.0` weights
+  produce identical SV across 16 seeds). The `is_empty()` short-circuit is the
+  belt; the exact multiplier is the suspenders.
+- **`skip_serializing_if` was a deliberate first.** `config.rs` had **zero**
+  `skip_serializing_if` — every knob always serialized. The `steering` field is the
+  first, gated on `SteeringConfig::is_empty`, so an unset block is *omitted* from
+  `--dump-config`/`--introspect` JSON ⇒ those stay byte-identical when unset, and
+  the introspection schema bump is correctly deferred to `.2b` (the readout). Old
+  configs without a `steering` key still deserialize (the field is `#[serde(default)]`).
+- **Category taxonomy is exhaustive at compile time.** `KnobId::category()` is a
+  wildcard-free match over all 21 variants into a fixed 6-name taxonomy
+  (`state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`), so a future
+  knob *must* declare a category — drift is a compile error, not a silent gap.
+- **Weight resolution order is most-specific-first:** `per_knob` (by
+  `KnobId::name()`) → `per_category` (by `KnobId::category()`) → neutral `1.0`.
+  Validation rejects negative or non-finite weights (`ConfigError::SteeringWeight`),
+  mirroring the existing probability-range checks; `0.0` is legal (fully suppress a
+  construct).
+- **No-filter is architectural, not a runtime check.** There is exactly one
+  `gen_bool` per `roll_knob` and no rejection branch — the multiplier biases the
+  *prior*, it never builds-then-discards. The proof is the unchanged draw structure
+  plus the byte-stability tests; `feedback_rules_first_generation` is satisfied by
+  construction.
+- **Scope held to the ADR pre-split.** `.2a` is the core only. The SCHEMA-DERIVED
+  achieved-coverage readout (`--introspect` schema bump + MCP coverage query) is
+  `.2b`; the `--steer` CLI shim, the outer `derive_steering_from_coverage` helper,
+  and the book/USER_GUIDE/KM-card are `.2c`. The `steering` block is already
+  `--config`-JSON-settable today, but its *effect is not yet observable* without the
+  `.2b` readout, which is why the user-facing docs intentionally wait for `.2c`.
+
 ## 2026-06-21 — Coverage-steered generation design — `COVERAGE-STEERED-GENERATION.1` (decision 0023)
 
 `.1` is the design ADR for biasing generation toward under-exercised constructs

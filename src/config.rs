@@ -1,5 +1,6 @@
 //! Knobs: shape, mix, and termination parameters for the generator.
 
+use crate::ir::KnobId;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use thiserror::Error;
@@ -413,6 +414,91 @@ impl SvVersion {
             SvVersion::Sv2017 => "1800-2017",
             SvVersion::Sv2023 => "1800-2023",
         }
+    }
+}
+
+/// Construction-time coverage-steering target
+/// (`COVERAGE-STEERED-GENERATION`, decision `0023`). A declarative,
+/// reproducible map from a coverage dimension to a non-negative
+/// **emphasis weight**: `> 1.0` up-weights a knob's construction-time
+/// prior, `< 1.0` down-weights it, `1.0`/absent = neutral.
+///
+/// Steering is a **construction-time prior, never a generate-then-filter**
+/// (`feedback_rules_first_generation`, the load-bearing doctrine): the
+/// weight multiplies the knob probability *before* the single existing
+/// `gen_bool` draw at the `roll_knob` site
+/// (`effective_prob = clamp01(prob * weight)`), so the RNG draw count is
+/// unchanged and there is no rejection path. Output therefore stays
+/// byte-stable per `(seed, knobs, steering-config)`, and an empty
+/// `SteeringConfig` (the default) makes every weight `1.0` ⇒ the effective
+/// probability equals today's `prob.min(1.0)` exactly ⇒ DUT output is
+/// byte-identical to the unsteered path.
+///
+/// Two keying levels, most-specific first:
+/// - `per_knob` — keyed by `KnobId::name()` (`"flop_prob"`,
+///   `"casez_mux_prob"`, …): steer one knob.
+/// - `per_category` — keyed by `KnobId::category()` (`"state"`,
+///   `"selectors"`, `"datapath"`, `"terminals"`, `"sharing"`,
+///   `"hierarchy"`): steer a whole family in one entry.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct SteeringConfig {
+    /// Per-knob emphasis weights, keyed by `KnobId::name()`. Takes
+    /// precedence over `per_category` for the same knob.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub per_knob: BTreeMap<String, f64>,
+    /// Per-category emphasis weights, keyed by `KnobId::category()`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub per_category: BTreeMap<String, f64>,
+}
+
+impl SteeringConfig {
+    /// `true` when no steering is configured (both maps empty) — the
+    /// neutral default. Used as the `skip_serializing_if` predicate so an
+    /// unset steering block is omitted from `--dump-config` /
+    /// `--introspect`, keeping them byte-identical when unset.
+    pub fn is_empty(&self) -> bool {
+        self.per_knob.is_empty() && self.per_category.is_empty()
+    }
+
+    /// Deterministic emphasis-weight lookup for one knob: the per-knob
+    /// entry if present, else the per-category entry, else the neutral
+    /// `1.0`. Pure — no RNG, no mutation.
+    pub fn weight(&self, knob: KnobId) -> f64 {
+        if let Some(w) = self.per_knob.get(knob.name()) {
+            return *w;
+        }
+        if let Some(w) = self.per_category.get(knob.category()) {
+            return *w;
+        }
+        1.0
+    }
+
+    /// The steered effective probability for one `roll_knob` site:
+    /// `clamp01(prob * weight(knob))` — the single multiplier applied
+    /// before the one existing `gen_bool` draw (rules-first; no filter,
+    /// no extra draw). When `self.is_empty()` this short-circuits to
+    /// today's exact `prob.min(1.0)`, so the unsteered path is provably
+    /// byte-identical.
+    pub fn effective_prob(&self, knob: KnobId, prob: f64) -> f64 {
+        if self.is_empty() {
+            return prob.min(1.0);
+        }
+        (prob * self.weight(knob)).clamp(0.0, 1.0)
+    }
+
+    /// Validate every weight is finite and non-negative. Mirrors the
+    /// `Config` probability-range checks; a negative or non-finite weight
+    /// is a `ConfigError::SteeringWeight`.
+    fn validate(&self) -> Result<(), ConfigError> {
+        for (key, &w) in self.per_knob.iter().chain(self.per_category.iter()) {
+            if !w.is_finite() || w < 0.0 {
+                return Err(ConfigError::SteeringWeight {
+                    key: key.clone(),
+                    value: w,
+                });
+            }
+        }
+        Ok(())
     }
 }
 
@@ -1007,6 +1093,15 @@ pub struct Config {
     /// much duplication the construction strategies would naturally
     /// produce; for production seed sweeps, leave it at 1.
     pub max_ast_instances: u32,
+
+    /// Construction-time coverage-steering target
+    /// (`COVERAGE-STEERED-GENERATION`, decision `0023`). Default empty ⇒
+    /// neutral ⇒ DUT byte-identical. Rides alongside the knobs so it is
+    /// `--config`-settable and MCP-settable; an empty block is omitted
+    /// from serialization (the only `skip_serializing_if` in `Config`),
+    /// keeping `--dump-config` / `--introspect` byte-identical when unset.
+    #[serde(default, skip_serializing_if = "SteeringConfig::is_empty")]
+    pub steering: SteeringConfig,
 }
 
 impl Default for Config {
@@ -1109,6 +1204,7 @@ impl Default for Config {
             operand_duplication_rate: 0.0,
             factorization_level: FactorizationLevel::EGraph,
             max_ast_instances: 1,
+            steering: SteeringConfig::default(),
         }
     }
 }
@@ -1127,6 +1223,12 @@ pub enum ConfigError {
     WidthRange(u32, u32),
     #[error("probability {name} ({value}) outside [0.0, 1.0]")]
     Probability { name: &'static str, value: f64 },
+    /// COVERAGE-STEERED-GENERATION.2a — a `steering` emphasis weight is
+    /// negative or non-finite (decision `0023`). Weights must be finite
+    /// and `>= 0.0` (`> 1.0` up-weights, `< 1.0` down-weights, `0.0`
+    /// fully suppresses).
+    #[error("steering weight {key:?} ({value}) must be finite and >= 0.0")]
+    SteeringWeight { key: String, value: f64 },
     #[error("max_depth must be >= 1")]
     DepthTooSmall,
     #[error("min_width must be >= 1")]
@@ -1470,6 +1572,7 @@ impl Config {
                 return Err(ConfigError::Probability { name, value });
             }
         }
+        self.steering.validate()?;
         Ok(())
     }
 
@@ -2327,6 +2430,111 @@ mod tests {
                 panic!("expected operand_duplication_rate probability error, got {other:?}")
             }
         }
+    }
+
+    // --- COVERAGE-STEERED-GENERATION.2a: construction-time steering core -----
+
+    #[test]
+    fn steering_weight_resolves_per_knob_then_category_then_neutral() {
+        let mut steering = SteeringConfig::default();
+        steering.per_category.insert("state".to_string(), 3.0);
+        steering.per_knob.insert("flop_prob".to_string(), 5.0);
+
+        // per_knob wins over per_category for the same knob.
+        assert_eq!(steering.weight(KnobId::FlopProb), 5.0);
+        // FlopQFeedbackProb is in category "state" with no per_knob entry.
+        assert_eq!(steering.weight(KnobId::FlopQFeedbackProb), 3.0);
+        // A knob in an unmentioned category falls back to the neutral 1.0.
+        assert_eq!(steering.weight(KnobId::ShareProb), 1.0);
+    }
+
+    #[test]
+    fn steering_effective_prob_is_byte_exact_at_neutral() {
+        // Empty steering short-circuits to today's exact prob.min(1.0).
+        let empty = SteeringConfig::default();
+        assert!(empty.is_empty());
+        for &p in &[0.0_f64, 0.15, 0.3, 0.5, 0.8, 1.0, 1.5] {
+            assert_eq!(empty.effective_prob(KnobId::FlopProb, p), p.min(1.0));
+        }
+        // An explicit neutral weight (1.0) must ALSO be bit-identical to
+        // prob.min(1.0) — proving the multiplier math itself is exact at
+        // weight 1.0, not merely the is_empty() short-circuit.
+        let mut neutral = SteeringConfig::default();
+        neutral.per_category.insert("state".to_string(), 1.0);
+        assert!(!neutral.is_empty());
+        for &p in &[0.0_f64, 0.15, 0.3, 0.5, 0.8, 1.0] {
+            assert_eq!(neutral.effective_prob(KnobId::FlopProb, p), p.min(1.0));
+        }
+    }
+
+    #[test]
+    fn steering_effective_prob_clamps_into_unit_interval() {
+        let mut steering = SteeringConfig::default();
+        steering.per_knob.insert("flop_prob".to_string(), 100.0);
+        // 0.15 * 100 = 15.0 -> clamped to 1.0 (rules-first: still one draw).
+        assert_eq!(steering.effective_prob(KnobId::FlopProb, 0.15), 1.0);
+        steering.per_knob.insert("flop_prob".to_string(), 0.0);
+        // 0.15 * 0.0 = 0.0 -> fully suppressed.
+        assert_eq!(steering.effective_prob(KnobId::FlopProb, 0.15), 0.0);
+    }
+
+    #[test]
+    fn validate_rejects_negative_or_nonfinite_steering_weight() {
+        let mut cfg = Config::default();
+        cfg.steering.per_knob.insert("flop_prob".to_string(), -0.5);
+        match cfg.validate() {
+            Err(ConfigError::SteeringWeight { key, value }) => {
+                assert_eq!(key, "flop_prob");
+                assert_eq!(value, -0.5);
+            }
+            other => panic!("expected SteeringWeight rejection, got {other:?}"),
+        }
+
+        let mut cfg = Config::default();
+        cfg.steering
+            .per_category
+            .insert("state".to_string(), f64::INFINITY);
+        match cfg.validate() {
+            Err(ConfigError::SteeringWeight { key, value }) => {
+                assert_eq!(key, "state");
+                assert!(value.is_infinite());
+            }
+            other => panic!("expected SteeringWeight rejection for non-finite, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_accepts_nonnegative_steering_weights() {
+        let mut cfg = Config::default();
+        cfg.steering.per_knob.insert("flop_prob".to_string(), 0.0);
+        cfg.steering
+            .per_category
+            .insert("hierarchy".to_string(), 7.5);
+        assert!(cfg.validate().is_ok());
+    }
+
+    #[test]
+    fn empty_steering_is_omitted_from_serialization() {
+        // Byte-identity of --dump-config when unset: a default Config must
+        // not serialize a `steering` block at all.
+        let json = serde_json::to_string(&Config::default()).expect("serialize default config");
+        assert!(
+            !json.contains("steering"),
+            "default Config must omit the empty steering block; got: {json}"
+        );
+
+        // A populated steering block round-trips.
+        let mut cfg = Config::default();
+        cfg.steering.per_category.insert("state".to_string(), 2.0);
+        let json = serde_json::to_string(&cfg).expect("serialize steered config");
+        assert!(json.contains("steering"));
+        let back: Config = serde_json::from_str(&json).expect("deserialize steered config");
+        assert_eq!(back.steering, cfg.steering);
+
+        // A config JSON with no steering key deserializes to empty/neutral.
+        let back: Config =
+            serde_json::from_str(&serde_json::to_string(&Config::default()).unwrap()).unwrap();
+        assert!(back.steering.is_empty());
     }
 
     #[test]
