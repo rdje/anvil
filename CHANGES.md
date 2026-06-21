@@ -1,6 +1,86 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — CI-PACKAGING-DISTRIBUTION.2b — drop-in composite GitHub Action over `anvil hunt`
+
+**Landed as:** this commit (previous: `9527fe2`). **CI-infra only — a root
+`action.yml` + a bash entrypoint + a self-test workflow + live-doc/task-tree
+updates. No `src/`/`tests/` change; DUT byte-identical.** Second implementation
+slice of decision `0022`, task-tree-owned by `CI-PACKAGING-DISTRIBUTION.2b`.
+
+**What changed (why)**
+
+`.2a` ships prebuilt binaries; `.2b` makes ANVIL drop-in adoptable as a
+continuous downstream fuzzer in someone else's CI — a maintainer adds one
+`uses:` step naming their tool(s) and gets red CI + reproducer bundles on any
+reject/warning. The Action is a thin shim over the already-shipped `anvil hunt`
+engine (decision `0018`) driven through the same CLI-shim-over-API surface
+(decision `0017`) — no Action-only path.
+
+- **`action.yml`** (new, repo root → `uses: <owner>/anvil@<tag>`). A **composite**
+  action (not container): a `hunt` step running the entrypoint, an
+  `actions/upload-artifact@v4` step uploading the reproducer-bundle dir, and a
+  `fail-on-finding` gate. Inputs: the hunt-flag set mapped 1:1 onto `anvil hunt`
+  (`tools`/`seed`/`seeds`/`profile`/`config`/`yosys-mode`/`diff-sim`/`divergence`/
+  `budget`/`no-minimize`/`out`) + Action-level plumbing (`anvil-version`,
+  `anvil-bin`, `artifact-name`, `fail-on-finding`). Outputs: `findings`/`report`/
+  `bundle-dir`.
+- **`scripts/anvil_hunt_action.sh`** (new, executable). The POSIX-style bash
+  entrypoint: (1) resolve the `anvil` binary — an explicit `anvil-bin`, else
+  download the pinned release tarball for the runner OS/arch (target from
+  `RUNNER_OS`/`RUNNER_ARCH`; version defaults to `GITHUB_ACTION_REF`; repo from
+  `GITHUB_ACTION_REPOSITORY`, so pinning the Action to `@v0.1.0` auto-pins the
+  binary); (2) run `anvil hunt` with the mapped flags into the bundle dir,
+  `tee`-ing the report; (3) parse `HuntReport.summary.n_failures` with python3
+  (preinstalled; no `jq` dependency) and expose `findings`/`report`/`bundle-dir`
+  via `$GITHUB_OUTPUT`. `anvil hunt` always exits 0, so the **Action** decides
+  red/green from `findings`.
+- **`.github/workflows/action-selftest.yml`** (new). On `action.yml`/entrypoint/
+  self-test changes: build `anvil` locally, install verilator+yosys best-effort,
+  probe presence, then run the Action via `uses: ./` with `anvil-bin:
+  target/release/anvil` and assert a parseable numeric `findings` + a report
+  file. **Skips clean** when no downstream tools are present (matching the
+  Action's friendly absent-tool behaviour) — needed because an absent tool is a
+  spawn-failure finding, not a no-op, in `hunt`.
+- **Implementation rationale in `DEVELOPMENT_NOTES.md`:** root `action.yml` for
+  the simplest `uses:` surface; pin-by-ref via `GITHUB_ACTION_REF`/
+  `GITHUB_ACTION_REPOSITORY`; the `anvil-bin`/`artifact-name` Action-level inputs
+  (testability + matrix-collision avoidance) as plumbing beyond the ADR's 1:1
+  hunt-flag table (consistent with its `anvil-version`/`fail-on-finding`); parse
+  `n_failures` because `hunt` always exits 0.
+- **`docs/tasks/CI-PACKAGING-DISTRIBUTION.md`** — `.2b` → `done`; Current Frontier
+  advances to `.2c` (docs + close).
+- **`docs/TASK_TREE.md`** — CI-PACKAGING row frontier `.2a` → `.2c`.
+
+**Validation**
+
+- **Real end-to-end smoke of the entrypoint** against the local release `anvil`
+  + verilator 5.x + yosys (the exact `anvil-bin` code path): `INPUT_ANVIL_BIN=
+  target/release/anvil INPUT_TOOLS=verilator,yosys INPUT_SEEDS=3` → entrypoint
+  **exit 0**; `$GITHUB_OUTPUT` got `findings=0` + the report path + bundle-dir;
+  the report is valid JSON (`summary {n_seeds:3, n_clean:3, n_failures:0}`);
+  human summary line printed. Confirms binary resolution, flag mapping, hunt
+  run, report parse, and output wiring all work; smoke artifacts cleaned.
+- `bash -n scripts/anvil_hunt_action.sh` clean; pure-Python structural lint of
+  `action.yml` + the self-test workflow clean (no tabs/trailing-ws; all required
+  tokens present — offline, no `pyyaml`/`actionlint`/`yq`).
+- `scripts/check_memory_architecture.sh` + `knowledge-map` gen/check green
+  (**KM 56**, unchanged — the KM card is `.2c`). No Rust touched ⇒ `cargo` suite
+  unaffected (full `cargo test` green at `51d97d9`; snapshots 6/6).
+
+**Impact**
+
+- ANVIL is now drop-in adoptable as a continuous downstream fuzzer: pin the
+  Action to a release, name a tool + optionally a `--profile`, and get red CI +
+  reproducer-bundle artifacts on any finding — the north star delivered to
+  *other* toolchains' CI. Default DUT output byte-identical (no generator/`src`
+  change).
+
+**Files touched:** `action.yml` (new), `scripts/anvil_hunt_action.sh` (new),
+`.github/workflows/action-selftest.yml` (new), `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/CI-PACKAGING-DISTRIBUTION.md`,
+`docs/TASK_TREE.md`.
+
 ## 2026-06-21 — CI-PACKAGING-DISTRIBUTION.2a — hand-rolled `v*`-tag release workflow (`.github/workflows/release.yml`)
 
 **Landed as:** this commit (previous: `51d97d9`). **CI-infra only — one new

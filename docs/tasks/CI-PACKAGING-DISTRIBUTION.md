@@ -72,13 +72,21 @@ bespoke script), so CI usage and interactive usage share one engine.
   Verification: `done — release.yml authored; pure-Python structural lint clean (no pyyaml/actionlint/yq offline): no tabs/trailing-ws/odd map indents, all 5 targets + all required tokens present (on/tags/v*, both permissions scopes, --release --locked, --bin anvil --bin anvil-mcp, SHA256SUMS, gh release create/upload). mem-arch + KM (56) gates green. No Rust touched ⇒ cargo suite unaffected (full cargo test green at 51d97d9; snapshots 6/6).`
   Commit: `CI-PACKAGING-DISTRIBUTION.2a — hand-rolled v*-tag release workflow (release.yml)`
 
+- ID: `CI-PACKAGING-DISTRIBUTION.2b`
+  Status: `done`
+  Goal: `The drop-in composite GitHub Action wrapping anvil hunt: a root action.yml + scripts/anvil_hunt_action.sh entrypoint that resolves an anvil binary (anvil-bin escape hatch, else the pinned release tarball for the runner OS/arch), runs anvil hunt with inputs mapped 1:1 onto its flags into a bundle dir, parses HuntReport.summary.n_failures, uploads the bundle as a CI artifact, and fails the job on a finding (configurable). Plus a presence-gated self-test workflow.`
+  Acceptance: `action.yml (composite, root) + entrypoint present; hunt-flag inputs map 1:1 onto anvil hunt (tools/seed/seeds/profile/config/yosys-mode/diff-sim/divergence/budget/no-minimize/out) + Action-level plumbing (anvil-version/anvil-bin/artifact-name/fail-on-finding); invocation via the anvil hunt CLI shim over hunt::run (no Action-only path, decision 0017); artifact upload; exit-on-finding; a self-test that runs the Action against the repo's own tools and skips clean when absent; default DUT byte-identical (no src change).`
+  Verification: `done — action.yml + scripts/anvil_hunt_action.sh + .github/workflows/action-selftest.yml authored. REAL local end-to-end smoke of the entrypoint (anvil-bin path) against the release anvil + verilator + yosys over a 3-seed sweep: exit 0, $GITHUB_OUTPUT findings=0 + report path + bundle-dir, report valid JSON (summary n_seeds:3/n_clean:3/n_failures:0), human summary printed. bash -n clean; pure-Python structural lint of both YAML files clean (all tokens present; offline). mem-arch + KM(56) green. No Rust ⇒ cargo suite unaffected (full cargo test green at 51d97d9; snapshots 6/6).`
+  Commit: `CI-PACKAGING-DISTRIBUTION.2b — composite Action over anvil hunt`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `CI-PACKAGING-DISTRIBUTION.1` | `done` | Design ADR (decision `0022`) pinned the hand-rolled release workflow, the composite Action shape, the CLI-shim-over-API invocation (decision `0017`), and the version-pin/reproducibility contract. The wrapped engine (`anvil hunt`, decision `0018`) already ships. |
 | 2 | `CI-PACKAGING-DISTRIBUTION.2a` | `done` | Landed `.github/workflows/release.yml`: tag-triggered 5-target build matrix → `anvil`+`anvil-mcp` archives + `SHA256SUMS` to the GitHub Release, `gh`-CLI publish (no third-party release dep). CI-infra; task-tree-owned. |
-| 3 | `CI-PACKAGING-DISTRIBUTION.2b` | `pending` | The composite Action (`action.yml` + entrypoint): download the pinned release tarball, run `anvil hunt` with inputs mapped 1:1 onto the CLI/MCP controls (decision `0017`), upload the reproducer bundle as a CI artifact, exit-on-finding, + a self-test job that skips clean when tools are absent. |
+| 3 | `CI-PACKAGING-DISTRIBUTION.2b` | `done` | Landed the composite Action (`action.yml` + `scripts/anvil_hunt_action.sh` + a presence-gated self-test), driven through the same `anvil hunt` CLI-shim-over-API surface (decision `0017`); proven end-to-end by a real local smoke (findings=0 on clean DUT output). |
+| 4 | `CI-PACKAGING-DISTRIBUTION.2c` | `pending` | Docs + close: README/USER_GUIDE "Use ANVIL in your CI" (a copy-paste `uses:` snippet) + a KM card; close `.2`. The tree stays `active` (more targets / a Marketplace listing / an MCP-driven variant are optional `.N`). |
 
 ## Decisions
 
@@ -121,6 +129,7 @@ bespoke script), so CI usage and interactive usage share one engine.
 | `2026-06-17` | `CI-PACKAGING-DISTRIBUTION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-18` | `CI-PACKAGING-DISTRIBUTION.1` | `decision 0022 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
 | `2026-06-21` | `CI-PACKAGING-DISTRIBUTION.2a` | `release.yml authored; pure-Python structural lint clean (5 targets + all required tokens; no tabs/trailing-ws/odd indents); mem-arch + KM(56) green; no Rust touched ⇒ DUT byte-identical` | `done` |
+| `2026-06-21` | `CI-PACKAGING-DISTRIBUTION.2b` | `action.yml + scripts/anvil_hunt_action.sh + action-selftest.yml authored; REAL local entrypoint smoke (anvil-bin + verilator+yosys, 3 seeds): exit 0, findings=0, valid-JSON report, outputs wired; bash -n + structural YAML lint clean; mem-arch + KM(56) green; no Rust ⇒ DUT byte-identical` | `done` |
 
 ## Commit Log
 
@@ -129,6 +138,7 @@ bespoke script), so CI usage and interactive usage share one engine.
 | `CI-PACKAGING-DISTRIBUTION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `CI-PACKAGING-DISTRIBUTION.1` | `CI-PACKAGING-DISTRIBUTION.1 — design ADR (decision 0022): release workflow + composite GitHub Action over anvil hunt` | Design-only; pins the hand-rolled release matrix, the composite Action shape + inputs, the CLI-shim-over-API invocation, and reproducibility; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
 | `CI-PACKAGING-DISTRIBUTION.2a` | `CI-PACKAGING-DISTRIBUTION.2a — hand-rolled v*-tag release workflow (release.yml)` | First impl slice of decision `0022`: `.github/workflows/release.yml` (5-target build matrix → `anvil`+`anvil-mcp` archives + `SHA256SUMS`, `gh`-CLI publish). CI-infra; no `src` change ⇒ DUT byte-identical. |
+| `CI-PACKAGING-DISTRIBUTION.2b` | `CI-PACKAGING-DISTRIBUTION.2b — composite Action over anvil hunt` | Second impl slice: root `action.yml` + `scripts/anvil_hunt_action.sh` entrypoint + a presence-gated self-test; a thin shim over `anvil hunt` (decision `0017`/`0018`). Proven by a real local entrypoint smoke. CI-infra; no `src` change ⇒ DUT byte-identical. |
 
 ## Changelog
 
@@ -139,3 +149,8 @@ bespoke script), so CI usage and interactive usage share one engine.
   `v*`-tag 5-target release matrix → `anvil`+`anvil-mcp` archives + `SHA256SUMS`,
   `gh`-CLI publish, no third-party release dep). Frontier advances to `.2b` (the
   composite Action). CI-infra / DUT byte-identical.
+- `2026-06-21`: `.2b` landed (root `action.yml` + `scripts/anvil_hunt_action.sh`
+  entrypoint + `.github/workflows/action-selftest.yml` — the drop-in composite
+  Action wrapping `anvil hunt`, proven end-to-end by a real local entrypoint
+  smoke). Frontier advances to `.2c` (docs + close). CI-infra / DUT
+  byte-identical.

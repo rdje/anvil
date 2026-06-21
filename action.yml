@@ -1,0 +1,131 @@
+# CI-PACKAGING-DISTRIBUTION.2b (decision 0022): the drop-in composite GitHub
+# Action. It downloads a pinned ANVIL release binary (or uses a local one),
+# runs `anvil hunt` against the user's installed downstream tool(s), uploads the
+# per-finding reproducer bundles as a CI artifact, and fails the job on a finding
+# (configurable). It drives the same `anvil hunt` CLI-shim-over-API surface an
+# interactive user or MCP agent would (decision 0017) — no Action-only path,
+# no vendored tools.
+#
+# Usage (a downstream-tool maintainer's CI):
+#   - uses: <owner>/anvil@v0.1.0
+#     with:
+#       tools: verilator,yosys
+#       profile: sv2023-upopts
+name: 'ANVIL downstream bug-hunt'
+description: >-
+  Fuzz valid-by-construction SystemVerilog at your installed SV tool(s) with
+  `anvil hunt`, upload reproducer bundles, and fail CI on any reject/warning
+  (or, opt-in, a cross-simulator mismatch / acceptance divergence).
+branding:
+  icon: 'cpu'
+  color: 'purple'
+
+inputs:
+  # --- hunt-flag inputs (map 1:1 onto `anvil hunt` flags) -------------------
+  tools:
+    description: 'Vetted downstream tools to run, comma-separated (`anvil hunt --tools`).'
+    required: false
+    default: 'verilator,yosys'
+  seed:
+    description: 'Base seed of the sweep (`--seed`).'
+    required: false
+    default: '42'
+  seeds:
+    description: 'Number of consecutive seeds to fuzz (`--seeds`).'
+    required: false
+    default: '64'
+  profile:
+    description: 'A curated knob preset to bias the corpus (`--profile`, e.g. sv2023-upopts).'
+    required: false
+    default: ''
+  config:
+    description: 'Path to a full Config JSON in your repo (`--config`).'
+    required: false
+    default: ''
+  yosys-mode:
+    description: 'Yosys synthesis mode when yosys is selected (`--yosys-mode`): without-abc | with-abc | both.'
+    required: false
+    default: 'without-abc'
+  diff-sim:
+    description: 'Also run the cross-simulator agreement check (`--diff-sim`).'
+    required: false
+    default: 'false'
+  divergence:
+    description: 'Also classify cross-tool acceptance divergence (`--divergence`).'
+    required: false
+    default: 'false'
+  budget:
+    description: 'Per-failure minimize oracle ceiling (`--budget`).'
+    required: false
+    default: '200'
+  no-minimize:
+    description: 'Disable auto-minimization of failures (`--no-minimize`).'
+    required: false
+    default: 'false'
+  out:
+    description: 'Reproducer-bundle output directory (`--out`). Defaults to a workspace path.'
+    required: false
+    default: ''
+  # --- Action-level plumbing inputs (not hunt flags) -----------------------
+  anvil-version:
+    description: 'Release tag to download (defaults to the ref this Action is pinned to).'
+    required: false
+    default: ''
+  anvil-bin:
+    description: 'Path to a prebuilt anvil binary to use instead of downloading a release (for source builds / self-test).'
+    required: false
+    default: ''
+  artifact-name:
+    description: 'Name of the uploaded reproducer-bundle artifact (override to avoid collisions in a matrix).'
+    required: false
+    default: 'anvil-hunt-bundles'
+  fail-on-finding:
+    description: 'Fail the job when the hunt reports >= 1 finding.'
+    required: false
+    default: 'true'
+
+outputs:
+  findings:
+    description: 'Number of findings the hunt reported (HuntReport.summary.n_failures).'
+    value: ${{ steps.hunt.outputs.findings }}
+  report:
+    description: 'Path to the saved HuntReport JSON.'
+    value: ${{ steps.hunt.outputs.report }}
+  bundle-dir:
+    description: 'Directory holding the HuntReport + per-finding reproducer bundles.'
+    value: ${{ steps.hunt.outputs.bundle-dir }}
+
+runs:
+  using: composite
+  steps:
+    - id: hunt
+      shell: bash
+      env:
+        INPUT_TOOLS: ${{ inputs.tools }}
+        INPUT_SEED: ${{ inputs.seed }}
+        INPUT_SEEDS: ${{ inputs.seeds }}
+        INPUT_PROFILE: ${{ inputs.profile }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_YOSYS_MODE: ${{ inputs.yosys-mode }}
+        INPUT_DIFF_SIM: ${{ inputs.diff-sim }}
+        INPUT_DIVERGENCE: ${{ inputs.divergence }}
+        INPUT_BUDGET: ${{ inputs.budget }}
+        INPUT_NO_MINIMIZE: ${{ inputs.no-minimize }}
+        INPUT_OUT: ${{ inputs.out }}
+        INPUT_ANVIL_VERSION: ${{ inputs.anvil-version }}
+        INPUT_ANVIL_BIN: ${{ inputs.anvil-bin }}
+      run: bash "${GITHUB_ACTION_PATH}/scripts/anvil_hunt_action.sh"
+
+    - name: Upload reproducer bundles
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.hunt.outputs.bundle-dir }}
+        if-no-files-found: ignore
+
+    - name: Fail on finding
+      if: ${{ inputs.fail-on-finding == 'true' && steps.hunt.outputs.findings != '0' }}
+      shell: bash
+      run: |
+        echo "::error::ANVIL hunt reported ${{ steps.hunt.outputs.findings }} downstream finding(s) — see the '${{ inputs.artifact-name }}' artifact for reproducer bundles."
+        exit 1

@@ -1,0 +1,99 @@
+name: Action self-test
+
+# CI-PACKAGING-DISTRIBUTION.2b (decision 0022): exercises the composite Action
+# (`action.yml` + `scripts/anvil_hunt_action.sh`) end-to-end against the repo's
+# own freshly-built `anvil` binary (via the `anvil-bin` input, so no published
+# release is needed). Downstream tools are installed best-effort; if none are
+# present the run skips clean — matching the Action's friendly absent-tool
+# behaviour. Proves the binary resolution, the input→flag mapping, the
+# HuntReport parsing, the step outputs, and the artifact upload all work.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'action.yml'
+      - 'scripts/anvil_hunt_action.sh'
+      - '.github/workflows/action-selftest.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'action.yml'
+      - 'scripts/anvil_hunt_action.sh'
+      - '.github/workflows/action-selftest.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: action-selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selftest:
+    name: composite Action end-to-end (local anvil-bin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build anvil (release)
+        run: cargo build --release --locked --bin anvil
+
+      - name: Install downstream tools (best-effort)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator yosys \
+            || echo "tool install failed — the self-test will skip clean"
+
+      - name: Probe downstream tools
+        id: probe
+        run: |
+          present=""
+          command -v verilator >/dev/null 2>&1 && present="verilator"
+          if command -v yosys >/dev/null 2>&1; then
+            present="${present:+$present,}yosys"
+          fi
+          echo "tools=$present" >> "$GITHUB_OUTPUT"
+          if [ -z "$present" ]; then
+            echo "No downstream tools present — the hunt step will be skipped clean."
+          else
+            echo "Downstream tools present: $present"
+          fi
+
+      - name: Run the ANVIL hunt Action (local binary)
+        id: hunt
+        if: steps.probe.outputs.tools != ''
+        uses: ./
+        with:
+          anvil-bin: target/release/anvil
+          tools: ${{ steps.probe.outputs.tools }}
+          seed: '1'
+          seeds: '4'
+          budget: '50'
+          fail-on-finding: 'false'
+          artifact-name: anvil-hunt-selftest-bundles
+
+      - name: Assert the Action produced a parseable report
+        if: steps.probe.outputs.tools != ''
+        run: |
+          set -euo pipefail
+          findings='${{ steps.hunt.outputs.findings }}'
+          report='${{ steps.hunt.outputs.report }}'
+          echo "findings=${findings}  report=${report}"
+          test -f "$report"
+          case "$findings" in
+            ''|*[!0-9]*) echo "::error::findings output '${findings}' is not a number"; exit 1 ;;
+            *) echo "Self-test OK: Action ran end-to-end, findings=${findings}." ;;
+          esac
+
+      - name: Skip note (no downstream tools)
+        if: steps.probe.outputs.tools == ''
+        run: echo "Self-test skipped clean: no downstream tools on the runner."

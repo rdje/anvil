@@ -5,6 +5,53 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — CI packaging impl `.2b`: the drop-in composite Action over `anvil hunt` — `CI-PACKAGING-DISTRIBUTION.2b` (decision 0022)
+
+`.2b` implements the composite GitHub Action the `.1` ADR pinned: a root
+`action.yml` + `scripts/anvil_hunt_action.sh` entrypoint + a presence-gated
+self-test workflow. The non-obvious choices worth keeping:
+
+- **Root `action.yml`, entrypoint under `scripts/`.** Placing `action.yml` at the
+  repo root gives the simplest public surface (`uses: <owner>/anvil@<tag>`); the
+  entrypoint lives with the other repo helpers in `scripts/` and is located at
+  runtime via `${GITHUB_ACTION_PATH}/scripts/anvil_hunt_action.sh`
+  (`GITHUB_ACTION_PATH` = the action's checkout root = the repo root here).
+- **Pin-by-ref, with no hardcoded repo.** The entrypoint downloads the release
+  from `https://github.com/${GITHUB_ACTION_REPOSITORY}/releases/download/
+  ${version}/anvil-${version}-${target}.{tar.gz|zip}`, where `version` defaults
+  to `${GITHUB_ACTION_REF}` — so pinning the Action to `@v0.1.0` automatically
+  pins the *binary* to the `v0.1.0` release, with nothing repo-specific baked in.
+  The target is mapped from `RUNNER_OS`/`RUNNER_ARCH` to the `.2a` triples.
+- **`anvil hunt` always exits 0 → the Action decides red/green.** `run_hunt_command`
+  prints the `HuntReport` JSON and returns `Ok(())` regardless of findings
+  (`src/main.rs`), so the entrypoint parses `summary.n_failures` (python3,
+  preinstalled on every runner — no `jq` dependency) into a `findings` step
+  output, and `action.yml`'s `fail-on-finding` step does `exit 1` when it is
+  nonzero. The CLI is a pure shim (decision 0017); the policy lives in the Action.
+- **`anvil-bin` + `artifact-name` are Action-level plumbing beyond the ADR's 1:1
+  hunt-flag table.** The ADR table already pairs the hunt flags with two
+  Action-level inputs (`anvil-version`, `fail-on-finding`). `.2b` adds two more in
+  that same category: `anvil-bin` (use a prebuilt binary instead of downloading —
+  required for the self-test before any release exists, and useful for users who
+  build from source or consume the `.2a` artifact directly) and `artifact-name`
+  (override the upload name to avoid `actions/upload-artifact@v4`'s unique-name
+  collision in a matrix). Neither forks the engine — both still run `anvil hunt`.
+- **An absent downstream tool is a *finding*, not a no-op.** `downstream::run_tool`
+  reports a spawn failure as `success:false` (`src/downstream/mod.rs`), which
+  `validate`/`hunt` count as a failure. So the self-test cannot just run the hunt
+  blindly on a tool-less runner — it probes `command -v verilator/yosys`, runs the
+  Action only when ≥1 is present, and otherwise **skips clean** (the ADR's
+  "skips clean when absent"). It uses `anvil-bin: target/release/anvil` so no
+  published release is needed.
+- **Validated by a real local smoke**, not just a lint: the entrypoint was run
+  against the local release `anvil` + verilator + yosys over a 3-seed sweep —
+  exit 0, `findings=0`, valid-JSON report (`n_clean:3, n_failures:0`), outputs
+  wired. Default DUT output stays downstream-clean, as the project thesis
+  predicts.
+
+This slice touches no Rust; default DUT output stays byte-identical. The
+user-facing "Use ANVIL in your CI" docs + the KM card are `.2c` (which closes `.2`).
+
 ## 2026-06-21 — CI packaging impl `.2a`: the hand-rolled `v*`-tag release workflow — `CI-PACKAGING-DISTRIBUTION.2a` (decision 0022)
 
 `.2a` implements the release path the `.1` ADR pinned: `.github/workflows/release.yml`,
