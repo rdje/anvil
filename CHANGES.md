@@ -1,15 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.3 — user-facing docs for the CLI-flag promotion + `--profile` presets
+
+**Landed as:** this commit (previous: `c59bf39`). **Docs-only (README + USER_GUIDE
++ mdBook + a new KM card). No `src/` change; DUT byte-identical.** Closes the
+`.2b.1` book-sync gap — the shipped CLI flags + `--profile` presets are now fully
+documented, and every now-false "no CLI flag" claim is corrected. Re-scoped from
+the original `.2b.3` (the catalog/`agent-mcp.md` docs fold into `.2b.2` so the book
+never documents an unbuilt surface).
+
+**What changed (why)**
+
+`.2b.1` shipped user-visible CLI flags + `--profile`; the book doctrine
+(`feedback_book_doctrine`) requires zero drift, so this slice documents that surface
+and fixes the ~20 inline statements that still said those knobs had "no CLI flag".
+
+- **`README.md`** — two new "Current CLI truth" bullets (`--profile` + the four
+  presets + the resolution order; the 16-flag promotion list + the 3 kept
+  config-only); the `function_emit_prob`/`generate_loop_emit_prob`/`task_emit_prob`/
+  `cone_function_emit_prob` bullets reworded from "config-file knob (no CLI flag)"
+  to note their new `--kebab` flag.
+- **`USER_GUIDE.md`** — 17 new knob-table rows (`--profile` + the 16 flags); a new
+  "### Presets (`--profile`)" subsection (the 4 presets + resolution order +
+  explicit-beats-preset + byte-stability); every now-false "no CLI flag" / "config/
+  library-only" prose passage fixed (bisimulation, sequential dedup, soft-union,
+  emission intro, cone-function, multi-clock).
+- **`book/src/knobs.md`** — a new "## Knob presets (`--profile`) and CLI-flag
+  promotion" section; the dedup bools + a "Presets and capability knobs" block added
+  to "## CLI coverage"; the structured-emission + dedup inline "no CLI flag" claims
+  corrected.
+- **`book/src/structured-emission.md`** — 4 "config-file knob (no CLI flag)" spots
+  reworded to the matching `--…-emit-prob` flag.
+- **`book/src/sequential.md`** — the multi-clock note now points to
+  `--multi-clock-prob` / `--cdc-synchronizer-stages`.
+- **`docs/knowledge/knob-presets-and-cli-flags.md`** (new KM card) — 8 `answers:`
+  keys; `KNOWLEDGE_MAP.md` regenerated 54 → **55** facts.
+
+Scope: documents **only** what shipped in `.2b.1` (CLI flags + presets); the
+queryable knob catalog + the MCP `profile` input (`.2b.2`) are deliberately not
+documented yet.
+
+**Validation**
+
+- Docs-only / no code; DUT byte-identical by construction (no generator change,
+  snapshots not re-run). `mdbook build book` clean (exit 0). `knowledge-map`
+  gen + check green (55 facts); `check_memory_architecture` green. A focused
+  `grep` confirms no lingering false "no CLI flag" claim for the 16 promoted knobs.
+
+**Impact**
+
+The book is back in sync with the shipped CLI surface — `--profile` + the 16
+promoted flags are documented end-to-end. No behaviour change.
+
+**Files touched:** `README.md`, `USER_GUIDE.md`, `book/src/knobs.md`,
+`book/src/structured-emission.md`, `book/src/sequential.md`,
+`docs/knowledge/knob-presets-and-cli-flags.md`, `KNOWLEDGE_MAP.md`,
+`CHANGES.md`, `MEMORY.md`, `docs/TASK_TREE.md`,
+`docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`.
+
 ## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.1 — promote 16 knobs to CLI flags + `--profile` preset registry + shared `resolve_config`
 
-**Landed as:** this commit (previous: `4d1b8c4`). **Code change — `src/config.rs`
+**Landed as:** `c59bf39` (previous: `4d1b8c4`). **Code change — `src/config.rs`
 + `src/main.rs`; default DUT output byte-identical (`tests/snapshots.rs` 6/6
 untouched).** First code slice of the lane; implements the decision-`0021` /
 `.2a` design. Frontier advances to `.2b.2` (the queryable catalog + MCP `profile`
-input). User-facing docs (book / USER_GUIDE / README / KM) are deferred to the
-`.2b.3` docs-closeout leaf (the structured-emission precedent; tracked, landing
-this session).
+input). User-facing docs landed in `.2b.3` (the structured-emission precedent).
 
 **What changed (why)**
 

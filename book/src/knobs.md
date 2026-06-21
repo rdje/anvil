@@ -130,8 +130,9 @@ Control the size and topology of generated modules.
 - `hierarchy_module_dedup` — opt-in post-finalisation pass that collapses
   structurally-identical `Module` definitions in a `Design` to one
   survivor and, after a real merge, prunes module definitions no longer
-  reachable from the top (Phase 4, hierarchy-aware identity).
-  Config/library-only; no CLI flag.
+  reachable from the top (Phase 4, hierarchy-aware identity). On-only
+  `--hierarchy-module-dedup` CLI flag (since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`), `Config`, or config file.
 
 ### Process-safety governor (runtime, not generation)
 
@@ -474,8 +475,8 @@ instead of creating fresh logic.
 
 ### Structured emission
 
-- `function_emit_prob` (config-file only — no CLI flag, like
-  `soft_union_slice_prob` / `aggregate_prob`; default `0.0` ⇒
+- `function_emit_prob` (the `--function-emit-prob` CLI flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON; default `0.0` ⇒
   byte-identical; validated `0.0..=1.0`) — the **first richer-structured
   emission surface** (decision `0012`). Probability, per *qualifying*
   combinational `Gate`, that anvil re-renders it as a
@@ -507,9 +508,10 @@ instead of creating fresh logic.
   Icarus; `saw_combinational_function_emit`). See
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
-- `generate_loop_emit_prob` (config-file only — no CLI flag, like
-  `function_emit_prob`; default `0.0` ⇒ byte-identical; validated
-  `0.0..=1.0`) — the **second richer-structured emission surface**
+- `generate_loop_emit_prob` (the `--generate-loop-emit-prob` CLI flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON; default `0.0` ⇒
+  byte-identical; validated `0.0..=1.0`) — the **second richer-structured
+  emission surface**
   (decision `0013`). Probability, per *qualifying* `{N{x}}` replication,
   that anvil re-renders it as a single-level `generate for` loop instead
   of an inline `assign`:
@@ -541,8 +543,8 @@ instead of creating fresh logic.
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
 
-- `task_emit_prob` (config-file only — no CLI flag, like
-  `function_emit_prob` / `generate_loop_emit_prob`; default `0.0` ⇒
+- `task_emit_prob` (the `--task-emit-prob` CLI flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON; default `0.0` ⇒
   byte-identical; validated `0.0..=1.0`) — the **third richer-structured
   emission surface** (decision `0014`). Probability, per *qualifying*
   combinational gate (the **same candidate set as `function_emit_prob`**),
@@ -577,7 +579,8 @@ instead of creating fresh logic.
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
 
-- `cone_function_emit_prob` (config-file only — no CLI flag, like
+- `cone_function_emit_prob` (the `--cone-function-emit-prob` CLI flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON, like
   `function_emit_prob` / `generate_loop_emit_prob` / `task_emit_prob`; default
   `0.0` ⇒ byte-identical; validated `0.0..=1.0`) — the **fifth richer-structured
   emission surface** (decision `0016`). Probability, per *qualifying*
@@ -729,9 +732,9 @@ instead of creating fresh logic.
   different gate sequences stay distinct. Default `false` preserves
   today's behaviour exactly; this knob never retires an existing mode.
 
-  This knob is **config/library-only — there is no `--hierarchy-module-dedup`
-  CLI flag**. Set it through a `Config` value (library use) or a config
-  file, and confirm it with `anvil --dump-config`. Worked before/after,
+  Enable it with the on-only `--hierarchy-module-dedup` CLI flag (since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`), a `Config` value (library use), or a
+  config file, and confirm it with `anvil --dump-config`. Worked before/after,
   using the tight leaf constraints that make every library leaf
   structurally identical:
 
@@ -808,9 +811,9 @@ instead of creating fresh logic.
   that boundary, the pass skips the module; it does not degrade into a
   guess.
 
-  This knob is **config/library-only — there is no
-  `--hierarchy-semantic-module-dedup` CLI flag**. Set it through a
-  `Config` value or a config file:
+  Enable it with the on-only `--hierarchy-semantic-module-dedup` CLI flag
+  (since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`), a `Config` value, or a config
+  file:
 
   ```rust,ignore
   use anvil::{Config, Generator, metrics};
@@ -872,10 +875,10 @@ instead of creating fresh logic.
   retired**. `default = false` keeps every existing output
   byte-identical.
 
-  This knob is **config/library-only — there is no
-  `--bisimulation-flop-merge` CLI flag** (it mirrors
-  `hierarchy_module_dedup` / `hierarchy_semantic_module_dedup`). Set it
-  through a `Config` value or a config file:
+  Enable it with the on-only `--bisimulation-flop-merge` CLI flag (since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`; it mirrors `--hierarchy-module-dedup`
+  / `--hierarchy-semantic-module-dedup`), a `Config` value, or a config
+  file:
 
   ```rust,ignore
   use anvil::Config;
@@ -898,6 +901,44 @@ instead of creating fresh logic.
   mixed-sourcing planner. It is not the current user-facing control
   surface; current HEAD uses the explicit
   `hierarchy_child_source_mode` axis instead.
+
+## Knob presets (`--profile`) and CLI-flag promotion
+
+`KNOB-ERGONOMICS-AND-PRESETS.2b.1` (decision `0021`) made the large knob
+space easier to drive in two ways.
+
+**16 previously-config-file-only knobs are now first-class CLI flags**, each
+the kebab-case of the field name: `--function-emit-prob`,
+`--generate-loop-emit-prob`, `--task-emit-prob`, `--cone-function-emit-prob`,
+`--soft-union-slice-prob`, `--width-parameterization-prob`,
+`--aggregate-prob`, `--aggregate-array-prob`, `--memory-prob`, `--fsm-prob`,
+`--multi-clock-prob`, `--cdc-synchronizer-stages`, and the four on-only
+`SetTrue` toggles `--hierarchy-module-dedup`,
+`--hierarchy-semantic-module-dedup`, `--hierarchy-sequential-module-dedup`,
+and `--bisimulation-flop-merge`. Three knobs stay config-file-only (still
+`--config`/MCP settable): `library_prob`, `use_async_reset`, and
+`max_nodes_per_module`.
+
+**`--profile <name>` applies a curated bundle of knob overrides** so you get
+a rich shape in one word:
+
+- `arithmetic-heavy` — datapath bias (heavier arithmetic gate selection,
+  wider operators, more coefficients and constant comparands).
+- `deep-hierarchy` — bounded recursive hierarchy (depth 2..=3, 2..=3
+  children/parent) with sibling routing, parent-composed child-input cones,
+  and parent-local flops.
+- `structured-emission-max` — all four emit-projections on (mutually
+  exclusive per gate, so all-on is safe and behaviour-preserving).
+- `sv2023-upopts` — `--sv-version 2023` + the `union soft` low-bits-slice
+  up-opt.
+
+**Resolution order** (lowest → highest precedence): `Config::default()` →
+`--config <json>` → `--profile <name>` → explicit CLI flags → `--seed`. An
+**explicit flag always overrides the preset**, and a preset overrides the
+`--config`/default base. A given `(seed, profile, explicit overrides)` is
+byte-stable, and **not** passing `--profile` (with none of the promoted
+flags) is byte-identical to before — so the default DUT output is unchanged.
+An unknown profile name errors and lists the valid names.
 
 ## Knob defaults
 
@@ -1085,6 +1126,20 @@ is accurate as of this commit.
 --max-ast-instances
 --mux-arm-duplication-rate
 --operand-duplication-rate
+--hierarchy-module-dedup            (on-only toggle)
+--hierarchy-semantic-module-dedup   (on-only toggle)
+--hierarchy-sequential-module-dedup (on-only toggle)
+--bisimulation-flop-merge           (on-only toggle)
+```
+
+### Presets and capability knobs (KNOB-ERGONOMICS-AND-PRESETS.2b.1)
+```text
+--profile <arithmetic-heavy|deep-hierarchy|structured-emission-max|sv2023-upopts>
+--function-emit-prob, --generate-loop-emit-prob, --task-emit-prob
+--cone-function-emit-prob, --soft-union-slice-prob
+--width-parameterization-prob, --aggregate-prob, --aggregate-array-prob
+--memory-prob, --fsm-prob
+--multi-clock-prob, --cdc-synchronizer-stages
 ```
 
 ### Hierarchy

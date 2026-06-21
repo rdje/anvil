@@ -34,10 +34,11 @@ expression over some inputs": a function. So anvil can take a gate that
 it was *about to print inline* and instead print it as a function
 declaration plus a call — without changing what the circuit computes.
 
-It is governed by one config-file knob,
-[`function_emit_prob`](knobs.md#structured-emission) (default `0.0`),
-so with the knob off the output is byte-identical and nothing in the
-default lane changes.
+It is governed by one knob,
+[`function_emit_prob`](knobs.md#structured-emission) (the
+`--function-emit-prob` CLI flag since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or
+`--config` JSON; default `0.0`), so with the knob off the output is
+byte-identical and nothing in the default lane changes.
 
 ### Before and after
 
@@ -118,8 +119,9 @@ cone already uses.
 
 ## Reproducing it
 
-The knob is a config-file knob (no CLI flag), so set it through a
-`--config` JSON. The example above comes from this recipe:
+The knob has a `--function-emit-prob` CLI flag (since
+`KNOB-ERGONOMICS-AND-PRESETS.2b.1`) or you can set it through a `--config`
+JSON. The example above comes from this recipe:
 
 <!-- book-test: skip — config-file edit + a forced-knob sweep; not the default generator one-liner -->
 ```bash
@@ -193,9 +195,11 @@ the `{N{x}}` form — the `concat_0 = {5{slice_0}}` broadcast anvil
 routinely emits (it is the idiom for fanning a 1-bit select out across a
 mask in one-hot muxes). Bit `g` of `{N{x}}` is *exactly* `x`, so the
 replication re-renders as a loop with no change in meaning. It is
-governed by one config-file knob,
-[`generate_loop_emit_prob`](knobs.md#structured-emission) (default
-`0.0`), so with the knob off the output is byte-identical.
+governed by one knob,
+[`generate_loop_emit_prob`](knobs.md#structured-emission) (the
+`--generate-loop-emit-prob` CLI flag since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`,
+or `--config` JSON; default `0.0`), so with the knob off the output is
+byte-identical.
 
 ### Before and after
 
@@ -311,9 +315,10 @@ argument and is *called* as a statement, where a function is a
 continuous-assign value. Giving a tool both forms is two distinct
 "named, reusable computation" shapes to lower, not one shape twice.
 
-It is governed by one config-file knob,
-[`task_emit_prob`](knobs.md#structured-emission) (default `0.0`), so with
-the knob off the output is byte-identical.
+It is governed by one knob,
+[`task_emit_prob`](knobs.md#structured-emission) (the `--task-emit-prob`
+CLI flag since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON;
+default `0.0`), so with the knob off the output is byte-identical.
 
 ### Before and after
 

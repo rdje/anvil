@@ -225,9 +225,10 @@ For hierarchy, the rule is inductive:
 ### Multi-clock and CDC
 
 Multi-clock support landed via `MULTI-CLOCK-CDC`. Opt-in via
-`Config.multi_clock_prob > 0.0` (`Cli.multi_clock_prob` is
-configuration-only — same convention as `memory_prob` /
-`fsm_prob`). When the per-module Bernoulli roll fires, the
+`Config.multi_clock_prob > 0.0` — the `--multi-clock-prob` CLI flag (and
+`--cdc-synchronizer-stages`) since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or
+`--config` JSON (`memory_prob` / `fsm_prob` gained CLI flags in the same
+slice). When the per-module Bernoulli roll fires, the
 `Generator::generate_module` /
 `Generator::generate_design` paths apply the
 `multi_clock::promote_to_multi_clock` post-construction pass:

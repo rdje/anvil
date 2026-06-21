@@ -199,9 +199,9 @@ shift. Examples:
   `identity_mode=node-id` with effective `factorization_level=e-graph`;
   resetless flops are excluded (no reset base case); over-budget cones
   fall back to structural identity. `bisimulation_flops_merged` records
-  the extra sharing. There is no CLI flag (mirrors
-  `hierarchy_module_dedup`); set it through a `Config` value or config
-  file.
+  the extra sharing. Enable it with the on-only `--bisimulation-flop-merge`
+  CLI flag (since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`), a `Config` value, or
+  config file.
 - Under `identity_mode=node-id`, duplicate deterministic FSM blocks can
   collapse when their selector proof, encoding, transition table, and
   Moore-output table match; `fsms_merged` records that sharing.
@@ -220,8 +220,10 @@ shift. Examples:
   `num_semantically_duplicate_module_pairs` tells you how many
   proof-equal module pairs remain.
 - With `hierarchy_sequential_module_dedup=true` in a JSON config or
-  library `Config` (opt-in, `default=false`, no CLI flag — like the two
-  dedup knobs above), ANVIL extends that module merge to **stateful
+  library `Config` (opt-in, `default=false`; enable from the CLI with the
+  on-only `--hierarchy-sequential-module-dedup` flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, like the two dedup knobs above),
+  ANVIL extends that module merge to **stateful
   flops-only leaf modules**: it proves two of them observationally
   (sequentially) equivalent by a bounded *cross-module* bisimulation
   (the flop-level greatest-fixpoint refinement lifted across both
@@ -310,10 +312,60 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.11`). The first **up-opt** now ships — see `soft_union_slice_prob` (a config-file knob). |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.11`). The first **up-opt** now ships — see `--soft-union-slice-prob`. |
+| `--profile`             | none     | Apply a curated knob preset *before* explicit flags: `arithmetic-heavy` / `deep-hierarchy` / `structured-emission-max` / `sv2023-upopts`. Explicit flags override the preset. See "Presets" below |
+| `--function-emit-prob`  | 0.0      | Per-qualifying-gate probability of the `function automatic` emit-projection |
+| `--generate-loop-emit-prob` | 0.0  | Per-qualifying-replication probability of the `generate for` emit-projection |
+| `--task-emit-prob`      | 0.0      | Per-qualifying-gate probability of the `task automatic` emit-projection |
+| `--cone-function-emit-prob` | 0.0  | Per-qualifying-cone probability of the whole-cone `function automatic` emit-projection |
+| `--soft-union-slice-prob` | 0.0    | Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`) |
+| `--width-parameterization-prob` | 0.0 | Per-module probability of width parameterization (Phase 5) |
+| `--aggregate-prob`      | 0.0      | Per-module probability of packed-`struct` aggregate emission (Phase 5b) |
+| `--aggregate-array-prob` | 0.0     | Per-module probability of packed-array aggregate emission |
+| `--memory-prob`         | 0.0      | Per-module probability of an inferrable memory block (Phase 6) |
+| `--fsm-prob`            | 0.0      | Per-module probability of a generated-encoding FSM block (Phase 6) |
+| `--multi-clock-prob`    | 0.0      | Per-module probability of multi-clock CDC promotion |
+| `--cdc-synchronizer-stages` | 2    | Destination-domain flop count in a generated CDC synchronizer chain (≥ 2) |
+| `--hierarchy-module-dedup` | off   | Enable the opt-in structural hierarchy module-dedup pass (on-only flag) |
+| `--hierarchy-semantic-module-dedup` | off | Enable the opt-in bounded-semantic hierarchy module-dedup pass (on-only flag) |
+| `--hierarchy-sequential-module-dedup` | off | Enable the opt-in bounded-sequential whole-module dedup pass (on-only flag) |
+| `--bisimulation-flop-merge` | off  | Enable the opt-in bounded bisimulation flop-merge pass (on-only flag) |
+
+### Presets (`--profile`)
+
+`--profile <name>` applies a **curated bundle of knob overrides**
+(`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision `0021`) so you get a rich
+shape without hand-authoring config JSON. The four curated presets:
+
+- `arithmetic-heavy` — datapath bias: heavier `gate_arith_weight`, lighter
+  `gate_bitwise_weight`, wider `max_gate_arity`, more `coefficient_prob`
+  and `const_comparand_prob`.
+- `deep-hierarchy` — bounded recursive hierarchy (depth 2..=3, 2..=3
+  children per parent) with sibling routing, parent-composed child-input
+  cones, and parent-local flops.
+- `structured-emission-max` — turns on all four emit-projections
+  (function / generate-loop / task / cone-function); they are mutually
+  exclusive per gate, so all-on is safe and behaviour-preserving.
+- `sv2023-upopts` — `--sv-version 2023` + the `union soft` low-bits-slice
+  up-opt (Verilator `--language 1800-2023` accepts it; Yosys/Icarus no-op).
+
+**Resolution order** (lowest → highest precedence):
+`Config::default()` → `--config <json>` → `--profile <name>` → explicit
+CLI flags → `--seed`. So an **explicit flag always overrides the preset**,
+and a preset overrides the `--config`/default base. A given
+`(seed, profile, explicit overrides)` is byte-stable; **not** passing
+`--profile` (and none of the promoted flags) is byte-identical to before.
+An unknown profile name errors and lists the valid names.
+
+The 16 knobs documented below as "config-file" knobs are now **also**
+first-class CLI flags (the kebab-case of the field name, listed in the
+table above), settable directly or via a preset. Three knobs stay
+config-file-only: `library_prob`, `use_async_reset`, and
+`max_nodes_per_module`.
 
 The `--sv-version 2023` target unlocks the first version-distinctive
-**up-opt**, a config-file knob (no CLI flag, like `aggregate_prob`):
+**up-opt** (the `--soft-union-slice-prob` CLI flag since
+`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON):
 
 - `soft_union_slice_prob` (default `0.0`) — per *proper low-bits* slice
   (`a[hi:0]` over a wider source), the probability the emitter renders it
@@ -328,8 +380,9 @@ The `--sv-version 2023` target unlocks the first version-distinctive
   and are a recorded no-op. Set it in a `--config` JSON, e.g.
   `{ "seed": 1, "soft_union_slice_prob": 1.0, "sv_version": "2023", … }`.
 
-The richer-structured **emission** surfaces have their own config-file
-knobs (no CLI flag, like `soft_union_slice_prob`):
+The richer-structured **emission** surfaces have their own knobs (each now
+with a matching `--kebab-case` CLI flag since
+`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or via `--config` JSON):
 
 - `function_emit_prob` (default `0.0`) — the probability, per
   *qualifying* combinational `Gate`, that anvil re-renders it as a
@@ -395,7 +448,8 @@ knobs (no CLI flag, like `soft_union_slice_prob`):
   matrix section below). Full walk-through:
   `book/src/structured-emission.md`.
 
-- `cone_function_emit_prob` (config-file only — no CLI flag, like
+- `cone_function_emit_prob` (the `--cone-function-emit-prob` CLI flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON, like
   `function_emit_prob` / `generate_loop_emit_prob` / `task_emit_prob`;
   decision `0016`) is the **fifth richer-structured emission surface**, a
   **deepening of the single-gate `function_emit_prob` surface** from one gate
@@ -444,10 +498,12 @@ rewires to `c`. The proof is bounded, not a solver: it enumerates at
 most 12 endpoint-support bits and skips candidates whose
 `assignment_count * cone_node_count` exceeds the current work budget.
 
-Multi-clock CDC is config/library-only. Set `multi_clock_prob > 0.0`
+Multi-clock CDC has CLI flags (since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`)
+or `--config` JSON. Set `--multi-clock-prob > 0.0` (`multi_clock_prob`)
 to promote eligible modules to K=2, and set
-`cdc_synchronizer_stages = N` to choose the number of destination-domain
-flops in the generated 1-bit synchronizer chain. The default `N = 2`
+`--cdc-synchronizer-stages N` (`cdc_synchronizer_stages`) to choose the
+number of destination-domain flops in the generated 1-bit synchronizer
+chain. The default `N = 2`
 is the original 2-flop synchronizer; `N >= 3` exercises the N-flop
 primitive. Inspect `num_cdc_synchronizer_chains` and
 `max_cdc_synchronizer_stages` in module metrics; the legacy

@@ -83,17 +83,17 @@ defaults, validation ranges, and presets first-class queryable facts).
 
 - ID: `KNOB-ERGONOMICS-AND-PRESETS.2b.2`
   Status: `pending`
-  Goal: `Code: the SCHEMA-DERIVED knob_catalog() (KnobInfo + metadata table) + the completeness test (catalog names == Config::default() serde keys) + the anvil://catalog/knob-schema resource + the anvil://catalog/presets resource + the MCP generate/introspect/analyze profile input. Pure projection; raw anvil://catalog/knobs kept.`
+  Goal: `Code: Serialize on Overrides; the SCHEMA-DERIVED knob_catalog() (KnobInfo + metadata table) + the completeness test (catalog names == Config::default() serde keys) + the anvil://catalog/knob-schema resource + the anvil://catalog/presets resource + the MCP generate/introspect/analyze profile input (routed through resolve_config). Pure projection; raw anvil://catalog/knobs kept. FOLD its own agent-mcp.md docs (the new resources + profile input) inline so the book never drifts.`
   Acceptance: `pending (set at pick)`
   Verification: `pending`
   Commit: `pending`
 
 - ID: `KNOB-ERGONOMICS-AND-PRESETS.2b.3`
-  Status: `pending`
-  Goal: `Docs closeout: book/src/knobs.md (presets + CLI-flag promotion + catalog) + book/src/agent-mcp.md (profile input + catalog/presets resources) + USER_GUIDE + README CLI-truth + a Knowledge Map how-to card. Docs-only.`
-  Acceptance: `pending (set at pick)`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `User-facing docs for the SHIPPED .2b.1 surface (CLI-flag promotion + --profile presets + resolution order): book/src/knobs.md + structured-emission.md + sequential.md + USER_GUIDE + README CLI-truth + a Knowledge Map how-to card. (Re-scoped: the catalog/MCP-profile docs in agent-mcp.md fold into .2b.2 when that ships, so the book never documents an unbuilt surface.) Docs-only.`
+  Acceptance: `Every now-false "no CLI flag"/"config-file-only" claim for the 16 promoted knobs corrected; a presets section + the resolution order documented; KM card added; mdbook build clean; documents ONLY shipped behaviour (not the .2b.2 catalog).`
+  Verification: `done — README (2 CLI-truth bullets + emit-knob rewrites), USER_GUIDE (17 table rows + Presets subsection + prose fixes), book/knobs.md (new presets section + CLI-coverage + inline fixes), structured-emission.md (4 fixes), sequential.md (multi-clock fix), new KM card knob-presets-and-cli-flags (KM 54→55). mdbook build clean; KM gen/check + mem-arch green. Docs-only / DUT byte-identical.`
+  Commit: `KNOB-ERGONOMICS-AND-PRESETS.2b.3 — user-facing docs for CLI-flag promotion + --profile presets`
 
 ## Current Frontier
 
@@ -102,7 +102,8 @@ defaults, validation ranges, and presets first-class queryable facts).
 | 1 | `KNOB-ERGONOMICS-AND-PRESETS.1` | `done` | Design-first ADR (decision `0021`) audited the knob surface + pinned the promotion set, the 4 presets, the declarative registry shape, the resolution order, and the API-queryable knob-catalog/preset surface (decision `0017`). |
 | 2 | `KNOB-ERGONOMICS-AND-PRESETS.2a` | `done` | Impl design-detail: `Overrides` reused as the preset carrier, the `presets()` registry, the shared `resolve_config` (CLI = shim over the same resolver), and the completeness-gated knob catalog; `.2b` re-split. |
 | 3 | `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `done` | Code: preset registry + shared `resolve_config` + `--profile` + 16 promoted `Option` CLI flags + `ConfigError::UnknownProfile`; default byte-identical (snapshots 6/6), explicit-beats-preset + unknown-profile proofs; full `cargo test` green. |
-| 4 | `KNOB-ERGONOMICS-AND-PRESETS.2b.2` | `pending` | Next: the SCHEMA-DERIVED queryable knob catalog + completeness test + `anvil://catalog/knob-schema`/`presets` resources + the MCP `profile` input (+ `Serialize` on `Overrides`). |
+| 4 | `KNOB-ERGONOMICS-AND-PRESETS.2b.3` | `done` | User-facing docs for the shipped CLI-flag promotion + `--profile` presets (README/USER_GUIDE/book/knobs.md/structured-emission.md/sequential.md + KM card); mdbook clean; book back in sync. |
+| 5 | `KNOB-ERGONOMICS-AND-PRESETS.2b.2` | `pending` | Frontier: the SCHEMA-DERIVED queryable knob catalog + completeness test + `anvil://catalog/knob-schema`/`presets` resources + the MCP `profile` input (+ `Serialize` on `Overrides`), folding its own `agent-mcp.md` docs. |
 
 ## Decisions
 
@@ -151,6 +152,7 @@ defaults, validation ranges, and presets first-class queryable facts).
 | `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.1` | `decision 0021 written; knob-surface audit verified programmatically (86 fields → 67 CLI-reachable, 19 config-only); INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch check green; docs-only / DUT byte-identical` | `done` |
 | `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.2a` | `impl design-detail in DEVELOPMENT_NOTES (Overrides-as-preset-carrier, presets() registry, shared resolve_config, knob_catalog completeness test); .2b re-split into .2b.1/.2b.2/.2b.3; docs-only / DUT byte-identical` | `done` |
 | `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `lib 553→558 (+5 preset/resolver tests); anvil bin 14 (+2 CLI-wiring tests); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt clean; full cargo test green; --dump-config smoke (presets/explicit-beats-preset/unknown-error/bool-toggle)` | `done` |
+| `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.2b.3` | `user-facing docs (README/USER_GUIDE/book knobs+structured-emission+sequential + KM card) for the shipped CLI flags + presets; all now-false "no CLI flag" claims corrected; mdbook build clean; KM 54→55; mem-arch green; docs-only / DUT byte-identical` | `done` |
 
 ## Commit Log
 
@@ -159,12 +161,14 @@ defaults, validation ranges, and presets first-class queryable facts).
 | `KNOB-ERGONOMICS-AND-PRESETS` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `KNOB-ERGONOMICS-AND-PRESETS.1` | `KNOB-ERGONOMICS-AND-PRESETS.1 — design ADR (decision 0021): CLI-flag promotion + --profile preset registry + queryable knob catalog` | Design-only; pins promotion set (16/19), 4 presets, declarative registry, resolution order, SCHEMA-DERIVED queryable catalog; pre-splits `.2` into `.2a`/`.2b`. |
 | `KNOB-ERGONOMICS-AND-PRESETS.2a` | `KNOB-ERGONOMICS-AND-PRESETS.2a — impl design-detail (Overrides-as-preset-carrier + shared resolver + knob-catalog contract)` | Docs-only; pins the Rust shapes + re-splits `.2b` into `.2b.1`/`.2b.2`/`.2b.3`. |
-| `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `KNOB-ERGONOMICS-AND-PRESETS.2b.1 — promote 16 knobs to CLI flags + --profile preset registry + shared resolve_config` | First code slice; default DUT byte-identical (snapshots 6/6). User-facing docs deferred to `.2b.3`. |
+| `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `KNOB-ERGONOMICS-AND-PRESETS.2b.1 — promote 16 knobs to CLI flags + --profile preset registry + shared resolve_config` | First code slice; default DUT byte-identical (snapshots 6/6). User-facing docs landed at `.2b.3`. |
+| `KNOB-ERGONOMICS-AND-PRESETS.2b.3` | `KNOB-ERGONOMICS-AND-PRESETS.2b.3 — user-facing docs for CLI-flag promotion + --profile presets` | Docs-only; closes the `.2b.1` book-sync gap; mdbook clean; KM 54→55. Catalog docs fold into `.2b.2`. |
 
 ## Changelog
 
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
 - `2026-06-18`: `.1` design ADR (decision `0021`); `.2a` impl design-detail (re-split
   `.2b`); `.2b.1` first code slice — 16 knobs promoted to CLI flags + `--profile`
-  preset registry + shared `resolve_config`, default DUT byte-identical. Frontier
-  advances to `.2b.2` (queryable catalog + MCP `profile` input).
+  preset registry + shared `resolve_config`, default DUT byte-identical; `.2b.3`
+  user-facing docs for that surface (book back in sync). Frontier advances to
+  `.2b.2` (queryable catalog + MCP `profile` input, folding its own agent-mcp.md docs).

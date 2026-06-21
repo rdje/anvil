@@ -776,8 +776,30 @@ exercising adversarial axes that previously fired only by chance
   `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios, 20 units,
   `coverage_gaps = []`, Verilator `20/0`, Yosys `18/0` both modes — the
   up-opt scenario's two modules are the Yosys no-op).
-- `function_emit_prob` is a default-off config-file knob (no CLI flag,
-  like `soft_union_slice_prob` / `aggregate_prob`;
+- `anvil --profile <name>` applies a curated knob preset before explicit
+  flags (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision `0021`):
+  `arithmetic-heavy` (datapath bias), `deep-hierarchy` (bounded recursive
+  hierarchy with sibling routing + parent-local flops),
+  `structured-emission-max` (all four emit-projections on), and
+  `sv2023-upopts` (`--sv-version 2023` + the `union soft` up-opt). The
+  resolution order is `default → --config → --profile → explicit flags →
+  --seed`, so an explicit knob always **overrides** the preset; an unknown
+  name errors with the valid list. Default-off (no `--profile`) ⇒ DUT
+  byte-identical.
+- The 16 previously-config-file-only knobs are now also first-class CLI
+  flags (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`), each the kebab-case of the
+  field: `--function-emit-prob`, `--generate-loop-emit-prob`,
+  `--task-emit-prob`, `--cone-function-emit-prob`, `--soft-union-slice-prob`,
+  `--width-parameterization-prob`, `--aggregate-prob`,
+  `--aggregate-array-prob`, `--memory-prob`, `--fsm-prob`,
+  `--multi-clock-prob`, `--cdc-synchronizer-stages`, plus the four on-only
+  `SetTrue` toggles `--hierarchy-module-dedup`,
+  `--hierarchy-semantic-module-dedup`, `--hierarchy-sequential-module-dedup`,
+  and `--bisimulation-flop-merge`. `library_prob`, `use_async_reset`, and
+  `max_nodes_per_module` stay config-file-only (still `--config`/MCP
+  settable). All default-off ⇒ DUT byte-identical.
+- `function_emit_prob` is a default-off knob (the `--function-emit-prob` CLI
+  flag since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON;
   `STRUCTURED-EMISSION-EXPANSION.2b.1`, decision `0012`) — ANVIL's
   **first richer-structured emission surface**. Per *qualifying*
   combinational `Gate`, it is the probability the emitter re-renders the
@@ -795,9 +817,11 @@ exercising adversarial axes that previously fired only by chance
   `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the
   emitted-function count is surfaced as
   `num_emitted_combinational_functions` in `--introspect` (schema
-  `1.8`). Set it via `--config` JSON. See `book/src/structured-emission.md`.
-- `generate_loop_emit_prob` is a default-off config-file knob (no CLI
-  flag, like `function_emit_prob` / `soft_union_slice_prob`;
+  `1.8`). Set it via `--function-emit-prob` or `--config` JSON. See
+  `book/src/structured-emission.md`.
+- `generate_loop_emit_prob` is a default-off knob (the
+  `--generate-loop-emit-prob` CLI flag since
+  `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON;
   `STRUCTURED-EMISSION-EXPANSION.4b.1`, decision `0013`) — ANVIL's
   **second richer-structured emission surface** (its wider-lane case is the
   **fourth** surface, decision `0015`). Per *qualifying* `{N{x}}`
@@ -817,10 +841,10 @@ exercising adversarial axes that previously fired only by chance
   Combinational only. Default
   `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the
   emitted-loop count is surfaced as `num_emitted_generate_loops` in
-  `--introspect` (schema `1.9`). Set it via `--config` JSON. See
-  `book/src/structured-emission.md`.
-- `task_emit_prob` is a default-off config-file knob (no CLI flag, like
-  `function_emit_prob` / `generate_loop_emit_prob` / `soft_union_slice_prob`;
+  `--introspect` (schema `1.9`). Set it via `--generate-loop-emit-prob` or
+  `--config` JSON. See `book/src/structured-emission.md`.
+- `task_emit_prob` is a default-off knob (the `--task-emit-prob` CLI flag
+  since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON;
   `STRUCTURED-EMISSION-EXPANSION.6b.1`, decision `0014`) — ANVIL's
   **third richer-structured emission surface**. Per *qualifying*
   combinational gate (the **same candidate set as `function_emit_prob`** — a
@@ -841,10 +865,11 @@ exercising adversarial axes that previously fired only by chance
   (nothing retired). Combinational only. Default `0.0` ⇒ DUT byte-identical
   (`tests/snapshots.rs` untouched); the emitted-task count is surfaced as
   `num_emitted_combinational_tasks` in `--introspect` (schema `1.10`). Set it
-  via `--config` JSON. See `book/src/structured-emission.md`.
-- `cone_function_emit_prob` is a default-off config-file knob (no CLI flag, like
-  `function_emit_prob` / `generate_loop_emit_prob` / `task_emit_prob`;
-  `STRUCTURED-EMISSION-EXPANSION.10b.1`, decision `0016`) — ANVIL's **fifth
+  via `--task-emit-prob` or `--config` JSON. See `book/src/structured-emission.md`.
+- `cone_function_emit_prob` is a default-off knob (the
+  `--cone-function-emit-prob` CLI flag since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`,
+  or `--config` JSON; `STRUCTURED-EMISSION-EXPANSION.10b.1`, decision `0016`) —
+  ANVIL's **fifth
   richer-structured emission surface**, a **deepening of the first surface** from
   a single gate to a whole combinational **cone**. Per *qualifying* combinational
   cone (a root gate plus the interior gates feeding it; the root is an
@@ -865,7 +890,8 @@ exercising adversarial axes that previously fired only by chance
   exclusive on a gate; the cone pass runs last. Combinational only. Default `0.0`
   ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the emitted-cone-function
   count is surfaced as `num_emitted_cone_functions` in `--introspect` (schema
-  `1.11`). Set it via `--config` JSON. See `book/src/structured-emission.md`.
+  `1.11`). Set it via `--cone-function-emit-prob` or `--config` JSON. See
+  `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first
