@@ -1724,7 +1724,11 @@ impl Config {
     }
 }
 
-#[derive(Debug, Default)]
+// `Serialize` (KNOB-ERGONOMICS-AND-PRESETS.2b.2a) lets a preset's override
+// bundle be projected for the `anvil://catalog/presets` resource (decision
+// `0017` queryability). All fields are `Option`; the catalog filters the
+// `null` (unset) entries so a preset shows only the knobs it actually sets.
+#[derive(Debug, Default, Serialize)]
 pub struct Overrides {
     pub min_inputs: Option<u32>,
     pub max_inputs: Option<u32>,
@@ -1908,6 +1912,38 @@ pub fn preset_names() -> String {
         .join(", ")
 }
 
+/// SCHEMA-DERIVED projection of the preset registry for the
+/// `anvil://catalog/presets` MCP resource (`KNOB-ERGONOMICS-AND-PRESETS.2b.2a`,
+/// decision `0017`). Each preset's `overrides` is serialized with the unset
+/// (`null`) knobs filtered out, so it shows only the knobs the preset actually
+/// sets — never a recomputed second source of truth, just a projection of the
+/// one `presets()` table.
+pub fn presets_catalog() -> serde_json::Value {
+    let list: Vec<serde_json::Value> = presets()
+        .into_iter()
+        .map(|p| {
+            let overrides = serde_json::to_value(&p.overrides)
+                .ok()
+                .and_then(|v| match v {
+                    serde_json::Value::Object(m) => Some(m),
+                    _ => None,
+                })
+                .map(|m| {
+                    m.into_iter()
+                        .filter(|(_, v)| !v.is_null())
+                        .collect::<serde_json::Map<String, serde_json::Value>>()
+                })
+                .unwrap_or_default();
+            serde_json::json!({
+                "name": p.name,
+                "description": p.description,
+                "overrides": serde_json::Value::Object(overrides),
+            })
+        })
+        .collect();
+    serde_json::json!({ "presets": list })
+}
+
 /// The one shared knob resolver used by **both** the CLI and the MCP surface
 /// (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision [`0021`]; the CLI is a shim over
 /// the same resolution). Precedence, lowest → highest:
@@ -2035,6 +2071,24 @@ mod tests {
             }
             other => panic!("expected UnknownProfile, got {other:?}"),
         }
+    }
+
+    /// `presets_catalog()` projects each preset with ONLY the knobs it sets —
+    /// the unset (`null`) `Overrides` fields are filtered out (`.2b.2a`).
+    #[test]
+    fn presets_catalog_filters_unset_overrides() {
+        let v = presets_catalog();
+        let list = v["presets"].as_array().expect("presets array");
+        assert_eq!(list.len(), 4);
+        let sem = list
+            .iter()
+            .find(|p| p["name"] == "structured-emission-max")
+            .expect("structured-emission-max present");
+        let ovr = sem["overrides"].as_object().expect("overrides object");
+        assert_eq!(ovr["function_emit_prob"], 1.0);
+        // unset knobs are filtered, not serialized as null
+        assert!(!ovr.contains_key("seed"));
+        assert!(!ovr.contains_key("flop_prob"));
     }
 
     #[test]

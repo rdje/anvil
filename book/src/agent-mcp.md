@@ -216,6 +216,7 @@ session:
 anvil://catalog/knobs          the default Config (the knob taxonomy)
 anvil://catalog/lanes          the artifact lanes (dut / microdesign / frontend)
 anvil://catalog/adapters       the downstream adapter catalog (id/binary/present/supports_facts)
+anvil://catalog/presets        the --profile preset registry (name/description/overrides)
 anvil://audit/log              the append-only validate/minimize/hunt/divergence audit trail
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document

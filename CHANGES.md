@@ -1,9 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.2a — `anvil://catalog/presets` resource + the MCP `profile` input
+
+**Landed as:** this commit (previous: `c44b3a5`). **Code — `src/config.rs` +
+`src/mcp/mod.rs` + book API docs; DUT byte-identical (no generator change,
+snapshots 6/6).** The steerable + preset-queryable half of the decision-`0017`
+preset/knob API. Frontier advances to `.2b.2b` (the per-knob catalog).
+
+**What changed (why)**
+
+`.2b.1` shipped `--profile` on the CLI; decision `0017` requires the same surface
+over MCP (the CLI is a shim). This slice makes presets **discoverable** and
+**applicable** over the API, reusing the one shared `resolve_config`.
+
+- **`src/config.rs`** — `Overrides` gains `#[derive(Serialize)]`; new
+  `presets_catalog()` — a SCHEMA-DERIVED projection of the `presets()` table
+  (each preset's `Overrides` serialized with the unset/`null` knobs filtered, so
+  it shows only what the preset sets). Not a second source of truth — a pure
+  projection of the one registry.
+- **`src/mcp/mod.rs`** — `config_from_args` now reads a `profile` arg and routes
+  through `crate::config::resolve_config(base, profile, &Overrides::default(),
+  seed)` — the **same** resolver the CLI uses (config = full base, preset layers
+  on top; unknown profile ⇒ tool error). `profile` added to the `knob_schema` +
+  `generate_schema` input schemas (so `generate`/`introspect`/`analyze`/
+  `dump_config` all accept it). New `anvil://catalog/presets` resource (listed +
+  read) serving `presets_catalog()`. The raw `anvil://catalog/knobs` is untouched.
+- **Book** — `agent-mcp.md` (resource list), `api-resources-prompts.md` (the
+  resource table), and `api-tools.md` (the `profile` arg on `generate` +
+  `analyze`, bullet + table) document the new surface (folded inline so the book
+  never drifts).
+
+**Validation**
+
+- `cargo check --all-targets` clean; **`cargo test --lib` 558→563** (+1
+  `presets_catalog_filters_unset_overrides`; +4 MCP:
+  `presets_catalog_resource_lists_the_four_presets`,
+  `dump_config_with_profile_applies_the_preset`,
+  `dump_config_with_unknown_profile_errors`,
+  `dump_config_without_profile_is_unchanged`); **snapshots 6/6 byte-identical**;
+  full `cargo test` green (RAM-guarded). `cargo clippy --all-targets -- -D
+  warnings` + `cargo fmt --all --check` clean. `mdbook build book` clean.
+- SCHEMA-DERIVED / structure-first ceiling preserved (decision `0017`): the
+  presets catalog is a projection of the `presets()` table, never recomputed
+  truth or a behavioural oracle.
+
+**Impact**
+
+An agent can now discover every `--profile` preset (and the exact knob overrides
+it sets) via `anvil://catalog/presets` and apply one via the `profile` tool
+argument — no shell access to the binary needed. DUT byte-identical. `.2b.2b`
+adds the per-knob catalog (`anvil://catalog/knob-schema`).
+
+**Files touched:** `src/config.rs`, `src/mcp/mod.rs`, `book/src/agent-mcp.md`,
+`book/src/api-resources-prompts.md`, `book/src/api-tools.md`, `CHANGES.md`,
+`MEMORY.md`, `docs/TASK_TREE.md`, `docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`.
+
 ## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.3 — user-facing docs for the CLI-flag promotion + `--profile` presets
 
-**Landed as:** this commit (previous: `c59bf39`). **Docs-only (README + USER_GUIDE
+**Landed as:** `c44b3a5` (previous: `c59bf39`). **Docs-only (README + USER_GUIDE
 + mdBook + a new KM card). No `src/` change; DUT byte-identical.** Closes the
 `.2b.1` book-sync gap — the shipped CLI flags + `--profile` presets are now fully
 documented, and every now-false "no CLI flag" claim is corrected. Re-scoped from

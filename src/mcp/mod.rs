@@ -210,7 +210,10 @@ impl McpServer {
                 "seed": { "type": "integer", "minimum": 0,
                           "description": "RNG seed (deterministic output)." },
                 "config": { "type": "object",
-                            "description": "Full effective Config (as emitted by dump_config). Omit for defaults." }
+                            "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
+                "profile": { "type": "string",
+                             "description": "Apply a curated knob preset on top of `config`/defaults \
+                                             (see anvil://catalog/presets). Resolution: config -> profile -> seed." }
             },
             "additionalProperties": false
         });
@@ -232,6 +235,9 @@ impl McpServer {
                 "config": { "type": "object",
                             "description": "DUT lane only: full effective Config (as emitted by \
                                             dump_config). Omit for defaults." },
+                "profile": { "type": "string",
+                             "description": "DUT lane only: apply a curated knob preset on top of \
+                                             `config`/defaults (see anvil://catalog/presets)." },
                 "n_params": { "type": "integer", "minimum": 0,
                               "description": "microdesign/frontend lanes: parameter/localparam count \
                                               (default 5)." },
@@ -1064,6 +1070,11 @@ impl McpServer {
                 "mimeType": "application/json",
             }),
             json!({
+                "uri": "anvil://catalog/presets",
+                "name": "knob preset registry (--profile bundles: name/description/overrides)",
+                "mimeType": "application/json",
+            }),
+            json!({
                 "uri": "anvil://audit/log",
                 "name": "validate audit log",
                 "mimeType": "application/json",
@@ -1138,6 +1149,13 @@ impl McpServer {
                 }))
                 .unwrap_or_default(),
             ),
+            // KNOB-ERGONOMICS-AND-PRESETS.2b.2a — the preset registry projected
+            // for discovery (decision `0017`): each `--profile` bundle's name,
+            // description, and the exact knob overrides it sets.
+            "anvil://catalog/presets" => (
+                "application/json",
+                serde_json::to_string_pretty(&crate::config::presets_catalog()).unwrap_or_default(),
+            ),
             "anvil://audit/log" => (
                 "application/json",
                 serde_json::to_string_pretty(&self.audit).unwrap_or_default(),
@@ -1206,14 +1224,24 @@ impl McpServer {
 /// because `Config` has no partial-deserialize defaults; omit it for the
 /// defaults. `seed` overrides `config.seed`.
 fn config_from_args(args: &Value) -> Result<(u64, Config), String> {
-    let mut cfg = match args.get("config") {
+    let base = match args.get("config") {
         Some(c) if !c.is_null() => serde_json::from_value::<Config>(c.clone())
             .map_err(|e| format!("invalid config: {e}"))?,
         _ => Config::default(),
     };
-    let seed = args.get("seed").and_then(Value::as_u64).unwrap_or(cfg.seed);
-    cfg.seed = seed;
-    cfg.validate().map_err(|e| e.to_string())?;
+    let seed = args
+        .get("seed")
+        .and_then(Value::as_u64)
+        .unwrap_or(base.seed);
+    // KNOB-ERGONOMICS-AND-PRESETS.2b.2a — the MCP `profile` input routes through
+    // the SAME shared resolver the CLI uses (`resolve_config`): `config` is the
+    // full base, the named preset layers on top. The MCP first cut has no
+    // per-knob explicit overrides above the preset (so `Overrides::default()`),
+    // matching decision `0021`. An unknown profile surfaces as a tool error.
+    let profile = args.get("profile").and_then(Value::as_str);
+    let cfg =
+        crate::config::resolve_config(base, profile, &crate::config::Overrides::default(), seed)
+            .map_err(|e| e.to_string())?;
     Ok((seed, cfg))
 }
 
@@ -1815,6 +1843,77 @@ mod tests {
         assert_eq!(resp["result"]["serverInfo"]["name"], "anvil-mcp");
         assert!(resp["result"]["capabilities"]["tools"].is_object());
         assert!(resp["result"]["capabilities"]["resources"].is_object());
+    }
+
+    // --- KNOB-ERGONOMICS-AND-PRESETS.2b.2a: presets resource + profile input --
+
+    /// `anvil://catalog/presets` lists the four presets, each with only the
+    /// knobs it sets (unset overrides filtered).
+    #[test]
+    fn presets_catalog_resource_lists_the_four_presets() {
+        let mut s = McpServer::new();
+        let resp = s
+            .handle(&req(
+                1,
+                "resources/read",
+                json!({ "uri": "anvil://catalog/presets" }),
+            ))
+            .unwrap();
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let v: Value = serde_json::from_str(text).unwrap();
+        let presets = v["presets"].as_array().unwrap();
+        assert_eq!(presets.len(), 4);
+        let names: Vec<&str> = presets
+            .iter()
+            .map(|p| p["name"].as_str().unwrap())
+            .collect();
+        assert!(names.contains(&"arithmetic-heavy"));
+        assert!(names.contains(&"sv2023-upopts"));
+        let sem = presets
+            .iter()
+            .find(|p| p["name"] == "structured-emission-max")
+            .unwrap();
+        assert_eq!(sem["overrides"]["function_emit_prob"], 1.0);
+        assert!(sem["overrides"].get("seed").is_none());
+    }
+
+    /// The MCP `profile` input applies the preset through the shared resolver.
+    #[test]
+    fn dump_config_with_profile_applies_the_preset() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            1,
+            "dump_config",
+            json!({ "seed": 1, "profile": "structured-emission-max" }),
+        );
+        let cfg: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(cfg["function_emit_prob"], 1.0);
+        assert_eq!(cfg["task_emit_prob"], 1.0);
+        assert_eq!(cfg["seed"], 1);
+    }
+
+    /// An unknown MCP `profile` is a clean tool error listing the valid names.
+    #[test]
+    fn dump_config_with_unknown_profile_errors() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            1,
+            "dump_config",
+            json!({ "seed": 1, "profile": "nope" }),
+        );
+        assert_eq!(resp["result"]["isError"], true);
+        assert!(tool_text_of(&resp).contains("unknown profile"));
+    }
+
+    /// No `profile` ⇒ the default config is unchanged (byte-identical default).
+    #[test]
+    fn dump_config_without_profile_is_unchanged() {
+        let mut s = McpServer::new();
+        let resp = call(&mut s, 1, "dump_config", json!({ "seed": 1 }));
+        let cfg: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(cfg["function_emit_prob"], 0.0);
     }
 
     #[test]

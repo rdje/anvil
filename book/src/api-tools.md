@@ -34,6 +34,11 @@ Common argument types used throughout:
 - **`seed`** — `integer ≥ 0`, the deterministic RNG seed.
 - **`config`** — `object`, a full effective `Config` exactly as
   [`dump_config`](#dump_config) emits it. Omit for defaults. (DUT lane only.)
+- **`profile`** — `string`, a curated knob preset applied on top of
+  `config`/defaults (`KNOB-ERGONOMICS-AND-PRESETS.2b.2a`; the names are in
+  [`anvil://catalog/presets`](./api-resources-prompts.md)). Resolution is
+  `config → profile → seed`, so the preset layers over the `config` base; an
+  unknown name is a tool error. (DUT lane only.)
 - **`tools`** — `array` of `"verilator" | "yosys" | "iverilog" | "sv2v" |
   "slang"`. A **fixed allow-list** — no arbitrary commands or binary paths.
   Default `["verilator", "yosys"]`. (`sv2v` is an `sv2v`
@@ -62,6 +67,7 @@ content-addressed `run_id` and resource URIs.
 | `seed` | integer ≥ 0 | no | `0` | deterministic seed |
 | `lane` | `"dut"` \| `"microdesign"` \| `"frontend"` | no | `"dut"` | artifact lane |
 | `config` | object | no | defaults | **DUT lane only** |
+| `profile` | string | no | none | **DUT lane only**: a curated knob preset (see [`anvil://catalog/presets`](./api-resources-prompts.md)); layered `config → profile → seed` |
 | `n_params` | integer ≥ 0 | no | `5` | **microdesign / frontend**: parameter/localparam count |
 | `n_children` | integer ≥ 0 | no | `2` | **frontend**: child-instance count |
 
@@ -132,6 +138,7 @@ this entry covers the call surface.
 | --- | --- | --- | --- | --- |
 | `seed` | integer ≥ 0 | no | `0` | |
 | `config` | object | no | defaults | DUT lane only |
+| `profile` | string | no | none | a curated knob preset (see [`anvil://catalog/presets`](./api-resources-prompts.md)) |
 | `query` | `"output_support"` \| `"input_reach"` \| `"flop_reset_provenance"` \| `"module_reachability"` | no | `"output_support"` | the relation kind |
 | `target` | string | no | all | meaning depends on `query` (below) |
 
