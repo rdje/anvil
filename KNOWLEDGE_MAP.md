@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **55** facts · **483** question keys.
+> **55** facts · **488** question keys.
 
 ## Questions → fact
 
@@ -32,6 +32,8 @@
 - "can ANVIL merge whole stateful modules by sequential equivalence" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "can ANVIL target a specific SystemVerilog version" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "can ANVIL wrap a whole combinational cone as one function" -> [structured-emission-fifth-surface-cone-function](docs/decisions/0016-structured-emission-fifth-surface-cone-function.md) · 2026-06-17
+- "can I apply an ANVIL preset over MCP" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
+- "can I discover ANVIL presets over the API" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
 - "can I list ANVIL's presets over the API" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "can I plug a new SystemVerilog tool into ANVIL as an acceptance column" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "can I select slang over the MCP tools arg" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
@@ -153,6 +155,7 @@
 - "how do I make anvil hunt write reproducer bundles to a directory" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I merge sequentially-equivalent stateful modules" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "how do I query ANVIL's knob catalog over MCP" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
+- "how do I query the ANVIL knob catalog over MCP" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
 - "how do I read the anvil API contract" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
 - "how do I run a downstream-tool bug hunt over MCP vs the CLI" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I run a turnkey downstream bug hunt with ANVIL" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
@@ -348,6 +351,8 @@
 - "what is a SupportCone" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is acceptance divergence hunting" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "what is anvil schema_version" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
+- "what is anvil://catalog/knob-schema" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
+- "what is anvil://catalog/presets" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
 - "what is invariant SCHEMA-DERIVED" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
 - "what is merge_bisimilar_flops" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what is num_emitted_combinational_functions" -> [combinational-function-emit](docs/knowledge/combinational-function-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\"/tmp/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config /tmp/fe.json | tee /tmp/fe.sv | grep -c "function automatic" && verilator --lint-only /tmp/fe.sv && echo CLEAN'`
@@ -703,7 +708,7 @@ _Knob ergonomics — promote high-value config-only knobs to CLI flags, add a de
 ### knob-presets-and-cli-flags
 _ANVIL knob presets (--profile) and the CLI-flag promotion of 16 config-file-only knobs_
 
-- **answers:** how do I set ANVIL's config-file-only knobs from the CLI | what does the --profile flag do in ANVIL | what ANVIL presets are there | does ANVIL have a --profile preset | how do I turn on ANVIL structured emission from the CLI | what is the ANVIL knob resolution order | do explicit ANVIL CLI flags override a --profile preset | which ANVIL knobs still have no CLI flag
+- **answers:** how do I set ANVIL's config-file-only knobs from the CLI | what does the --profile flag do in ANVIL | what ANVIL presets are there | does ANVIL have a --profile preset | how do I turn on ANVIL structured emission from the CLI | what is the ANVIL knob resolution order | do explicit ANVIL CLI flags override a --profile preset | which ANVIL knobs still have no CLI flag | how do I query the ANVIL knob catalog over MCP | can I discover ANVIL presets over the API | what is anvil://catalog/knob-schema | what is anvil://catalog/presets | can I apply an ANVIL preset over MCP
 - **date:** 2026-06-18 · **status:** current
 - **reverify:** `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
 - **source:** [`docs/knowledge/knob-presets-and-cli-flags.md`](docs/knowledge/knob-presets-and-cli-flags.md)

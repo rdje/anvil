@@ -1075,6 +1075,11 @@ impl McpServer {
                 "mimeType": "application/json",
             }),
             json!({
+                "uri": "anvil://catalog/knob-schema",
+                "name": "per-knob catalog (name/group/type/default/validation/cli_flag/config_only)",
+                "mimeType": "application/json",
+            }),
+            json!({
                 "uri": "anvil://audit/log",
                 "name": "validate audit log",
                 "mimeType": "application/json",
@@ -1155,6 +1160,16 @@ impl McpServer {
             "anvil://catalog/presets" => (
                 "application/json",
                 serde_json::to_string_pretty(&crate::config::presets_catalog()).unwrap_or_default(),
+            ),
+            // KNOB-ERGONOMICS-AND-PRESETS.2b.2b — the SCHEMA-DERIVED per-knob
+            // catalog (decision `0017`): name/group/type/default/validation +
+            // whether the knob has a CLI flag, projected from the `Config` /
+            // `Overrides` serde shape. The raw `anvil://catalog/knobs` (a bare
+            // `Config::default()` dump) is kept untouched alongside it.
+            "anvil://catalog/knob-schema" => (
+                "application/json",
+                serde_json::to_string_pretty(&json!({ "knobs": crate::config::knob_catalog() }))
+                    .unwrap_or_default(),
             ),
             "anvil://audit/log" => (
                 "application/json",
@@ -1875,6 +1890,34 @@ mod tests {
             .unwrap();
         assert_eq!(sem["overrides"]["function_emit_prob"], 1.0);
         assert!(sem["overrides"].get("seed").is_none());
+    }
+
+    /// `anvil://catalog/knob-schema` lists every knob with its metadata.
+    #[test]
+    fn knob_schema_resource_lists_knobs_with_metadata() {
+        let mut s = McpServer::new();
+        let resp = s
+            .handle(&req(
+                1,
+                "resources/read",
+                json!({ "uri": "anvil://catalog/knob-schema" }),
+            ))
+            .unwrap();
+        let text = resp["result"]["contents"][0]["text"].as_str().unwrap();
+        let v: Value = serde_json::from_str(text).unwrap();
+        let knobs = v["knobs"].as_array().unwrap();
+        assert!(
+            knobs.len() >= 80,
+            "expected the full knob surface, got {}",
+            knobs.len()
+        );
+        let fe = knobs
+            .iter()
+            .find(|k| k["name"] == "function_emit_prob")
+            .unwrap();
+        assert_eq!(fe["cli_flag"], true);
+        assert_eq!(fe["group"], "structured_emission");
+        assert_eq!(fe["config_only"], false);
     }
 
     /// The MCP `profile` input applies the preset through the shared resolver.

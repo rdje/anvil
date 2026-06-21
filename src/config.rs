@@ -1944,6 +1944,162 @@ pub fn presets_catalog() -> serde_json::Value {
     serde_json::json!({ "presets": list })
 }
 
+/// One row of the SCHEMA-DERIVED knob catalog
+/// (`KNOB-ERGONOMICS-AND-PRESETS.2b.2b`, decision `0017`): per-`Config`-field
+/// metadata, projected — never a recomputed second source of truth.
+#[derive(Debug, Clone, Serialize)]
+pub struct KnobInfo {
+    pub name: String,
+    /// Coarse topical group (prefix-classified from the field name).
+    pub group: String,
+    /// JSON value kind of the default: `number` / `boolean` / `string` / `object` / …
+    pub ty: String,
+    pub default: serde_json::Value,
+    /// Best-effort validation summary (the authority is `Config::validate`).
+    pub validation: String,
+    /// Does the knob have a dedicated CLI flag (the kebab-case of the name)?
+    pub cli_flag: bool,
+    /// Is the knob settable only via `--config` JSON / MCP `config` (no CLI flag)?
+    pub config_only: bool,
+}
+
+/// The coarse topical group for a `Config` field name. Returns `"other"` for an
+/// unrecognised field — the `knob_catalog_classifies_every_field` test forbids
+/// that, so a new field forces a classification here (the anti-drift gate).
+fn knob_group(name: &str) -> &'static str {
+    match name {
+        "seed" => return "run",
+        "max_nodes_per_module" | "max_rss_mb" | "ram_abort_pct" => return "memory_safety",
+        "share_prob" | "terminal_reuse_prob" | "constant_prob" | "library_prob" => {
+            return "sharing"
+        }
+        "use_async_reset" => return "sequential",
+        "construction_strategy" | "graph_first_pool_size" => return "construction",
+        "sv_version" => return "sv_version",
+        "identity_mode" | "factorization_level" | "bisimulation_flop_merge" => return "identity",
+        "operand_duplication_rate" | "mux_arm_duplication_rate" | "max_ast_instances" => {
+            return "duplication"
+        }
+        "width_parameterization_prob" => return "parameterization",
+        "memory_prob" => return "memory_motif",
+        "fsm_prob" => return "fsm",
+        "multi_clock_prob" | "cdc_synchronizer_stages" => return "multi_clock",
+        "priority_encoder_prob" | "case_mux_prob" | "casez_mux_prob" | "for_fold_prob" => {
+            return "block_motif"
+        }
+        "coefficient_prob" | "min_coefficient" | "max_coefficient" => return "coefficient_motif",
+        "const_shift_amount_prob" | "min_shift_amount" | "max_shift_amount" => {
+            return "shift_motif"
+        }
+        "const_comparand_prob" | "min_comparand" | "max_comparand" => return "comparand_motif",
+        "min_inputs" | "max_inputs" | "min_outputs" | "max_outputs" | "min_width" | "max_width"
+        | "max_depth" => return "dimensions",
+        "min_gate_arity" | "max_gate_arity" => return "gate_arity",
+        _ => {}
+    }
+    if name.ends_with("_module_dedup") {
+        return "identity";
+    }
+    if name.ends_with("_emit_prob") || name == "soft_union_slice_prob" {
+        return "structured_emission";
+    }
+    if name.starts_with("aggregate") {
+        return "aggregate";
+    }
+    if name.starts_with("gate_") && name.ends_with("_weight") {
+        return "gate_weights";
+    }
+    if name.contains("hierarchy")
+        || name.contains("child_instances")
+        || name == "num_leaf_modules"
+        || name == "num_child_instances"
+        || name.contains("parent_cone")
+    {
+        return "hierarchy";
+    }
+    if name.starts_with("flop")
+        || name.contains("mux_arm")
+        || name.contains("mux_encoding")
+        || name == "comb_mux_prob"
+        || name == "max_flops_per_module"
+    {
+        return "sequential";
+    }
+    "other"
+}
+
+/// The JSON value kind name for the catalog `ty` column.
+fn json_type_name(v: &serde_json::Value) -> &'static str {
+    match v {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
+}
+
+/// Best-effort validation summary for the catalog (the authority is
+/// `Config::validate`). Probability/rate knobs are `[0.0, 1.0]`; everything else
+/// points back at the validator so the catalog never claims a bound it does not
+/// enforce.
+fn knob_validation(name: &str, default: &serde_json::Value) -> String {
+    if (name.ends_with("_prob") || name.ends_with("_rate")) && default.is_number() {
+        return "[0.0, 1.0]".to_string();
+    }
+    match name {
+        "cdc_synchronizer_stages" => ">= 2".to_string(),
+        "ram_abort_pct" => "0..=100 (0 = off)".to_string(),
+        "min_width" => ">= 1".to_string(),
+        "max_depth" => ">= 1".to_string(),
+        _ => "see Config::validate()".to_string(),
+    }
+}
+
+/// The SCHEMA-DERIVED knob catalog for the `anvil://catalog/knob-schema` MCP
+/// resource (`KNOB-ERGONOMICS-AND-PRESETS.2b.2b`, decision `0017`). Field names
+/// and defaults are projected from `serde_json::to_value(Config::default())`;
+/// `cli_flag` is whether the name is in the `Overrides` serde key set (plus
+/// `seed`, which is CLI-stamped directly); `group`/`validation` come from the
+/// small classifiers above. A pure projection — adds no computed truth.
+pub fn knob_catalog() -> Vec<KnobInfo> {
+    let defaults = serde_json::to_value(Config::default())
+        .ok()
+        .and_then(|v| match v {
+            serde_json::Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let mut cli_keys: std::collections::BTreeSet<String> =
+        serde_json::to_value(Overrides::default())
+            .ok()
+            .and_then(|v| match v {
+                serde_json::Value::Object(m) => Some(m.keys().cloned().collect()),
+                _ => None,
+            })
+            .unwrap_or_default();
+    cli_keys.insert("seed".to_string()); // CLI-stamped directly, not via Overrides
+
+    let mut out: Vec<KnobInfo> = defaults
+        .into_iter()
+        .map(|(name, default)| {
+            let cli_flag = cli_keys.contains(&name);
+            KnobInfo {
+                group: knob_group(&name).to_string(),
+                ty: json_type_name(&default).to_string(),
+                validation: knob_validation(&name, &default),
+                default,
+                cli_flag,
+                config_only: !cli_flag,
+                name,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
 /// The one shared knob resolver used by **both** the CLI and the MCP surface
 /// (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision [`0021`]; the CLI is a shim over
 /// the same resolution). Precedence, lowest → highest:
@@ -2071,6 +2227,59 @@ mod tests {
             }
             other => panic!("expected UnknownProfile, got {other:?}"),
         }
+    }
+
+    /// The knob catalog covers EVERY `Config` field exactly once, classifies
+    /// each (no `"other"` group), and the `cli_flag`/`config_only` split is a
+    /// partition consistent with the real CLI surface. The anti-drift gate
+    /// (`.2b.2b`): a new field — or a knob promoted/demoted re: CLI — must be
+    /// reflected here or this test fails.
+    #[test]
+    fn knob_catalog_classifies_every_field() {
+        let catalog = knob_catalog();
+        let cfg_keys: std::collections::BTreeSet<String> =
+            match serde_json::to_value(Config::default()).unwrap() {
+                serde_json::Value::Object(m) => m.keys().cloned().collect(),
+                _ => panic!("Config is not a JSON object"),
+            };
+        let cat_names: std::collections::BTreeSet<String> =
+            catalog.iter().map(|k| k.name.clone()).collect();
+        assert_eq!(
+            cat_names, cfg_keys,
+            "knob catalog must cover every Config field exactly once"
+        );
+        let unclassified: Vec<&str> = catalog
+            .iter()
+            .filter(|k| k.group == "other")
+            .map(|k| k.name.as_str())
+            .collect();
+        assert!(
+            unclassified.is_empty(),
+            "unclassified knobs: {unclassified:?}"
+        );
+        for k in &catalog {
+            assert_ne!(
+                k.cli_flag, k.config_only,
+                "{}: cli_flag and config_only must be a partition",
+                k.name
+            );
+        }
+        // representative spot checks across the cli/config split
+        let fe = catalog
+            .iter()
+            .find(|k| k.name == "function_emit_prob")
+            .unwrap();
+        assert!(fe.cli_flag);
+        assert_eq!(fe.group, "structured_emission");
+        assert_eq!(fe.validation, "[0.0, 1.0]");
+        assert!(
+            catalog
+                .iter()
+                .find(|k| k.name == "library_prob")
+                .unwrap()
+                .config_only
+        );
+        assert!(catalog.iter().find(|k| k.name == "seed").unwrap().cli_flag);
     }
 
     /// `presets_catalog()` projects each preset with ONLY the knobs it sets —

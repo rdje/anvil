@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.2b — SCHEMA-DERIVED `knob_catalog()` + `anvil://catalog/knob-schema`
+
+**Landed as:** this commit (previous: `455223e`). **Code — `src/config.rs` +
+`src/mcp/mod.rs` + book + KM card; DUT byte-identical (snapshots 6/6).**
+Completes the decision-`0017` queryable knob surface — and the
+`KNOB-ERGONOMICS-AND-PRESETS` lane's planned API (no current frontier).
+
+**What changed (why)**
+
+The raw `anvil://catalog/knobs` resource is a bare `Config::default()` dump (names
++ values only). This slice adds the **rich per-knob catalog** an agent needs to
+reason about the surface: group, type, default, validation summary, and whether
+each knob has a CLI flag.
+
+- **`src/config.rs`** — `KnobInfo { name, group, ty, default, validation,
+  cli_flag, config_only }` + `knob_catalog()`: a SCHEMA-DERIVED projection — names
+  + defaults from `serde_json::to_value(Config::default())`, `cli_flag` from the
+  `Overrides` serde key set ∪ `{seed}` (so the catalog can't disagree with the
+  real CLI surface), `group` from a curated prefix-classifier (`knob_group`),
+  `validation` best-effort (`knob_validation`; probs/rates → `[0.0, 1.0]`, else
+  points at `Config::validate`). Not a recomputed truth — a pure projection.
+- **`src/mcp/mod.rs`** — the `anvil://catalog/knob-schema` resource (listed +
+  read) serving `{ "knobs": knob_catalog() }`; the raw `anvil://catalog/knobs` is
+  untouched (no retirement).
+- **Completeness gate** — `knob_catalog_classifies_every_field` asserts the
+  catalog covers every `Config` serde field exactly once, no field lands in the
+  `"other"` group, and `cli_flag`/`config_only` is a partition. A new `Config`
+  field (or a CLI-promotion/demotion) now *must* be reflected in `knob_group` or
+  the test fails — the KM derive-and-diff anti-drift pattern. (It caught
+  `min_hierarchy_depth`/`max_hierarchy_depth` during development — the classifier
+  used `starts_with("hierarchy")`; fixed to `contains("hierarchy")`.)
+- **Book + KM** — `agent-mcp.md` (resource list) + `api-resources-prompts.md`
+  (the resource table) document `anvil://catalog/knob-schema`; the
+  `knob-presets-and-cli-flags` KM card gains the MCP-catalog answer keys
+  (`KNOWLEDGE_MAP.md` regenerated, still 55 facts — keys added to an existing card).
+
+**Validation**
+
+- `cargo check --all-targets` clean; **`cargo test --lib` 563→566** (+1
+  `knob_catalog_classifies_every_field`; +1 `knob_schema_resource_lists_knobs_with_metadata`);
+  **snapshots 6/6 byte-identical**; full `cargo test` green (RAM-guarded).
+  `cargo clippy --all-targets -- -D warnings` + `cargo fmt --all --check` clean.
+  `mdbook build book` + `knowledge-map` gen/check + `check_memory_architecture`
+  green.
+- SCHEMA-DERIVED / structure-first ceiling preserved (decision `0017`): the
+  catalog projects the `Config`/`Overrides` serde shape + small classifiers;
+  never a recomputed second source of truth or a behavioural oracle.
+
+**Impact**
+
+An agent can now discover ANVIL's **entire** knob surface with metadata
+(group/default/validation/CLI-flag) via `anvil://catalog/knob-schema`, plus the
+preset registry (`.2b.2a`) and apply presets via the `profile` input — the full
+decision-`0017` queryable + steerable surface for this lane. DUT byte-identical.
+**The `KNOB-ERGONOMICS-AND-PRESETS` lane's planned API is delivered end-to-end**;
+the tree stays `active` (open-ended) with no current frontier.
+
+**Files touched:** `src/config.rs`, `src/mcp/mod.rs`, `book/src/agent-mcp.md`,
+`book/src/api-resources-prompts.md`, `docs/knowledge/knob-presets-and-cli-flags.md`,
+`KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`, `docs/TASK_TREE.md`,
+`docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`.
+
 ## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.2a — `anvil://catalog/presets` resource + the MCP `profile` input
 
-**Landed as:** this commit (previous: `c44b3a5`). **Code — `src/config.rs` +
+**Landed as:** `455223e` (previous: `c44b3a5`). **Code — `src/config.rs` +
 `src/mcp/mod.rs` + book API docs; DUT byte-identical (no generator change,
 snapshots 6/6).** The steerable + preset-queryable half of the decision-`0017`
 preset/knob API. Frontier advances to `.2b.2b` (the per-knob catalog).

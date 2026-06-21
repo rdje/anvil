@@ -10,9 +10,14 @@ answers:
   - "what is the ANVIL knob resolution order"
   - "do explicit ANVIL CLI flags override a --profile preset"
   - "which ANVIL knobs still have no CLI flag"
+  - "how do I query the ANVIL knob catalog over MCP"
+  - "can I discover ANVIL presets over the API"
+  - "what is anvil://catalog/knob-schema"
+  - "what is anvil://catalog/presets"
+  - "can I apply an ANVIL preset over MCP"
 date: 2026-06-18
 status: current
-tags: [knobs, presets, profile, cli, usability]
+tags: [knobs, presets, profile, cli, mcp, api, catalog, usability]
 reverify: "anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)"
 ---
 
@@ -45,5 +50,15 @@ byte-stable; not passing `--profile` (with none of the promoted flags) is
 byte-identical to before (default DUT output unchanged). An unknown profile name
 errors and lists the valid names.
 
-Full reference: `book/src/knobs.md` ("Knob presets and CLI-flag promotion"). The
-API-first mandate this serves is [[api-first-everything-mcp-accessible]].
+**Over MCP (decision `0017` queryability), all of this is API-discoverable +
+steerable** (`KNOB-ERGONOMICS-AND-PRESETS.2b.2a`/`.2b.2b`): the `profile` tool
+argument on `generate`/`introspect`/`analyze`/`dump_config` applies a preset; the
+`anvil://catalog/presets` resource lists each preset's name/description/overrides;
+and `anvil://catalog/knob-schema` is the per-knob catalog
+(`name`/`group`/`ty`/`default`/`validation`/`cli_flag`/`config_only`, one row per
+`Config` field — a SCHEMA-DERIVED projection, the richer companion to the bare
+`anvil://catalog/knobs` default-`Config` dump, which is kept unchanged).
+
+Full reference: `book/src/knobs.md` ("Knob presets and CLI-flag promotion") +
+`book/src/agent-mcp.md`. The API-first mandate this serves is
+[[api-first-everything-mcp-accessible]].
