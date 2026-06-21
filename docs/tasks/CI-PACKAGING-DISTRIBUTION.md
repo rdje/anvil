@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability — drop-in CI packaging (north star, idea 5)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-18`
+- Last updated: `2026-06-21`
 - Owner: repo-local workflow
 
 ## Goal
@@ -65,12 +65,20 @@ bespoke script), so CI usage and interactive usage share one engine.
 
   Children: `CI-PACKAGING-DISTRIBUTION.2a` (release workflow), `.2b` (the Action), `.2c` (docs + close).
 
+- ID: `CI-PACKAGING-DISTRIBUTION.2a`
+  Status: `done`
+  Goal: `The tag-triggered hand-rolled release workflow (.github/workflows/release.yml): a v* build matrix over the 5 decision-0022 targets, each building --release --locked anvil+anvil-mcp, packaging both binaries + README into a per-platform archive (.tar.gz Unix / .zip Windows) + per-archive sha256, then a least-privilege publish job that assembles one SHA256SUMS and creates/updates the GitHub Release.`
+  Acceptance: `release.yml present and structurally valid; tag-only v* trigger; 5 targets (linux gnu x86_64/aarch64, macOS x86_64/aarch64, windows msvc); --release --locked --bin anvil --bin anvil-mcp; per-platform archive bundling both binaries; SHA256SUMS aggregated and uploaded; no third-party release dep (gh CLI); pinned toolchain + Cargo.lock; default DUT byte-identical (no src change).`
+  Verification: `done — release.yml authored; pure-Python structural lint clean (no pyyaml/actionlint/yq offline): no tabs/trailing-ws/odd map indents, all 5 targets + all required tokens present (on/tags/v*, both permissions scopes, --release --locked, --bin anvil --bin anvil-mcp, SHA256SUMS, gh release create/upload). mem-arch + KM (56) gates green. No Rust touched ⇒ cargo suite unaffected (full cargo test green at 51d97d9; snapshots 6/6).`
+  Commit: `CI-PACKAGING-DISTRIBUTION.2a — hand-rolled v*-tag release workflow (release.yml)`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `CI-PACKAGING-DISTRIBUTION.1` | `done` | Design ADR (decision `0022`) pinned the hand-rolled release workflow, the composite Action shape, the CLI-shim-over-API invocation (decision `0017`), and the version-pin/reproducibility contract. The wrapped engine (`anvil hunt`, decision `0018`) already ships. |
-| 2 | `CI-PACKAGING-DISTRIBUTION.2a` | `pending` | First impl slice: the tag-triggered `release.yml` build matrix (prebuilt `anvil`/`anvil-mcp` tarballs + checksums). CI-infra; task-tree-owned. |
+| 2 | `CI-PACKAGING-DISTRIBUTION.2a` | `done` | Landed `.github/workflows/release.yml`: tag-triggered 5-target build matrix → `anvil`+`anvil-mcp` archives + `SHA256SUMS` to the GitHub Release, `gh`-CLI publish (no third-party release dep). CI-infra; task-tree-owned. |
+| 3 | `CI-PACKAGING-DISTRIBUTION.2b` | `pending` | The composite Action (`action.yml` + entrypoint): download the pinned release tarball, run `anvil hunt` with inputs mapped 1:1 onto the CLI/MCP controls (decision `0017`), upload the reproducer bundle as a CI artifact, exit-on-finding, + a self-test job that skips clean when tools are absent. |
 
 ## Decisions
 
@@ -112,6 +120,7 @@ bespoke script), so CI usage and interactive usage share one engine.
 | --- | --- | --- | --- |
 | `2026-06-17` | `CI-PACKAGING-DISTRIBUTION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-18` | `CI-PACKAGING-DISTRIBUTION.1` | `decision 0022 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
+| `2026-06-21` | `CI-PACKAGING-DISTRIBUTION.2a` | `release.yml authored; pure-Python structural lint clean (5 targets + all required tokens; no tabs/trailing-ws/odd indents); mem-arch + KM(56) green; no Rust touched ⇒ DUT byte-identical` | `done` |
 
 ## Commit Log
 
@@ -119,9 +128,14 @@ bespoke script), so CI usage and interactive usage share one engine.
 | --- | --- | --- |
 | `CI-PACKAGING-DISTRIBUTION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `CI-PACKAGING-DISTRIBUTION.1` | `CI-PACKAGING-DISTRIBUTION.1 — design ADR (decision 0022): release workflow + composite GitHub Action over anvil hunt` | Design-only; pins the hand-rolled release matrix, the composite Action shape + inputs, the CLI-shim-over-API invocation, and reproducibility; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
+| `CI-PACKAGING-DISTRIBUTION.2a` | `CI-PACKAGING-DISTRIBUTION.2a — hand-rolled v*-tag release workflow (release.yml)` | First impl slice of decision `0022`: `.github/workflows/release.yml` (5-target build matrix → `anvil`+`anvil-mcp` archives + `SHA256SUMS`, `gh`-CLI publish). CI-infra; no `src` change ⇒ DUT byte-identical. |
 
 ## Changelog
 
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
 - `2026-06-18`: `.1` design ADR landed (decision `0022`); frontier advances to
   `.2a` (the release workflow). Docs-only / DUT byte-identical.
+- `2026-06-21`: `.2a` landed (`.github/workflows/release.yml` — the hand-rolled
+  `v*`-tag 5-target release matrix → `anvil`+`anvil-mcp` archives + `SHA256SUMS`,
+  `gh`-CLI publish, no third-party release dep). Frontier advances to `.2b` (the
+  composite Action). CI-infra / DUT byte-identical.

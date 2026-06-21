@@ -1,9 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — CI-PACKAGING-DISTRIBUTION.2a — hand-rolled `v*`-tag release workflow (`.github/workflows/release.yml`)
+
+**Landed as:** this commit (previous: `51d97d9`). **CI-infra only — one new
+GitHub Actions workflow + live-doc/task-tree updates. No `src/`/`tests/` change;
+DUT byte-identical.** First implementation slice of decision `0022` (`.1` was the
+design ADR), task-tree-owned by `CI-PACKAGING-DISTRIBUTION.2a`.
+
+**What changed (why)**
+
+`anvil hunt` already makes downstream bug-hunting turnkey locally; prebuilt
+per-platform binaries remove the *adoption* friction (build-from-source) so the
+`.2b` composite Action can download a pinned tarball instead of compiling. `.2a`
+delivers the release path; `.2b` (the Action) and `.2c` (docs + close) follow.
+
+- **`.github/workflows/release.yml`** (new). Triggered on `v*` tags. A 5-target
+  build matrix — `x86_64`/`aarch64-unknown-linux-gnu`, `x86_64`/`aarch64-apple-darwin`,
+  `x86_64-pc-windows-msvc` — each running `cargo build --release --locked --bin
+  anvil --bin anvil-mcp`, packaging **both** binaries + `README.md` into a
+  per-platform archive (`.tar.gz` on Unix, `.zip` on Windows) with a per-archive
+  `.sha256`, and uploading them as workflow artifacts. A final least-privilege
+  `publish` job (`contents: write`) downloads all artifacts, concatenates the
+  per-archive sums into one `SHA256SUMS`, and creates/updates the GitHub Release
+  via the runner-builtin `gh` CLI (no third-party release action — the
+  dependency-averse ethos, decision `0022`).
+- **Implementation choices (rationale in `DEVELOPMENT_NOTES.md`):** pinned build
+  toolchain via the `RUST_TOOLCHAIN` env (tracks `Cargo.toml`'s `rust-version`
+  MSRV `1.95`) + `--locked`; aarch64-Linux is the lone cross target — its GNU
+  cross linker is installed and selected via the
+  `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER` env override (no `.cargo/config`
+  written, so other builds stay untouched); archives are flat (binaries at the
+  root); `gh release` is idempotent (`view || create`, then `upload --clobber`).
+- **`docs/tasks/CI-PACKAGING-DISTRIBUTION.md`** — `.2a` → `done` (verification +
+  commit logs); Current Frontier advances to `.2b` (the composite Action).
+- **`docs/TASK_TREE.md`** — CI-PACKAGING row frontier `.2a` → `.2b`.
+- **`DEVELOPMENT_NOTES.md`** — engineering rationale for the `.2a` choices above.
+
+**Validation**
+
+- Pure-Python structural lint of `release.yml` (no `pyyaml`/`actionlint`/`yq`
+  available offline): clean — no tabs, no trailing whitespace, no odd map indents;
+  all 5 targets + all required tokens (`on:`/`tags:`/`v*`, both `permissions`
+  scopes, `--release --locked`, `--bin anvil --bin anvil-mcp`, `SHA256SUMS`, the
+  `gh release create`/`upload` steps) present.
+- `scripts/check_memory_architecture.sh` green; `knowledge-map` gen+check green
+  (**KM 56 facts**, unchanged — no new card this slice; the KM card is `.2c`).
+- No Rust code touched ⇒ `cargo` suite unaffected (full `cargo test` was green at
+  `51d97d9`; snapshots 6/6).
+
+**Impact**
+
+- A `v*` tag now produces reproducible per-platform `anvil`+`anvil-mcp` archives +
+  `SHA256SUMS` on the GitHub Release. Default DUT output byte-identical (no
+  generator/`src` change). Reproducibility rests on the release tag + committed
+  `Cargo.lock` + ANVIL's platform-independent ChaCha8 generation, not binary
+  bit-identity.
+
+**Files touched:** `.github/workflows/release.yml` (new), `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/CI-PACKAGING-DISTRIBUTION.md`,
+`docs/TASK_TREE.md`.
+
 ## 2026-06-18 — CI-PACKAGING-DISTRIBUTION.1 — design ADR (decision 0022): release workflow + composite GitHub Action over `anvil hunt`
 
-**Landed as:** this commit (previous: `d731087`). **Docs-only (decision record +
+**Landed as:** `51d97d9` (previous: `d731087`). **Docs-only (decision record +
 INDEX + task-tree + DEVELOPMENT_NOTES + KM). No `src/`/CI change; DUT
 byte-identical.** A new PNT pick (pick-and-roll after the `KNOB-ERGONOMICS-AND-PRESETS`
 lane API completed): the design-first ADR for the drop-in CI packaging lane (owner

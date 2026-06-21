@@ -1,0 +1,152 @@
+name: Release
+
+# CI-PACKAGING-DISTRIBUTION.2a (decision 0022): the hand-rolled,
+# tag-triggered release workflow. On a `v*` tag, build `--release --locked`
+# across the 5-target matrix and publish per-platform archives — each
+# bundling BOTH the `anvil` and `anvil-mcp` binaries — plus a single
+# `SHA256SUMS` file to the GitHub Release.
+#
+# Deliberately hand-rolled, NOT cargo-dist (the project's dependency-averse,
+# transparent-infra ethos — same reasoning as the README's hand-rolled
+# loopback MCP transport "no new dependency" precedent). The load-bearing
+# reproducibility guarantee is the release tag + the committed `Cargo.lock`
+# (`--locked`) + ANVIL's platform-independent ChaCha8 generation, NOT binary
+# bit-for-bit identity. cargo-dist / a Docker action / a Marketplace listing
+# are recorded rejected/optional alternatives in decision 0022.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Least privilege: the build jobs only read the repo; only the publish job
+# escalates to `contents: write` to create/upload the GitHub Release.
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # Pinned build toolchain. Tracks `Cargo.toml`'s `rust-version` (the MSRV);
+  # bump both together. dtolnay/rust-toolchain resolves `1.95` to the latest
+  # 1.95.x patch.
+  RUST_TOOLCHAIN: '1.95'
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross_linux: true
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }} (${{ matrix.target }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # aarch64 Linux is the only cross target: install its GNU cross linker
+      # and point cargo at it via the per-target env override (no .cargo
+      # config file written, so other builds stay untouched).
+      - name: Install aarch64 Linux cross linker
+        if: matrix.cross_linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+
+      - name: Build anvil + anvil-mcp (release, locked)
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin anvil --bin anvil-mcp
+
+      # --- Package: each archive bundles both binaries + README.md ----------
+      - name: Package (Unix tarball)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='${{ matrix.target }}'
+          tag='${{ github.ref_name }}'
+          bin="target/${target}/release"
+          pkg="anvil-${tag}-${target}"
+          mkdir -p "stage/${pkg}" dist
+          cp "${bin}/anvil" "${bin}/anvil-mcp" README.md "stage/${pkg}/"
+          tar -czf "dist/${pkg}.tar.gz" -C "stage/${pkg}" anvil anvil-mcp README.md
+          ( cd dist && shasum -a 256 "${pkg}.tar.gz" > "${pkg}.tar.gz.sha256" )
+
+      - name: Package (Windows zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $target = '${{ matrix.target }}'
+          $tag    = '${{ github.ref_name }}'
+          $bin    = "target/$target/release"
+          $pkg    = "anvil-$tag-$target"
+          New-Item -ItemType Directory -Force -Path "stage/$pkg", "dist" | Out-Null
+          Copy-Item "$bin/anvil.exe", "$bin/anvil-mcp.exe", "README.md" "stage/$pkg/"
+          $archive = "dist/$pkg.zip"
+          Compress-Archive -Path "stage/$pkg/anvil.exe", "stage/$pkg/anvil-mcp.exe", "stage/$pkg/README.md" -DestinationPath $archive
+          $line = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() + "  " + (Split-Path $archive -Leaf)
+          [System.IO.File]::WriteAllText("$archive.sha256", "$line`n")
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Assemble SHA256SUMS
+        run: |
+          set -euo pipefail
+          cd artifacts
+          cat ./*.sha256 > SHA256SUMS
+          rm -f ./*.sha256
+          echo "Release assets:" && ls -la
+
+      - name: Create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='${{ github.ref_name }}'
+          repo='${{ github.repository }}'
+          gh release view "$tag" --repo "$repo" >/dev/null 2>&1 \
+            || gh release create "$tag" --repo "$repo" --title "$tag" --generate-notes
+          gh release upload "$tag" artifacts/* --repo "$repo" --clobber

@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — CI packaging impl `.2a`: the hand-rolled `v*`-tag release workflow — `CI-PACKAGING-DISTRIBUTION.2a` (decision 0022)
+
+`.2a` implements the release path the `.1` ADR pinned: `.github/workflows/release.yml`,
+a tag-triggered 5-target build matrix that publishes `anvil`+`anvil-mcp` archives +
+`SHA256SUMS` to the GitHub Release. The non-obvious choices worth keeping:
+
+- **Toolchain pin via env, not a `rust-toolchain.toml`.** The pin lives in the
+  workflow (`RUST_TOOLCHAIN: '1.95'`, tracking `Cargo.toml`'s `rust-version` MSRV)
+  rather than a repo-root `rust-toolchain.toml`, because the latter would silently
+  re-pin *every* build (local + the existing `ci.yml`, which uses `@stable`) — a
+  blast radius wider than this slice owns. Bump the env and `Cargo.toml` together.
+  The load-bearing reproducibility guarantee is the release tag + committed
+  `Cargo.lock` (`--locked`) + ANVIL's platform-independent ChaCha8 generation, **not**
+  binary bit-for-bit identity — so the toolchain pin is belt-and-suspenders, not the
+  contract.
+- **aarch64-Linux is the only cross target.** Its GNU cross linker
+  (`gcc-aarch64-linux-gnu`) is installed on the x86_64 ubuntu runner and selected
+  with the per-target `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER` env override
+  (appended to `$GITHUB_ENV`) instead of writing a `.cargo/config.toml`, so no other
+  build (or a developer's local tree) is affected. The four other targets build
+  natively (two macOS runners x86_64/arm64; windows-msvc; x86_64-linux).
+- **`gh` CLI to publish, not a third-party release action.** `gh` is preinstalled on
+  GitHub runners, so `gh release view || gh release create … && gh release upload
+  --clobber` (idempotent on re-run) keeps the no-new-dependency ethos decision `0022`
+  invokes — the same reasoning that rejected `cargo-dist`. `actions/checkout`,
+  `actions/upload-artifact`, `actions/download-artifact`, `dtolnay/rust-toolchain`,
+  and `Swatinem/rust-cache` are the same first-party / already-in-`ci.yml` building
+  blocks, not new deps.
+- **Flat archives; both binaries + `README.md`.** Unix `.tar.gz` and Windows `.zip`
+  both place `anvil`(`.exe`)/`anvil-mcp`(`.exe`)/`README.md` at the archive root
+  (no top-level dir) for a uniform extract experience. No `LICENSE*` file exists in
+  the repo (the license text lives in `README.md`'s License section), so the README
+  is what carries it into the bundle.
+- **Least privilege.** Top-level `permissions: contents: read`; only the `publish`
+  job escalates to `contents: write` (needed for `gh release`). The build matrix
+  jobs cannot mutate the repo.
+- **Tag-only trigger (no `workflow_dispatch`).** Faithful to the ADR ("triggered on
+  `v*` tags"); a half-working manual path (dispatch with no tag context) would be a
+  worse signoff outcome than precision. A Marketplace listing / more targets / an
+  MCP-driven variant remain optional post-`.2c` `.N` work, per decision `0022`.
+
+This slice touches no Rust; default DUT output stays byte-identical. Validated by a
+pure-Python structural lint (offline: no `pyyaml`/`actionlint`/`yq`) + the mem-arch
+and KM gates.
+
 ## 2026-06-18 — CI packaging design: hand-rolled release + composite Action over `anvil hunt` — `CI-PACKAGING-DISTRIBUTION.1` (decision 0022)
 
 `.1` is the design ADR for the drop-in CI lane. Full rationale: decision
