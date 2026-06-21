@@ -1,9 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2a — Mealy FSM output design ADR (decision 0024)
+
+**Landed as:** this commit (previous: `605ec44`). **Docs-only design ADR — no
+`src` change; DUT byte-identical.** The PNT pick after the closed
+`COVERAGE-STEERED-GENERATION` tree: the design/decision leaf for the
+`CAPABILITY-BREADTH-EXPANSION` Mealy-FSM strand (`.2`). Task-tree-owned by
+`CAPABILITY-BREADTH-EXPANSION.2a`.
+
+**What changed (why)**
+
+- **`docs/decisions/0024-mealy-fsm-outputs.md`** (new, with KM `answers:`
+  front-matter) — pins the Mealy FSM output model: a **default-off combinational
+  decode of `(state_q, sel)`** — a per-`(state, sel_value)` constant table that
+  mirrors the existing `transitions` table 1:1, rendered as the **already-proven**
+  nested `case (state_q)` → `case (sel)` emitter shape (the next-state decode form)
+  driving the **opaque** `Node::FsmOut` leaf. Only the output *decode* gains the
+  input-dependent `sel` read; the state register stays Moore-clocked
+  (single-clock discipline preserved). Pins: a new default-off `fsm_mealy_prob`
+  knob (rolled inside the `fsm_prob` path ⇒ byte-identical when `0.0`); a
+  `num_mealy_fsm_modules` metric with introspection schema MINOR bump
+  `1.12 → 1.13`; a `saw_mealy_fsm_design` `tool_matrix` gate (full multi-tool plan,
+  Mealy is universally synthesizable); MCP/config settability + a `--fsm-mealy-prob`
+  CLI flag + queryable metric (decision `0017`). `Fsm` IR layout + `FsmOut`
+  virtual-deps folding `sel`'s support + Mealy dedup keying are flagged as `.2b`
+  impl detail.
+- **Why Mealy advanced ahead of frontier-ordered `.1` (SV up-opt):** a fresh
+  empirical probe (the probe `.1` itself mandates) found the named `.1` candidates
+  **enum/typedef** and **packed multidimensional arrays** accepted at **every**
+  Verilator `--language 1800-2012/2017/2023` mode + Yosys + Icarus ⇒ **not
+  version-distinctive, no down-gating teeth** — re-confirming decision `0010` that
+  the genuinely-2023 clean synthesizable space with the installed tools is
+  essentially just `union soft` (already shipped). Mealy is genuinely-new,
+  all-tool-clean, high-certainty breadth. `.1` stays `pending`, nothing retired.
+- **`docs/decisions/INDEX.md`** — row `0024` added.
+- **`docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`** — `.2` split into `.2a`
+  (design, **done**) + `.2b` (impl, **proposed**); frontier table, Decisions, Open
+  Questions, Verification Log, Commit Log, Changelog refreshed; `.1` deferred row.
+- **`docs/TASK_TREE.md`** — the `CAPABILITY-BREADTH-EXPANSION` active row updated to
+  `.2a` done / frontier `.2b`.
+- **`DEVELOPMENT_NOTES.md`** — engineering-rationale entry (the `(state_q, sel)`
+  model choice + the reuse-`sel`-not-a-new-cone reasoning + the `.1`-vs-`.2`
+  ordering evidence).
+
+**Validation**
+
+- Empirical probe (banked in the ADR + its `reverify`): a filename-matched Mealy
+  reference whose output is a `case (state_q)` → `case (sel)` decode — **ACCEPT,
+  warning-clean** under `verilator --lint-only -Wall --language 1800-2012`,
+  `1800-2017`, **and** `1800-2023`; `yosys synth -noabc` **and** the repo ABC path
+  both ACCEPT; `iverilog -g2012` ACCEPT. enum/typedef + packed multidim array
+  probes: accepted at every mode + tool (not version-distinctive).
+- Docs-only slice (no `src`): full `cargo` gate not required (the docs-ADR
+  precedent + the resume-pointer validation policy). Pre-commit hook runs
+  `check_memory_architecture.sh` + KM gen/check; KM regenerates to fold decision
+  `0024`'s `answers:` keys.
+
+**Impact**
+
+- DUT byte-identical (no code). Advances the `CAPABILITY-BREADTH-EXPANSION`
+  frontier to `.2b` (Mealy impl). No ROADMAP phase label changed; no CLI/behavior
+  change yet (the knob lands at `.2b`).
+
+**Files touched:** `docs/decisions/0024-mealy-fsm-outputs.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`,
+`KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-06-22 — COVERAGE-STEERED-GENERATION.2c.2 — steering-lane docs + close `.2` (book / USER_GUIDE / KM)
 
-**Landed as:** this commit (previous: `12416c1`). **The docs/close slice — no
+**Landed as:** `605ec44` (previous: `12416c1`). **The docs/close slice — no
 `src` change; DUT byte-identical. Closes `.2c`, `.2`, and the whole
 `COVERAGE-STEERED-GENERATION` tree.** Documents the now-shipped steering lane
 (decision [`0023`](docs/decisions/0023-coverage-steered-generation.md)) and

@@ -5,6 +5,47 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Mealy FSM output model + the `.1`-vs-`.2` ordering call — `CAPABILITY-BREADTH-EXPANSION.2a`
+
+The design ADR (decision `0024`) for the Mealy strand of
+`CAPABILITY-BREADTH-EXPANSION`. The deeper rationale behind two non-obvious
+choices, kept here:
+
+- **Reuse `sel`, do not invent a second input cone.** A Mealy output is, by
+  definition, a function of the current state *and the current input*. The Phase-6
+  `Fsm` already carries exactly one input-dependent cone: `sel` (the
+  transition-select source, a real `NodeId`, dependency-tracked + validated). The
+  clean model makes the Mealy output a per-`(state, sel_value)` constant table —
+  the **structural twin of `transitions`** — so the output decode is the *same*
+  nested `case (state_q)` → `case (sel)` shape the emitter already produces for the
+  next-state logic (and which is already downstream-proven). Inventing a fresh
+  output-input cone would create a second input notion beside `sel`, complicate the
+  `FsmOut` virtual-deps, and break the 1:1 parallel with `transitions` — a
+  `feedback_full_factorization` smell (two cone notions where one suffices).
+  Behaviour stays defined **by construction** from the generated table, not derived.
+
+- **The one real subtlety: `FsmOut` deps under Mealy.** Today `FsmOut` is an opaque
+  leaf with virtual deps `DepSet::from_fsm_virtual(fsm)` (Moore: output = f(state),
+  no comb input path). Mealy gives `FsmOut` a genuine combinational path from
+  inputs through `sel`, so the virtual dep set must fold in `sel`'s support or
+  non-triviality / IR validation / dedup would under-count the support. Flagged for
+  `.2b` (touches `metrics.rs` + `compact.rs` parallel sites). `FsmOut` stays opaque
+  to CSE either way — only its *decode* changes.
+
+- **Why `.2` (Mealy) jumped ahead of frontier-ordered `.1` (next SV up-opt).** The
+  `.1` leaf is a *probe-and-decide* leaf; I ran its probe first. The two named `.1`
+  candidates — `enum`/`typedef` and packed multidimensional arrays — are accepted
+  at **every** Verilator `--language 1800-2012/2017/2023` mode **and** by Yosys and
+  Icarus, i.e. they are legal at the 1800-2012 floor ⇒ **not version-distinctive,
+  no down-gating teeth** (the exact bar decision `0010` set for an up-opt). That
+  re-confirms `0010`'s finding that the genuinely-2023 *synthesizable* space with
+  the installed tools is essentially just `union soft` (shipped). So `.1`'s "next
+  up-opt" yield is thin/uncertain, whereas Mealy is genuinely-new, **all-tool-clean**
+  (a stronger downstream story than the Verilator-only `union soft`), and a small
+  bounded extension of a proven motif — higher value-per-effort *with confidence*.
+  `.1` stays `pending` with the probe evidence recorded (`feedback_never_retire_strategies`);
+  self-selecting `.2` follows `feedback_pick_and_roll_at_no_frontier`.
+
 ## 2026-06-21 — Coverage-steered generation outer loop (derive + `--steer`) — `COVERAGE-STEERED-GENERATION.2c.1`
 
 The third **code** slice of the steering lane: the *derive* step of the outer
