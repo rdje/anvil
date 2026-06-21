@@ -1,6 +1,40 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — COVERAGE-STEERED-GENERATION.1 — record `.2a` integration notes (handoff)
+
+**Landed as:** this commit (previous: `8f14705`). **Docs-only — a pre-implementation
+code-survey addendum to the `.1` design pass; no `src/`/CI change; DUT
+byte-identical.** Routes the `.2a` integration analysis from the design survey into
+the task tree (layer B) so the next session implements `.2a` without re-deriving it
+(continuity / `MEMORY_ARCHITECTURE` "route important info to a layer and commit").
+
+**What changed (why)**
+
+- **`docs/tasks/COVERAGE-STEERED-GENERATION.md`** — new "Implementation Notes (for
+  `.2a`)" section capturing the survey done while writing decision `0023`: the
+  single integration point (`roll_knob`, `src/gen/cone.rs:42` — change only this
+  function; `(prob*1.0).clamp(0,1) == prob` ⇒ byte-identical default), the
+  `SteeringConfig` shape + `KnobId::category()` taxonomy, the **byte-identity tactic**
+  (`config.rs` has zero `skip_serializing_if` today ⇒ add the field as
+  `#[serde(default, skip_serializing_if = "SteeringConfig::is_empty")]` so
+  `--dump-config`/`--introspect` stay byte-identical when unset, schema bump deferred
+  to `.2b`), the `Config::default` site (`src/config.rs:1012`), the weight-validation
+  spot, the three `.2a` proofs, and the full-cargo-gate reminder.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` + `knowledge-map` gen/check green (**KM 58**,
+  unchanged — no fact added). Docs-only ⇒ `cargo` suite unaffected.
+
+**Impact**
+
+- `.2a` is now fully scoped and de-risked in-repo; the next session can implement
+  the steering core directly. No generator/`src` change ⇒ DUT byte-identical.
+
+**Files touched:** `docs/tasks/COVERAGE-STEERED-GENERATION.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-21 — COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023): rules-first construction-time coverage steering
 
 **Landed as:** this commit (previous: `5b63bf0`). **Docs-only (decision record +

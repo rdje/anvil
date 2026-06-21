@@ -107,6 +107,41 @@ design space while preserving every lane invariant.
   the existing `KnobId::name()` strings + a small fixed category taxonomy, settable
   via the `--config` JSON `steering` block + MCP + a `--steer` CLI shim.)*
 
+## Implementation Notes (for `.2a` — captured during the `.1` design pass)
+
+A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
+
+- **Single integration point.** All 31 steerable rolls funnel through one function,
+  `roll_knob(g, m, knob, prob)` at `src/gen/cone.rs:42` (`g.rng.gen_bool(prob.min(1.0))`
+  + `m.knob_rolls.record(knob, fired)`). `.2a` changes ONLY this function:
+  `let w = g.cfg.steering.weight(knob); let eff = (prob * w).clamp(0.0, 1.0);` then
+  `gen_bool(eff)`. No call site changes. For `prob ∈ [0,1]` and `w == 1.0`,
+  `(prob*1.0).clamp(0,1) == prob` exactly (IEEE754) ⇒ byte-identical default
+  (snapshots 6/6 prove it).
+- **`SteeringConfig` type.** `per_knob: BTreeMap<String,f64>` (keyed by
+  `KnobId::name()`) + `per_category: BTreeMap<String,f64>` + `weight(KnobId)->f64`
+  (per-knob → per-category → `1.0`) + `is_empty()`. Add `KnobId::category()` next to
+  `KnobId::name()` in `src/ir/types.rs` (suggested taxonomy: `state`, `selectors`,
+  `datapath`, `terminals`, `sharing`, `hierarchy`).
+- **Byte-identity of serialized outputs.** `config.rs` has **zero**
+  `skip_serializing_if` today (every knob always serializes). Add the field as
+  `#[serde(default, skip_serializing_if = "SteeringConfig::is_empty")]` so an empty
+  steering block is OMITTED ⇒ `--dump-config` + `--introspect` stay byte-identical
+  when unset, and the introspection schema version bump is deferred to `.2b` (the
+  readout), per decision `0023`.
+- **`Config::default`** is an explicit `impl Default for Config` at
+  `src/config.rs:1012` — add the field there (default empty `SteeringConfig`).
+- **Validation.** Add a non-negative-weight check (weights `>= 0.0`, finite) in the
+  `Config` validation path (mirror the existing prob-range validation), returning a
+  `ConfigError`.
+- **Proofs.** (i) byte-identical-when-unset = existing `tests/snapshots.rs` 6/6
+  untouched; (ii) distribution-shift = generate with a category up-weighted and
+  assert `knob_roll_fires[knob]/attempts` rises vs unsteered on a fixed seed;
+  (iii) no-filter = architectural (one `gen_bool` per roll, no rejection branch).
+- **Gate.** `.2a` is a generator code change ⇒ run the full `COMMIT.md` gate
+  (`cargo check --all-targets`, `cargo test`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo fmt --all --check`); watch RAM per `0003-resource-safe-validation`.
+
 ## Blockers
 
 - None. (Reuses the existing `knob_roll_attempts`/`fires` + histogram telemetry;
