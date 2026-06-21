@@ -1,6 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023): rules-first construction-time coverage steering
+
+**Landed as:** this commit (previous: `5b63bf0`). **Docs-only (decision record +
+INDEX + task-tree + DEVELOPMENT_NOTES + KM). No `src/`/CI change; DUT
+byte-identical.** A new PNT pick-and-roll (`feedback_pick_and_roll_at_no_frontier`)
+after the `CI-PACKAGING-DISTRIBUTION` lane closed: the design-first ADR for the
+coverage-steered-generation lane (owner idea 6), bound by decision `0017` and
+explicitly bounded by `feedback_rules_first_generation`.
+
+**What changed (why)**
+
+ANVIL is uniform-random; the north star (find downstream-tool bugs) is better
+served by biasing the corpus toward under-exercised constructs. The hard
+constraint is rules-first — **no generate-then-filter** — so the design had to pin
+a *construction-time prior*, not a post-hoc filter. Design only — `.2` implements.
+
+- **`docs/decisions/0023-coverage-steered-generation.md`** (new, KM-indexed).
+  Pins: (1) the steering primitive = a deterministic per-category probability-prior
+  **multiplier** on `prob` at the single `roll_knob` decision site
+  (`effective_prob = clamp01(prob * weight)`), with exactly one `gen_bool` draw
+  preserved — rules-first (a prior, never a filter; no rejection path) and
+  byte-stable per `(seed, knobs, steering-config)`, byte-identical when unset
+  (`weight = 1.0`); (2) the coverage-target model = a `SteeringConfig` keyed by the
+  existing `KnobId::name()` strings + a small category taxonomy; (3) the
+  achieved-coverage readout = SCHEMA-DERIVED from `knob_roll_attempts`/`fires` +
+  the gate/operand/depth histograms (zero new truth, decision `0011`); (4) the
+  feedback as an **outer** measure→derive→re-steer loop (not in-generator); (5) the
+  decision-`0017` API surface (target settable, coverage queryable, CLI a shim).
+  Rejected/deferred: generate-then-filter (forbidden), an in-`--count` adaptive
+  schedule (cross-unit coupling), steering un-instrumented `gen_bool`/weighted
+  sites, and behavioural coverage (non-goal). Pre-split `.2a`/`.2b`/`.2c`.
+- **`docs/decisions/INDEX.md`** — added the `0023` row.
+- **`docs/tasks/COVERAGE-STEERED-GENERATION.md`** — `.1` → `done` (verification +
+  commit logs); `.2` pre-split into `.2a`/`.2b`/`.2c`; frontier `.2a`; Decisions +
+  Open Questions (both resolved) + Changelog updated.
+- **`docs/TASK_TREE.md`** — COVERAGE-STEERED-GENERATION row frontier `.1` → `.2a`.
+- **`DEVELOPMENT_NOTES.md`** — engineering rationale: the prior-vs-filter
+  distinction at `roll_knob`, one-draw byte-stability, the outer feedback loop, the
+  zero-new-truth readout, the bounded first-cut surface.
+
+**Validation**
+
+- `scripts/check_memory_architecture.sh` green; `knowledge-map` gen+check green
+  (**56→58**: the `.2b`/`.2c` of CI-PACKAGING added `ci-github-action` (57); this
+  ADR's front-matter adds `coverage-steered-generation` (58)). Docs-only ⇒ `cargo`
+  suite unaffected (green at `51d97d9`; snapshots 6/6).
+
+**Impact**
+
+- The coverage-steering lane has a pinned, rules-first, reproducible design; `.2a`
+  (the `roll_knob` prior multiplier + proofs) is the next code slice. No
+  generator/`src` change yet ⇒ default DUT output byte-identical.
+
+**Files touched:** `docs/decisions/0023-coverage-steered-generation.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/TASK_TREE.md`, `KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`.
+
 ## 2026-06-21 — CI-PACKAGING-DISTRIBUTION.2c — "Use ANVIL in your CI" docs + KM card (closes `.2`)
 
 **Landed as:** this commit (previous: `6df2ca8`). **Docs-only — README +

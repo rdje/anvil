@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-17`
+- Last updated: `2026-06-21`
 - Owner: repo-local workflow
 
 ## Goal
@@ -52,24 +52,27 @@ design space while preserving every lane invariant.
   Children: `COVERAGE-STEERED-GENERATION.1`
 
 - ID: `COVERAGE-STEERED-GENERATION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Design/decision leaf (ADR, no code): pin HOW coverage feedback biases construction WITHOUT generate-then-filter (e.g. per-category/per-surface weight multipliers applied to the existing roll_knob decision sites; or a deterministic schedule across a --count run that nudges weights toward under-hit constructs) while keeping byte-stability per (seed, knobs, steering-config); define the coverage-target model + the achieved-coverage readout (reuse knob_roll_attempts/fires + gate/category/surface histograms in Metrics); pin the MCP target-set + coverage-query surface (decision 0017); and EXPLICITLY reconcile with feedback_rules_first_generation (steering is a construction-time prior, not a post-hoc filter). Record as the next decision record + pre-split .2 (impl).`
   Acceptance: `A decision record + a tree/DEVELOPMENT_NOTES entry pinning the rules-first steering model, the reproducibility contract, the coverage target/readout, and the MCP surface; docs-only; INDEX + this tree + docs/TASK_TREE.md updated.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — decision 0023: the steering primitive is a deterministic per-category probability-prior MULTIPLIER on prob at the roll_knob site (effective_prob = clamp01(prob * weight), one gen_bool draw preserved) — rules-first (a construction-time prior, NOT a filter; no rejection path) and byte-stable per (seed, knobs, steering-config), byte-identical when unset (weight=1.0). Coverage-target = a SteeringConfig (KnobId / category → emphasis weight); achieved-coverage readout = SCHEMA-DERIVED from knob_roll_attempts/fires + histograms (zero new truth, decision 0011); feedback = an OUTER measure→derive→re-steer loop (not in-generator); API target-set + coverage-query per decision 0017. In-generator adaptive schedule + raw gen_bool/weighted-choice sites + behavioural coverage explicitly rejected/deferred. Pre-split .2a/.2b/.2c. INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen; docs-only / DUT byte-identical.`
+  Commit: `COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023)`
 
 - ID: `COVERAGE-STEERED-GENERATION.2`
   Status: `pending`
-  Goal: `Implement the .1 design: the construction-time steering weights + the coverage-target config + the API-queryable achieved-coverage readout + proofs (rules-first: no filter path; byte-stability per steering-config; distribution shift vs unsteered) + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split when picked.`
-  Acceptance: `pending (set at .1)`
+  Goal: `Implement the .1 design (decision 0023). Pre-split: .2a (the SteeringConfig + weight() lookup + the roll_knob prior multiplier + byte-identical-when-unset + distribution-shift + no-filter proofs), .2b (the SCHEMA-DERIVED achieved-coverage readout in --introspect + the MCP coverage query), .2c (the outer measure→derive→re-steer helper + book/USER_GUIDE/KM; close).`
+  Acceptance: `set at .1 (decision 0023): a per-category prior multiplier at roll_knob that measurably shifts the achieved construct distribution vs unsteered on a seed sweep while staying rules-first (no filter path) and byte-stable per (seed, knobs, steering-config); unsteered default byte-identical; the coverage target settable + the achieved coverage queryable over the MCP/config API (CLI a shim); downstream-clean.`
   Verification: `pending`
   Commit: `pending`
+
+  Children: `COVERAGE-STEERED-GENERATION.2a` (steering core), `.2b` (coverage readout + MCP query), `.2c` (outer loop + docs + close).
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `COVERAGE-STEERED-GENERATION.1` | `pending` | Design-first ADR is essential here — the rules-first boundary (`feedback_rules_first_generation`) and the reproducibility contract must be pinned in writing before any code. |
+| 1 | `COVERAGE-STEERED-GENERATION.1` | `done` | Design ADR (decision `0023`) pinned the rules-first steering primitive (a prior multiplier at `roll_knob`, not a filter), the byte-stability contract, the `SteeringConfig` target model, the SCHEMA-DERIVED achieved-coverage readout, the outer measure→derive→re-steer loop, and the decision-`0017` API surface. |
+| 2 | `COVERAGE-STEERED-GENERATION.2a` | `pending` | First impl slice: the `SteeringConfig` + the `roll_knob` prior multiplier, with the byte-identical-when-unset + distribution-shift + no-filter proofs. Code; task-tree-owned. |
 
 ## Decisions
 
@@ -78,15 +81,31 @@ design space while preserving every lane invariant.
   (API-settable target + API-queryable coverage) and is explicitly bounded by
   `feedback_rules_first_generation` (construction-time prior, never
   generate-then-filter). Design-first ADR before code.
+- `2026-06-21` (`.1`): Design ADR landed as decision
+  [`0023`](../decisions/0023-coverage-steered-generation.md): the steering
+  primitive = a deterministic per-category probability-prior **multiplier** on
+  `prob` at the `roll_knob` site (`effective_prob = clamp01(prob * weight)`, one
+  `gen_bool` draw preserved) — rules-first (a construction-time prior, not a
+  filter) and byte-stable per `(seed, knobs, steering-config)`, byte-identical
+  when unset. Target = a `SteeringConfig` (per-`KnobId` / per-category emphasis
+  weights); achieved-coverage readout = SCHEMA-DERIVED from
+  `knob_roll_attempts`/`fires` + histograms (zero new truth); feedback = an
+  **outer** measure→derive→re-steer loop. Pre-split `.2a`/`.2b`/`.2c`.
 
 ## Open Questions
 
 - The steering primitive: per-roll weight multipliers vs. a deterministic
   per-`--count` schedule vs. a seeded distribution prior — which best biases
   construction while staying byte-stable per `(seed, knobs, steering-config)`.
-  *(This is the crux `.1` decides.)*
+  *(Resolved at `.1` / decision `0023`: a per-category probability-prior
+  multiplier on `prob` at `roll_knob`, one draw preserved. The in-`--count`
+  adaptive schedule is deferred to a follow-up `.N` — it couples units within a
+  run; the outer measure→derive→re-steer loop gives the feedback benefit with a
+  simpler reproducibility contract first.)*
 - Whether steering targets categories, emission surfaces, or both, and how the
-  target is expressed in the API. *(Resolved at `.1`.)*
+  target is expressed in the API. *(Resolved at `.1`: a `SteeringConfig` keyed by
+  the existing `KnobId::name()` strings + a small fixed category taxonomy, settable
+  via the `--config` JSON `steering` block + MCP + a `--steer` CLI shim.)*
 
 ## Blockers
 
@@ -98,13 +117,17 @@ design space while preserving every lane invariant.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-17` | `COVERAGE-STEERED-GENERATION` | `tree registered (docs-only); no code` | `registered` |
+| `2026-06-21` | `COVERAGE-STEERED-GENERATION.1` | `decision 0023 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `COVERAGE-STEERED-GENERATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
+| `COVERAGE-STEERED-GENERATION.1` | `COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023)` | Design-only; pins the rules-first prior-multiplier steering primitive at `roll_knob`, the byte-stability contract, the `SteeringConfig` target, the SCHEMA-DERIVED coverage readout, the outer feedback loop, and the API surface; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
 
 ## Changelog
 
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
+- `2026-06-21`: `.1` design ADR landed (decision `0023`); frontier advances to
+  `.2a` (the steering core). Docs-only / DUT byte-identical.

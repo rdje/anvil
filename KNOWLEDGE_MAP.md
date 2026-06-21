@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **57** facts · **506** question keys.
+> **58** facts · **515** question keys.
 
 ## Questions → fact
 
@@ -17,6 +17,7 @@
 - "are the five post-phase follow-up trees still active" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "are there prebuilt ANVIL release binaries" -> [ci-packaging-prebuilt-binaries-and-github-action](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md) · 2026-06-18
 - "can ANVIL answer derived queries about a generated artifact" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
+- "can ANVIL bias generation toward under-exercised constructs" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "can ANVIL check frontend manifests with Verilator JSON" -> [verilator-json-frontend-parity](docs/knowledge/verilator-json-frontend-parity.md) · 2026-06-05
 - "can ANVIL compare verilator and yosys accept reject verdicts" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "can ANVIL emit 2023-only or 2017-only constructs" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
@@ -39,6 +40,7 @@
 - "can I plug a new SystemVerilog tool into ANVIL as an acceptance column" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "can I select slang over the MCP tools arg" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "can I select sv2v over the MCP tools arg" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
+- "can I set a coverage target over the ANVIL API" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "can a feature ship CLI-only without an API" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "can an AI agent drive ANVIL to find downstream tool bugs" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "can an agent drive the whole bug-hunt loop over MCP" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
@@ -80,6 +82,7 @@
 - "does ANVIL have a slang column" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "does ANVIL have an acceptance divergence finder" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "does ANVIL have an sv2v column" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
+- "does ANVIL have coverage-steered or coverage-feedback generation" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "does ANVIL have presets or profiles" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "does ANVIL merge mutually-recursive registers" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
 - "does ANVIL merge resetless self-hold flops" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
@@ -98,6 +101,7 @@
 - "does anvil-mcp support an HTTP transport" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "does cone function emission change the emitted RTL behaviour" -> [multi-gate-cone-function-emit](docs/knowledge/multi-gate-cone-function-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 4 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config /tmp/cf.json | tee /tmp/cf.sv | grep -c "__cf(" && verilator --lint-only /tmp/cf.sv && echo CLEAN'`
 - "does cone_function_emit_prob change the default output" -> [structured-emission-fifth-surface-cone-function](docs/decisions/0016-structured-emission-fifth-surface-cone-function.md) · 2026-06-17
+- "does coverage steering stay reproducible and byte-stable" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "does every queryable fact have to be exposed via introspect or analyze" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "does flop merge key on Module::flop_domain" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
 - "does full factorization include FSM state" -> [fsm-identity-merge](docs/knowledge/fsm-identity-merge.md) · 2026-06-05
@@ -160,9 +164,11 @@
 - "how do I make ANVIL emit a multi-gate cone function" -> [multi-gate-cone-function-emit](docs/knowledge/multi-gate-cone-function-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 4 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config /tmp/cf.json | tee /tmp/cf.sv | grep -c "__cf(" && verilator --lint-only /tmp/cf.sv && echo CLEAN'`
 - "how do I make ANVIL emit a task automatic" -> [combinational-task-emit](docs/knowledge/combinational-task-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
 - "how do I make ANVIL emit a union soft overlay" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
+- "how do I make ANVIL emit more of a specific construct" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "how do I make anvil hunt write reproducer bundles to a directory" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I merge sequentially-equivalent stateful modules" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "how do I pin the ANVIL Action to a release" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
+- "how do I query ANVIL's achieved construct coverage" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "how do I query ANVIL's knob catalog over MCP" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how do I query the ANVIL knob catalog over MCP" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
 - "how do I read the anvil API contract" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
@@ -218,6 +224,7 @@
 - "how does ANVIL render an emitted generate for loop" -> [generate-loop-emit](docs/knowledge/generate-loop-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"generate_loop_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"min_width\":4,\"max_width\":8,\"min_inputs\":3,\"max_inputs\":5,\"min_outputs\":1,\"max_outputs\":2,\"max_depth\":3});json.dump(c,open(\"/tmp/gl.json\",\"w\"))" && cargo run --quiet -- --seed 12 --config /tmp/gl.json | tee /tmp/gl.sv | grep -c "generate" && verilator --lint-only /tmp/gl.sv && echo CLEAN'`
 - "how does ANVIL report a flop's mux kind or default behavior" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how does ANVIL run Verilator in a specific SystemVerilog language mode" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
+- "how does ANVIL steer generation without generate-then-filter" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "how does ANVIL target a chosen SystemVerilog standard" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "how does an ANVIL agent ask what coverage is not yet exercised" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how does an agent ask what drives output Y over MCP" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
@@ -260,6 +267,7 @@
 - "is SIGNOFF-SURFACE-EXPANSION closed" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "is a heterogeneous-width packed union legal before SystemVerilog 2023" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "is acceptance divergence a hunt detection axis" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
+- "is coverage steering rules-first or post-hoc filtering" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "is deep semantic introspection first-class in ANVIL" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "is hierarchy_sequential_module_dedup default-off" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "is slang a downstream tool in ANVIL" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
@@ -383,6 +391,7 @@
 - "what is the ANVIL introspection API" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "what is the ANVIL introspection envelope" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
 - "what is the ANVIL knob resolution order" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
+- "what is the ANVIL steering-config" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "what is the API-completeness gate for a new lane" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "what is the API-first mandate" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "what is the CLI vs config-file vs profile vs default resolution order" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
@@ -649,6 +658,14 @@ _How ANVIL emits a combinational `task automatic` — the `task_emit_prob` gate 
 - **evidence:** `src/ir/task_emit.rs (annotate_task_emit_gates); src/config.rs (task_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the generate_loop pass); src/emit/sv.rs (task_emit_gate, render_gate_task_decl, render_gate_task_call reusing render_gate_function_body, the task section + assign-loop passthrough); src/metrics.rs (num_emitted_combinational_tasks); src/bin/tool_matrix.rs (--task-emit-gate, ScenarioSet::TaskEmitSweep, ModuleReport.emitted_combinational_task, saw_combinational_task_emit); book/src/structured-emission.md; docs/decisions/0014-structured-emission-third-surface-combinational-task.md; /tmp/anvil-task-emit-gate-r1/tool_matrix_report.json`
 - **reverify:** `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
 - **source:** [`docs/knowledge/combinational-task-emit.md`](docs/knowledge/combinational-task-emit.md)
+
+### coverage-steered-generation
+_Construction-time coverage steering — a deterministic per-category probability-prior multiplier at the roll_knob site (rules-first, never generate-then-filter), an outer measure→derive→re-steer feedback loop, with an API-settable target + API-queryable achieved coverage (decision 0017)_
+
+- **answers:** can ANVIL bias generation toward under-exercised constructs | does ANVIL have coverage-steered or coverage-feedback generation | how does ANVIL steer generation without generate-then-filter | is coverage steering rules-first or post-hoc filtering | how do I make ANVIL emit more of a specific construct | can I set a coverage target over the ANVIL API | how do I query ANVIL's achieved construct coverage | does coverage steering stay reproducible and byte-stable | what is the ANVIL steering-config
+- **date:** 2026-06-21 · **status:** accepted
+- **evidence:** `docs/decisions/0023-coverage-steered-generation.md; docs/decisions/0017-api-first-everything-mcp-accessible.md; docs/decisions/0011-semantic-introspection-derived-query-surface.md; src/gen/cone.rs (the roll_knob site); src/ir/types.rs (KnobId + knob_rolls telemetry); src/metrics.rs (knob_roll_attempts/knob_roll_fires + gate/operand/depth histograms); docs/tasks/COVERAGE-STEERED-GENERATION.md`
+- **source:** [`docs/decisions/0023-coverage-steered-generation.md`](docs/decisions/0023-coverage-steered-generation.md)
 
 ### domain-aware-flop-identity
 _Flop identity includes the clock/reset domain_

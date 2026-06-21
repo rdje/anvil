@@ -5,6 +5,47 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — Coverage-steered generation design — `COVERAGE-STEERED-GENERATION.1` (decision 0023)
+
+`.1` is the design ADR for biasing generation toward under-exercised constructs
+**without** generate-then-filter. Full rationale: decision
+[`0023`](docs/decisions/0023-coverage-steered-generation.md). The load-bearing
+choices worth keeping:
+
+- **Steering is a prior multiplier at the one instrumented decision site, not a
+  filter.** Every steerable construction choice already flows through
+  `roll_knob(g, m, knob, prob)` (`src/gen/cone.rs`), which does exactly one
+  `rng.gen_bool(prob)` and records `knob_roll_attempts`/`fires`. Steering inserts
+  `effective_prob = clamp01(prob * weight(knob))` before that single draw. This is
+  the crux of the `feedback_rules_first_generation` reconciliation: it biases the
+  *prior* of a decision; there is no rejection branch, no second artifact, no
+  build-then-discard. The forbidden mode (generate-then-filter) is rejected
+  outright in the ADR.
+- **One draw per roll ⇒ byte-stable; identity when unset ⇒ byte-identical
+  default.** The RNG draw count is unchanged, so output is byte-stable per
+  `(seed, knobs, steering-config)`; with no steering-config every `weight` is
+  `1.0` ⇒ `effective_prob == prob` exactly ⇒ `tests/snapshots.rs` untouched.
+- **The "feedback" is an OUTER loop, not an in-generator one.** measure (read the
+  achieved-coverage readout) → derive (a pure function maps under-hit categories
+  to up-weights) → re-steer (re-run with that steering-config). Each generation
+  pass stays a pure, rules-first function of its inputs — mirroring how
+  `coverage_gaps` already works. An in-`--count` adaptive schedule is more
+  powerful but couples units within a run (unit N depends on count/order), so it
+  is deferred to a follow-up `.N`.
+- **Readout reuses existing telemetry (zero new truth).** The achieved-coverage
+  query is a SCHEMA-DERIVED projection of `knob_roll_attempts`/`fires` + the
+  gate/operand/depth histograms + `CoverageSummary saw_*` (the decision `0011`
+  precedent) — not a new computed metric.
+- **First cut steers only the `roll_knob`/`KnobId` surface.** Raw `gen_bool` sites
+  (`src/gen/mod.rs`) and weighted-choice sites (`gate_struct_weight`) lack
+  telemetry, so steering them blind is unprovable; routing them through `roll_knob`
+  (telemetry + steerability together) is deferred. Keeps the rules-first proof
+  bounded.
+- `.2` pre-split `.2a` (steering core + byte-identical-off / distribution-shift /
+  no-filter proofs — **code**, task-tree-owned) / `.2b` (the SCHEMA-DERIVED readout
+  + MCP coverage query) / `.2c` (the outer measure→derive→re-steer helper + docs +
+  KM; close). Docs-only so far / DUT byte-identical.
+
 ## 2026-06-21 — CI packaging `.2c`: "Use ANVIL in your CI" docs + KM card (closes `.2`) — `CI-PACKAGING-DISTRIBUTION.2c` (decision 0022)
 
 `.2c` is the docs-and-close slice. Two choices worth recording:
