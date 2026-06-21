@@ -769,6 +769,29 @@ src/
 │                     column and never bails (the friendly no-op). `tests/sv2v_e2e.rs`
 │                     is the `#[ignore]` real-tool gate. Default-off ⇒ banked
 │                     reports + `--resume` + snapshots byte-identical.
+│                     `.2c.1` lands the **second new adapter, `slang`**, and the
+│                     trait's **first `extract_facts` fact hook**: a defaulted
+│                     `Adapter::extract_facts(&AdapterRunCx, &ToolInvocation) ->
+│                     Option<AdapterFacts>` (built-ins + `sv2v` keep the `None`
+│                     default ⇒ byte-identical) + the `AdapterFacts` /
+│                     `AdapterPortFact` / `AdapterInstanceFact` serde projections +
+│                     an `AdapterTarget::stem()` accessor + a 5th `AcceptanceTool`
+│                     variant (`from_name`/`binary` `"slang"`) +
+│                     `run_slang`/`run_slang_design` primitives (`slang <file> -q
+│                     --ast-json <stem>.slang.json` module; `--top <top>` design) +
+│                     a `SlangAdapter` (`supports_facts() => true`; `extract_facts`
+│                     reads the `--ast-json` side file via the pure
+│                     `parse_slang_ast_facts(&Value, want_top)` over slang's verified
+│                     schema — `design.members` → top `Instance` → `body.members`:
+│                     `Port {name,direction,type}` + child `Instance {name,
+│                     definition}`) + a 5th `ADAPTER_REGISTRY` entry + a
+│                     `first_tool_warning` `"slang"` arm. `slang` is selectable via
+│                     the `tools` arg and discoverable in `adapter_catalog()`
+│                     (`supports_facts=true`) — the `mcp` `tools` schema enums +
+│                     `parse_validate_tools` allow-list error updated to five. No
+│                     `tool_matrix` column / no live report fact-surfacing yet (that
+│                     is `.2c.2`); `slang` is absent on most hosts ⇒ a friendly
+│                     no-op. Default-off / DUT byte-identical.
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`

@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — The trait's first `extract_facts` hook + the `slang` adapter — verifying a JSON-AST schema for an absent tool — `DOWNSTREAM-ADAPTER-EXPANSION.2c.1`
+
+`.2c.1` lands the `slang` adapter and, with it, the `Adapter` trait's **first**
+`extract_facts` fact hook (deferred from the `.2a.1` registry). The notes worth keeping:
+
+- **The hook is defaulted to `None`, so it is zero-cost for every existing adapter.**
+  `extract_facts(&self, &AdapterRunCx, &ToolInvocation) -> Option<AdapterFacts>` has a
+  default body returning `None`; the three built-ins + `sv2v` don't override it ⇒ their
+  reports stay byte-identical and the trait stays object-safe (`&dyn Adapter`). Only
+  `SlangAdapter` overrides it (and `supports_facts() => true`). This is the same
+  "capability-defaulted-off, one adapter opts in" shape as `supports_facts` (`.2a.2`).
+
+- **The fact source is a side *file*, not stdout.** slang writes its AST to the path given
+  to `--ast-json <file>` (the runner captures only stdout/stderr). So `run_slang` writes
+  `<stem>.slang.json` into `cx.out_dir`, and `extract_facts` reads it back from the same
+  path — which is why `AdapterTarget` grew a `stem()` accessor (the hook gets `cx`, not the
+  argv). A missing/unparseable file ⇒ `None`, never an error: that *is* the slang-absent
+  friendly no-op on this host (a hard reject can also produce no AST).
+
+- **Verifying a schema for a tool you can't run (no corners).** `slang` is absent on every
+  current dev host (the `.1` toolchain probe), so the parser was written against slang's
+  **published** `--ast-json` schema (sv-lang.com user manual + command-line reference),
+  not a guess: root `{ "design": { "kind":"Root", "members":[…] } }`; a top `Instance`
+  with a `body` (`InstanceBody`); `Port` nodes `{name, direction:"In"/"Out", type:"logic[3:0]"}`;
+  child `Instance` nodes whose `body.definition` is a `"<addr> <name>"` pair (the name token
+  is the module name). The portable proof runs the **pure** `parse_slang_ast_facts` against
+  a faithful synthetic fixture of that schema; the `#[ignore]` real-tool gate (`.2c.2`)
+  upgrades it to a banked proof once slang is installed. This is the decision-`0020`
+  absent-tool cadence (structural + `#[ignore]` gate), applied to the *fact* path.
+
+- **`AdapterFacts` is SCHEMA-DERIVED, not an oracle.** It projects *slang's own*
+  elaboration output (top/ports/instances) verbatim — directions and types are kept as
+  slang spells them (`"In"`, `"logic[3:0]"`), not renormalized — so it never becomes an
+  ANVIL behavioural oracle (the decision-`0004` ceiling). The port `type` serde key is
+  slang's own (`ty` field, `#[serde(rename = "type")]`), so the projection reads back in
+  the tool's vocabulary.
+
+- **Why no `tool_matrix` column / live report surfacing here.** `.2c.1` is the additive
+  half (mirroring `.2b.1`): selectable + discoverable + the parser + the hook, all
+  byte-identical. Attaching the extracted facts to a live report and the `--slang` matrix
+  column are byte-identical-sensitive, so they are `.2c.2` — keeping each sub-slice
+  independently committable and provably byte-identical.
+
+---
+
 ## 2026-06-18 — The `tool_matrix --sv2v` column — presence-gated friendly no-op, and where it differs from `--iverilog-compile` — `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
 
 `.2b.2` adds the `tool_matrix --sv2v` column by mirroring the 19 `--iverilog-compile`

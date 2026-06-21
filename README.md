@@ -89,7 +89,7 @@ Only the documents above are status authority. The mdBook is explicitly part of 
 - `src/emit/sv.rs`          IR → SystemVerilog pretty-printer
 - `src/introspect/mod.rs`   versioned introspection document builder (`--introspect`)
 - `src/downstream/mod.rs`   shared hardened downstream-tool invocation surface
-                            (verilator/yosys/iverilog/sv2v) + `validate` / `minimize`
+                            (verilator/yosys/iverilog/sv2v/slang) + `validate` / `minimize`
 - `src/mcp/mod.rs`          read-mostly MCP server (tools / resources / prompts)
 
 ### Tests and examples
@@ -663,7 +663,7 @@ exercising adversarial axes that previously fired only by chance
   (`ACCEPTANCE-DIVERGENCE-HUNTING`, decision `0019`) classifies cross-tool
   **acceptance divergence** — one tool accepts while another warns/rejects
   valid-by-construction RTL, returning a `DivergenceReport` — all run only through
-  the hardened `verilator`/`yosys`/`iverilog`/`sv2v` allow-list, sandboxed + RAM-guarded
+  the hardened `verilator`/`yosys`/`iverilog`/`sv2v`/`slang` allow-list, sandboxed + RAM-guarded
   + audit-logged), resources (artifact `.sv`/introspection/`manifest`/`analysis`,
   `knobs`/`lanes` catalogs, `audit/log`), and five workflow prompts
   (`find_downstream_bug`, `close_coverage_gap`, `minimize_reproducer`,

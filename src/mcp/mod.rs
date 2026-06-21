@@ -249,7 +249,7 @@ impl McpServer {
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v"] },
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
                     "description": "Vetted downstream tools to run (default: verilator + yosys). \
                                     A fixed allow-list — no arbitrary commands or binary paths."
                 },
@@ -274,7 +274,7 @@ impl McpServer {
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v"] },
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
                     "description": "Vetted downstream tools to compare (default: verilator + yosys). \
                                     >= 2 labelled tools must run for a divergence to be possible \
                                     (yosys_mode=both alone yields two labels). A fixed allow-list."
@@ -298,7 +298,7 @@ impl McpServer {
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v"] },
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
                     "description": "Vetted downstream tools used as the failure oracle \
                                     (default: verilator + yosys). A fixed allow-list."
                 },
@@ -384,7 +384,7 @@ impl McpServer {
                                             knob profile every seed is generated under. Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v"] },
+                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
                     "description": "Vetted downstream tools to run (default: verilator + yosys). \
                                     A fixed allow-list — no arbitrary commands or binary paths."
                 },
@@ -1354,7 +1354,9 @@ fn parse_validate_tools(args: &Value) -> Result<Vec<AcceptanceTool>, String> {
                     .as_str()
                     .ok_or_else(|| "`tools` entries must be strings".to_string())?;
                 let tool = AcceptanceTool::from_name(name).ok_or_else(|| {
-                    format!("unknown tool '{name}': allowed = verilator, yosys, iverilog, sv2v")
+                    format!(
+                        "unknown tool '{name}': allowed = verilator, yosys, iverilog, sv2v, slang"
+                    )
                 })?;
                 selected.push(tool);
             }
@@ -2470,8 +2472,8 @@ mod tests {
             .collect();
         assert!(uris.contains(&"anvil://catalog/adapters"));
 
-        // It reads back as the four registered adapters (the three originals then
-        // the first new adapter, `sv2v`), in registry order, each with the four
+        // It reads back as the five registered adapters (the three originals then
+        // the new adapters `sv2v`, `slang`), in registry order, each with the four
         // projected fields.
         let resp = s
             .handle(&req(
@@ -2484,12 +2486,14 @@ mod tests {
             serde_json::from_str(resp["result"]["contents"][0]["text"].as_str().unwrap()).unwrap();
         let entries = body["adapters"].as_array().unwrap();
         let ids: Vec<&str> = entries.iter().filter_map(|a| a["id"].as_str()).collect();
-        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v"]);
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v", "slang"]);
         for entry in entries {
             assert!(entry["binary"].is_string());
             assert!(entry["present"].is_boolean());
-            // None of the four expose richer facts yet (slang lands that at .2c).
-            assert_eq!(entry["supports_facts"], json!(false));
+            // slang is the first fact-bearing adapter (`extract_facts` JSON-AST);
+            // the others are accept/warn/reject only.
+            let expects_facts = entry["id"] == json!("slang");
+            assert_eq!(entry["supports_facts"], json!(expects_facts));
         }
     }
 
@@ -2508,6 +2512,22 @@ mod tests {
         assert!(
             err.contains("sv2v"),
             "the allow-list error must name sv2v: {err}"
+        );
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` — the fact-bearing `slang` adapter is
+    /// selectable through the same `tools` arg (decision `0017` API-completeness),
+    /// and the allow-list error now names it too.
+    #[test]
+    fn parse_validate_tools_accepts_slang() {
+        assert_eq!(
+            parse_validate_tools(&json!({ "tools": ["verilator", "slang"] })).unwrap(),
+            vec![AcceptanceTool::Verilator, AcceptanceTool::Slang]
+        );
+        let err = parse_validate_tools(&json!({ "tools": ["nope"] })).unwrap_err();
+        assert!(
+            err.contains("slang"),
+            "the allow-list error must name slang: {err}"
         );
     }
 

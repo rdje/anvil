@@ -160,7 +160,7 @@ generate · introspect · analyze · dump_config · coverage_gaps · validate ·
 | `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). Relations, not behaviour. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
-| `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog` / `sv2v`); return per-tool reports + an overall verdict. |
+| `validate` | controlled | Generate into a sandboxed temp dir and run the selected vetted tools (`verilator` / `yosys` / `iverilog` / `sv2v` / `slang`); return per-tool reports + an overall verdict. |
 | `minimize` | controlled | Delta-debug a failing `(seed, config)` to a smaller reproducer, using `validate` as the failure oracle. |
 | `hunt` | controlled | The **turnkey loop**: fuzz a deterministic seed sweep (`seed` .. `seed + seeds`), run the vetted tools on each artifact, detect any reject/warning (and, with `diff_sim`, a cross-simulator trace mismatch; and, with `divergence`, a cross-*tool* acceptance disagreement), auto-`minimize` each failure, and return a structured `HuntReport` (per-seed `verdicts` + `failures` + `summary`). A thin shim over `validate`/`minimize` — no detector or minimizer of its own. Each failing `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve for the reproducer. Also available as the `anvil hunt` CLI subcommand (the same `hunt::run` over the command line, where `--out` drops an on-disk reproducer bundle per finding instead — see the User Guide). |
 | `divergence` | controlled | **Acceptance-divergence detector**: generate the `(seed, config)` artifact, run the selected vetted tools on it, and classify whether they **disagree** on its legality — one accepts while another warns or rejects. On legal-by-construction RTL every such disagreement is a real downstream-tool bug. Returns a `DivergenceReport` (per-tool `accept`/`warn`/`reject` verdicts + the classified `divergences`, e.g. `accept_reject`). The complement of `diff_sim`'s cross-*simulator* **trace** axis — this is the cross-*tool* **acceptance** axis. `yosys_mode = both` contributes two labelled verdicts, so a without-abc-vs-with-abc disagreement is itself a divergence. Each divergent `run_id` is cached, so `anvil://artifact/<run_id>/{sv,introspection}` resolve. A single-`(seed, config)` shim over the same detector the `hunt` `divergence` axis uses — to sweep many seeds, call `hunt` with `divergence: true`. |
@@ -175,11 +175,16 @@ tools (`validate`, `minimize`, the `hunt` loop that composes them, and the
 existing hardened invocations:
 
 - a **fixed allow-list** of tool names (`verilator`, `yosys`, `iverilog`,
-  `sv2v`) — an unknown name is a clean error, never a spawn. (`sv2v` is the
-  first adapter added beyond the three originals: an `sv2v`
+  `sv2v`, `slang`) — an unknown name is a clean error, never a spawn. (`sv2v`
+  is the first adapter added beyond the three originals: an `sv2v`
   SystemVerilog→Verilog-2005 **transpile** accept/reject column — a clean
-  transpile accepts, a non-zero exit or a warning is a finding. It is absent on
-  most hosts today, so selecting it is a friendly no-op until `sv2v` is on
+  transpile accepts, a non-zero exit or a warning is a finding. `slang` is the
+  second, and the first **fact-bearing** adapter: a strict, fast, independent
+  SystemVerilog elaborator — a clean elaboration accepts, a warning/reject is a
+  finding — that *additionally* projects a SCHEMA-DERIVED `--ast-json` view of
+  the top's ports + child instances (the optional `extract_facts` hook;
+  `supports_facts = true` in the catalog). Both are absent on
+  most hosts today, so selecting them is a friendly no-op until the binary is on
   `PATH`; the adapter catalog's `present` field tells you which tools are
   installed.);
 - a **sandboxed** per-run temp directory (the agent never supplies a path);

@@ -44,6 +44,7 @@ use crate::mem_guard::{AbortReason, MemGuard, MemLimits};
 use crate::{emit, Generator};
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -245,6 +246,57 @@ pub fn run_sv2v_design(
     let mut argv = vec![format!("--top={top}")];
     argv.extend(sv_paths.iter().map(|path| path.display().to_string()));
     run_tool("sv2v", bin, argv, out_dir, top)
+}
+
+/// The file name slang dumps its `--ast-json` projection into for `<stem>`, beside
+/// the artifact in the sandbox. Owned here so [`run_slang`] (which writes it) and
+/// [`SlangAdapter::extract_facts`] (which reads it) agree on one path.
+pub fn slang_ast_json_name(stem: &str) -> String {
+    format!("{stem}.slang.json")
+}
+
+/// Run `slang <sv> -q --ast-json <stem>.slang.json` elaboration on a single
+/// emitted module (`DOWNSTREAM-ADAPTER-EXPANSION.2c.1`, decision `0020`). slang
+/// is a strict, fast, independent SystemVerilog front-end (parser + name
+/// resolution + type check + elaboration), so a clean exit is an *acceptance*
+/// verdict (parsed + elaborated); a non-zero exit, or a `warning:` line, is a
+/// finding. `-q` suppresses non-essential status so the captured streams hold
+/// only real diagnostics. The `--ast-json` side-file is the SCHEMA-DERIVED fact
+/// source [`SlangAdapter::extract_facts`] projects (top/ports/instances) — never
+/// a behavioural oracle (decision `0004`): the AST is the *tool's* report, not
+/// ANVIL-computed function.
+pub fn run_slang(bin: &str, out_dir: &Path, sv_path: &Path, stem: &str) -> Result<ToolInvocation> {
+    let json_path = out_dir.join(slang_ast_json_name(stem));
+    let argv = vec![
+        sv_path.display().to_string(),
+        "-q".to_string(),
+        "--ast-json".to_string(),
+        json_path.display().to_string(),
+    ];
+    run_tool("slang", bin, argv, out_dir, stem)
+}
+
+/// Run `slang <files...> --top <top> -q --ast-json <top>.slang.json` elaboration
+/// on a multi-file design. `--top <top>` pins the elaboration root (slang's
+/// top-instantiation selector), mirroring the `--top-module` / `-s <top>` /
+/// `--top=<top>` pins the other design adapters use.
+pub fn run_slang_design(
+    bin: &str,
+    out_dir: &Path,
+    sv_paths: &[PathBuf],
+    top: &str,
+) -> Result<ToolInvocation> {
+    let json_path = out_dir.join(slang_ast_json_name(top));
+    let mut argv: Vec<String> = sv_paths
+        .iter()
+        .map(|path| path.display().to_string())
+        .collect();
+    argv.push("--top".to_string());
+    argv.push(top.to_string());
+    argv.push("-q".to_string());
+    argv.push("--ast-json".to_string());
+    argv.push(json_path.display().to_string());
+    run_tool("slang", bin, argv, out_dir, top)
 }
 
 /// Build the `iverilog -g2012 -o <stem>.iverilog.vvp <sv>` argv for a single
@@ -513,6 +565,17 @@ pub fn first_tool_warning(tool_name: &str, stdout: &str, stderr: &str) -> Option
             .map(str::trim_start)
             .find(|line| line.to_ascii_lowercase().contains("warning:"))
             .map(ToOwned::to_owned),
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` — slang elaboration warnings are a
+        // finding (the RTL must elaborate cleanly). Matched case-insensitively on
+        // `warning:`, like iverilog/sv2v; slang's diagnostics are
+        // `file:line:col: warning: …`, while its `0 warnings` build summary has no
+        // colon after `warning`, so it is not a false positive.
+        "slang" => stdout
+            .lines()
+            .chain(stderr.lines())
+            .map(str::trim_start)
+            .find(|line| line.to_ascii_lowercase().contains("warning:"))
+            .map(ToOwned::to_owned),
         _ => None,
     }
 }
@@ -584,6 +647,12 @@ pub enum AcceptanceTool {
     /// transpile accept/reject column. Still on the fixed allow-list (a vetted,
     /// fixed binary name — not agent-supplied).
     Sv2v,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` — the second new adapter (decision
+    /// `0020`): `slang`, a strict, fast, independent SystemVerilog elaborator. It
+    /// is the *richer* adapter — the first to expose the optional
+    /// [`Adapter::extract_facts`] hook (a SCHEMA-DERIVED `slang --ast-json`
+    /// projection of top/ports/instances). Still on the fixed allow-list.
+    Slang,
 }
 
 impl AcceptanceTool {
@@ -595,6 +664,7 @@ impl AcceptanceTool {
             "yosys" => Some(Self::Yosys),
             "iverilog" => Some(Self::Iverilog),
             "sv2v" => Some(Self::Sv2v),
+            "slang" => Some(Self::Slang),
             _ => None,
         }
     }
@@ -606,6 +676,7 @@ impl AcceptanceTool {
             Self::Yosys => "yosys",
             Self::Iverilog => "iverilog",
             Self::Sv2v => "sv2v",
+            Self::Slang => "slang",
         }
     }
 
@@ -622,6 +693,7 @@ impl AcceptanceTool {
             Self::Yosys => &YOSYS_ADAPTER,
             Self::Iverilog => &ICARUS_ADAPTER,
             Self::Sv2v => &SV2V_ADAPTER,
+            Self::Slang => &SLANG_ADAPTER,
         }
     }
 }
@@ -639,6 +711,19 @@ pub enum AdapterTarget<'a> {
         sv_paths: &'a [PathBuf],
         top: &'a str,
     },
+}
+
+impl AdapterTarget<'_> {
+    /// The `<stem>` an adapter uses for per-artifact side files / log roots: a
+    /// module's stem, or a design's top name. Lets a fact-bearing adapter (slang)
+    /// locate the side file its [`Adapter::run`] wrote (`<stem>.slang.json`) from
+    /// the same [`AdapterRunCx`] without re-threading the path.
+    pub fn stem(&self) -> &str {
+        match self {
+            AdapterTarget::Module { stem, .. } => stem,
+            AdapterTarget::Design { top, .. } => top,
+        }
+    }
 }
 
 /// The uniform context one [`Adapter`] needs to run an acceptance check over a
@@ -662,6 +747,47 @@ pub struct AdapterRunCx<'a> {
     /// Verilator IEEE-1800 `--language` bound (`None` = byte-identical default
     /// argv; ignored by non-Verilator adapters).
     pub language: Option<&'a str>,
+}
+
+/// The richer **structured-fact projection** a fact-bearing [`Adapter`] exposes
+/// beyond the accept/warn/reject verdict (`DOWNSTREAM-ADAPTER-EXPANSION.2c.1`,
+/// decision `0020`) — the first being `slang`'s `--ast-json`. It is
+/// `SCHEMA-DERIVED`: a pure projection of *the tool's own* elaboration output
+/// (top / ports / instances), **never** an ANVIL-computed behavioural oracle (the
+/// decision-`0004` ceiling). A tool that reports no facts (or whose side file is
+/// absent/unparseable) simply yields `None` — the friendly absent-tool no-op.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdapterFacts {
+    /// The adapter that produced these facts (its [`Adapter::id`], e.g. `"slang"`).
+    pub adapter: String,
+    /// The elaborated top instance name the tool reports.
+    pub top: String,
+    /// The top's ports, as the tool's AST reports them (in AST order).
+    pub ports: Vec<AdapterPortFact>,
+    /// The top's direct child instances, as the tool's AST reports them.
+    pub instances: Vec<AdapterInstanceFact>,
+}
+
+/// One port of an [`AdapterFacts`] top, projected verbatim from the tool's AST.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdapterPortFact {
+    /// The port name.
+    pub name: String,
+    /// The port direction, as the tool spells it (e.g. slang's `"In"` / `"Out"` /
+    /// `"InOut"`). Kept verbatim — a SCHEMA-DERIVED projection, not renormalized.
+    pub direction: String,
+    /// The port type, as the tool spells it (e.g. slang's `"logic[3:0]"`).
+    #[serde(rename = "type")]
+    pub ty: String,
+}
+
+/// One direct child instance of an [`AdapterFacts`] top, projected from the AST.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdapterInstanceFact {
+    /// The instance name.
+    pub name: String,
+    /// The instantiated definition (module) name.
+    pub definition: String,
 }
 
 /// One vetted downstream acceptance tool, behind a **closed, compile-time**
@@ -706,6 +832,20 @@ pub trait Adapter: Sync {
     fn supports_facts(&self) -> bool {
         false
     }
+
+    /// The optional richer fact-extraction hook
+    /// (`DOWNSTREAM-ADAPTER-EXPANSION.2c.1`, decision `0020`): after
+    /// [`run`](Self::run), project an [`AdapterFacts`] from a side artifact the
+    /// tool produced (e.g. a `--ast-json` dump beside the source in
+    /// `cx.out_dir`). `SCHEMA-DERIVED` — a pure projection of *the tool's* output,
+    /// never an ANVIL behavioural oracle (decision `0004`). The default is `None`
+    /// (the accept/warn/reject-only adapters: the three built-ins + `sv2v`); only
+    /// adapters whose [`supports_facts`](Self::supports_facts) is `true` override
+    /// it. A missing or unparseable side file yields `None` — the friendly
+    /// absent-tool no-op, never a hard error.
+    fn extract_facts(&self, _cx: &AdapterRunCx, _inv: &ToolInvocation) -> Option<AdapterFacts> {
+        None
+    }
 }
 
 /// The Verilator `--lint-only` acceptance adapter.
@@ -719,6 +859,13 @@ struct IcarusAdapter;
 /// originals. A pure accept/reject column with no fact hook (`supports_facts`
 /// stays `false`); the richer JSON-AST path lands with `slang` (`.2c`).
 struct Sv2vAdapter;
+/// The slang SystemVerilog elaboration adapter
+/// (`DOWNSTREAM-ADAPTER-EXPANSION.2c.1`) — the second adapter beyond the three
+/// originals and the **first fact-bearing one**: accept/reject **plus** a
+/// SCHEMA-DERIVED `--ast-json` projection of top/ports/instances
+/// (`supports_facts` ⇒ `true`, [`extract_facts`](Adapter::extract_facts)
+/// implemented).
+struct SlangAdapter;
 
 impl Adapter for VerilatorAdapter {
     fn id(&self) -> &'static str {
@@ -799,30 +946,149 @@ impl Adapter for Sv2vAdapter {
     }
 }
 
+impl Adapter for SlangAdapter {
+    fn id(&self) -> &'static str {
+        "slang"
+    }
+    fn binary(&self) -> &'static str {
+        "slang"
+    }
+    fn run(&self, cx: &AdapterRunCx) -> Result<Vec<ToolInvocation>> {
+        let inv = match cx.target {
+            AdapterTarget::Module { sv_path, stem } => {
+                run_slang(cx.binary, cx.out_dir, sv_path, stem)?
+            }
+            AdapterTarget::Design { sv_paths, top } => {
+                run_slang_design(cx.binary, cx.out_dir, sv_paths, top)?
+            }
+        };
+        Ok(vec![inv])
+    }
+    fn supports_facts(&self) -> bool {
+        true
+    }
+    /// Read the `<stem>.slang.json` AST side file [`run_slang`] wrote into
+    /// `cx.out_dir` and project it through [`parse_slang_ast_facts`]. A missing or
+    /// unparseable file (e.g. slang absent, or a hard reject that produced no AST)
+    /// yields `None` — the friendly absent-tool no-op. The `top` the parser keys
+    /// on is the artifact stem ([`AdapterTarget::stem`]).
+    fn extract_facts(&self, cx: &AdapterRunCx, _inv: &ToolInvocation) -> Option<AdapterFacts> {
+        let stem = cx.target.stem();
+        let json_path = cx.out_dir.join(slang_ast_json_name(stem));
+        let text = std::fs::read_to_string(&json_path).ok()?;
+        let json: Value = serde_json::from_str(&text).ok()?;
+        parse_slang_ast_facts(&json, stem)
+    }
+}
+
+/// Pure projection of a `slang --ast-json` document into [`AdapterFacts`]
+/// (`DOWNSTREAM-ADAPTER-EXPANSION.2c.1`, decision `0020`). Walks slang's verified
+/// schema — `design.members` → the top `Instance` (preferring the one named
+/// `want_top`, else the first instance) → its `body` (an `InstanceBody`) →
+/// `members`, projecting each `Port` (`name`/`direction`/`type`) and each direct
+/// child `Instance` (`name`, plus its definition name from the child
+/// `InstanceBody.definition`, a `"<addr> <name>"` pair). `SCHEMA-DERIVED`: a pure
+/// read of the tool's own AST, no behavioural oracle (decision `0004`). Returns
+/// `None` only when the document has no recognizable top instance.
+pub fn parse_slang_ast_facts(json: &Value, want_top: &str) -> Option<AdapterFacts> {
+    let members = json.get("design")?.get("members")?.as_array()?;
+    let is_instance = |m: &&Value| m.get("kind").and_then(Value::as_str) == Some("Instance");
+    let top_inst = members
+        .iter()
+        .find(|m| is_instance(m) && m.get("name").and_then(Value::as_str) == Some(want_top))
+        .or_else(|| members.iter().find(is_instance))?;
+
+    let top = top_inst
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(want_top)
+        .to_string();
+
+    let mut ports = Vec::new();
+    let mut instances = Vec::new();
+    let body_members = top_inst
+        .get("body")
+        .and_then(|b| b.get("members"))
+        .and_then(Value::as_array);
+    for member in body_members.into_iter().flatten() {
+        match member.get("kind").and_then(Value::as_str) {
+            Some("Port") => ports.push(AdapterPortFact {
+                name: slang_str(member, "name"),
+                direction: slang_str(member, "direction"),
+                ty: slang_str(member, "type"),
+            }),
+            Some("Instance") => instances.push(AdapterInstanceFact {
+                name: slang_str(member, "name"),
+                definition: slang_child_definition(member),
+            }),
+            _ => {}
+        }
+    }
+
+    Some(AdapterFacts {
+        adapter: "slang".to_string(),
+        top,
+        ports,
+        instances,
+    })
+}
+
+/// A string field of a slang AST node, or `""` when absent (a SCHEMA-DERIVED
+/// projection should degrade to empty, never panic).
+fn slang_str(node: &Value, key: &str) -> String {
+    node.get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// The instantiated definition name of a child `Instance` node: the name token of
+/// its `body.definition` (`"<addr> <name>"`), falling back to the `InstanceBody`
+/// name, then the instance name. slang names the `InstanceBody` after its
+/// definition, so both fallbacks recover the module name.
+fn slang_child_definition(instance: &Value) -> String {
+    let body = instance.get("body");
+    body.and_then(|b| b.get("definition"))
+        .and_then(Value::as_str)
+        .and_then(|d| d.split_whitespace().next_back())
+        .map(str::to_string)
+        .or_else(|| {
+            body.and_then(|b| b.get("name"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| slang_str(instance, "name"))
+}
+
 static VERILATOR_ADAPTER: VerilatorAdapter = VerilatorAdapter;
 static YOSYS_ADAPTER: YosysAdapter = YosysAdapter;
 static ICARUS_ADAPTER: IcarusAdapter = IcarusAdapter;
 static SV2V_ADAPTER: Sv2vAdapter = Sv2vAdapter;
+static SLANG_ADAPTER: SlangAdapter = SlangAdapter;
 
 /// The closed registry table. Adding a tool means adding one entry here. The
 /// `Adapter: Sync` supertrait makes `&dyn Adapter` `Sync`, so this array is a
 /// valid `static`. The order is the canonical adapter-catalog display order:
-/// the three originals (`verilator`/`yosys`/`iverilog`) then the first new
-/// adapter (`sv2v`, `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`).
-static ADAPTER_REGISTRY: [&dyn Adapter; 4] = [
+/// the three originals (`verilator`/`yosys`/`iverilog`) then the new adapters in
+/// landing order (`sv2v`, `DOWNSTREAM-ADAPTER-EXPANSION.2b.1`; `slang`,
+/// `DOWNSTREAM-ADAPTER-EXPANSION.2c.1`).
+static ADAPTER_REGISTRY: [&dyn Adapter; 5] = [
     &VERILATOR_ADAPTER,
     &YOSYS_ADAPTER,
     &ICARUS_ADAPTER,
     &SV2V_ADAPTER,
+    &SLANG_ADAPTER,
 ];
 
 /// The **closed, compile-time** registry of vetted downstream adapters
 /// (`DOWNSTREAM-ADAPTER-EXPANSION`, decision `0020`). Adding a tool means adding
 /// one entry to [`ADAPTER_REGISTRY`] — never a runtime plugin or an
 /// agent-supplied command, so the decision-`0004` fixed-allow-list holds. Today
-/// it holds the three originals (`verilator`, `yosys`, `iverilog`) plus the first
-/// new adapter `sv2v` (`DOWNSTREAM-ADAPTER-EXPANSION.2b.1`), each delegating to
-/// its vetted `run_*` primitive so the originals' reports stay byte-identical.
+/// it holds the three originals (`verilator`, `yosys`, `iverilog`) plus the new
+/// adapters `sv2v` (`DOWNSTREAM-ADAPTER-EXPANSION.2b.1`, accept/reject) and
+/// `slang` (`DOWNSTREAM-ADAPTER-EXPANSION.2c.1`, accept/reject + the first
+/// `extract_facts` JSON-AST hook), each delegating to its vetted `run_*` primitive
+/// so the originals' reports stay byte-identical.
 pub fn adapters() -> &'static [&'static dyn Adapter] {
     &ADAPTER_REGISTRY
 }
@@ -1994,6 +2260,12 @@ mod tests {
         assert!(first_tool_warning("sv2v", "", "sv2v: Warning: implicit wire `x'").is_some());
         assert!(first_tool_warning("sv2v", "WARNING: noisy", "").is_some());
         assert!(first_tool_warning("sv2v", "module m; endmodule", "").is_none());
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` — slang matches `warning:`
+        // case-insensitively; its `0 warnings` build summary has no colon after
+        // `warning`, so a clean run is not a false positive.
+        assert!(first_tool_warning("slang", "", "t.sv:3:5: warning: unused [-Wunused]").is_some());
+        assert!(first_tool_warning("slang", "WARNING: noisy", "").is_some());
+        assert!(first_tool_warning("slang", "Build succeeded: 0 errors, 0 warnings", "").is_none());
     }
 
     #[test]
@@ -2033,11 +2305,15 @@ mod tests {
             AcceptanceTool::from_name("iverilog"),
             Some(AcceptanceTool::Iverilog)
         );
-        // `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` — the first new adapter is on the
-        // same fixed allow-list (a vetted, fixed binary name; not agent-supplied).
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2b.1` / `.2c.1` — the new adapters are on
+        // the same fixed allow-list (vetted, fixed binary names; not agent-supplied).
         assert_eq!(
             AcceptanceTool::from_name("sv2v"),
             Some(AcceptanceTool::Sv2v)
+        );
+        assert_eq!(
+            AcceptanceTool::from_name("slang"),
+            Some(AcceptanceTool::Slang)
         );
         // Anything off the allow-list is rejected — never a spawn.
         assert_eq!(AcceptanceTool::from_name("rm -rf /"), None);
@@ -2048,19 +2324,24 @@ mod tests {
         assert_eq!(AcceptanceTool::Yosys.binary(), "yosys");
         assert_eq!(AcceptanceTool::Iverilog.binary(), "iverilog");
         assert_eq!(AcceptanceTool::Sv2v.binary(), "sv2v");
+        assert_eq!(AcceptanceTool::Slang.binary(), "slang");
     }
 
-    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` + `.2b.1` — the closed adapter registry
-    /// holds the three originals then the first new adapter (`sv2v`), in canonical
-    /// display order, each with the `id` (selector token) and fixed `binary`
-    /// matching the `AcceptanceTool` allow-list. The registry is the pluggable
-    /// home; the enum stays the canonical built-in identity (not retired).
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` + `.2b.1` + `.2c.1` — the closed adapter
+    /// registry holds the three originals then the new adapters in landing order
+    /// (`sv2v`, then `slang`), in canonical display order, each with the `id`
+    /// (selector token) and fixed `binary` matching the `AcceptanceTool`
+    /// allow-list. The registry is the pluggable home; the enum stays the canonical
+    /// built-in identity (not retired).
     #[test]
-    fn adapter_registry_lists_the_originals_then_sv2v() {
+    fn adapter_registry_lists_the_originals_then_new_adapters() {
         let ids: Vec<&str> = adapters().iter().map(|a| a.id()).collect();
-        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v"]);
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v", "slang"]);
         let bins: Vec<&str> = adapters().iter().map(|a| a.binary()).collect();
-        assert_eq!(bins, vec!["verilator", "yosys", "iverilog", "sv2v"]);
+        assert_eq!(
+            bins,
+            vec!["verilator", "yosys", "iverilog", "sv2v", "slang"]
+        );
         // Every registry `id` is a name `from_name` accepts (one allow-list).
         for id in ids {
             assert!(
@@ -2068,23 +2349,36 @@ mod tests {
                 "registry id {id} must be an allow-listed tool name"
             );
         }
-        // sv2v is a pure accept/reject column — no fact hook yet (slang lands it at .2c).
-        let sv2v = adapters().iter().find(|a| a.id() == "sv2v").unwrap();
-        assert!(!sv2v.supports_facts());
+        // The originals + sv2v are pure accept/reject columns (no fact hook); slang
+        // is the first fact-bearing adapter (`extract_facts` JSON-AST hook).
+        for a in adapters() {
+            let expected = a.id() == "slang";
+            assert_eq!(
+                a.supports_facts(),
+                expected,
+                "{} supports_facts mismatch",
+                a.id()
+            );
+        }
     }
 
-    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` + `.2b.1` — the adapter catalog projects
-    /// every registered adapter (now four) in display order with its fixed binary
-    /// and fact capability, so an agent discovers `sv2v` over the API. `present` is
-    /// a live PATH probe (host-dependent), so it is not asserted here.
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.2` + `.2b.1` + `.2c.1` — the adapter catalog
+    /// projects every registered adapter (now five) in display order with its fixed
+    /// binary and fact capability, so an agent discovers `sv2v` and the
+    /// fact-bearing `slang` over the API. `present` is a live PATH probe
+    /// (host-dependent), so it is not asserted here.
     #[test]
     fn adapter_catalog_projects_every_registered_adapter() {
         let catalog = adapter_catalog();
         let ids: Vec<&str> = catalog.iter().map(|a| a.id.as_str()).collect();
-        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v"]);
+        assert_eq!(ids, vec!["verilator", "yosys", "iverilog", "sv2v", "slang"]);
         let sv2v = catalog.iter().find(|a| a.id == "sv2v").unwrap();
         assert_eq!(sv2v.binary, "sv2v");
         assert!(!sv2v.supports_facts);
+        // slang is the first adapter that advertises richer facts.
+        let slang = catalog.iter().find(|a| a.id == "slang").unwrap();
+        assert_eq!(slang.binary, "slang");
+        assert!(slang.supports_facts);
     }
 
     /// `DOWNSTREAM-ADAPTER-EXPANSION.2a.1` — `AcceptanceTool::adapter()` maps each
@@ -2098,6 +2392,7 @@ mod tests {
             AcceptanceTool::Yosys,
             AcceptanceTool::Iverilog,
             AcceptanceTool::Sv2v,
+            AcceptanceTool::Slang,
         ] {
             let adapter = tool.adapter();
             assert_eq!(adapter.binary(), tool.binary());
@@ -2109,6 +2404,151 @@ mod tests {
                 adapter.id()
             );
         }
+    }
+
+    /// A faithful synthetic `slang --ast-json` document (the schema verified at
+    /// `.2c.1`: `design.members` → an `Instance` → `body` (an `InstanceBody`) →
+    /// `members` with `Port` / `Variable` / nested `Instance` nodes; a child's
+    /// definition is the name token of its `InstanceBody.definition`,
+    /// `"<addr> <name>"`).
+    fn synthetic_slang_ast(top: &str) -> Value {
+        serde_json::json!({
+            "design": {
+                "name": "$root",
+                "kind": "Root",
+                "addr": 1000,
+                "members": [
+                    {
+                        "name": top,
+                        "kind": "Instance",
+                        "addr": 1001,
+                        "body": {
+                            "name": top,
+                            "kind": "InstanceBody",
+                            "addr": 1002,
+                            "definition": format!("900 {top}"),
+                            "members": [
+                                { "name": "a", "kind": "Port", "addr": 1, "type": "logic[3:0]",
+                                  "direction": "In", "internalSymbol": "2 a" },
+                                { "name": "y", "kind": "Port", "addr": 3, "type": "logic",
+                                  "direction": "Out", "internalSymbol": "4 y" },
+                                // A non-port, non-instance sibling the projection skips.
+                                { "name": "a", "kind": "Variable", "addr": 2, "type": "logic[3:0]",
+                                  "lifetime": "Static" },
+                                { "name": "u0", "kind": "Instance", "addr": 5,
+                                  "body": { "name": "child", "kind": "InstanceBody", "addr": 6,
+                                            "definition": "910 child", "members": [] } }
+                            ]
+                        }
+                    }
+                ]
+            }
+        })
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` — the pure `parse_slang_ast_facts`
+    /// projects slang's `--ast-json` into `AdapterFacts`: the top name, its ports
+    /// (name + verbatim direction + verbatim type, in AST order, non-port siblings
+    /// skipped), and its direct child instances (name + definition resolved from
+    /// the child `InstanceBody.definition`). The serde shape renames `ty` → `type`.
+    #[test]
+    fn slang_ast_json_parser_projects_top_ports_and_instances() {
+        let facts = parse_slang_ast_facts(&synthetic_slang_ast("top_mod"), "top_mod").unwrap();
+        assert_eq!(facts.adapter, "slang");
+        assert_eq!(facts.top, "top_mod");
+        assert_eq!(
+            facts.ports,
+            vec![
+                AdapterPortFact {
+                    name: "a".to_string(),
+                    direction: "In".to_string(),
+                    ty: "logic[3:0]".to_string(),
+                },
+                AdapterPortFact {
+                    name: "y".to_string(),
+                    direction: "Out".to_string(),
+                    ty: "logic".to_string(),
+                },
+            ]
+        );
+        assert_eq!(
+            facts.instances,
+            vec![AdapterInstanceFact {
+                name: "u0".to_string(),
+                definition: "child".to_string(),
+            }]
+        );
+        // The SCHEMA-DERIVED wire shape uses slang's own `type` key (serde rename).
+        let json = serde_json::to_value(&facts).unwrap();
+        assert_eq!(json["ports"][0]["type"], serde_json::json!("logic[3:0]"));
+        assert!(json["ports"][0].get("ty").is_none());
+    }
+
+    /// `parse_slang_ast_facts` falls back to the first `Instance` when the
+    /// requested top name is not present (so a module slang auto-tops still
+    /// projects), and returns `None` only when there is no recognizable top.
+    #[test]
+    fn slang_ast_json_parser_falls_back_and_handles_malformed() {
+        // Requested name absent ⇒ first instance is used.
+        let facts = parse_slang_ast_facts(&synthetic_slang_ast("actual_top"), "expected").unwrap();
+        assert_eq!(facts.top, "actual_top");
+        // No design/members ⇒ None (clean, never a panic).
+        assert!(parse_slang_ast_facts(&serde_json::json!({}), "x").is_none());
+        assert!(
+            parse_slang_ast_facts(&serde_json::json!({ "design": { "members": [] } }), "x")
+                .is_none()
+        );
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` — `SlangAdapter::extract_facts` reads the
+    /// `<stem>.slang.json` side file `run_slang` would have written into
+    /// `cx.out_dir` and returns the same projection; a missing/unparseable file is
+    /// a clean `None` (the friendly absent-tool no-op — exactly the slang-absent
+    /// case on this host). Portable: no real tool is required.
+    #[test]
+    fn slang_adapter_extract_facts_reads_the_ast_side_file() {
+        let dir = test_root("slang-facts");
+        std::fs::create_dir_all(&dir).unwrap();
+        let stem = "top_mod";
+        let sv_path = dir.join(format!("{stem}.sv"));
+        let json_path = dir.join(slang_ast_json_name(stem));
+
+        // Missing side file ⇒ clean None.
+        let adapter = AcceptanceTool::Slang.adapter();
+        let inv = ToolInvocation {
+            tool: "slang".to_string(),
+            argv: vec!["slang".to_string()],
+            success: true,
+            exit_code: Some(0),
+            stdout_log: None,
+            stderr_log: None,
+            error: None,
+            version: None,
+        };
+        let cx = AdapterRunCx {
+            binary: "slang",
+            out_dir: &dir,
+            target: AdapterTarget::Module {
+                sv_path: &sv_path,
+                stem,
+            },
+            yosys_mode: YosysMode::WithoutAbc,
+            language: None,
+        };
+        assert!(adapter.extract_facts(&cx, &inv).is_none());
+
+        // Write the side file ⇒ the same facts the pure parser produces.
+        std::fs::write(
+            &json_path,
+            serde_json::to_string(&synthetic_slang_ast(stem)).unwrap(),
+        )
+        .unwrap();
+        let facts = adapter.extract_facts(&cx, &inv).unwrap();
+        assert_eq!(facts.top, "top_mod");
+        assert_eq!(facts.ports.len(), 2);
+        assert_eq!(facts.instances.len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// The version axis (`ACCEPTANCE-DIVERGENCE-HUNTING.2e`) keeps the kind
@@ -2210,15 +2650,20 @@ mod tests {
                 binary: "anvil-missing-sv2v".to_string(),
                 label: "sv2v-v".to_string(),
             },
+            ToolSpec {
+                kind: AcceptanceTool::Slang,
+                binary: "anvil-missing-slang".to_string(),
+                label: "slang-v".to_string(),
+            },
         ];
         let report = validate_tool_specs(13, &cfg, &specs, &opts).unwrap();
         // Exactly one relabeled row per spec — including Yosys under `Both` and the
-        // new sv2v kind.
-        assert_eq!(report.tools.len(), 4);
+        // new sv2v / slang kinds.
+        assert_eq!(report.tools.len(), 5);
         let labels: Vec<&str> = report.tools.iter().map(|t| t.tool.as_str()).collect();
         assert_eq!(
             labels,
-            vec!["verilator-v", "yosys-v", "iverilog-v", "sv2v-v"]
+            vec!["verilator-v", "yosys-v", "iverilog-v", "sv2v-v", "slang-v"]
         );
         // Missing binaries can't spawn ⇒ no success, no captured version.
         assert!(report.tools.iter().all(|t| !t.success));

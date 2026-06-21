@@ -1,6 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — DOWNSTREAM-ADAPTER-EXPANSION.2c.1 — the `slang` downstream adapter + the trait's first `extract_facts` JSON-AST hook + MCP selectability/discoverability (decision 0020)
+
+**Landed as:** this commit (previous: `a3c70b9`). **Code change — `src/downstream/mod.rs`
++ `src/mcp/mod.rs` + book API pages; additive / default-off / DUT byte-identical**
+(`tests/snapshots.rs` 6/6 untouched; no generator change). The additive half of the
+`.2c` split (pre-split mirroring `.2a`/`.2b`); the `tool_matrix --slang` column + live
+report fact-surfacing + the `#[ignore]` real-tool gate + the user-facing chapter/KM card
+are `.2c.2`.
+
+**What changed (why)**
+
+`.2b` added `sv2v` as the first *pure accept/reject* adapter. `slang` is the **second new
+adapter and the first fact-bearing one** (decision `0020` §3.2): a strict, fast,
+independent SystemVerilog elaborator that *additionally* projects a SCHEMA-DERIVED
+`--ast-json` view. This slice lands the trait's first `extract_facts` hook through it,
+proving the richer adapter path — additive, with no `tool_matrix` column yet.
+
+- **`src/downstream/mod.rs`** — the trait's first fact hook: a defaulted
+  `Adapter::extract_facts(&AdapterRunCx, &ToolInvocation) -> Option<AdapterFacts>` (the
+  three built-ins + `sv2v` keep the `None` default ⇒ byte-identical), the `AdapterFacts` /
+  `AdapterPortFact` / `AdapterInstanceFact` serde projections (the port type field
+  serde-renamed `ty` → `type`, matching slang's own key), and an `AdapterTarget::stem()`
+  accessor so the hook can find the side file `run` wrote. The adapter itself: a 5th
+  `AcceptanceTool::Slang` variant (`from_name`/`binary` `"slang"`/`adapter()`),
+  `run_slang` (`slang <sv> -q --ast-json <stem>.slang.json`) + `run_slang_design`
+  (`slang <files…> --top <top> -q --ast-json <top>.slang.json`), a `SlangAdapter`
+  (`supports_facts() => true`; `extract_facts` reads the `<stem>.slang.json` side file and
+  calls the pure `parse_slang_ast_facts`), a 5th `ADAPTER_REGISTRY` entry, and a
+  `first_tool_warning` `"slang"` arm (case-insensitive `warning:`, like iverilog/sv2v —
+  slang's `0 warnings` summary has no colon, so it is not a false positive).
+- **The parser** — `pub fn parse_slang_ast_facts(&serde_json::Value, want_top)` walks
+  slang's **verified** `--ast-json` schema (`design.members` → the top `Instance`,
+  preferring the one named `want_top` else the first → its `body` (`InstanceBody`) →
+  `members`: each `Port` → `{name, direction, type}`, each child `Instance` → `{name,
+  definition}` where the definition name is the token of the child `InstanceBody.definition`
+  `"<addr> <name>"` pair). SCHEMA-DERIVED — a pure read of *slang's* AST, never an ANVIL
+  behavioural oracle (decision `0004`). A missing/unparseable side file ⇒ a clean `None`
+  (the friendly absent-tool no-op — exactly the slang-absent case on this host).
+- **`src/mcp/mod.rs`** — `"slang"` added to the four `tools`-enum schemas
+  (validate/divergence/minimize/hunt) + the `parse_validate_tools` allow-list error, so
+  `slang` is selectable over the API and discoverable in `adapter_catalog()`
+  (`anvil://catalog/adapters` now 5 entries; `slang` is the first with
+  `supports_facts=true`; `present=false` locally since `slang` is absent — the friendly
+  no-op). Decision `0017` API-completeness.
+- **Schema verification (no-corners).** `slang` is absent on this host, so the `--ast-json`
+  schema + the `--ast-json <file>` / `--top` / `-q` argv were verified against slang's
+  published documentation before authoring the parser + a faithful synthetic fixture
+  (sv-lang.com user manual + command-line reference). The portable proofs run the parser
+  against that fixture; the real-tool gate (`.2c.2`) upgrades it to a banked proof once
+  `slang` is installed.
+- **Docs** — book API pages synced (`agent-mcp.md` allow-list note + `validate` row;
+  `api-tools.md` `tools` allow-list + controlled-tools summary; `api-resources-prompts.md`
+  catalog row), plus the README + USER_GUIDE allow-list enumerations slang now joins
+  (no drift). The user-facing chapter + KM card are `.2c.2`.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo test --lib` **553/0** (+4 net:
+  `slang_ast_json_parser_projects_top_ports_and_instances`,
+  `slang_ast_json_parser_falls_back_and_handles_malformed`,
+  `slang_adapter_extract_facts_reads_the_ast_side_file`,
+  `mcp::…::parse_validate_tools_accepts_slang`; the 4-adapter registry / catalog /
+  from_name / warning / per-kind-routing proofs extended to 5).
+- `cargo test --test snapshots` **6/6** byte-identical (no generator change).
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean;
+  `mdbook build book` clean; `check_memory_architecture` + KM gen/check green (KM still 52
+  facts — the slang KM card is `.2c.2`). Heavy steps RAM-guarded (decision `0003`).
+- Default `--artifact dut` byte-identical (no generator change; snapshots 6/6).
+
+**Impact**
+
+`slang` is now a selectable + discoverable downstream adapter, and the `Adapter` trait can
+carry richer SCHEMA-DERIVED facts. Because the verdict is unchanged, `slang` already
+multiplies the bug surface across `validate`/`divergence`/`hunt` for free (decision `0019`
+compounding) — the `tool_matrix` column + live fact-surfacing + the real-tool gate land in
+`.2c.2`.
+
+**Files touched:** `src/downstream/mod.rs`, `src/mcp/mod.rs`, `book/src/agent-mcp.md`,
+`book/src/api-tools.md`, `book/src/api-resources-prompts.md`, `README.md`, `USER_GUIDE.md`,
+`CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`,
+`docs/TASK_TREE.md`, `docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`.
+
 ## 2026-06-18 — DOWNSTREAM-ADAPTER-EXPANSION.2b.2 — the `tool_matrix --sv2v` transpile-acceptance column + real-tool gate (decision 0020)
 
 **Landed as:** this commit (previous: `af81e16`). **Code change — `src/bin/tool_matrix.rs`
