@@ -582,6 +582,55 @@ pub enum KnobId {
 }
 
 impl KnobId {
+    /// Every steerable knob id, in declaration order. The single
+    /// enumeration of the `KnobId` universe — reused wherever a caller
+    /// needs to map a knob *name* (the string key in `Metrics`) back to
+    /// its [`category`](KnobId::category) without re-deriving a second
+    /// name→category table (`feedback_full_factorization`: one classifier,
+    /// not two). Consumed by the coverage-readout per-category roll-up
+    /// (`COVERAGE-STEERED-GENERATION.2b`). The list is exhaustive: a new
+    /// variant must be added here too (the `name`/`category` matches below
+    /// are exhaustive, so a missing entry here cannot silently mislabel a
+    /// knob — it just omits it from the roll-up, which a reviewer catches).
+    pub fn all() -> &'static [KnobId] {
+        &[
+            KnobId::FlopProb,
+            KnobId::CombMuxProb,
+            KnobId::PriorityEncoderProb,
+            KnobId::CaseMuxProb,
+            KnobId::CasezMuxProb,
+            KnobId::ForFoldProb,
+            KnobId::CoefficientProb,
+            KnobId::ConstShiftAmountProb,
+            KnobId::ConstComparandProb,
+            KnobId::ConstantProb,
+            KnobId::TerminalReuseProb,
+            KnobId::CombMuxEncodingProb,
+            KnobId::FlopMuxEncodingProb,
+            KnobId::ShareProb,
+            KnobId::HierarchySiblingRouteProb,
+            KnobId::HierarchyRegisteredSiblingRouteProb,
+            KnobId::HierarchyRegisteredSiblingMixedSupportProb,
+            KnobId::HierarchyRegisteredChildInputConeProb,
+            KnobId::HierarchyChildInputConeProb,
+            KnobId::HierarchyParentConeInstanceProb,
+            KnobId::HierarchyParentFlopProb,
+            KnobId::FlopQFeedbackProb,
+        ]
+    }
+
+    /// The [`category`](KnobId::category) of the knob whose
+    /// [`name`](KnobId::name) is `name`, or `None` if `name` is not a known
+    /// knob. The reverse of `name` over the fixed [`all`](KnobId::all) set —
+    /// the one place that inverts the name table, so the coverage roll-up
+    /// never carries a private copy of the mapping.
+    pub fn category_of_name(name: &str) -> Option<&'static str> {
+        KnobId::all()
+            .iter()
+            .find(|knob| knob.name() == name)
+            .map(|knob| knob.category())
+    }
+
     /// Stable lowercase string key for serialisation into
     /// `Metrics`. Matches the `Config` field name, minus the
     /// `_prob` suffix where present.

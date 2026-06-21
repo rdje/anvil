@@ -37,6 +37,13 @@
 /// default `--introspect` document.
 pub mod analyze;
 
+/// Achieved-coverage readout (`COVERAGE-STEERED-GENERATION.2b`, decision
+/// `0023`): the SCHEMA-DERIVED projection of the run's per-knob roll
+/// telemetry + construct histograms an outer steering loop measures. Embedded
+/// in the default DUT document (`IntrospectionPayload::coverage_readout`) and
+/// returned standalone by the MCP `coverage` query ([`CoverageDocument`]).
+pub mod coverage;
+
 use crate::config::Config;
 use crate::emit;
 use crate::ir::{Design, Module};
@@ -44,19 +51,21 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.11` is the
-/// additive (backward-compatible) MINOR bump that surfaces the new
-/// [`Metrics::num_emitted_cone_functions`](crate::metrics::Metrics)
-/// field in `module_metrics` — the count of combinational cones emitted as a
-/// multi-gate `function automatic` projection (the `cone_function_emit_prob`
-/// knob, `STRUCTURED-EMISSION-EXPANSION.10b.2`). The field is
-/// `#[serde(default)]`, so a `1.10` consumer ignores the new key and an absent
-/// key reads back as `0`; the default-`dut` artifact stays byte-identical and
-/// determinism is preserved (the metric is a post-hoc structural count, not new
-/// computed truth). MINOR is an integer, so `1.10 → 1.11` (eleven), not `1.11`
-/// as a decimal fraction. See the schema-doc §7 changelog for the full
-/// `1.0 → … → 1.10 → 1.11` history.
-pub const SCHEMA_VERSION: &str = "1.11";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.12` is the
+/// additive (backward-compatible) MINOR bump that adds the achieved-coverage
+/// **readout** ([`coverage::CoverageReadout`]) — embedded in the default DUT
+/// `IntrospectionPayload` as the new `coverage_readout` section and returned
+/// standalone by the MCP `coverage` query ([`CoverageDocument`]). It is the
+/// SCHEMA-DERIVED projection of the run's per-knob roll telemetry +
+/// gate/operand/depth histograms (`COVERAGE-STEERED-GENERATION.2b`, decision
+/// `0023`). `coverage_readout` is `#[serde(skip_serializing_if =
+/// "Option::is_none")]`, so the non-DUT lanes (which carry no `Metrics`) omit
+/// it and a `1.11` consumer simply ignores the new key; the default-`dut`
+/// **artifact** (`.sv`) stays byte-identical and determinism is preserved (the
+/// readout is a post-hoc projection of existing facts, not new computed truth).
+/// MINOR is an integer, so `1.11 → 1.12` (twelve), not a decimal fraction. See
+/// the schema-doc §7 changelog for the full `1.0 → … → 1.11 → 1.12` history.
+pub const SCHEMA_VERSION: &str = "1.12";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -132,6 +141,15 @@ pub struct IntrospectionPayload {
     /// `design` artifact: per-child `metrics::compute(&Module)`.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub modules: Vec<ModuleMetricsEntry>,
+    /// The achieved-coverage readout (`COVERAGE-STEERED-GENERATION.2b`,
+    /// decision `0023`, schema `1.12`): per-knob + per-category empirical fire
+    /// rates from the run's roll telemetry, plus the gate-kind / operand-arity /
+    /// depth histograms. For a `module` it projects that module's
+    /// [`Metrics`]; for a `design` it is the aggregate across every child's
+    /// metrics. SCHEMA-DERIVED (zero new truth — [`coverage`]). `None` (omitted)
+    /// for the non-DUT lanes, which carry no `Metrics`.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub coverage_readout: Option<coverage::CoverageReadout>,
 }
 
 /// The top-level introspection document (schema §4). The envelope fields are
@@ -204,6 +222,55 @@ pub fn derived_analysis_document(
     }
 }
 
+/// A standalone achieved-coverage document (`COVERAGE-STEERED-GENERATION.2b`),
+/// the read half of construction-time coverage steering. Like
+/// [`DerivedAnalysisDocument`] it reuses the introspection **envelope**
+/// ([`RequestEcho`] + the content-addressed `run_id`, the
+/// [`ArtifactDescriptor`]) but carries a single
+/// [`coverage`](coverage::CoverageReadout) payload — so the MCP `coverage`
+/// query returns a self-contained, versioned, self-identifying document an
+/// outer measure→derive→re-steer loop (decision `0023` §4) can pin to. The
+/// SAME [`coverage::CoverageReadout`] is also embedded in the default DUT
+/// [`IntrospectionPayload`], so the two surfaces cannot drift (one projection,
+/// not two). SCHEMA-DERIVED: a pure projection of the run's `Metrics`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoverageDocument {
+    pub schema_version: String,
+    pub anvil_version: String,
+    pub lane: String,
+    pub request: RequestEcho,
+    pub artifact: ArtifactDescriptor,
+    /// The achieved-coverage readout for this artifact.
+    pub coverage: coverage::CoverageReadout,
+    pub warnings: Vec<String>,
+}
+
+impl CoverageDocument {
+    pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+}
+
+/// Wrap a [`CoverageReadout`](coverage::CoverageReadout) in the introspection
+/// envelope, reusing `base`'s request/artifact metadata — the same `run_id`,
+/// seed, knobs, and artifact pointers as the artifact's `generate` /
+/// `introspect` document. Pure: byte-identical for the same
+/// `(base, coverage)`.
+pub fn coverage_document(
+    base: &IntrospectionDocument,
+    coverage: coverage::CoverageReadout,
+) -> CoverageDocument {
+    CoverageDocument {
+        schema_version: base.schema_version.clone(),
+        anvil_version: base.anvil_version.clone(),
+        lane: base.lane.clone(),
+        request: base.request.clone(),
+        artifact: base.artifact.clone(),
+        coverage,
+        warnings: base.warnings.clone(),
+    }
+}
+
 /// Content address for a request: a pure FNV-1a 64-bit hash over the
 /// canonical encoding of `(schema_version, anvil_version, lane, seed,
 /// knobs)`. It is **not** a random nonce — identical inputs yield an
@@ -251,6 +318,7 @@ pub fn content_run_id_for_knobs(lane: &str, seed: u64, knobs_json: &str) -> Stri
 /// re-projects). Pure: byte-identical for the same `(seed, cfg, m)`.
 pub fn module_document(seed: u64, cfg: &Config, m: &Module) -> IntrospectionDocument {
     let metrics = compute(m);
+    let coverage_readout = coverage::module_coverage(&metrics);
     let sv_len = emit::to_sv_versioned(m, cfg.sv_version).len();
     let run_id = content_run_id(LANE_DUT, seed, cfg);
     IntrospectionDocument {
@@ -275,6 +343,7 @@ pub fn module_document(seed: u64, cfg: &Config, m: &Module) -> IntrospectionDocu
         },
         introspection: IntrospectionPayload {
             module_metrics: Some(metrics),
+            coverage_readout: Some(coverage_readout),
             ..Default::default()
         },
         warnings: vec![COVERAGE_ABSENT_NOTE.to_string()],
@@ -288,7 +357,7 @@ pub fn design_document(seed: u64, cfg: &Config, design: &Design) -> Introspectio
     let design_metrics = compute_design(design);
     let sv_len = emit::to_sv_design_versioned(design, cfg.sv_version).len();
     let run_id = content_run_id(LANE_DUT, seed, cfg);
-    let modules = design
+    let modules: Vec<ModuleMetricsEntry> = design
         .modules
         .iter()
         .map(|m| ModuleMetricsEntry {
@@ -296,6 +365,11 @@ pub fn design_document(seed: u64, cfg: &Config, design: &Design) -> Introspectio
             metrics: compute(m),
         })
         .collect();
+    // The design readout aggregates every child's roll telemetry + histograms,
+    // so it reports the whole design's achieved coverage (the per-child metrics
+    // already computed for `modules`).
+    let per_child: Vec<Metrics> = modules.iter().map(|entry| entry.metrics.clone()).collect();
+    let coverage_readout = coverage::design_coverage(&per_child);
     IntrospectionDocument {
         schema_version: SCHEMA_VERSION.to_string(),
         anvil_version: anvil_version().to_string(),
@@ -319,6 +393,7 @@ pub fn design_document(seed: u64, cfg: &Config, design: &Design) -> Introspectio
         introspection: IntrospectionPayload {
             design_metrics: Some(design_metrics),
             modules,
+            coverage_readout: Some(coverage_readout),
             ..Default::default()
         },
         warnings: vec![COVERAGE_ABSENT_NOTE.to_string()],
@@ -433,7 +508,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.11");
+        assert_eq!(doc.schema_version, "1.12");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -442,6 +517,12 @@ mod tests {
         assert!(doc.artifact.sv.bytes.is_some());
         assert!(doc.artifact.sv_sha256.is_none());
         assert!(doc.warnings.iter().any(|w| w == COVERAGE_ABSENT_NOTE));
+        // The achieved-coverage readout (schema `1.12`) is the exact projection
+        // of this module's metrics — present on every DUT module document.
+        assert_eq!(
+            doc.introspection.coverage_readout,
+            Some(coverage::module_coverage(&compute(&m)))
+        );
     }
 
     #[test]
@@ -500,6 +581,12 @@ mod tests {
         assert!(doc.introspection.module_metrics.is_none());
         assert!(doc.introspection.design_metrics.is_some());
         assert_eq!(doc.introspection.modules.len(), design.modules.len());
+        // The design readout is the aggregate over the per-child metrics.
+        let per_child: Vec<_> = design.modules.iter().map(compute).collect();
+        assert_eq!(
+            doc.introspection.coverage_readout,
+            Some(coverage::design_coverage(&per_child))
+        );
         // Each per-module entry is the exact compute(&module) projection.
         for (entry, module) in doc.introspection.modules.iter().zip(&design.modules) {
             assert_eq!(entry.name, module.name);
@@ -562,7 +649,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.11");
+        assert_eq!(doc.schema_version, "1.12");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -587,6 +674,48 @@ mod tests {
             "request",
             "artifact",
             "analysis",
+            "warnings",
+        ] {
+            assert!(obj.contains_key(key), "missing envelope key `{key}`");
+        }
+    }
+
+    #[test]
+    fn coverage_document_reuses_envelope_and_carries_readout() {
+        // The coverage document reuses the artifact's envelope (same content
+        // address) and carries the achieved-coverage readout as its payload —
+        // the SAME readout embedded in the default document (no drift).
+        let cfg = comb_cfg(9);
+        let mut gen = Generator::new(cfg.clone());
+        let m = gen.generate_module();
+        let base = module_document(9, &cfg, &m);
+        let readout = coverage::module_coverage(&compute(&m));
+        let doc = coverage_document(&base, readout.clone());
+
+        assert_eq!(doc.schema_version, "1.12");
+        assert_eq!(doc.lane, base.lane);
+        assert_eq!(doc.request.run_id, base.request.run_id); // same content address
+                                                             // The payload IS the embedded readout, byte-for-byte.
+        assert_eq!(
+            serde_json::to_value(&doc.coverage).unwrap(),
+            serde_json::to_value(base.introspection.coverage_readout.as_ref().unwrap()).unwrap()
+        );
+        // Round-trips through JSON and is deterministic.
+        let s = doc.to_json_pretty().unwrap();
+        let reparsed: CoverageDocument = serde_json::from_str(&s).unwrap();
+        assert_eq!(
+            serde_json::to_value(&doc).unwrap(),
+            serde_json::to_value(&reparsed).unwrap()
+        );
+        let v: Value = serde_json::to_value(&doc).unwrap();
+        let obj = v.as_object().unwrap();
+        for key in [
+            "schema_version",
+            "anvil_version",
+            "lane",
+            "request",
+            "artifact",
+            "coverage",
             "warnings",
         ] {
             assert!(obj.contains_key(key), "missing envelope key `{key}`");

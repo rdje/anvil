@@ -154,6 +154,7 @@ single-artifact generate or a `tool_matrix` run (see §5).
 | `design_metrics`            | — | ✅ | — | — | — |
 | `microdesign_manifest`      | — | — | ✅ | — | — |
 | `frontend_manifest`         | — | — | — | ✅ | — |
+| `coverage_readout`          | ✅ | aggregate³ | — | — | — |
 | `coverage`                  | optional² | optional² | optional² | optional² | ✅ |
 | `artifact.sv` (resource)    | ✅ | ✅ | ✅ | ✅ | — |
 
@@ -162,7 +163,12 @@ single-artifact generate or a `tool_matrix` run (see §5).
 `request.knobs` echoes those lane params (§6.1). ² `coverage` is only
 meaningful for a `tool_matrix` sweep (it aggregates the `saw_*` facts and
 `coverage_gaps` across a scenario corpus); a single-artifact `generate` omits
-it and records a `warnings[]` note.
+it and records a `warnings[]` note. ³ `coverage_readout` (§6.8) is the
+single-artifact **achieved-coverage** projection — distinct from the
+matrix-only `coverage` section: it is derived from *this run's own* roll
+telemetry + construct histograms, so it is present for every DUT module
+(its module's metrics) and DUT design (the **aggregate** across child metrics).
+The non-DUT lanes carry no `Metrics`, so they omit it.
 
 ---
 
@@ -381,6 +387,46 @@ delivered) + **one of four parallel result vecs**, the one the query kind popula
 completeness rule); an unknown `query` or `target` is rejected with JSON-RPC
 `-32602`.
 
+### 6.8 `coverage_readout` — achieved-coverage readout (the steering read surface)
+
+`COVERAGE-STEERED-GENERATION` (decision `0023`, schema `1.12`) adds the **read**
+half of construction-time coverage steering: *what did this run actually
+exercise?* It is the achieved coverage the steering **prior** (the `.2a`
+`roll_knob` probability multiplier) is meant to bend, and the input an outer
+measure→derive→re-steer loop (decision `0023` §4) reads to compute the next
+[`SteeringConfig`]. Unlike the `analysis` surface (§6.7, kept out of the default
+document), the readout is **embedded** in the default DUT
+`IntrospectionPayload` under `coverage_readout`, **and** returned standalone by
+the pure MCP `coverage` tool as the sibling `CoverageDocument` (envelope reuse +
+a single `coverage` payload) — the **same** projection feeds both, so they
+cannot drift.
+
+| | |
+| --- | --- |
+| **JSON** | object: `knob_fire_rates` + `category_fire_rates` (maps of `{attempts, fires, fire_rate}`) + `gate_kind_histogram` + `gate_operand_count_histogram` + `gate_depth_histogram` |
+| **Source struct** | `coverage::CoverageReadout` / `coverage::KnobCoverage` |
+| **File** | `src/introspect/coverage.rs` (the projection) + `src/introspect/mod.rs` (the `coverage_readout` payload key + the `CoverageDocument` envelope) |
+| **Producer** | `coverage::module_coverage(&Metrics)` (a `module` artifact) / `coverage::design_coverage(&[Metrics])` (the cross-child aggregate of a `design`); wrapped for the MCP tool by `introspect::coverage_document` |
+| **Serde guarantee** | exact projection of the run's `Metrics`; every map is a `BTreeMap`, `fire_rate` is a round-half-up integer-ppm quotient (6 dp) → byte-stable |
+
+**Invariant SCHEMA-DERIVED holds.** A `CoverageReadout` computes **zero new
+generator truth** — it is a pure function of the per-knob roll counters
+(`knob_roll_attempts` / `knob_roll_fires`) and the gate-kind / operand-arity /
+depth histograms `Metrics` already records. The one *derived* quantity is the
+empirical **fire rate** (`fires / attempts`, the division an agent would
+otherwise do) plus its per-`KnobId::category` roll-up
+(`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy` —
+the same coarse taxonomy a `SteeringConfig` targets). `attempts` / `fires` are
+the **exact** integers; `fire_rate` is rounded to parts-per-million via integer
+arithmetic so the field is byte-identical across evaluation contexts (the
+determinism contract, §3 — a raw `f64` division can differ by 1 ULP between two
+call sites). The matrix-only `saw_*` coverage facts are **not** here (§6.4): a
+lone artifact cannot prove them. `coverage_readout` carries
+`#[serde(default, skip_serializing_if = "Option::is_none")]`, so the non-DUT
+lanes (no `Metrics`) omit it and a `1.11` consumer ignores the new key.
+
+[`SteeringConfig`]: ../src/config.rs
+
 ---
 
 ## 7. Versioning policy
@@ -404,7 +450,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.11"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.12"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -414,7 +460,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.11"`**.
+This document defines **`schema_version = "1.12"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -545,6 +591,22 @@ This document defines **`schema_version = "1.11"`**.
   the existing version via `#[serde(default)]`, per the default-off
   probability-knob precedent; this bump is for the new derived **metric**, not the
   knob.) MINOR is an integer, so this is `1.10 → 1.11` (eleven), not a decimal.
+- **`1.11` → `1.12` (`COVERAGE-STEERED-GENERATION.2b`).** Additive MINOR bump:
+  added the achieved-coverage **readout** (§6.8) — the new
+  `IntrospectionPayload::coverage_readout` section (`coverage::CoverageReadout`)
+  on every DUT `module` / `design` document, plus the sibling `CoverageDocument`
+  returned by the pure MCP `coverage` tool. It projects the run's per-knob +
+  per-category empirical fire rates (`fires / attempts`) and the gate-kind /
+  operand-arity / depth histograms — the read half of coverage-steered
+  generation (decision `0023`). `coverage_readout` carries `#[serde(default,
+  skip_serializing_if = "Option::is_none")]`, so the non-DUT lanes (no `Metrics`)
+  omit the key and a `1.11` consumer ignores it. SCHEMA-DERIVED (a pure
+  projection of the `Metrics` ANVIL already records — the `1.0 → 1.1`
+  `bisimulation_flops_merged` additive-growth precedent §7 names — with the
+  `fire_rate` rounded to integer parts-per-million so the field is byte-stable
+  across evaluation contexts); the default-`dut` **artifact** (`.sv`) stays
+  byte-identical and determinism is preserved. MINOR is an integer, so this is
+  `1.11 → 1.12` (twelve), not a decimal.
 
 ---
 
@@ -583,5 +645,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.11"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.12"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

@@ -500,6 +500,21 @@ impl McpServer {
                     "inputSchema": analyze_schema,
                 },
                 {
+                    "name": "coverage",
+                    "description": "Return the achieved-coverage readout for the DUT (seed, config): the \
+                                    per-knob AND per-category empirical fire rates (fires/attempts) from \
+                                    the run's construction-time roll telemetry, plus the gate-kind, \
+                                    operand-arity, and combinational-depth histograms (for a hierarchy \
+                                    design, aggregated across all child modules). The READ half of \
+                                    coverage-steered generation (decision 0023): an outer \
+                                    measure->derive->re-steer loop reads this to compute the next \
+                                    steering config. SCHEMA-DERIVED from the metrics ANVIL already \
+                                    records (no new truth, no tool spawn); the same readout is also \
+                                    embedded in the introspect document's coverage_readout section. \
+                                    DUT lane only.",
+                    "inputSchema": knob_schema,
+                },
+                {
                     "name": "hunt",
                     "description": "Turnkey downstream bug-hunt: fuzz a deterministic seed sweep over the \
                                     DUT (seed, config) knob profile, run the vetted tools on each artifact, \
@@ -583,6 +598,18 @@ impl McpServer {
             );
         }
 
+        // coverage (`COVERAGE-STEERED-GENERATION.2b`) projects the DUT run's
+        // roll telemetry + histograms; the non-DUT lanes carry no `Metrics`, so
+        // reject a non-DUT lane cleanly, same as `analyze`.
+        if name == "coverage" && lane != introspect::LANE_DUT {
+            return ok(
+                id,
+                tool_error(&format!(
+                    "coverage applies to the dut lane only (got lane `{lane}`)"
+                )),
+            );
+        }
+
         let (seed, cfg) = match config_from_args(&args) {
             Ok(pair) => pair,
             Err(e) => return ok(id, tool_error(&e)),
@@ -590,6 +617,7 @@ impl McpServer {
 
         match name {
             "analyze" => self.run_analyze(id, seed, &cfg, &args),
+            "coverage" => self.run_coverage(id, seed, &cfg),
             "dump_config" => match serde_json::to_string_pretty(&cfg) {
                 Ok(text) => ok(id, tool_text(&text)),
                 Err(e) => ok(id, tool_error(&format!("serialize config: {e}"))),
@@ -980,6 +1008,34 @@ impl McpServer {
         match analysis_doc.to_json_pretty() {
             Ok(text) => ok(id, tool_text(&text)),
             Err(e) => ok(id, tool_error(&format!("serialize analysis: {e}"))),
+        }
+    }
+
+    /// The pure `coverage` tool (`COVERAGE-STEERED-GENERATION.2b`): return the
+    /// achieved-coverage readout for the DUT `(seed, cfg)` artifact. Pure — it
+    /// regenerates the artifact (deterministic ⇒ the same one the `run_id`
+    /// addresses) and reuses the readout already embedded in its introspection
+    /// document (one projection, not two — `feedback_full_factorization`), then
+    /// wraps it in the introspection envelope as a
+    /// [`CoverageDocument`](introspect::CoverageDocument). The base artifact is
+    /// cached so its `sv` / `introspection` resources resolve. No filesystem, no
+    /// spawn (unlike `validate` / `minimize`).
+    fn run_coverage(&mut self, id: Value, seed: u64, cfg: &Config) -> Value {
+        let (_sv, _kind, _top, doc) = build_artifact(seed, cfg);
+        // The readout is computed once, inside `module_document` /
+        // `design_document`, and embedded in the document — reuse it rather than
+        // recompute, so the standalone `coverage` document and the embedded
+        // `coverage_readout` section can never disagree.
+        let readout = doc
+            .introspection
+            .coverage_readout
+            .clone()
+            .unwrap_or_default();
+        let coverage_doc = introspect::coverage_document(&doc, readout);
+        self.cache_artifact(&doc);
+        match coverage_doc.to_json_pretty() {
+            Ok(text) => ok(id, tool_text(&text)),
+            Err(e) => ok(id, tool_error(&format!("serialize coverage: {e}"))),
         }
     }
 
@@ -1987,9 +2043,68 @@ mod tests {
                 "minimize",
                 "coverage_gaps",
                 "analyze",
+                "coverage",
                 "hunt",
                 "divergence"
             ]
+        );
+    }
+
+    #[test]
+    fn coverage_returns_readout_consistent_with_introspect() {
+        let mut s = McpServer::new();
+        // A default comb DUT module ⇒ a coverage readout over its roll telemetry.
+        let resp = call(&mut s, 1, "coverage", json!({ "seed": 7 }));
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.12");
+        assert_eq!(doc["lane"], "dut");
+        // The readout carries the per-knob + per-category rates and the three
+        // construct histograms.
+        let cov = &doc["coverage"];
+        for key in [
+            "knob_fire_rates",
+            "category_fire_rates",
+            "gate_kind_histogram",
+            "gate_operand_count_histogram",
+            "gate_depth_histogram",
+        ] {
+            assert!(cov.get(key).is_some(), "coverage readout missing `{key}`");
+        }
+
+        // The standalone `coverage` document and the embedded `coverage_readout`
+        // section are the SAME projection (no drift): introspect the same run.
+        let intro = call(&mut s, 2, "introspect", json!({ "seed": 7 }));
+        let intro_doc: Value = serde_json::from_str(&tool_text_of(&intro)).unwrap();
+        assert_eq!(
+            doc["coverage"],
+            intro_doc["introspection"]["coverage_readout"]
+        );
+
+        // The base artifact is cached so its sv/introspection resources resolve.
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+        let read = s
+            .handle(&req(
+                3,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/sv") }),
+            ))
+            .unwrap();
+        assert!(read["result"]["contents"][0]["text"].is_string());
+    }
+
+    #[test]
+    fn coverage_rejects_non_dut_lane() {
+        let mut s = McpServer::new();
+        let resp = call(
+            &mut s,
+            1,
+            "coverage",
+            json!({ "seed": 1, "lane": "microdesign" }),
+        );
+        let text = tool_text_of(&resp);
+        assert!(
+            text.contains("dut lane only"),
+            "expected a non-DUT rejection, got: {text}"
         );
     }
 
@@ -1999,7 +2114,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -2045,7 +2160,7 @@ mod tests {
             json!({ "seed": 7, "query": "input_reach" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
         assert_eq!(doc["analysis"]["query"], "input_reach");
         // input_reach populates reach_results, not results.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2086,7 +2201,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_reset_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
         assert_eq!(doc["analysis"]["query"], "flop_reset_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2205,7 +2320,7 @@ mod tests {
             json!({ "seed": 42, "config": cfg_json, "query": "module_reachability" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
         assert_eq!(doc["artifact"]["kind"], "design");
         assert_eq!(doc["analysis"]["query"], "module_reachability");
         // module_reachability populates its own vec; the others are empty/omitted.
@@ -2414,7 +2529,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -2515,7 +2630,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -2570,7 +2685,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.11");
+        assert_eq!(doc["schema_version"], "1.12");
     }
 
     #[test]

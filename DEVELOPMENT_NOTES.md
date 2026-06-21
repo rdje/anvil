@@ -5,6 +5,66 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — Coverage-steered generation readout — `COVERAGE-STEERED-GENERATION.2b`
+
+The second **code** slice of the steering lane: the achieved-coverage *readout*
+(the **read** half), surfaced both embedded in `--introspect` and as a standalone
+MCP `coverage` query. Implements decision
+[`0023`](docs/decisions/0023-coverage-steered-generation.md) §3/§5. Notes worth
+keeping:
+
+- **A genuine FP-determinism gotcha — integer fixed-point fire rate.** The
+  readout exposes the empirical fire rate (`fires / attempts`). The first cut
+  computed it as `fires as f64 / attempts as f64`. The pre-existing exact-equality
+  test `mcp::introspect_tool_round_trips_to_the_schema_document` (which compares
+  the MCP-serialized document against a fresh `module_document` recompute) caught a
+  **1-ULP divergence**: `comb_mux_prob` came out `0.11188325225851284` in the MCP
+  build path and `…285` in the recompute path — same integer inputs (161/1439),
+  different last bit. The two divisions are correctly-rounded IEEE in isolation,
+  but the compiler can fold one call site at compile time (LLVM APFloat) and run
+  the other at runtime, and the rounding of those two paths is not *guaranteed*
+  bit-identical for every operand. For a project whose whole contract is
+  byte-identical output, a float that varies by evaluation context is unacceptable
+  in the document. Fix: compute the rate as a round-half-up **integer
+  parts-per-million** quotient (`(fires*1e6 + attempts/2)/attempts`, all `u64`)
+  then one exact `u64 → f64 / 1e6`. The integer quotient is identical across call
+  sites by construction; the single final division of a specific integer by `1e6`
+  is correctly rounded and unique. `attempts`/`fires` remain the exact integers, so
+  no precision is lost — the float is just the convenience projection (6 dp is far
+  finer than any steering decision needs). Lesson: **never serialize a raw
+  `f64`-division result into a determinism-contracted document; reduce it to
+  integer arithmetic + one final exact conversion.** (`avg_fanout` etc. survive
+  because both compared documents call the *same* `compute()` site once — they
+  never recompute the float at a *second* site; the fire rate did, exposing the
+  hazard.)
+
+- **Embedded *and* standalone — but one projection.** Unlike the `analyze`
+  derived-relation surface (kept out of the default document, decision `0011` Q2,
+  because a support cone is `O(nodes)`), decision `0023` explicitly puts the
+  coverage readout *in* `--introspect`: it is small and bounded (≤ ~22 knobs + a
+  6-name category roll-up + three small histograms) and is intrinsically a property
+  of *that run*. The MCP `coverage` tool returns the **same** `CoverageReadout`
+  embedded in the document (it reuses `doc.introspection.coverage_readout`, never
+  recomputes), so the two surfaces cannot drift — `feedback_full_factorization`
+  (one classifier, not two).
+
+- **Why a `category` roll-up is in the readout.** The outer steering loop
+  (decision `0023` §4) derives a `SteeringConfig` from under-hit constructs, and a
+  `SteeringConfig` targets per-knob **and** per-category weights. So the readout
+  ships both granularities (`knob_fire_rates` + `category_fire_rates`) directly,
+  saving the agent the roll-up (`feedback_api_for_agents_not_humans`). The
+  per-category pool is **attempt-weighted** (`sum(fires)/sum(attempts)`), not an
+  average of per-knob rates — the honest pooled rate. `KnobId::all()` +
+  `category_of_name` invert the existing `name`→`category` table so there is no
+  second copy of the mapping.
+
+- **Why the `saw_*` facts are NOT in the readout.** Decision `0023` §3 lists the
+  matrix coverage facts as part of the conceptual readout, but a single artifact
+  cannot prove `saw_recursive_hierarchy_*` (those need a `tool_matrix` corpus). The
+  existing `coverage` section (schema §6.4) is matrix-only for exactly this reason;
+  the per-artifact `coverage_readout` is the orthogonal single-run projection. Kept
+  them as two distinct sections (no conflation).
+
 ## 2026-06-21 — Coverage-steered generation core — `COVERAGE-STEERED-GENERATION.2a`
 
 The first **code** slice of the steering lane: the `SteeringConfig` type + the

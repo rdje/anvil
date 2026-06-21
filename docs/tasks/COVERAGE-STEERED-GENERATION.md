@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-21` (`.2a` steering core landed; frontier `.2b`)
+- Last updated: `2026-06-21` (`.2b` coverage readout landed; frontier `.2c`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -75,11 +75,11 @@ design space while preserving every lane invariant.
   Commit: `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)`
 
 - ID: `COVERAGE-STEERED-GENERATION.2b`
-  Status: `pending`
+  Status: `done`
   Goal: `The achieved-coverage READOUT: a SCHEMA-DERIVED projection of knob_roll_attempts/fires + the gate/operand/depth histograms in --introspect (schema MINOR bump) + an MCP coverage query (decision 0017), with the byte-identical-elsewhere guarantee.`
   Acceptance: `set at .1 (decision 0023).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — src/introspect/coverage.rs: CoverageReadout (knob_fire_rates + category_fire_rates maps of KnobCoverage{attempts,fires,fire_rate} + gate_kind/operand/depth histograms) + module_coverage(&Metrics) / design_coverage(&[Metrics]) (cross-child aggregate). Pure projection of the Metrics already recorded — SCHEMA-DERIVED, zero new truth (decision 0011). KnobId::all() + category_of_name() in types.rs (the single name→category inversion). Embedded as IntrospectionPayload::coverage_readout (skip_serializing_if=Option::is_none) on DUT module/design docs; standalone CoverageDocument + coverage_document() for the MCP coverage tool (run_coverage reuses the embedded readout — one projection, not two). SCHEMA_VERSION 1.11→1.12; schema doc §5 row + §6.8 + changelog. Determinism: fire_rate computed as round-half-up integer-ppm then one exact u64→f64/1e6 (a raw f64 division diverged by 1 ULP between the MCP build path and a recompute, caught by the pre-existing introspect_tool_round_trips exact-equality test — fixed, test NOT weakened). Full COMMIT.md cargo gate green (check/test (snapshots 6/6 + new coverage unit + introspect/mcp coverage tests)/clippy -D warnings/fmt). DUT .sv byte-identical; --dump-config byte-identical (no Config change); only the --introspect/MCP-introspect docs gain coverage_readout.`
+  Commit: `COVERAGE-STEERED-GENERATION.2b — achieved-coverage readout (--introspect section + MCP coverage query)`
 
 - ID: `COVERAGE-STEERED-GENERATION.2c`
   Status: `pending`
@@ -94,7 +94,8 @@ design space while preserving every lane invariant.
 | --- | --- | --- | --- |
 | 1 | `COVERAGE-STEERED-GENERATION.1` | `done` | Design ADR (decision `0023`) pinned the rules-first steering primitive (a prior multiplier at `roll_knob`, not a filter), the byte-stability contract, the `SteeringConfig` target model, the SCHEMA-DERIVED achieved-coverage readout, the outer measure→derive→re-steer loop, and the decision-`0017` API surface. |
 | 2 | `COVERAGE-STEERED-GENERATION.2a` | `done` | Steering core landed: `KnobId::category()`, `SteeringConfig` + `weight()`/`effective_prob()`, the `roll_knob` prior multiplier, `ConfigError::SteeringWeight`. All three proofs green (byte-identical default via snapshots 6/6; measurable distribution shift; no-filter architectural) + full cargo gate. |
-| 3 | `COVERAGE-STEERED-GENERATION.2b` | `pending` | The SCHEMA-DERIVED achieved-coverage readout in `--introspect` (schema MINOR bump) + the MCP coverage query (decision `0017`); byte-identical elsewhere. Code; task-tree-owned. |
+| 3 | `COVERAGE-STEERED-GENERATION.2b` | `done` | Achieved-coverage readout landed: `src/introspect/coverage.rs` (`CoverageReadout` + per-knob/per-category fire rates + the gate/operand/depth histograms), embedded as `IntrospectionPayload::coverage_readout` (schema `1.11→1.12`) + the standalone MCP `coverage` query (`CoverageDocument`), one projection feeding both. SCHEMA-DERIVED / DUT `.sv` byte-identical; `fire_rate` integer-ppm for byte-stable determinism. Full cargo gate green. |
+| 4 | `COVERAGE-STEERED-GENERATION.2c` | `pending` | The outer measure→derive→re-steer convenience (`derive_steering_from_coverage`) + the `--steer` CLI shim + book (`algorithm.md` steering subsection + `agent-mcp.md`) + USER_GUIDE + a KM card; close `.2`. Code + the owner-deferred steering-lane docs. Task-tree-owned. |
 
 ## Decisions
 
@@ -176,6 +177,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `2026-06-17` | `COVERAGE-STEERED-GENERATION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.1` | `decision 0023 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2a` | `SteeringConfig + KnobId::category() + roll_knob prior multiplier + ConfigError::SteeringWeight; cargo check --all-targets, cargo test (snapshots 6/6 + new steering unit/integration tests), cargo clippy -D warnings, cargo fmt --check all green; rules-first / DUT byte-identical when unset` | `done` |
+| `2026-06-21` | `COVERAGE-STEERED-GENERATION.2b` | `src/introspect/coverage.rs (CoverageReadout + module_coverage/design_coverage) + KnobId::all()/category_of_name() + IntrospectionPayload::coverage_readout + CoverageDocument + MCP coverage tool; schema 1.11→1.12 + schema doc §5/§6.8/changelog; fire_rate integer-ppm determinism fix (caught by introspect_tool_round_trips); cargo check --all-targets, cargo test (snapshots 6/6 + new coverage unit + introspect/mcp coverage tests), cargo clippy -D warnings, cargo fmt --check all green; SCHEMA-DERIVED / DUT .sv byte-identical` | `done` |
 
 ## Commit Log
 
@@ -184,6 +186,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `COVERAGE-STEERED-GENERATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `COVERAGE-STEERED-GENERATION.1` | `COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023)` | Design-only; pins the rules-first prior-multiplier steering primitive at `roll_knob`, the byte-stability contract, the `SteeringConfig` target, the SCHEMA-DERIVED coverage readout, the outer feedback loop, and the API surface; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
 | `COVERAGE-STEERED-GENERATION.2a` | `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)` | First code slice: `KnobId::category()` (exhaustive 21-variant taxonomy), `SteeringConfig` (`per_knob`/`per_category` weights + `weight()`/`effective_prob()`/`is_empty()`/`validate()`), `Config.steering` (only `skip_serializing_if`), `ConfigError::SteeringWeight`, the `roll_knob` prior multiplier. Three proofs green (byte-identical default; distribution shift; no-filter) + full cargo gate. Rules-first / DUT byte-identical when unset. |
+| `COVERAGE-STEERED-GENERATION.2b` | `COVERAGE-STEERED-GENERATION.2b — achieved-coverage readout (--introspect section + MCP coverage query)` | Second code slice (the READ half): `src/introspect/coverage.rs` (`CoverageReadout` + `module_coverage`/`design_coverage`), `KnobId::all()`/`category_of_name()`, the `coverage_readout` payload section (schema `1.11→1.12`), the `CoverageDocument` envelope + the pure MCP `coverage` tool (one projection feeding both). Schema doc §5/§6.8/changelog. `fire_rate` integer-ppm for byte-stable determinism (1-ULP fix caught by the pre-existing round-trip test, not weakened). SCHEMA-DERIVED / DUT `.sv` byte-identical; full cargo gate green. |
 
 ## Changelog
 
@@ -194,3 +197,14 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
   prior multiplier + the three proofs + full cargo gate. Frontier advances to `.2b`
   (the SCHEMA-DERIVED achieved-coverage readout + MCP coverage query). Rules-first /
   DUT byte-identical when unset.
+- `2026-06-21`: `.2b` achieved-coverage readout landed (code): `src/introspect/coverage.rs`
+  (`CoverageReadout` + per-knob/per-category fire rates + the gate/operand/depth
+  histograms; `module_coverage`/`design_coverage`) + `KnobId::all()`/`category_of_name()`
+  + the `IntrospectionPayload::coverage_readout` section (schema `1.11→1.12`) + the
+  standalone `CoverageDocument` returned by the new pure MCP `coverage` tool (one
+  projection feeding both). Schema doc updated (§5 row, §6.8, changelog). `fire_rate`
+  uses integer parts-per-million arithmetic for byte-stable determinism (a raw f64
+  division diverged by 1 ULP between evaluation contexts; caught by the pre-existing
+  exact-equality round-trip test, fixed without weakening it). SCHEMA-DERIVED / DUT
+  `.sv` byte-identical; full cargo gate green. Frontier advances to `.2c` (the outer
+  measure→derive→re-steer helper + `--steer` CLI shim + book/USER_GUIDE/KM; close `.2`).

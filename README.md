@@ -646,25 +646,34 @@ exercising adversarial axes that previously fired only by chance
   tools (no vendoring). CI-infra only ⇒ DUT byte-identical. See `USER_GUIDE.md`
   ("Use ANVIL in your CI") and `book/src/recipes.md`.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.11`) for a single-artifact run instead of SystemVerilog
+  (schema `1.12`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
-  truth), with a content-addressed `run_id`. Requires a single-artifact stdout
+  truth), with a content-addressed `run_id`. Since schema `1.12`
+  (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`) the DUT payload also carries
+  a `coverage_readout` section — the run's achieved per-knob + per-category
+  construction-time fire rates + gate/operand/depth histograms (a SCHEMA-DERIVED
+  read surface for coverage steering; also a standalone MCP `coverage` query).
+  Requires a single-artifact stdout
   run (no `--out`, `--count 1`); default-off ⇒ DUT byte-identical. Contract:
   `docs/AGENT_INTROSPECTION_SCHEMA.md`.
 - `anvil-mcp` is a separate default-off binary: a read-mostly MCP server
   (JSON-RPC 2.0 over **stdio** by default, or **HTTP** via the opt-in
   `--http <addr>` flag — a hand-rolled loopback-default transport driving the
   same dispatcher, no new dependency) that drives the agent bug-hunting loop. It
-  exposes pure tools (`generate`/`introspect`/`analyze`/`dump_config`/`coverage_gaps`,
+  exposes pure tools (`generate`/`introspect`/`analyze`/`coverage`/`dump_config`/`coverage_gaps`,
   where `generate`/`introspect` cover all three lanes via a `lane` arg defaulting
   to `dut`, `analyze` answers a derived-relation query over the DUT IR — the
   output **support cone** (`output_support`: what an output depends on), its dual
   fan-out (`input_reach`: what a source reaches), per-flop reset/data
   provenance (`flop_reset_provenance`), and per-module reachability from the top
   (`module_reachability`: which modules in a design are reachable via the instance
-  graph), schema `1.11`, unknown query/target ⇒
-  `-32602`, and `coverage_gaps` projects the recorded
+  graph), schema `1.12`, unknown query/target ⇒
+  `-32602`, `coverage` (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`) returns
+  the DUT run's achieved-coverage readout — per-knob + per-category
+  construction-time fire rates + gate/operand/depth histograms, the same
+  SCHEMA-DERIVED projection embedded in `--introspect`'s `coverage_readout` — and
+  `coverage_gaps` projects the recorded
   `tool_matrix_report.json` gap list read-only), controlled tools
   (`validate`/`minimize`/`hunt`/`divergence` — where `hunt` (`BUG-HUNT-ORCHESTRATION.2c`)
   is the turnkey fuzz → detect → minimize loop over a deterministic seed sweep that

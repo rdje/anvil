@@ -1,9 +1,85 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — COVERAGE-STEERED-GENERATION.2b — achieved-coverage readout (--introspect section + MCP `coverage` query)
+
+**Landed as:** this commit (previous: `2530bfd`). **Second CODE slice of the
+coverage-steering lane — the READ half; SCHEMA-DERIVED; DUT `.sv` byte-identical.**
+Implements decision [`0023`](docs/decisions/0023-coverage-steered-generation.md) §3
++ §5 (the achieved-coverage readout + the decision-`0017` API surface).
+Task-tree-owned by `COVERAGE-STEERED-GENERATION.2b` (already a registered `pending`
+leaf before the edit, per doctrine).
+
+**What changed (why)**
+
+- **`src/introspect/coverage.rs`** (new) — the readout projection. `KnobCoverage`
+  (`attempts` / `fires` / `fire_rate`) + `CoverageReadout` (`knob_fire_rates` +
+  `category_fire_rates` + `gate_kind_histogram` + `gate_operand_count_histogram` +
+  `gate_depth_histogram`) + `module_coverage(&Metrics)` (a module) /
+  `design_coverage(&[Metrics])` (the cross-child aggregate of a design). Pure
+  projection of the `Metrics` ANVIL already records (the per-knob roll counters +
+  the construct histograms): **zero new computed truth** (decision `0011`
+  precedent). The one derived quantity is the empirical fire rate
+  (`fires / attempts`) + its per-`KnobId::category` roll-up — mirroring the
+  `SteeringConfig` per-knob + per-category target model.
+- **`src/ir/types.rs`** — `KnobId::all()` (the single enumeration of the knob
+  universe) + `KnobId::category_of_name(&str)` (the reverse of `name`), so the
+  per-category roll-up maps a knob name back to its category through the **one**
+  existing name→category table (`feedback_full_factorization`: one classifier,
+  not two).
+- **`src/introspect/mod.rs`** — new `coverage_readout: Option<CoverageReadout>`
+  payload section on the DUT `module` / `design` documents (`#[serde(default,
+  skip_serializing_if = "Option::is_none")]`), populated in `module_document` /
+  `design_document`. New sibling `CoverageDocument` + `coverage_document(base,
+  readout)` (envelope reuse, the `DerivedAnalysisDocument` precedent) for the MCP
+  query. `SCHEMA_VERSION` `1.11` → `1.12` (additive MINOR bump).
+- **`src/mcp/mod.rs`** — new pure read-only `coverage` MCP tool (DUT-lane only,
+  rejects non-DUT like `analyze`). `run_coverage` regenerates the artifact and
+  **reuses the readout already embedded** in its introspection document (one
+  projection, not two), wraps it in the `CoverageDocument`, caches the base
+  artifact. Tool registered in `tools/list`; the tool-list assertion updated.
+- **`docs/AGENT_INTROSPECTION_SCHEMA.md`** — §5 presence table gains a
+  `coverage_readout` row (distinct from the matrix-only `coverage` section); new
+  §6.8 provenance subsection; `1.11` → `1.12` version statements + a `1.11 → 1.12`
+  changelog entry.
+
+**Determinism note (the one real gotcha)** — a raw `fires as f64 / attempts as
+f64` showed a **1-ULP divergence between two evaluation contexts** (the MCP build
+path vs a test recompute), which would break the byte-identical introspection
+contract. Fixed by computing `fire_rate` as a round-half-up **integer
+parts-per-million** quotient (`(fires*1e6 + attempts/2)/attempts`) then one exact
+`u64 → f64 / 1e6`. `attempts` / `fires` stay the exact source of truth; the rate is
+the convenience projection (6 dp — far finer than any steering decision needs).
+Caught by the pre-existing `introspect_tool_round_trips_to_the_schema_document`
+exact-equality test (not weakened — `feedback_never_retire_strategies`).
+
+**Why this is rules-first / byte-identical** — the readout is a *read* surface: it
+adds no generator path, no IR field, no new RNG draw. The DUT `.sv` is untouched;
+`--dump-config` is untouched (no `Config` change). Only the `--introspect` /
+MCP-`introspect` documents change (the intended additive schema bump) by gaining
+`coverage_readout`; the non-DUT lanes omit it.
+
+**Validation** — `cargo check --all-targets` ✅; `cargo test` ✅ (snapshots 6/6
+byte-identical; new `introspect::coverage` unit tests + `introspect` / `mcp`
+coverage tests; the round-trip exact-equality test green after the determinism
+fix); `cargo clippy --all-targets -- -D warnings` ✅; `cargo fmt --all --check` ✅.
+
+**Files touched** — `src/introspect/coverage.rs` (new), `src/introspect/mod.rs`,
+`src/ir/types.rs`, `src/mcp/mod.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`,
+`README.md` (factual: schema `1.12` + the new `coverage` MCP tool — README is a
+status-authority doc), `docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`,
+`CODEBASE_ANALYSIS.md`.
+
+**Book/USER_GUIDE/KM** — deferred to `.2c` per decision `0023`'s pre-split (the
+steering lane's user-facing surface — `algorithm.md` steering subsection +
+`agent-mcp.md` + USER_GUIDE + a KM card — lands together with the outer
+measure→derive→re-steer helper + the `--steer` CLI shim). Owner-sanctioned
+deferral (recorded in `MEMORY.md`).
+
 ## 2026-06-21 — COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)
 
-**Landed as:** this commit (previous: `02a960d`). **First CODE slice of the
+**Landed as:** `2530bfd` (previous: `02a960d`). **First CODE slice of the
 coverage-steering lane; rules-first; DUT byte-identical when unset.** Implements
 decision [`0023`](docs/decisions/0023-coverage-steered-generation.md) exactly as the
 tree's "Implementation Notes (for `.2a`)" pre-pinned it. Task-tree-owned by

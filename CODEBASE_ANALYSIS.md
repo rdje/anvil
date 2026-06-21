@@ -889,7 +889,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.11"`
+│                     only the envelope metadata (`schema_version` `"1.12"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -898,15 +898,20 @@ src/
 │                     1.7→1.8 the `Metrics::num_emitted_combinational_functions`
 │                     count (`STRUCTURED-EMISSION-EXPANSION.2b.2a`),
 │                     1.8→1.9 the `Metrics::num_emitted_generate_loops`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.4b.2a`), and
+│                     count (`STRUCTURED-EMISSION-EXPANSION.4b.2a`),
 │                     1.9→1.10 the `Metrics::num_emitted_combinational_tasks`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.6b.2a`), and
+│                     count (`STRUCTURED-EMISSION-EXPANSION.6b.2a`),
 │                     1.10→1.11 the `Metrics::num_emitted_cone_functions`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.10b.2`);
-│                     the default introspection-document shape is unchanged.
+│                     count (`STRUCTURED-EMISSION-EXPANSION.10b.2`), and
+│                     1.11→1.12 the `coverage_readout` section + the
+│                     standalone MCP `coverage` query
+│                     (`COVERAGE-STEERED-GENERATION.2b`, decision 0023);
+│                     the default introspection-document shape now carries
+│                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
-│                     `derived_analysis_document` builder reuse this envelope
-│                     with an `analysis` payload),
+│                     `derived_analysis_document` builder (and the parallel
+│                     `CoverageDocument` + `coverage_document` builder, .2b)
+│                     reuse this envelope with an `analysis`/`coverage` payload),
 │                     `anvil_version`, `lane`, the `request` echo with a
 │                     content-addressed FNV-1a `run_id`, the `artifact`
 │                     `ResourceRef`s, `warnings`). Pure `module_document` /
@@ -918,7 +923,7 @@ src/
 │                     `microdesign`/`frontend` lane-manifest sections are
 │                     deferred (matrix-only / `.4`+). `content_run_id` is `pub`
 │                     (`.5.2`) so `validate` shares the one content address.
-│   └── analyze.rs    (`SEMANTIC-INTROSPECTION-EXPANSION.2b.1`). The pure
+│   ├── analyze.rs    (`SEMANTIC-INTROSPECTION-EXPANSION.2b.1`). The pure
 │                     derived-RELATION analysis core (decision `0011`): the
 │                     output **support cone**. `DerivedAnalysis { query,
 │                     results: Vec<SupportCone> }` + `SupportCone { target,
@@ -983,6 +988,28 @@ src/
 │                     pattern now carries four query kinds
 │                     (`results`/`reach_results`/`flop_provenance`/`module_reachability`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
+│   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
+│                     achieved-coverage **readout** — the read half of
+│                     coverage-steered generation. `CoverageReadout {
+│                     knob_fire_rates, category_fire_rates (maps of KnobCoverage
+│                     { attempts, fires, fire_rate }), gate_kind_histogram,
+│                     gate_operand_count_histogram, gate_depth_histogram }` +
+│                     `module_coverage(&Metrics)` (a module) /
+│                     `design_coverage(&[Metrics])` (the cross-child aggregate).
+│                     Pure projection of the `Metrics` ANVIL already records
+│                     (per-knob roll counters + construct histograms): SCHEMA-
+│                     DERIVED, zero new truth (decision `0011` precedent). The
+│                     one derived value is the empirical fire rate
+│                     (`fires/attempts`) + its per-`KnobId::category` roll-up
+│                     (mirrors the `SteeringConfig` per-knob + per-category
+│                     model). `fire_rate` is a round-half-up integer-ppm quotient
+│                     then one exact `u64 → f64 / 1e6` — byte-stable across
+│                     evaluation contexts (a raw f64 division diverged by 1 ULP
+│                     between call sites; the introspection doc must be
+│                     byte-identical). Embedded in the default DUT document
+│                     (`IntrospectionPayload::coverage_readout`) AND returned by
+│                     the MCP `coverage` tool (same projection, no drift). 6
+│                     in-crate proofs. DUT `.sv` byte-identical.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure
@@ -1059,6 +1086,14 @@ src/
 │                     in a `CachedArtifact.analyses` map and served as
 │                     `anvil://artifact/<run_id>/analysis/<query>` (added to
 │                     `resources_list`/`resources_read`). No FS/spawn — pure.
+│                     `COVERAGE-STEERED-GENERATION.2b` adds the pure `coverage`
+│                     tool (`run_coverage`): DUT-only (rejects non-DUT like
+│                     `analyze`), regenerates the artifact and reuses the
+│                     `coverage_readout` already embedded in its introspection
+│                     document (one projection, not two), wraps it in a
+│                     `CoverageDocument`, caches the base artifact. No FS/spawn —
+│                     pure. Registered in `tools/list` (the tool-list assertion
+│                     bumped to 10 tools).
 │                     `BUG-HUNT-ORCHESTRATION.2c` adds the controlled `hunt`
 │                     tool (`run_hunt`): a thin shim over `anvil::hunt::run`
 │                     parsing `seeds`/`minimize`/`max_oracle_calls`/`diff_sim`
