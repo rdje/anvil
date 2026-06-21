@@ -5,6 +5,56 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — Knob ergonomics design: promotion cut, declarative presets, resolution order — `KNOB-ERGONOMICS-AND-PRESETS.1` (decision 0021)
+
+`.1` is the design ADR for the knob-ergonomics lane. The full rationale is decision
+[`0021`](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md); the
+load-bearing engineering choices worth keeping out of the commit message:
+
+- **The audit was verified programmatically, not eyeballed.** Diffing the `Config`
+  struct fields against the `Overrides` struct fields (Python over `src/config.rs`)
+  gave 86 `Config` fields, 66 in `Overrides`, plus `seed` special-cased
+  (`--seed`, stamped directly in `main.rs`, not via `Overrides`) ⇒ 67 CLI-reachable
+  and **exactly 19 genuinely config-file-only**. An earlier sub-agent summary
+  miscounted (it conflated `validate()`/other `self.x =` writes with overrides and
+  reported inconsistent 45/13 vs 61/21 figures), which is why the diff was redone
+  field-by-field — the number gets quoted in the ADR, so it had to be exact.
+
+- **Why promote only 16 of 19.** Kept config-only: `library_prob` (internal
+  hierarchy-reuse tuning), `use_async_reset` (niche structural emit toggle),
+  `max_nodes_per_module` (a guard-rail that pairs with the RAM governor, not a
+  generation *feature*). Promoting them is additive future work — none retired,
+  all three stay MCP-settable via the full-`Config` `config` arg.
+
+- **Promoted flags MUST be `Option<T>`, never clap-defaulted.** This is the
+  subtle correctness point for presets: the resolver order is
+  `default → --config → --profile → explicit knobs → --seed`, and "explicit beats
+  preset" only holds because the `Overrides` carry `Option`s that are `None` when
+  the user did not pass the flag. A concrete clap default (e.g. `function_emit_prob`
+  defaulting to `0.0`) would silently clobber `--profile structured-emission-max`
+  for every un-passed knob. So the existing Option-based `Overrides` discipline is
+  mandatory for the new flags too.
+
+- **Presets are declarative data, not `fn(&mut Config)` closures.** A closure's
+  overrides cannot be enumerated, so the registry would not be API-queryable
+  (decision `0017`). Each preset carries an enumerable `(field, value)` set so
+  `anvil://catalog/presets` can show *what* a preset changes, not just its name.
+
+- **The rich knob catalog is SCHEMA-DERIVED + completeness-gated.** Names/defaults
+  derive from `Config::default()` serde; group/validation-range/cli-flag come from a
+  metadata table keyed by field name, with a test asserting one entry per `Config`
+  field (and no orphans). Validation ranges live in `validate()` as imperative
+  checks (not data), so a hand table is honest — the completeness test is what keeps
+  it from drifting as knobs are added (the KM derive-and-diff pattern).
+
+- **Existing `anvil://catalog/knobs` raw-default resource is kept; the rich catalog
+  is a new surface.** Upgrading the existing resource in place could break agents
+  parsing the raw-default form — so the rich catalog and `anvil://catalog/presets`
+  are additive (no retirement). `.2` pre-split into `.2a` (carrier/resolver/test
+  contract design-detail) + `.2b` (impl + proofs + book/USER_GUIDE/README/KM).
+
+---
+
 ## 2026-06-21 — Live `slang` facts in the matrix report; why no coverage fact — `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b`
 
 `.2c.2b` surfaces the `extract_facts` projection in the `tool_matrix` report

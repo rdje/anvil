@@ -1,9 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.1 — design ADR (decision 0021): CLI-flag promotion + `--profile` preset registry + queryable knob catalog
+
+**Landed as:** this commit (previous: `2f17147`). **Docs-only (decision record +
+task-tree + DEVELOPMENT_NOTES + KM). No `src/` change; DUT byte-identical; no
+snapshot/test impact.** Completes the design leaf `KNOB-ERGONOMICS-AND-PRESETS.1`;
+frontier advances to `.2a` (impl design-detail).
+
+**What changed (why)**
+
+A new PNT pick (pick-and-roll at the no-frontier boundary after
+`DOWNSTREAM-ADAPTER-EXPANSION.2` closed): the design-first ADR for the
+knob-ergonomics usability lane (owner idea 4), bound by the decision-`0017`
+API-completeness gate. Design-only — it audits the knob surface and pins the
+decisions; `.2` implements.
+
+- **`docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md`** (new,
+  KM-indexed). Verified audit: **86 `Config` fields → 66 CLI via `Overrides` +
+  `seed` special-cased = 67 CLI-reachable; 19 genuinely config-file-only**; the MCP
+  `generate`/`introspect`/`dump_config` tools already take a full `Config` (every
+  knob steerable today); the catalog is a raw `Config::default()` dump (no
+  metadata, no presets). Four pinned decisions: (1) promote **16 of 19** config-only
+  knobs to `Option<T>` CLI flags (12 capability + 4 identity/dedup bools), keep 3
+  config-only (`library_prob`, `use_async_reset`, `max_nodes_per_module`); (2) a
+  **declarative `--profile` preset registry** (`arithmetic-heavy`,
+  `deep-hierarchy`, `structured-emission-max`, `sv2023-upopts`) as enumerable data
+  (not opaque closures, so presets are API-queryable); (3) resolution order
+  `default → --config → --profile → explicit knobs → --seed` (explicit beats
+  preset; one profile in the first cut; byte-stable; no `--profile` ⇒ byte-identical);
+  (4) a **SCHEMA-DERIVED rich knob catalog** (`Config::default()` serde + a
+  metadata table guarded by a completeness test) + an `anvil://catalog/presets`
+  resource + a `profile` MCP input, all additive (the raw `anvil://catalog/knobs`
+  resource kept; nothing retired). `.2` pre-split into `.2a` (carrier/resolver/test
+  contract) + `.2b` (impl + proofs + book/USER_GUIDE/README/KM).
+- **`docs/decisions/INDEX.md`** — added the `0021` row.
+- **`docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`** — `.1` → `done` with verification
+  + commit logs; `.2` acceptance pinned + pre-split into `.2a`/`.2b`; frontier
+  table, Decisions, Open Questions (both resolved), Changelog updated.
+- **`docs/TASK_TREE.md`** — KNOB-ERGONOMICS row frontier `.1` → `.2a`.
+- **`DEVELOPMENT_NOTES.md`** — engineering rationale: the programmatic audit (and
+  why the sub-agent count was redone), the 16/19 cut, the mandatory `Option<T>`
+  flags (else presets get clobbered), declarative-not-closure presets, and the
+  completeness-gated SCHEMA-DERIVED catalog.
+
+**Validation**
+
+- Docs-only / no code: `cargo check --all-targets` was green at session bootstrap
+  and is untouched by this slice (no `src/`, `tests/`, or build edits). DUT output
+  byte-identical by construction; `tests/snapshots.rs` not run (no generator change).
+- Audit numbers verified programmatically by diffing `Config` vs `Overrides` struct
+  fields over `src/config.rs` (86 / 66 + `seed` / 19) + a `main.rs` cross-check that
+  the 19 have no long flag.
+- `knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` green
+  (KM 53 → **54** facts: the new `0021` decision is `answers:`-fronted);
+  `scripts/check_memory_architecture.sh` green.
+
+**Impact**
+
+The knob-ergonomics lane has a pinned, signoff-quality design. No user-visible
+behaviour change yet (design-only); `.2` will land the presets, the 16 promoted
+CLI flags, and the queryable catalog default-off / byte-identical. Unblocks cleaner
+named profiles for `BUG-HUNT-ORCHESTRATION` / `CI-PACKAGING-DISTRIBUTION`.
+
+**Files touched:** `docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md`,
+`docs/decisions/INDEX.md`, `docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-21 — DOWNSTREAM-ADAPTER-EXPANSION.2c.2b — live `extract_facts` fact-surfacing in the `tool_matrix` slang report (decision 0020)
 
-**Landed as:** this commit (previous: `4865a3c`). **Code change — `src/bin/tool_matrix.rs`
+**Landed as:** `2f17147` (previous: `4865a3c`). **Code change — `src/bin/tool_matrix.rs`
 + `tests/slang_e2e.rs` + docs/KM; default-off / banked reports + `--resume` + snapshots 6/6
 byte-identical (incl. `CoverageSummary` unchanged).** Closes `.2c.2`, the `.2c` (slang)
 sub-tree, and `DOWNSTREAM-ADAPTER-EXPANSION.2` (the implementation).

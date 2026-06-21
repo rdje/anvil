@@ -3,11 +3,12 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **53** facts · **463** question keys.
+> **54** facts · **475** question keys.
 
 ## Questions → fact
 
 - "always_comb process has no sensitivities" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
+- "are ANVIL presets byte-stable and reproducible" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "are case casez or for-fold gates function-emitted" -> [combinational-function-emit](docs/knowledge/combinational-function-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\"/tmp/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config /tmp/fe.json | tee /tmp/fe.sv | grep -c "function automatic" && verilator --lint-only /tmp/fe.sv && echo CLEAN'`
 - "are local checkout paths allowed in the book" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "are memory blocks state by instance" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
@@ -31,6 +32,7 @@
 - "can ANVIL merge whole stateful modules by sequential equivalence" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "can ANVIL target a specific SystemVerilog version" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "can ANVIL wrap a whole combinational cone as one function" -> [structured-emission-fifth-surface-cone-function](docs/decisions/0016-structured-emission-fifth-surface-cone-function.md) · 2026-06-17
+- "can I list ANVIL's presets over the API" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "can I plug a new SystemVerilog tool into ANVIL as an acceptance column" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "can I select slang over the MCP tools arg" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "can I select sv2v over the MCP tools arg" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
@@ -46,6 +48,7 @@
 - "can the ANVIL MCP server generate microdesign or frontend artifacts" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "do I need a task tree before changing code" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
 - "do downstream tools enforce IEEE 1800 version acceptance" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
+- "do explicit knobs override a preset" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "do new actions have to be invocable via an MCP tool" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "do new knobs have to be settable via the MCP/config API" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "does ANVIL call a task from always_comb" -> [structured-emission-third-surface-combinational-task](docs/decisions/0014-structured-emission-third-surface-combinational-task.md) · 2026-06-16
@@ -72,6 +75,7 @@
 - "does ANVIL have a slang column" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "does ANVIL have an acceptance divergence finder" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "does ANVIL have an sv2v column" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
+- "does ANVIL have presets or profiles" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "does ANVIL merge mutually-recursive registers" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
 - "does ANVIL merge resetless self-hold flops" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "does ANVIL merge retimed state" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
@@ -115,6 +119,7 @@
 - "does verilator --language reject newer SystemVerilog constructs" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "does verilator 5.046 differentiate 1800-2012 1800-2017 1800-2023" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "does whole-module sequential equivalence retire the combinational module dedup" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
+- "how are ANVIL presets defined" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how are downstream coverage gaps surfaced over MCP" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how can ANVIL prove a 3-flop CDC synchronizer was generated" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "how deep is a module in the hierarchy / what is its depth from the top" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
@@ -145,6 +150,7 @@
 - "how do I make ANVIL emit a union soft overlay" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how do I make anvil hunt write reproducer bundles to a directory" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I merge sequentially-equivalent stateful modules" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
+- "how do I query ANVIL's knob catalog over MCP" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how do I read the anvil API contract" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
 - "how do I run a downstream-tool bug hunt over MCP vs the CLI" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I run a turnkey downstream bug hunt with ANVIL" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
@@ -153,6 +159,7 @@
 - "how do I run anvil hunt with divergence detection" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I run slang on ANVIL output" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "how do I run sv2v on ANVIL output" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
+- "how do I set ANVIL's config-file-only knobs from the CLI" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how do I turn on cone_function_emit_prob" -> [multi-gate-cone-function-emit](docs/knowledge/multi-gate-cone-function-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 4 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config /tmp/cf.json | tee /tmp/cf.sv | grep -c "__cf(" && verilator --lint-only /tmp/cf.sv && echo CLEAN'`
 - "how do I turn on function_emit_prob" -> [combinational-function-emit](docs/knowledge/combinational-function-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\"/tmp/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config /tmp/fe.json | tee /tmp/fe.sv | grep -c "function automatic" && verilator --lint-only /tmp/fe.sv && echo CLEAN'`
 - "how do I turn on generate_loop_emit_prob" -> [generate-loop-emit](docs/knowledge/generate-loop-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"generate_loop_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"min_width\":4,\"max_width\":8,\"min_inputs\":3,\"max_inputs\":5,\"min_outputs\":1,\"max_outputs\":2,\"max_depth\":3});json.dump(c,open(\"/tmp/gl.json\",\"w\"))" && cargo run --quiet -- --seed 12 --config /tmp/gl.json | tee /tmp/gl.sv | grep -c "generate" && verilator --lint-only /tmp/gl.sv && echo CLEAN'`
@@ -219,6 +226,7 @@
 - "how is the generate for loop emit surface proven downstream-clean" -> [generate-loop-emit](docs/knowledge/generate-loop-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"generate_loop_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"min_width\":4,\"max_width\":8,\"min_inputs\":3,\"max_inputs\":5,\"min_outputs\":1,\"max_outputs\":2,\"max_depth\":3});json.dump(c,open(\"/tmp/gl.json\",\"w\"))" && cargo run --quiet -- --seed 12 --config /tmp/gl.json | tee /tmp/gl.sv | grep -c "generate" && verilator --lint-only /tmp/gl.sv && echo CLEAN'`
 - "how is the union soft overlay rendered" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how is whole-module sequential equivalence proven sound" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
+- "how many ANVIL knobs are config-file-only" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how many endpoint bits can semantic gate merge prove" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "how should project file paths be written in live docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "how would ANVIL prove two stateful modules equivalent" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
@@ -239,6 +247,7 @@
 - "is sv2v a downstream tool in ANVIL" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "is the ANVIL MCP server inside the generator core" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "is the ANVIL introspection schema versioned" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
+- "is the ANVIL knob catalog API-queryable" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "is the analyze MCP tool default-off and DUT byte-identical" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "is the anvil hunt CLI a shim over the MCP hunt tool" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
 - "is the anvil-mcp HTTP transport on by default" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
@@ -279,6 +288,7 @@
 - "what depends on input X in an ANVIL module" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "what did the reset-all memory probe show" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "what does --iverilog-compile do" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
+- "what does --profile do in ANVIL" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "what does --sv-version do" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "what does a clean anvil hunt sweep look like" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "what does a flop Q reach in an ANVIL design" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
@@ -348,6 +358,7 @@
 - "what is the ANVIL introspection envelope" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
 - "what is the API-completeness gate for a new lane" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "what is the API-first mandate" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
+- "what is the CLI vs config-file vs profile vs default resolution order" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "what is the SEMANTIC-INTROSPECTION-EXPANSION first query" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "what is the __cf detection token" -> [multi-gate-cone-function-emit](docs/knowledge/multi-gate-cone-function-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 4 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config /tmp/cf.json | tee /tmp/cf.sv | grep -c "__cf(" && verilator --lint-only /tmp/cf.sv && echo CLEAN'`
 - "what is the adapter catalog query" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
@@ -415,6 +426,7 @@
 - "where is the banked signoff knob-sweep report" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "where is the banked sv-version gate report" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
 - "where is the union soft up-opt implemented" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
+- "which ANVIL knobs have no CLI flag" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "which flops are reset-defined vs data-driven in an ANVIL module" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which follow-up task trees were exhausted on 2026-06-05" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "which frontend facts does the Verilator JSON gate check" -> [verilator-json-frontend-parity](docs/knowledge/verilator-json-frontend-parity.md) · 2026-06-05
@@ -671,6 +683,14 @@ _tool_matrix has an optional Icarus compile axis_
 - **date:** 2026-06-05 · **status:** current
 - **evidence:** `src/bin/tool_matrix.rs; src/emit/sv.rs; book/src/synthesizability.md; DEVELOPMENT_NOTES.md`
 - **source:** [`docs/knowledge/iverilog-compile-matrix-axis.md`](docs/knowledge/iverilog-compile-matrix-axis.md)
+
+### knob-ergonomics-presets-and-queryable-catalog
+_Knob ergonomics — promote high-value config-only knobs to CLI flags, add a declarative --profile preset registry, and expose an API-queryable knob catalog + preset registry (SCHEMA-DERIVED, decision 0017)_
+
+- **answers:** how do I set ANVIL's config-file-only knobs from the CLI | which ANVIL knobs have no CLI flag | does ANVIL have presets or profiles | what does --profile do in ANVIL | how do I query ANVIL's knob catalog over MCP | can I list ANVIL's presets over the API | what is the CLI vs config-file vs profile vs default resolution order | do explicit knobs override a preset | is the ANVIL knob catalog API-queryable | how are ANVIL presets defined | are ANVIL presets byte-stable and reproducible | how many ANVIL knobs are config-file-only
+- **date:** 2026-06-18 · **status:** accepted
+- **evidence:** `docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md; docs/decisions/0017-api-first-everything-mcp-accessible.md; src/config.rs; src/main.rs; src/mcp/mod.rs; docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md; book/src/knobs.md`
+- **source:** [`docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md`](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md)
 
 ### live-doc-path-portability
 _Live docs and book use repo-root-relative project paths_
