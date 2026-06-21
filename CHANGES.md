@@ -1,6 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — DOWNSTREAM-ADAPTER-EXPANSION.2c.2a — the `tool_matrix --slang` elaboration-acceptance column (decision 0020)
+
+**Landed as:** this commit (previous: `d9f251e`). **Code change — `src/bin/tool_matrix.rs`
++ `tests/slang_e2e.rs` + docs/KM; default-off / banked reports + `--resume` + snapshots
+6/6 byte-identical when `--slang` is off.** The byte-identical-sensitive half of the `.2c.2`
+split; the live `extract_facts` fact-surfacing is `.2c.2b`.
+
+**What changed (why)**
+
+`.2c.1` made `slang` a selectable/discoverable, fact-bearing adapter over the API. This
+slice adds the `tool_matrix` acceptance column so a corpus sweep records each artifact's
+`slang` elaboration verdict — a faithful mirror of the `--sv2v` column (`.2b.2`):
+
+- **`src/bin/tool_matrix.rs`** — `Cli.slang` (`--slang`) + `Cli.slang_bin` (`--slang-bin`,
+  default `"slang"`); `ModuleReport.slang` + `DesignReport.slang: Option<ToolInvocation>`
+  (`#[serde(default, skip_serializing_if = "Option::is_none")]` ⇒ off the wire when the
+  column is off, so default runs stay byte-identical); `run_module_tools` (its
+  `ModuleToolColumns` tuple alias grows to 5) + `run_design_tools` dispatch the column via
+  `AcceptanceTool::Slang.adapter().run(&cx)`; `ModuleCheckpoint.slang` +
+  `DesignCheckpoint.slang` + the `checkpoint_matches_cli` / `checkpoint_matches_design_cli`
+  `--resume` guard; `ToolSummary.slang_passed/failed` + `accumulate_tool_summary` +
+  `merge_tool_summary` + `any_failed` + the console `slang pass/fail` line +
+  `MatrixReport.slang_enabled`; `unit_divergence` threads the `slang` invocation (so a
+  `slang`-vs-other disagreement is a divergence); `test_cli()` sets the fields.
+- **Friendly absent-tool no-op (decision `0020`).** The column is gated on a
+  `downstream::tool_version(&cli.slang_bin)` presence probe: a requested-but-absent `slang`
+  records **no** column and never bails the run. Verified by a real smoke
+  (`--skip-verilator --skip-yosys --slang` over 17 modules ⇒ exit 0, `slang pass/fail = 0/0`,
+  zero `slang` invocations).
+- **`tests/slang_e2e.rs`** — a portable public-API proof that `slang` is a selectable +
+  discoverable, **fact-bearing** adapter (`supports_facts = true`; always runs) + an
+  `#[ignore]` real-tool gate asserting `slang` accepts ANVIL's valid-by-construction DUT
+  output (skips green when `slang` is absent — the `sv2v_e2e` precedent).
+- **Docs** — README `tool_matrix --slang` bullet, USER_GUIDE `tool_matrix` flags, book
+  `synthesizability.md` (the 5th acceptance column + a skip-sentinel bash example), and a
+  `docs/knowledge/slang-adapter.md` KM card (KM 52 → 53).
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo test --bin tool_matrix` **77/0** (+1:
+  `slang_cli_flag_defaults_to_false_and_parses_when_set`; the `summarize_tools` tally proof +
+  the `unit_divergence` proof extended to slang); `cargo test --test slang_e2e` portable
+  **1/0** (+ `#[ignore]` real-tool gate skips green); `cargo test --lib` unaffected
+  (bin-only slice); `cargo test --test snapshots` **6/6** byte-identical; `cargo test --test
+  book_examples` **3/3** (the new `--slang` bash block carries `<!-- book-test: skip -->`).
+- Real `--slang` smoke is a friendly no-op (exit 0, `slang 0/0`, 0 invocations).
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean;
+  `mdbook build book` clean; `check_memory_architecture` + KM gen/check green (53 facts).
+  Heavy steps RAM-guarded (decision `0003`).
+
+**Impact**
+
+A `slang` elaboration column now records each artifact's verdict in a `tool_matrix` sweep,
+and `slang` participates in the matrix's acceptance-divergence detection for free. Default-off
+⇒ banked reports + `--resume` + snapshots byte-identical. Surfacing the `extract_facts`
+`AdapterFacts` into the report (the `slang_facts` field + a `saw_slang_facts` coverage fact)
+is `.2c.2b`.
+
+**Files touched:** `src/bin/tool_matrix.rs`, `tests/slang_e2e.rs`,
+`docs/knowledge/slang-adapter.md`, `KNOWLEDGE_MAP.md`, `README.md`, `USER_GUIDE.md`,
+`book/src/synthesizability.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+`MEMORY.md`, `docs/TASK_TREE.md`, `docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`.
+
 ## 2026-06-21 — DOWNSTREAM-ADAPTER-EXPANSION.2c.1 — the `slang` downstream adapter + the trait's first `extract_facts` JSON-AST hook + MCP selectability/discoverability (decision 0020)
 
 **Landed as:** this commit (previous: `a3c70b9`). **Code change — `src/downstream/mod.rs`

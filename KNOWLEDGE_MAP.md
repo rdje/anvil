@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **52** facts · **454** question keys.
+> **53** facts · **463** question keys.
 
 ## Questions → fact
 
@@ -32,6 +32,7 @@
 - "can ANVIL target a specific SystemVerilog version" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "can ANVIL wrap a whole combinational cone as one function" -> [structured-emission-fifth-surface-cone-function](docs/decisions/0016-structured-emission-fifth-surface-cone-function.md) · 2026-06-17
 - "can I plug a new SystemVerilog tool into ANVIL as an acceptance column" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
+- "can I select slang over the MCP tools arg" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "can I select sv2v over the MCP tools arg" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "can a feature ship CLI-only without an API" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "can an AI agent drive ANVIL to find downstream tool bugs" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
@@ -68,6 +69,7 @@
 - "does ANVIL handle a multi-bit lane replication as a generate loop" -> [structured-emission-fourth-surface-wide-lane-generate-loop](docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md) · 2026-06-17
 - "does ANVIL have a behavioral oracle or shadow simulator" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "does ANVIL have a fuzz minimize reproducer loop" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
+- "does ANVIL have a slang column" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "does ANVIL have an acceptance divergence finder" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "does ANVIL have an sv2v column" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "does ANVIL merge mutually-recursive registers" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
@@ -108,6 +110,7 @@
 - "does the sv-version matrix gate change emitted RTL" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
 - "does the union soft overlay change behaviour" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "does tool_matrix support Icarus Verilog compile checks" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
+- "does tool_matrix support slang" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "does tool_matrix support sv2v" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "does verilator --language reject newer SystemVerilog constructs" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "does verilator 5.046 differentiate 1800-2012 1800-2017 1800-2023" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
@@ -116,6 +119,7 @@
 - "how can ANVIL prove a 3-flop CDC synchronizer was generated" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "how deep is a module in the hierarchy / what is its depth from the top" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I add slang or sv2v or surelog to ANVIL" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
+- "how do I add the slang elaboration acceptance column" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "how do I add the sv2v transpile acceptance column" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "how do I ask a flop's reset kind or reset value over MCP" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I ask what an ANVIL output depends on" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
@@ -147,6 +151,7 @@
 - "how do I run an acceptance-divergence check" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I run anvil hunt from the command line" -> [bug-hunt-cli](docs/knowledge/bug-hunt-cli.md) · 2026-06-17 · reverify: `'cargo test --test hunt_e2e -- --ignored   (tool-gated: with Verilator on $PATH, asserts a clean real-tool sweep + a byte-identical reproducer recipe; tool-less ⇒ skips green)'`
 - "how do I run anvil hunt with divergence detection" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
+- "how do I run slang on ANVIL output" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "how do I run sv2v on ANVIL output" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "how do I turn on cone_function_emit_prob" -> [multi-gate-cone-function-emit](docs/knowledge/multi-gate-cone-function-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 4 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config /tmp/cf.json | tee /tmp/cf.sv | grep -c "__cf(" && verilator --lint-only /tmp/cf.sv && echo CLEAN'`
 - "how do I turn on function_emit_prob" -> [combinational-function-emit](docs/knowledge/combinational-function-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\"/tmp/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config /tmp/fe.json | tee /tmp/fe.sv | grep -c "function automatic" && verilator --lint-only /tmp/fe.sv && echo CLEAN'`
@@ -167,6 +172,7 @@
 - "how does ANVIL emit a generate-for as an emit-projection" -> [structured-emission-second-surface-generate-loop](docs/decisions/0013-structured-emission-second-surface-generate-loop.md) · 2026-06-16
 - "how does ANVIL emit a heterogeneous-width packed union" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "how does ANVIL emit richer structured SystemVerilog" -> [structured-emission-first-surface-combinational-function](docs/decisions/0012-structured-emission-first-surface-combinational-function.md) · 2026-06-16
+- "how does ANVIL extract facts from slang --ast-json" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "how does ANVIL generalize run_verilator run_yosys run_iverilog" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "how does ANVIL handle duplicate operands in an emitted function" -> [combinational-function-emit](docs/knowledge/combinational-function-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\"/tmp/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config /tmp/fe.json | tee /tmp/fe.sv | grep -c "function automatic" && verilator --lint-only /tmp/fe.sv && echo CLEAN'`
 - "how does ANVIL merge sequentially equivalent flops beyond exact self-hold" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
@@ -229,6 +235,7 @@
 - "is acceptance divergence a hunt detection axis" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "is deep semantic introspection first-class in ANVIL" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "is hierarchy_sequential_module_dedup default-off" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
+- "is slang a downstream tool in ANVIL" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "is sv2v a downstream tool in ANVIL" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "is the ANVIL MCP server inside the generator core" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "is the ANVIL introspection schema versioned" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
@@ -308,6 +315,7 @@
 - "what happens after module dedup rewrites instances" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "what happens to flop_domains when flops are merged or compacted" -> [domain-aware-flop-identity](docs/knowledge/domain-aware-flop-identity.md) · 2026-06-05
 - "what happens to helper endpoints that cancel out" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
+- "what happens when slang is not installed" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "what happens when sv2v is not installed" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "what introspection schema version adds the sequential module proof metric" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what invariants constrain the AGENT-MCP-EXPANSION lane" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
@@ -363,6 +371,7 @@
 - "what is the first SIGNOFF-AUTOMATION-EXPANSION increment" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
 - "what is the first STRUCTURED-EMISSION-EXPANSION surface" -> [structured-emission-first-surface-combinational-function](docs/decisions/0012-structured-emission-first-surface-combinational-function.md) · 2026-06-16
 - "what is the first SV-VERSION-TARGETING up-opt" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
+- "what is the first fact-bearing downstream adapter in ANVIL" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "what is the first new downstream adapter in ANVIL" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "what is the flop_reset_provenance query" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the fourth STRUCTURED-EMISSION-EXPANSION surface" -> [structured-emission-fourth-surface-wide-lane-generate-loop](docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md) · 2026-06-17
@@ -797,6 +806,14 @@ _tool_matrix --signoff-knob-sweep-gate promotes four previously-unswept knobs in
 - **evidence:** `src/bin/tool_matrix.rs (ScenarioSet::SignoffKnobSweep, build_signoff_knob_sweep_scenarios, compute_coverage_gaps); src/metrics.rs (num_operator_gates_with_duplicate_operands); DEVELOPMENT_NOTES.md (SIGNOFF-AUTOMATION-EXPANSION.2b); /tmp/anvil-signoff-knob-sweep-r1/tool_matrix_report.json`
 - **reverify:** `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - **source:** [`docs/knowledge/signoff-knob-sweep-gate.md`](docs/knowledge/signoff-knob-sweep-gate.md)
+
+### slang-adapter
+_ANVIL has a slang elaboration acceptance adapter (the first fact-bearing downstream tool)_
+
+- **answers:** does ANVIL have a slang column | does tool_matrix support slang | how do I run slang on ANVIL output | is slang a downstream tool in ANVIL | how do I add the slang elaboration acceptance column | can I select slang over the MCP tools arg | what is the first fact-bearing downstream adapter in ANVIL | how does ANVIL extract facts from slang --ast-json | what happens when slang is not installed
+- **date:** 2026-06-21 · **status:** current
+- **evidence:** `'cargo test --test slang_e2e   (portable: slang is a public selectable, fact-bearing adapter — supports_facts=true; the real-tool gate is #[ignore], skips green when slang is absent). Also: cargo run --bin tool_matrix -- --out /tmp/x --skip-verilator --skip-yosys --slang  ⇒  exits 0 with "slang pass/fail = 0/0" and no slang invocations when slang is absent (the friendly no-op).'`
+- **source:** [`docs/knowledge/slang-adapter.md`](docs/knowledge/slang-adapter.md)
 
 ### structured-emission-fifth-surface-cone-function
 _ANVIL's fifth richer-structured SV surface is a default-off, valid-by-construction multi-gate-cone `function automatic` emit-projection of an existing combinational cone_

@@ -942,6 +942,16 @@ Useful options:
   is a **friendly no-op** — a presence probe means a requested-but-missing
   `sv2v` records no column and never fails the run (`brew install sv2v` to
   light it up). A `union soft` up-opt module skips it alongside Yosys/Icarus.
+- `--slang` (with `--slang-bin` to override the binary) to add a `slang`
+  SystemVerilog **elaboration** acceptance column. A clean elaboration
+  accepts; a non-zero exit or a warning is a finding. Recorded under `slang`
+  in each report and tallied as `slang pass/fail` in the summary line.
+  `slang` is the first **fact-bearing** adapter — it also dumps a
+  `--ast-json` view of the top's ports + child instances (the `extract_facts`
+  hook); surfacing those facts in the matrix report is a follow-up
+  (`.2c.2b`). Like `--sv2v` it is an acceptance gate, not a behavioural
+  testbench, and a **friendly no-op** when `slang` is absent (a presence
+  probe ⇒ the column records nothing and never fails the run).
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one

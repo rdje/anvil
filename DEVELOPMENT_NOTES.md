@@ -5,6 +5,29 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — The `tool_matrix --slang` column — a faithful `--sv2v` mirror — `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`
+
+`.2c.2a` adds the `tool_matrix --slang` elaboration-acceptance column by mirroring the
+`--sv2v` touchpoints (`.2b.2`) one-for-one: CLI flag/bin, `ModuleReport`/`DesignReport`
+field, both checkpoints + the `--resume` guard, the `ToolSummary` tally + `any_failed` +
+console line, `MatrixReport.slang_enabled`, and `unit_divergence` inclusion, all gated on a
+`tool_version` presence probe (the decision-`0020` friendly no-op). No new rationale beyond
+the `.2b.2` column and the `.2c.1` adapter — two mechanical notes only:
+
+- **`ModuleToolColumns` grew 4-tuple → 5-tuple.** `run_module_tools` already returned a
+  named tuple alias (introduced at `.2b.2` to satisfy clippy `type_complexity`); slang is
+  the 5th element. The design-level path returns a full `DesignReport`, so it just gains a
+  field. Keeping the alias means the column count can grow without re-tripping
+  `type_complexity`.
+- **slang's column is *not* skipped for `union soft` up-opt modules** the way `sv2v` is.
+  `sv2v` targets Verilog-2005 and rejects the SV-2023 `union soft` syntax, so it is skipped
+  alongside Yosys/Icarus; `slang` is a full SV-2023-aware elaborator, so it *could* accept
+  it — but the column is still gated `!verilator_only` to stay aligned with the other added
+  adapters in the up-opt scenario (which runs Verilator-only by design). The live
+  `extract_facts` fact-surfacing is deliberately deferred to `.2c.2b`.
+
+---
+
 ## 2026-06-21 — The trait's first `extract_facts` hook + the `slang` adapter — verifying a JSON-AST schema for an absent tool — `DOWNSTREAM-ADAPTER-EXPANSION.2c.1`
 
 `.2c.1` lands the `slang` adapter and, with it, the `Adapter` trait's **first**

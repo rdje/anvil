@@ -695,6 +695,19 @@ exercising adversarial axes that previously fired only by chance
   the first new entry in the closed downstream-adapter registry, selectable
   via the `validate`/`hunt`/`divergence` `tools` arg + the `anvil hunt
   --tools` CLI.
+- `tool_matrix --slang` (`DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`, decision
+  `0020`) adds an opt-in `slang` SystemVerilog **elaboration** acceptance
+  column (`--slang-bin` overrides the binary). A clean elaboration accepts; a
+  non-zero exit or a warning is a finding. Like `--sv2v` it is an acceptance
+  gate, not a behavioural testbench. `slang` is the closed registry's
+  **second** new adapter and the first **fact-bearing** one — it also dumps a
+  `--ast-json` view of the top's ports + child instances (the
+  `extract_facts` hook, `.2c.1`); surfacing those facts in the matrix report
+  is `.2c.2b`. `slang` is absent on most hosts; when so this column is a
+  **friendly no-op** (a presence probe means a requested-but-missing `slang`
+  records no column and never fails the run). Recorded as `ModuleReport.slang`
+  / `DesignReport.slang` and tallied as `slang pass/fail`, selectable via the
+  `validate`/`hunt`/`divergence` `tools` arg + the `anvil hunt --tools` CLI.
 - `tool_matrix --resume` reuses per-module checkpoints from an existing
   `--out` tree when the saved tool surface matches the current run. New
   same-binary checkpoints also carry a generator checkpoint, an `sv`

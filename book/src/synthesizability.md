@@ -148,6 +148,25 @@ run — `brew install sv2v` to light it up).
 cargo run --bin tool_matrix -- --out ./tool-matrix --sv2v
 ```
 
+`--slang` adds a fifth optional acceptance column: each emitted
+module/design is elaborated with `slang` — a strict, fast, *independent*
+SystemVerilog front-end (parser + name resolution + type check +
+elaboration), so it trips bugs the others cannot. A clean elaboration
+accepts; a non-zero exit or a warning is a finding. `slang` is the
+registry's second new adapter and the first **fact-bearing** one — it
+also dumps a `--ast-json` view of the top's ports + child instances (the
+`extract_facts` hook); surfacing those facts in the matrix report is a
+follow-up. Like `--sv2v` it is an acceptance gate, selectable over the
+MCP/CLI `tools` arg, and a **friendly no-op** when `slang` is absent (a
+presence probe means a requested-but-missing `slang` records no column
+and never fails the run).
+
+<!-- book-test: skip — opt-in column requires slang on PATH; documented in the verification log of DOWNSTREAM-ADAPTER-EXPANSION.2c.2a -->
+```bash
+# Add the slang elaboration-acceptance column to a matrix run
+cargo run --bin tool_matrix -- --out ./tool-matrix --slang
+```
+
 The `--diff-sim` column raises the bar further to **semantic
 equivalence** across two independent simulators — iverilog
 (interpreted, 4-state, event-driven) and verilator (compiled,

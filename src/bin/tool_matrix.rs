@@ -193,6 +193,23 @@ struct Cli {
     #[arg(long, default_value = "sv2v")]
     sv2v_bin: String,
 
+    /// Opt-in `slang` SystemVerilog elaboration acceptance column
+    /// (`DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`, decision `0020`). When
+    /// enabled, each generated artifact is elaborated with `slang`
+    /// after the normal Verilator/Yosys checks: a clean elaboration
+    /// accepts, a non-zero exit or a warning is a finding. Like
+    /// `--iverilog-compile` / `--sv2v`, this is an acceptance gate, not a
+    /// behavioural testbench. `slang` is the first *fact-bearing* adapter
+    /// (it also dumps a `--ast-json` view); surfacing those facts is
+    /// `.2c.2b`. `slang` is absent on most hosts; when so this column is a
+    /// friendly no-op (a presence probe records no column, never a panic).
+    #[arg(long)]
+    slang: bool,
+
+    /// `slang` executable to run when `--slang` is set.
+    #[arg(long, default_value = "slang")]
+    slang_bin: String,
+
     /// Yosys synthesis mode: keep the current no-ABC path, run the
     /// warning-clean ABC-enabled harness path, or run both.
     #[arg(long, value_enum, default_value_t = YosysMode::WithoutAbc)]
@@ -261,6 +278,11 @@ struct ModuleReport {
     /// off the wire when `None`, so default runs stay byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sv2v: Option<ToolInvocation>,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — opt-in `slang` elaboration
+    /// acceptance column. `None` unless `--slang` was set; off the wire
+    /// when `None`, so default runs stay byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slang: Option<ToolInvocation>,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — opt-in cross-simulator
     /// byte-equal-trace report. `None` when `--diff-sim` was not
     /// set OR this scenario was not in the per-axis subset OR
@@ -367,6 +389,8 @@ struct ModuleCheckpoint {
     iverilog_compile: bool,
     #[serde(default)]
     sv2v: bool,
+    #[serde(default)]
+    slang: bool,
     yosys_mode: String,
     runtime_fingerprint: Option<String>,
     sv_hash: Option<String>,
@@ -393,6 +417,11 @@ struct DesignReport {
     /// `None` unless `--sv2v` was set; off the wire when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sv2v: Option<ToolInvocation>,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — opt-in `slang` elaboration
+    /// column (the design-level counterpart of `ModuleReport.slang`).
+    /// `None` unless `--slang` was set; off the wire when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slang: Option<ToolInvocation>,
     /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — opt-in acceptance-divergence
     /// column (decision `0019`); the design-level counterpart of
     /// `ModuleReport.divergence`. `None` unless `--divergence` was set AND this
@@ -418,6 +447,8 @@ struct DesignCheckpoint {
     iverilog_compile: bool,
     #[serde(default)]
     sv2v: bool,
+    #[serde(default)]
+    slang: bool,
     yosys_mode: String,
     runtime_fingerprint: Option<String>,
     files: Vec<DesignFileHash>,
@@ -437,6 +468,8 @@ struct ToolSummary {
     iverilog_compile_failed: usize,
     sv2v_passed: usize,
     sv2v_failed: usize,
+    slang_passed: usize,
+    slang_failed: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -871,6 +904,11 @@ struct MatrixReport {
     /// `sv2v` invocation.
     #[serde(default)]
     sv2v_enabled: bool,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — whether `--slang` was set
+    /// for this run. When `false`, no module/design report carries a
+    /// `slang` invocation.
+    #[serde(default)]
+    slang_enabled: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — whether `--diff-sim` was
     /// set for this run. When `false`, `diff_sim_subset` is empty
     /// and no `ModuleReport.diff_sim` is populated.
@@ -1058,6 +1096,7 @@ fn main() -> Result<()> {
         scenarios: scenario_reports,
         iverilog_compile_enabled: cli.iverilog_compile,
         sv2v_enabled: cli.sv2v,
+        slang_enabled: cli.slang,
         diff_sim_enabled: cli.diff_sim,
         diff_sim_subset,
         divergence_enabled: cli.divergence,
@@ -1077,7 +1116,7 @@ fn main() -> Result<()> {
     );
     println!("tool_matrix: total modules = {}", report.total_modules);
     println!(
-        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}, Icarus compile pass/fail = {}/{}, sv2v pass/fail = {}/{}",
+        "tool_matrix: Verilator pass/fail = {}/{}, Yosys without-abc pass/fail = {}/{}, Yosys with-abc pass/fail = {}/{}, Icarus compile pass/fail = {}/{}, sv2v pass/fail = {}/{}, slang pass/fail = {}/{}",
         report.tool_summary.verilator_passed,
         report.tool_summary.verilator_failed,
         report.tool_summary.yosys_without_abc_passed,
@@ -1087,7 +1126,9 @@ fn main() -> Result<()> {
         report.tool_summary.iverilog_compile_passed,
         report.tool_summary.iverilog_compile_failed,
         report.tool_summary.sv2v_passed,
-        report.tool_summary.sv2v_failed
+        report.tool_summary.sv2v_failed,
+        report.tool_summary.slang_passed,
+        report.tool_summary.slang_failed
     );
     if let Some(share_sweep) = &report.share_sweep {
         for (share_prob, bucket) in &share_sweep.buckets {
@@ -5151,7 +5192,7 @@ fn materialize_prepared_module(
     // even when both knobs are off or a seed produced no qualifying cone.
     let emitted_cone_function = prepared.sv_text.contains("__cf(");
 
-    let (verilator, yosys, iverilog_compile, sv2v) = run_module_tools(
+    let (verilator, yosys, iverilog_compile, sv2v, slang) = run_module_tools(
         cli,
         scenario_dir,
         &prepared.paths.sv_path,
@@ -5193,6 +5234,7 @@ fn materialize_prepared_module(
         &yosys,
         iverilog_compile.as_ref(),
         sv2v.as_ref(),
+        slang.as_ref(),
     );
 
     let report = ModuleReport {
@@ -5203,6 +5245,7 @@ fn materialize_prepared_module(
         yosys,
         iverilog_compile,
         sv2v,
+        slang,
         diff_sim,
         divergence,
         emitted_soft_union_overlay,
@@ -5317,6 +5360,7 @@ fn unit_divergence(
     yosys: &[ToolInvocation],
     iverilog_compile: Option<&ToolInvocation>,
     sv2v: Option<&ToolInvocation>,
+    slang: Option<&ToolInvocation>,
 ) -> Option<DivergenceReport> {
     if !cli.divergence || !scenario_in_divergence_subset(scenario_dir) {
         return None;
@@ -5330,6 +5374,9 @@ fn unit_divergence(
         tools.push(i.clone());
     }
     if let Some(s) = sv2v {
+        tools.push(s.clone());
+    }
+    if let Some(s) = slang {
         tools.push(s.clone());
     }
     if tools.is_empty() {
@@ -5416,6 +5463,7 @@ type ModuleToolColumns = (
     Vec<ToolInvocation>,
     Option<ToolInvocation>,
     Option<ToolInvocation>,
+    Option<ToolInvocation>,
 );
 
 fn run_module_tools(
@@ -5492,7 +5540,21 @@ fn run_module_tools(
         None
     };
 
-    Ok((verilator, yosys, iverilog_compile, sv2v))
+    // `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — the opt-in slang elaboration column,
+    // mirroring sv2v: skipped for `union soft` up-opt modules (slang would accept
+    // 2023 syntax, but the column stays aligned with the other added adapters), and
+    // a **friendly no-op** when slang is absent (a `tool_version` presence probe so a
+    // requested-but-missing slang records no column and never bails the run). The
+    // `--ast-json` facts this column produces are surfaced at `.2c.2b`.
+    let slang = if cli.slang && !verilator_only && tool_version(&cli.slang_bin).is_some() {
+        run_column(AcceptanceTool::Slang, &cli.slang_bin, None)?
+            .into_iter()
+            .next()
+    } else {
+        None
+    };
+
+    Ok((verilator, yosys, iverilog_compile, sv2v, slang))
 }
 
 fn run_design_tools(
@@ -5585,6 +5647,16 @@ fn run_design_tools(
         None
     };
 
+    // `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — the opt-in slang elaboration column
+    // (design-level), mirroring sv2v; a friendly no-op when slang is absent.
+    let slang = if cli.slang && tool_version(&cli.slang_bin).is_some() {
+        run_column(AcceptanceTool::Slang, &cli.slang_bin, None)?
+            .into_iter()
+            .next()
+    } else {
+        None
+    };
+
     // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — classify the tools just run on this
     // design for acceptance divergence (a pure projection; no extra spawn).
     let divergence = unit_divergence(
@@ -5596,6 +5668,7 @@ fn run_design_tools(
         &yosys,
         iverilog_compile.as_ref(),
         sv2v.as_ref(),
+        slang.as_ref(),
     );
 
     Ok(DesignReport {
@@ -5609,6 +5682,7 @@ fn run_design_tools(
         yosys,
         iverilog_compile,
         sv2v,
+        slang,
         divergence,
     })
 }
@@ -5626,6 +5700,7 @@ fn write_module_checkpoint(
         skip_yosys: cli.skip_yosys,
         iverilog_compile: cli.iverilog_compile,
         sv2v: cli.sv2v,
+        slang: cli.slang,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
         sv_hash: Some(sv_hash.to_string()),
@@ -5657,6 +5732,7 @@ fn write_design_checkpoint(
         skip_yosys: cli.skip_yosys,
         iverilog_compile: cli.iverilog_compile,
         sv2v: cli.sv2v,
+        slang: cli.slang,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         runtime_fingerprint: runtime_fingerprint.map(str::to_owned),
         files,
@@ -5697,6 +5773,7 @@ fn checkpoint_matches_cli(checkpoint: &ModuleCheckpoint, cli: &Cli) -> bool {
         && checkpoint.skip_yosys == cli.skip_yosys
         && checkpoint.iverilog_compile == cli.iverilog_compile
         && checkpoint.sv2v == cli.sv2v
+        && checkpoint.slang == cli.slang
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
 }
 
@@ -5705,6 +5782,7 @@ fn checkpoint_matches_design_cli(checkpoint: &DesignCheckpoint, cli: &Cli) -> bo
         && checkpoint.skip_yosys == cli.skip_yosys
         && checkpoint.iverilog_compile == cli.iverilog_compile
         && checkpoint.sv2v == cli.sv2v
+        && checkpoint.slang == cli.slang
         && checkpoint.yosys_mode == yosys_mode_slug(cli.yosys_mode)
 }
 
@@ -5916,6 +5994,7 @@ fn summarize_tools(modules: &[ModuleReport]) -> ToolSummary {
             &module.yosys,
             module.iverilog_compile.as_ref(),
             module.sv2v.as_ref(),
+            module.slang.as_ref(),
         );
     }
     summary
@@ -5930,6 +6009,7 @@ fn summarize_design_tools(designs: &[DesignReport]) -> ToolSummary {
             &design.yosys,
             design.iverilog_compile.as_ref(),
             design.sv2v.as_ref(),
+            design.slang.as_ref(),
         );
     }
     summary
@@ -7374,6 +7454,8 @@ fn merge_tool_summary(dst: &mut ToolSummary, src: &ToolSummary) {
     dst.iverilog_compile_failed += src.iverilog_compile_failed;
     dst.sv2v_passed += src.sv2v_passed;
     dst.sv2v_failed += src.sv2v_failed;
+    dst.slang_passed += src.slang_passed;
+    dst.slang_failed += src.slang_failed;
 }
 
 fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
@@ -7707,6 +7789,7 @@ fn accumulate_tool_summary(
     yosys: &[ToolInvocation],
     iverilog_compile: Option<&ToolInvocation>,
     sv2v: Option<&ToolInvocation>,
+    slang: Option<&ToolInvocation>,
 ) {
     if let Some(verilator) = verilator {
         if verilator.success {
@@ -7746,6 +7829,13 @@ fn accumulate_tool_summary(
             summary.sv2v_passed += 1;
         } else {
             summary.sv2v_failed += 1;
+        }
+    }
+    if let Some(slang) = slang {
+        if slang.success {
+            summary.slang_passed += 1;
+        } else {
+            summary.slang_failed += 1;
         }
     }
 }
@@ -9062,6 +9152,7 @@ impl ToolSummary {
             || self.yosys_failed() > 0
             || self.iverilog_failed() > 0
             || self.sv2v_failed > 0
+            || self.slang_failed > 0
     }
 }
 
@@ -9097,6 +9188,8 @@ mod tests {
             iverilog_bin: "iverilog".to_string(),
             sv2v: false,
             sv2v_bin: "sv2v".to_string(),
+            slang: false,
+            slang_bin: "slang".to_string(),
             yosys_mode: YosysMode::WithoutAbc,
             fail_on_coverage_gap: false,
             resume: false,
@@ -10860,6 +10953,31 @@ mod tests {
         assert_eq!(with_flag.sv2v_bin, "/opt/homebrew/bin/sv2v");
     }
 
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — the `--slang` opt-in column flag
+    /// defaults off (so default runs stay byte-identical) and parses with a
+    /// caller-supplied `--slang-bin`. (`slang` is also a valid `--tools` value —
+    /// the `AcceptanceTool` clap `ValueEnum` derives the token `slang`.)
+    #[test]
+    fn slang_cli_flag_defaults_to_false_and_parses_when_set() {
+        use clap::Parser;
+
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.slang);
+        assert_eq!(no_flag.slang_bin, "slang");
+
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--slang",
+            "--slang-bin",
+            "/opt/homebrew/bin/slang",
+            "--out",
+            "/tmp/x",
+        ])
+        .expect("parse");
+        assert!(with_flag.slang);
+        assert_eq!(with_flag.slang_bin, "/opt/homebrew/bin/slang");
+    }
+
     #[test]
     fn summarize_tools_counts_yosys_modes_separately() {
         let modules = vec![ModuleReport {
@@ -10918,6 +11036,16 @@ mod tests {
                 error: None,
                 version: None,
             }),
+            slang: Some(ToolInvocation {
+                tool: "slang".to_string(),
+                argv: vec![],
+                success: true,
+                exit_code: Some(0),
+                stdout_log: None,
+                stderr_log: None,
+                error: None,
+                version: None,
+            }),
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -10934,6 +11062,9 @@ mod tests {
         assert_eq!(summary.iverilog_compile_passed, 1);
         assert_eq!(summary.sv2v_passed, 1);
         assert_eq!(summary.sv2v_failed, 0);
+        // `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — slang tallies alongside sv2v.
+        assert_eq!(summary.slang_passed, 1);
+        assert_eq!(summary.slang_failed, 0);
         assert_eq!(summary.yosys_failed(), 1);
         assert_eq!(summary.iverilog_failed(), 0);
         assert!(summary.any_failed());
@@ -10962,6 +11093,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             sv2v: None,
+            slang: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -11028,6 +11160,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             sv2v: None,
+            slang: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -11090,6 +11223,7 @@ mod tests {
                 verilator: None,
                 iverilog_compile: None,
                 sv2v: None,
+                slang: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11561,6 +11695,7 @@ mod tests {
                 verilator: None,
                 iverilog_compile: None,
                 sv2v: None,
+                slang: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11656,6 +11791,7 @@ mod tests {
             &yosys,
             None,
             None,
+            None,
         )
         .is_none());
 
@@ -11670,6 +11806,7 @@ mod tests {
             "m",
             Some(&verilator),
             &yosys,
+            None,
             None,
             None,
         )
@@ -11717,6 +11854,7 @@ mod tests {
                 verilator: None,
                 iverilog_compile: None,
                 sv2v: None,
+                slang: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11887,6 +12025,7 @@ mod tests {
             verilator: None,
             iverilog_compile: None,
             sv2v: None,
+            slang: None,
             yosys: vec![],
             diff_sim: None,
             divergence: None,
