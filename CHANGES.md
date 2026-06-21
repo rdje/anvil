@@ -1,9 +1,67 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — CI-PACKAGING-DISTRIBUTION.1 — design ADR (decision 0022): release workflow + composite GitHub Action over `anvil hunt`
+
+**Landed as:** this commit (previous: `d731087`). **Docs-only (decision record +
+INDEX + task-tree + DEVELOPMENT_NOTES + KM). No `src/`/CI change; DUT
+byte-identical.** A new PNT pick (pick-and-roll after the `KNOB-ERGONOMICS-AND-PRESETS`
+lane API completed): the design-first ADR for the drop-in CI packaging lane (owner
+idea 5), bound by decision `0017`, wrapping the already-shipped `anvil hunt`
+(decision `0018`) + `divergence` (decision `0019`).
+
+**What changed (why)**
+
+`anvil hunt` makes downstream bug-hunting turnkey *locally*; this lane removes the
+*adoption* friction so a downstream-tool maintainer can run it in their CI. Design
+only — `.2` implements.
+
+- **`docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md`** (new,
+  KM-indexed). Pins: (1) a **hand-rolled** `v*`-tag `release.yml` build matrix
+  (5 targets: linux gnu x86_64/aarch64, macOS x86_64/aarch64, windows msvc →
+  `anvil`+`anvil-mcp` tarballs + `SHA256SUMS`; pinned toolchain + `Cargo.lock`;
+  `cargo-dist` rejected for the dependency-averse ethos); (2) a **composite**
+  GitHub Action (not container) wrapping `anvil hunt`, inputs
+  (`tools`/`seed`/`seeds`/`profile`/`config`/`yosys-mode`/`diff-sim`/`divergence`/
+  `budget`/`out`/`anvil-version`/`fail-on-finding`) mapped 1:1 onto the CLI/MCP
+  controls; (3) invocation via the `anvil hunt` CLI shim over `hunt::run` — no
+  Action-only path (decision `0017`); (4) version-pin + per-bundle
+  `repro.sh`/`knobs.json` reproducibility; (5) **user-installed tools (no
+  vendoring)**. Pre-split `.2a` (release.yml) / `.2b` (action.yml + self-test) /
+  `.2c` (docs + close).
+- **`docs/decisions/INDEX.md`** — added the `0022` row.
+- **`docs/tasks/CI-PACKAGING-DISTRIBUTION.md`** — `.1` → `done` (verification +
+  commit logs); `.2` pre-split into `.2a`/`.2b`/`.2c`; frontier `.2a`; Decisions +
+  Open Questions (both resolved) + Changelog updated.
+- **`docs/TASK_TREE.md`** — CI-PACKAGING row frontier `.1` → `.2a` (+ noted the
+  wrapped engine already ships).
+- **`DEVELOPMENT_NOTES.md`** — engineering rationale: hand-rolled-over-cargo-dist
+  (project ethos), composite-over-container (no-vendoring), the Action as a pure
+  `anvil hunt` shim (engine already ships), reproducibility inherited not rebuilt.
+
+**Validation**
+
+- Docs-only / no code: no `src/`/`tests/`/CI edits; DUT byte-identical by
+  construction; `tests/snapshots.rs` not run (no generator change). `cargo check`
+  was green at session start and is untouched.
+- `knowledge-map` gen + check green (KM 55 → **56** facts: the new `0022` decision is
+  `answers:`-fronted); `scripts/check_memory_architecture.sh` green.
+
+**Impact**
+
+The CI-packaging lane has a pinned, signoff-quality design that wraps the existing
+engine — no new generation path, default-off / DUT byte-identical. `.2` will land
+the release workflow + the composite Action so ANVIL is drop-in adoptable as a
+continuous downstream fuzzer in other toolchains' CI (the north star).
+
+**Files touched:** `docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md`,
+`docs/decisions/INDEX.md`, `docs/tasks/CI-PACKAGING-DISTRIBUTION.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.2b — SCHEMA-DERIVED `knob_catalog()` + `anvil://catalog/knob-schema`
 
-**Landed as:** this commit (previous: `455223e`). **Code — `src/config.rs` +
+**Landed as:** `d731087` (previous: `455223e`). **Code — `src/config.rs` +
 `src/mcp/mod.rs` + book + KM card; DUT byte-identical (snapshots 6/6).**
 Completes the decision-`0017` queryable knob surface — and the
 `KNOB-ERGONOMICS-AND-PRESETS` lane's planned API (no current frontier).

@@ -5,6 +5,38 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — CI packaging design: hand-rolled release + composite Action over `anvil hunt` — `CI-PACKAGING-DISTRIBUTION.1` (decision 0022)
+
+`.1` is the design ADR for the drop-in CI lane. Full rationale: decision
+[`0022`](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md).
+The load-bearing choices worth keeping:
+
+- **Hand-rolled release workflow over `cargo-dist`.** The project has a clear,
+  stated dependency-averse / transparent-infra ethos (the README's "hand-rolled
+  loopback-default transport … no new dependency" for the MCP HTTP transport). A
+  small in-repo `release.yml` matrix is auditable and adds no release-tool
+  dependency; `cargo-dist` is more opinionated + generates config to maintain. Same
+  reasoning that picked a hand-rolled transport picks a hand-rolled release.
+- **Composite Action, not a container.** A container action tempts vendoring the
+  downstream tools (Verilator/Yosys) into the image — directly against the
+  no-vendoring non-goal (licensing/size/staleness; the user cares about *their*
+  tool versions' bugs). A composite action runs on the user's runner with the
+  user's installed tools, and is transparent (just steps).
+- **The Action is a pure shim over `anvil hunt` — no Action-only path** (decision
+  `0017`). Every Action input maps 1:1 onto an `anvil hunt` flag / `hunt`-tool
+  control, so CI usage and agent usage share one engine. This is why the lane could
+  be designed now: the engine (`anvil hunt`, decision `0018`; `divergence`,
+  decision `0019`) **already ships**, so `.2` wraps a real binary, and the
+  `--profile` presets (decision `0021`) drop straight in as an Action input.
+- **Reproducibility is inherited, not rebuilt.** A CI finding reproduces locally
+  because each hunt bundle already carries `repro.sh` + `knobs.json` (byte-identical
+  regen) and the hunt is seeded-deterministic; the Action only adds the
+  `anvil-version` pin. No new reproducibility machinery.
+- `.2` pre-split `.2a` (release.yml — task-tree-owned CI infra) / `.2b` (action.yml +
+  entrypoint + self-test) / `.2c` (README/USER_GUIDE "Use ANVIL in your CI" + KM).
+
+---
+
 ## 2026-06-18 — Knob ergonomics impl: 16 promoted CLI flags + presets + the shared resolver — `KNOB-ERGONOMICS-AND-PRESETS.2b.1`
 
 `.2b.1` lands the `.2a` design. Two implementation points worth keeping:
