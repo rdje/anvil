@@ -1,9 +1,55 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.2a — Mealy metric + introspection schema 1.13
+
+**Landed as:** this commit (previous: `dc7df68`). **Makes the Mealy capability
+queryable (decision [`0024`](docs/decisions/0024-mealy-fsm-outputs.md) +
+[`0017`](docs/decisions/0017-api-first-everything-mcp-accessible.md)).** Default-off
+⇒ DUT byte-identical. Task-tree-owned by `CAPABILITY-BREADTH-EXPANSION.2b.2a`.
+
+**What changed (why)**
+
+- **`src/metrics.rs`** — `DesignMetrics` gains `num_mealy_fsm_modules: usize` (the
+  count of design modules carrying ≥1 Mealy FSM — a filter over `Module::fsms` for
+  `is_mealy()`), computed in `compute_design` beside `num_fsm_modules`. It is
+  **SCHEMA-DERIVED** (zero new computed truth) and `<= num_fsm_modules`; `0` for
+  every default-off design (`fsm_mealy_prob == 0.0`). Surfaced in `--introspect`
+  automatically via the exact serde projection of `DesignMetrics`.
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.12 → 1.13` (additive MINOR) +
+  the doc-comment rationale; the 3 `schema_version` test assertions updated.
+- **`src/mcp/mod.rs`** — the 8 MCP `schema_version` test assertions `1.12 → 1.13`.
+- **`docs/AGENT_INTROSPECTION_SCHEMA.md`** — the §7 changelog gains the
+  `1.12 → 1.13` entry, §6.3 (`design_metrics`) names `num_mealy_fsm_modules`, and
+  the "defines `schema_version`" / lockstep / checklist lines advance to `1.13`.
+  The historical backtick `` `1.12` `` references (attributing `coverage_readout`
+  to its introducing version) are intentionally left unchanged.
+
+**Validation**
+
+- `cargo check` ✓; **`cargo test` (full) exit 0** ✓ (lib **589 passed / 0
+  failed**, incl. the updated introspect + MCP `schema_version` assertions);
+  `clippy -D warnings` ✓; `fmt --check` ✓; **snapshots 6/6** (byte-identical).
+- **Live `--introspect`** on a hierarchy design (`--hierarchy-depth 1
+  --num-leaf-modules 2 --fsm-prob 1.0 --fsm-mealy-prob 1.0`) reports
+  `num_mealy_fsm_modules: 2` (= `num_fsm_modules: 2`) at `schema_version: 1.13`. A
+  single-module run omits `design_metrics` (mirrors `num_fsm_modules` exactly).
+
+**Impact**
+
+- Default-off ⇒ DUT byte-identical. The Mealy capability is now **queryable** (the
+  decision-`0017` API-completeness criterion). The `tool_matrix saw_mealy_fsm_design`
+  gate is `.2b.2b`; the book/USER_GUIDE/README schema-reference refresh is `.2b.3`
+  (the deferred book-example drift — the coverage-steered-lane precedent). No
+  ROADMAP phase label changed.
+
+**Files touched:** `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`, `USER_GUIDE.md`, `CHANGES.md`,
+`MEMORY.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.1 — Mealy FSM output mechanism
 
-**Landed as:** this commit (previous: `10f53ad`). **First *code* slice of the
+**Landed as:** `dc7df68` (previous: `10f53ad`). **First *code* slice of the
 `CAPABILITY-BREADTH-EXPANSION` lane — the Mealy FSM output mechanism (decision
 [`0024`](docs/decisions/0024-mealy-fsm-outputs.md)).** Default-off ⇒ DUT
 byte-identical. Task-tree-owned by `CAPABILITY-BREADTH-EXPANSION.2b.1`.

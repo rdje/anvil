@@ -249,7 +249,8 @@ block-build counters.
 `DesignMetrics` **category groups** (fields owned by `src/metrics.rs`): design
 id; hierarchy-aware identity instrumentation (`canonical_module_signatures`,
 `semantic_module_signatures`, the distinct/duplicate counts, the Phase-5/5b/6
-module counts); overall size; composition ratios; hierarchy shape (incl. the
+module counts, incl. `num_mealy_fsm_modules` — the Mealy-FSM-bearing module count,
+decision `0024`); overall size; composition ratios; hierarchy shape (incl. the
 `*_by_depth` maps); top interface (the large `top_*` child-input-binding /
 parent-cone-instance / parent-composed family); composition across the whole
 hierarchy (the `hierarchy_*` family); child-interface load (the
@@ -450,7 +451,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.12"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.13"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -460,7 +461,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.12"`**.
+This document defines **`schema_version = "1.13"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -607,6 +608,16 @@ This document defines **`schema_version = "1.12"`**.
   across evaluation contexts); the default-`dut` **artifact** (`.sv`) stays
   byte-identical and determinism is preserved. MINOR is an integer, so this is
   `1.11 → 1.12` (twelve), not a decimal.
+- **`1.12` → `1.13` (`CAPABILITY-BREADTH-EXPANSION.2b.1`).** Additive MINOR bump:
+  surfaced the new `DesignMetrics::num_mealy_fsm_modules` field (§6.3) — the count
+  of design modules carrying at least one **Mealy** FSM (a `Fsm` whose output is
+  decoded over the current state *and* input; decision `0024`). SCHEMA-DERIVED (a
+  pure filter over `Module::fsms` for `mealy_outputs.is_some()` — the `1.0 → 1.1`
+  additive-growth precedent), `<= num_fsm_modules`, `0` for every default-off
+  design (`fsm_mealy_prob == 0.0`). Backward compatible — a `1.12` consumer ignores
+  the new integer key; no field was removed/renamed/retyped; the default-`dut`
+  **artifact** (`.sv`) stays byte-identical and determinism is preserved. MINOR is
+  an integer, so this is `1.12 → 1.13` (thirteen), not a decimal.
 
 ---
 
@@ -645,5 +656,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.12"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.13"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

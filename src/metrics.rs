@@ -444,6 +444,12 @@ pub struct DesignMetrics {
     /// encoding `Fsm` block (`!Module::fsms.is_empty()`). 0 for every
     /// default-off / pre-`.3` design.
     pub num_fsm_modules: usize,
+    /// `CAPABILITY-BREADTH-EXPANSION.2b` (decision `0024`): number of
+    /// `Design::modules` carrying at least one **Mealy** FSM (a `Fsm`
+    /// with `mealy_outputs.is_some()` — an output decoded over the
+    /// current state *and* input). 0 for every default-off design
+    /// (`fsm_mealy_prob == 0.0`). `<= num_fsm_modules`.
+    pub num_mealy_fsm_modules: usize,
 
     // --- Overall size ------------------------------------------
     pub num_modules: usize,
@@ -1145,6 +1151,12 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         .count();
     // Phase 6 (PHASE-6-ADVANCED-MOTIFS.3.4a) coverage input.
     let num_fsm_modules = design.modules.iter().filter(|m| !m.fsms.is_empty()).count();
+    // CAPABILITY-BREADTH-EXPANSION.2b (decision 0024): modules carrying a Mealy FSM.
+    let num_mealy_fsm_modules = design
+        .modules
+        .iter()
+        .filter(|m| m.fsms.iter().any(|f| f.is_mealy()))
+        .count();
 
     let mut out = DesignMetrics {
         design: design.top.clone(),
@@ -1161,6 +1173,7 @@ pub fn compute_design(design: &Design) -> DesignMetrics {
         num_array_packed_aggregate_modules,
         num_memory_modules,
         num_fsm_modules,
+        num_mealy_fsm_modules,
         num_modules: design.modules.len(),
         num_library_modules: design.modules.len().saturating_sub(1),
         num_internal_modules,

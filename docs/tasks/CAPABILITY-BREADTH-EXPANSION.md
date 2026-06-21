@@ -92,9 +92,21 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `CAPABILITY-BREADTH-EXPANSION.2b.1`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2b.2`
+  Status: `active` (container — split into `.2b.2a` metric/schema + `.2b.2b` gate)
+  Goal: `Mealy introspection + gate. Default-off / DUT byte-identical.`
+  Children: `CAPABILITY-BREADTH-EXPANSION.2b.2a`, `CAPABILITY-BREADTH-EXPANSION.2b.2b`
+
+- ID: `CAPABILITY-BREADTH-EXPANSION.2b.2a`
+  Status: `done`
+  Goal: `Mealy metric + introspection schema bump — the num_mealy_fsm_modules DesignMetrics field (mirroring num_fsm_modules; a filter over Module::fsms for is_mealy()) surfaced in --introspect via the exact serde projection; the additive introspection schema MINOR bump 1.12 → 1.13 (const + doc comment + all schema_version test assertions in introspect/mod.rs + mcp/mod.rs + the docs/AGENT_INTROSPECTION_SCHEMA.md §6.3/§7 contract). Queryable per decision 0017. Default-off ⇒ 0 / DUT byte-identical.`
+  Acceptance: `--introspect (design) shows num_mealy_fsm_modules at schema 1.13; full cargo test green; snapshots 6/6 (byte-identical); the metric is SCHEMA-DERIVED (zero new computed truth).`
+  Verification: `done — cargo test green (full); snapshots 6/6; clippy -D warnings + fmt clean; live --introspect on a hierarchy with fsm_mealy_prob=1.0 reports num_mealy_fsm_modules: 2 (= num_fsm_modules) at schema_version 1.13; single-module run omits design_metrics (mirrors num_fsm_modules exactly).`
+  Commit: `CAPABILITY-BREADTH-EXPANSION.2b.2a`
+
+- ID: `CAPABILITY-BREADTH-EXPANSION.2b.2b`
   Status: `proposed`
-  Goal: `Mealy introspection + gate — the num_mealy_fsm_modules metric (DesignMetrics, mirroring num_fsm_modules) surfaced in --introspect with the additive schema MINOR bump 1.12 → 1.13; the repo-owned tool_matrix saw_mealy_fsm_design coverage fact + a focused fsm_mealy_prob=1.0 scenario (full multi-tool plan: Verilator + both Yosys + Icarus; Mealy is universally synthesizable) + gap enforcement; MCP queryability of the metric. Default-off / DUT byte-identical.`
-  Acceptance: `--introspect shows num_mealy_fsm_modules at schema 1.13; a tool_matrix gate lights saw_mealy_fsm_design downstream-clean; default-off byte-identical (snapshots 6/6).`
+  Goal: `Mealy tool_matrix gate — a repo-owned saw_mealy_fsm_design coverage fact + a focused fsm_mealy_prob=1.0 scenario (full multi-tool plan: Verilator + both Yosys + Icarus; Mealy is universally synthesizable) + ModuleReport/DesignReport detection + gap enforcement, mirroring the FSM/memory motif gates. Banked downstream-clean.`
+  Acceptance: `a tool_matrix gate lights saw_mealy_fsm_design downstream-clean (Verilator + both Yosys + Icarus); default-off byte-identical.`
   Verification: `pending`
   Commit: `pending`
 
@@ -109,8 +121,8 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CAPABILITY-BREADTH-EXPANSION.2b.2` | `proposed` | Mealy introspection + gate — `.2b.1` (the Mealy mechanism: `fsm_mealy_prob` knob + `Fsm.mealy_outputs` + emitter nested-case decode + validate + dedup-exclusion + lib tests) is **done** and all-tool-clean; next add the `num_mealy_fsm_modules` metric (schema `1.12 → 1.13`) + the `saw_mealy_fsm_design` `tool_matrix` gate. |
-| 2 | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `proposed` | Mealy docs — book `sequential.md`/`knobs.md` + USER_GUIDE + README + KM card. After `.2b.2`. |
+| 1 | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `proposed` | Mealy `tool_matrix` gate — `.2b.1` (mechanism) + `.2b.2a` (the `num_mealy_fsm_modules` metric + introspection schema `1.12 → 1.13`) are **done**; next add the repo-owned `saw_mealy_fsm_design` coverage fact + a focused `fsm_mealy_prob=1.0` scenario (full Verilator + both Yosys + Icarus plan) + gap enforcement, mirroring the FSM/memory motif gates. |
+| 2 | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `proposed` | Mealy docs — book `sequential.md`/`knobs.md` + USER_GUIDE + README + KM card (incl. the deferred schema-`1.12→1.13` book-example refresh: `api-tools.md`/`agent-mcp.md`/`api-introspection.md`, the coverage-steered-lane precedent). After `.2b.2b`. |
 | 3 | `CAPABILITY-BREADTH-EXPANSION.1` | `pending` | SV up-opt breadth — design-first ADR + fresh probe + LRM grounding before code. **Deferred (not retired):** the `.2a` probe re-confirmed (per decision `0010`) that the named candidates (enum/typedef, packed multidim arrays) are accepted at every Verilator `--language` mode + Yosys + Icarus ⇒ not version-distinctive, no down-gating teeth; the genuinely-2023 clean space with the installed tools is thin (essentially `union soft`, shipped). A future `.1` either finds a genuinely-2023 construct or rescopes to `union soft` breadth. |
 
 ## Decisions
@@ -165,6 +177,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 | `2026-06-17` | `CAPABILITY-BREADTH-EXPANSION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2a` | `decision 0024 written; empirical probe — verilator -Wall 1800-2012/2017/2023 + yosys both modes + iverilog -g2012 all ACCEPT warning-clean on the (state_q, sel) Mealy decode; enum/typedef + packed multidim arrays probed NOT version-distinctive (accepted at every mode); INDEX + tree + docs/TASK_TREE.md updated; mem-arch + KM self-checks` | `done` (docs-only; no code; DUT byte-identical) |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.1` | `cargo test green (full suite); snapshots 6/6 (Moore byte-identical); clippy -D warnings + fmt --check clean; downstream probe (seed 7, --fsm-prob 1.0 --fsm-mealy-prob 1.0) → 6 nested case(sel) decodes, ACCEPT warning-clean across Verilator -Wall 1800-2012/2017/2023 + Yosys both modes + Icarus -g2012; 2 new lib tests` | `done` (Mealy mechanism; default-off DUT byte-identical) |
+| `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `num_mealy_fsm_modules DesignMetrics field + schema 1.12→1.13 (const + comment + all schema_version assertions in introspect/mod.rs + mcp/mod.rs + the schema-doc §6.3/§7); cargo test green (lib 589/0 + full); snapshots 6/6; clippy -D warnings + fmt clean; live --introspect (hierarchy, fsm_mealy_prob=1.0) → num_mealy_fsm_modules: 2 at schema 1.13` | `done` (metric queryable; default-off byte-identical) |
 
 ## Commit Log
 
@@ -173,6 +186,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 | `CAPABILITY-BREADTH-EXPANSION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (SV up-opt design ADR) + `.2` (Mealy FSM design ADR) pending. |
 | `CAPABILITY-BREADTH-EXPANSION.2a` | `CAPABILITY-BREADTH-EXPANSION.2a — Mealy FSM output design ADR (decision 0024)` | Design ADR (docs-only). Pins the Mealy `(state_q, sel)` output model, `fsm_mealy_prob` knob, `num_mealy_fsm_modules` metric (schema `1.13`), `saw_mealy_fsm_design` gate, MCP surface. `.2` split into `.2a` (done) + `.2b` (proposed). |
 | `CAPABILITY-BREADTH-EXPANSION.2b.1` | `CAPABILITY-BREADTH-EXPANSION.2b.1 — Mealy FSM output mechanism (knob + IR + emitter + validate)` | First **code** slice of the lane. `Fsm.mealy_outputs` + `fsm_mealy_prob`/`--fsm-mealy-prob` + the emitter nested `case(state_q)→case(sel)` Mealy decode + validate + dedup-exclusion + 2 lib tests. Default-off DUT byte-identical (snapshots 6/6); all-tool-clean. `.2b` split into `.2b.1` (done) + `.2b.2` (metric/gate) + `.2b.3` (docs). |
+| `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `CAPABILITY-BREADTH-EXPANSION.2b.2a — Mealy metric num_mealy_fsm_modules + introspection schema 1.13` | The `num_mealy_fsm_modules` `DesignMetrics` field (serde-projected into `--introspect`) + the additive schema bump `1.12 → 1.13` (const + comment + all `schema_version` assertions + the schema-doc contract). Queryable (decision `0017`); default-off byte-identical. `.2b.2` split into `.2b.2a` (done) + `.2b.2b` (gate). |
 
 ## Changelog
 
@@ -185,3 +199,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   validate + the `merge_equivalent_fsms` Mealy exclusion + lib tests);
   default-off DUT byte-identical, all-tool-clean. `.2b` split into `.2b.1` (done)
   + `.2b.2` (metric/gate, proposed) + `.2b.3` (docs, proposed); frontier `.2b.2`.
+- `2026-06-22`: `.2b.2a` done — the `num_mealy_fsm_modules` `DesignMetrics` metric
+  + introspection schema bump `1.12 → 1.13` (queryable per decision `0017`);
+  default-off byte-identical. `.2b.2` split into `.2b.2a` (done) + `.2b.2b` (the
+  `tool_matrix` gate, proposed); frontier `.2b.2b`.
