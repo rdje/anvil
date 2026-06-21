@@ -529,6 +529,31 @@ pub fn validate(m: &Module) -> Result<(), ValidateError> {
                 reason: "output value exceeds out_width",
             });
         }
+        // CAPABILITY-BREADTH-EXPANSION.2b (decision 0024): a Mealy FSM's
+        // output table is shape [num_states][1<<sel_width], masked to
+        // out_width. `None` ⇒ Moore (unchecked here).
+        if let Some(mealy) = fsm.mealy_outputs.as_ref() {
+            if mealy.len() != fsm.num_states as usize {
+                return Err(ValidateError::BadFsm {
+                    fsm: fsm.id,
+                    reason: "mealy_outputs must have one row per state",
+                });
+            }
+            for row in mealy {
+                if row.len() != fanout {
+                    return Err(ValidateError::BadFsm {
+                        fsm: fsm.id,
+                        reason: "each mealy_outputs row must have 1<<sel_width entries",
+                    });
+                }
+                if row.iter().any(|&v| v & !out_mask != 0) {
+                    return Err(ValidateError::BadFsm {
+                        fsm: fsm.id,
+                        reason: "mealy output value exceeds out_width",
+                    });
+                }
+            }
+        }
     }
     for (node_id, node) in m.nodes.iter().enumerate() {
         if let Node::FsmOut { fsm, width } = node {

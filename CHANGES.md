@@ -1,9 +1,72 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.1 — Mealy FSM output mechanism
+
+**Landed as:** this commit (previous: `10f53ad`). **First *code* slice of the
+`CAPABILITY-BREADTH-EXPANSION` lane — the Mealy FSM output mechanism (decision
+[`0024`](docs/decisions/0024-mealy-fsm-outputs.md)).** Default-off ⇒ DUT
+byte-identical. Task-tree-owned by `CAPABILITY-BREADTH-EXPANSION.2b.1`.
+
+**What changed (why)**
+
+- **`src/ir/types.rs`** — `Fsm` gains `mealy_outputs: Option<Vec<Vec<u128>>>`
+  (`None` ⇒ Moore, the byte-identical default; `Some` ⇒ Mealy: a per-`(state,
+  sel_value)` table, shape `[num_states][1 << sel_width]`, masked to `out_width`)
+  + an `Fsm::is_mealy()` helper. The output decode is over the **current state and
+  current input** (the registered `state_q` plus the input-dependent `sel` cone) —
+  the textbook Mealy form; the state register stays Moore-clocked.
+- **`src/config.rs` + `src/main.rs`** — new default-off knob `fsm_mealy_prob`
+  (given a generated FSM, the probability its output is Mealy) with full plumbing:
+  serde default, `Default`, `--dump-config`, overlay, the `--fsm-mealy-prob` CLI
+  flag, and steering `config_category` ⇒ `"fsm"`.
+- **`src/gen/module.rs`** — `build_fsm_block` rolls `fsm_mealy_prob` (a single
+  seeded `gen_bool`, gated on `> 0.0` so the default draws nothing ⇒ byte-identical)
+  and, when it fires, builds the `mealy_outputs` table from a pure `(state,
+  sel_value)` formula (varies with `sel`, no extra RNG draw). + 2 lib tests
+  (`build_fsm_block_is_moore_by_default` / `_is_mealy_when_knob_on`).
+- **`src/emit/sv.rs`** — the FSM output decode branches: Mealy emits the nested
+  `case (state_q)` → `case (sel)` form (structurally the proven next-state decode),
+  Moore keeps the **byte-identical** flat `case (state_q)` `else`-branch.
+- **`src/ir/validate.rs`** — validates the Mealy table shape `[num_states][1 <<
+  sel_width]` + the `out_width` mask when `mealy_outputs.is_some()`.
+- **`src/ir/compact.rs`** — `merge_equivalent_fsms` conservatively **excludes**
+  Mealy FSMs (`if fsm.is_mealy() { continue; }`) — sound, nothing retired (the
+  memories-stay-state-by-instance precedent); 4 test `Fsm {}` fixtures carry
+  `mealy_outputs: None`.
+- **Soundness:** `FsmOut` stays a fully-opaque leaf (no DepSet change — `sel` is
+  already kept reachable via `fsm.sel`, non-triviality/validation are satisfied by
+  the virtual atom; the analyze sel-fold is a deferred fidelity refinement);
+  `canonical_module_signature` never iterates `module.fsms` and `FsmSignature` is
+  an explicit field list, so the additive field changes no Moore hash. See
+  `DEVELOPMENT_NOTES.md`.
+
+**Validation**
+
+- `cargo check --all-targets` ✓; **`cargo test` (full suite) exit 0** ✓;
+  `cargo clippy --all-targets -- -D warnings` ✓; `cargo fmt --all --check` ✓.
+- **`tests/snapshots.rs` 6/6** — Moore path byte-identical (default-off).
+- **Downstream probe** (`--seed 7 --fsm-prob 1.0 --fsm-mealy-prob 1.0`): emits 6
+  nested `case (sel)` Mealy decodes; **ACCEPT warning-clean** across
+  `verilator --lint-only -Wall --language 1800-2012/2017/2023` + `yosys synth`
+  (both repo modes) + `iverilog -g2012` — all-tool-clean (a stronger downstream
+  story than the Verilator-only `union soft` up-opt).
+
+**Impact**
+
+- Default-off ⇒ DUT byte-identical. New user-controllable Mealy FSM surface
+  (`--fsm-mealy-prob` / `fsm_mealy_prob`). The `num_mealy_fsm_modules` metric
+  (schema `1.13`) + the `tool_matrix` gate land at `.2b.2`; the book/USER_GUIDE/
+  README/KM docs at `.2b.3`. No ROADMAP phase label changed.
+
+**Files touched:** `src/ir/types.rs`, `src/config.rs`, `src/main.rs`,
+`src/gen/module.rs`, `src/emit/sv.rs`, `src/ir/validate.rs`, `src/ir/compact.rs`,
+`CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`,
+`docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2a — Mealy FSM output design ADR (decision 0024)
 
-**Landed as:** this commit (previous: `605ec44`). **Docs-only design ADR — no
+**Landed as:** `10f53ad` (previous: `605ec44`). **Docs-only design ADR — no
 `src` change; DUT byte-identical.** The PNT pick after the closed
 `COVERAGE-STEERED-GENERATION` tree: the design/decision leaf for the
 `CAPABILITY-BREADTH-EXPANSION` Mealy-FSM strand (`.2`). Task-tree-owned by

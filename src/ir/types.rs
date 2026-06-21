@@ -2184,10 +2184,31 @@ pub struct Fsm {
     /// (`< num_states`). Shape `[num_states][1 << sel_width]`.
     pub transitions: Vec<Vec<u32>>,
     /// `outputs[state]` = the Moore output value for that state
-    /// (masked to `out_width`). Length `num_states`.
+    /// (masked to `out_width`). Length `num_states`. For a Mealy FSM
+    /// (`mealy_outputs.is_some()`) this is retained but the emitter uses
+    /// `mealy_outputs` instead.
     pub outputs: Vec<u128>,
     /// Width of the registered Moore output (`Node::FsmOut.width`).
     pub out_width: u32,
+    /// `CAPABILITY-BREADTH-EXPANSION.2b` (decision `0024`) — optional
+    /// **Mealy** output table. `None` ⇒ **Moore** (the default;
+    /// `outputs[state]` is the decode). `Some` ⇒ **Mealy**:
+    /// `mealy_outputs[state][sel_value]` (shape
+    /// `[num_states][1 << sel_width]`, each entry masked to `out_width`)
+    /// is the combinational output decode over the **current state and
+    /// current input** — the registered `state_q` plus the
+    /// input-dependent `sel` cone, the textbook Mealy form. The state
+    /// register stays Moore-clocked; only the output decode reads `sel`.
+    /// Default-off ⇒ `None` ⇒ byte-identical.
+    pub mealy_outputs: Option<Vec<Vec<u128>>>,
+}
+
+impl Fsm {
+    /// True iff this FSM emits a **Mealy** output — a combinational decode
+    /// over `(state_q, sel)` (`mealy_outputs.is_some()`); false ⇒ Moore.
+    pub fn is_mealy(&self) -> bool {
+        self.mealy_outputs.is_some()
+    }
 }
 
 #[derive(Debug, Clone)]

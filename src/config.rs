@@ -119,6 +119,10 @@ fn default_fsm_prob() -> f64 {
     0.0
 }
 
+fn default_fsm_mealy_prob() -> f64 {
+    0.0
+}
+
 /// `MULTI-CLOCK-CDC.3b` — per-module roll for the multi-clock
 /// promotion pass. Defaults to `0.0` so every existing run is
 /// byte-identical to pre-`.3b` ANVIL.
@@ -1010,6 +1014,16 @@ pub struct Config {
     #[serde(default = "default_fsm_prob")]
     pub fsm_prob: f64,
 
+    /// `CAPABILITY-BREADTH-EXPANSION.2b` (decision `0024`) — given a
+    /// generated FSM (rolled by `fsm_prob`), the probability its output
+    /// is **Mealy** (a combinational decode over the current state *and*
+    /// current input `sel`) rather than **Moore** (state only). The state
+    /// register stays Moore-clocked; only the output decode reads `sel`.
+    /// `default = 0.0` keeps the Moore path byte-identical; rolled inside
+    /// the `fsm_prob` lane so `fsm_prob == 0.0` draws nothing.
+    #[serde(default = "default_fsm_mealy_prob")]
+    pub fsm_mealy_prob: f64,
+
     /// `MULTI-CLOCK-CDC.3b` — per-module roll for the multi-clock
     /// promotion pass. When fired, a second clock domain is added
     /// to the generated module + one flop-driven output is wrapped
@@ -1223,6 +1237,7 @@ impl Default for Config {
             cone_function_emit_prob: default_cone_function_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
+            fsm_mealy_prob: default_fsm_mealy_prob(),
             multi_clock_prob: default_multi_clock_prob(),
             cdc_synchronizer_stages: default_cdc_synchronizer_stages(),
             use_async_reset: true,
@@ -1600,6 +1615,7 @@ impl Config {
             ("cone_function_emit_prob", self.cone_function_emit_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
+            ("fsm_mealy_prob", self.fsm_mealy_prob),
             ("multi_clock_prob", self.multi_clock_prob),
         ] {
             if !(0.0..=1.0).contains(&value) {
@@ -1840,6 +1856,9 @@ impl Config {
         if let Some(v) = o.fsm_prob {
             self.fsm_prob = v;
         }
+        if let Some(v) = o.fsm_mealy_prob {
+            self.fsm_mealy_prob = v;
+        }
         if let Some(v) = o.multi_clock_prob {
             self.multi_clock_prob = v;
         }
@@ -1946,6 +1965,7 @@ pub struct Overrides {
     pub aggregate_array_prob: Option<f64>,
     pub memory_prob: Option<f64>,
     pub fsm_prob: Option<f64>,
+    pub fsm_mealy_prob: Option<f64>,
     pub multi_clock_prob: Option<f64>,
     pub cdc_synchronizer_stages: Option<u32>,
     pub hierarchy_module_dedup: Option<bool>,
@@ -2128,6 +2148,7 @@ fn knob_group(name: &str) -> &'static str {
         "width_parameterization_prob" => return "parameterization",
         "memory_prob" => return "memory_motif",
         "fsm_prob" => return "fsm",
+        "fsm_mealy_prob" => return "fsm",
         "multi_clock_prob" | "cdc_synchronizer_stages" => return "multi_clock",
         "priority_encoder_prob" | "case_mux_prob" | "casez_mux_prob" | "for_fold_prob" => {
             return "block_motif"

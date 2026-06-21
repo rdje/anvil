@@ -561,6 +561,10 @@ struct Cli {
     /// Per-module probability of a generated-encoding FSM block (Phase 6).
     #[arg(long)]
     fsm_prob: Option<f64>,
+    /// Given a generated FSM, probability its output is Mealy (decode over
+    /// the current state and input) rather than Moore (CAPABILITY-BREADTH-EXPANSION.2b).
+    #[arg(long)]
+    fsm_mealy_prob: Option<f64>,
     /// Per-module probability of multi-clock CDC promotion.
     #[arg(long)]
     multi_clock_prob: Option<f64>,
@@ -1163,6 +1167,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         aggregate_array_prob: cli.aggregate_array_prob,
         memory_prob: cli.memory_prob,
         fsm_prob: cli.fsm_prob,
+        fsm_mealy_prob: cli.fsm_mealy_prob,
         multi_clock_prob: cli.multi_clock_prob,
         cdc_synchronizer_stages: cli.cdc_synchronizer_stages,
         hierarchy_module_dedup: cli.hierarchy_module_dedup.then_some(true),

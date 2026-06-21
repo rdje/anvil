@@ -856,22 +856,51 @@ fn to_sv_with_modules(
             writeln!(out, "        else {} <= {};", st, nx).unwrap();
             writeln!(out, "    end").unwrap();
 
-            // Moore output decode.
+            // Output decode. Moore (default): a flat `case (state_q)` over
+            // the per-state table. Mealy (CAPABILITY-BREADTH-EXPANSION.2b,
+            // decision 0024): a nested `case (state_q)` → `case (sel)` over
+            // the per-(state, sel_value) table — structurally the same proven
+            // shape as the next-state decode above — so the output depends on
+            // the current state AND the current input `sel`.
             writeln!(out, "    always_comb begin").unwrap();
-            writeln!(out, "        case ({})", st).unwrap();
-            for s in 0..fsm.num_states {
-                writeln!(
-                    out,
-                    "            {}: {} = {}'h{:x};",
-                    sname(s),
-                    outw,
-                    fsm.out_width,
-                    fsm.outputs[s as usize]
-                )
-                .unwrap();
+            if let Some(mealy) = fsm.mealy_outputs.as_ref() {
+                writeln!(out, "        case ({})", st).unwrap();
+                for s in 0..fsm.num_states {
+                    writeln!(out, "            {}: case ({})", sname(s), sel).unwrap();
+                    for (sv, &val) in mealy[s as usize].iter().enumerate() {
+                        writeln!(
+                            out,
+                            "                {}'h{:x}: {} = {}'h{:x};",
+                            fsm.sel_width, sv, outw, fsm.out_width, val
+                        )
+                        .unwrap();
+                    }
+                    writeln!(
+                        out,
+                        "                default: {} = {}'h0;",
+                        outw, fsm.out_width
+                    )
+                    .unwrap();
+                    writeln!(out, "            endcase").unwrap();
+                }
+                writeln!(out, "            default: {} = {}'h0;", outw, fsm.out_width).unwrap();
+                writeln!(out, "        endcase").unwrap();
+            } else {
+                writeln!(out, "        case ({})", st).unwrap();
+                for s in 0..fsm.num_states {
+                    writeln!(
+                        out,
+                        "            {}: {} = {}'h{:x};",
+                        sname(s),
+                        outw,
+                        fsm.out_width,
+                        fsm.outputs[s as usize]
+                    )
+                    .unwrap();
+                }
+                writeln!(out, "            default: {} = {}'h0;", outw, fsm.out_width).unwrap();
+                writeln!(out, "        endcase").unwrap();
             }
-            writeln!(out, "            default: {} = {}'h0;", outw, fsm.out_width).unwrap();
-            writeln!(out, "        endcase").unwrap();
             writeln!(out, "    end").unwrap();
             writeln!(out).unwrap();
         }

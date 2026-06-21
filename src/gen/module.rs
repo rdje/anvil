@@ -319,6 +319,34 @@ fn build_fsm_block(g: &mut Generator, index: u64) -> Module {
     let outputs: Vec<u128> = (0..num_states)
         .map(|s| ((s as u128).wrapping_mul(0x9E37_79B1) ^ 0x5A5A) & out_mask)
         .collect();
+    // CAPABILITY-BREADTH-EXPANSION.2b (decision 0024): optionally make this
+    // FSM's output Mealy — a per-(state, sel_value) table decoded
+    // combinationally over the current state AND the input-dependent `sel`
+    // (the existing transition-select cone), mirroring `transitions`. The
+    // state register stays Moore-clocked. Single opt-in roll; default-off
+    // (`fsm_mealy_prob == 0.0`) draws nothing here ⇒ the Moore path stays
+    // byte-identical. The table is a pure (state, sel_value) formula so the
+    // output genuinely varies with the input (no extra RNG draw / no
+    // stream perturbation beyond the one gating roll).
+    let mealy_outputs: Option<Vec<Vec<u128>>> =
+        if g.cfg.fsm_mealy_prob > 0.0 && g.rng.gen_bool(g.cfg.fsm_mealy_prob.clamp(0.0, 1.0)) {
+            Some(
+                (0..num_states)
+                    .map(|s| {
+                        (0..fanout)
+                            .map(|j| {
+                                ((s as u128).wrapping_mul(0x9E37_79B1)
+                                    ^ (j as u128).wrapping_mul(0x85EB_CA6B)
+                                    ^ 0x5A5A)
+                                    & out_mask
+                            })
+                            .collect()
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
     m.fsms.push(Fsm {
         id: 0,
         num_states,
@@ -328,6 +356,7 @@ fn build_fsm_block(g: &mut Generator, index: u64) -> Module {
         transitions,
         outputs,
         out_width,
+        mealy_outputs,
     });
     let fo = m.nodes.len() as NodeId;
     m.nodes.push(Node::FsmOut {
@@ -1067,6 +1096,60 @@ fn count_orphan_gates(m: &Module) -> usize {
 mod tests {
     use super::*;
     use crate::ir::Instance;
+
+    // CAPABILITY-BREADTH-EXPANSION.2b (decision 0024): Mealy FSM outputs.
+    #[test]
+    fn build_fsm_block_is_moore_by_default() {
+        // fsm_mealy_prob defaults to 0.0.
+        let cfg = crate::config::Config {
+            fsm_prob: 1.0,
+            ..Default::default()
+        };
+        let mut g = crate::gen::Generator::new(cfg);
+        let m = build_fsm_block(&mut g, 0);
+        assert_eq!(m.fsms.len(), 1);
+        assert!(
+            m.fsms[0].mealy_outputs.is_none(),
+            "fsm_mealy_prob=0.0 must build a Moore FSM (byte-identical path)"
+        );
+    }
+
+    #[test]
+    fn build_fsm_block_is_mealy_when_knob_on() {
+        let cfg = crate::config::Config {
+            fsm_prob: 1.0,
+            fsm_mealy_prob: 1.0,
+            ..Default::default()
+        };
+        let mut g = crate::gen::Generator::new(cfg);
+        let m = build_fsm_block(&mut g, 0);
+        assert_eq!(m.fsms.len(), 1);
+        let fsm = &m.fsms[0];
+        let mealy = fsm
+            .mealy_outputs
+            .as_ref()
+            .expect("fsm_mealy_prob=1.0 must build a Mealy FSM");
+        // Table shape [num_states][1<<sel_width], each entry masked to out_width.
+        assert_eq!(mealy.len(), fsm.num_states as usize);
+        let fanout = 1usize << fsm.sel_width;
+        let out_mask: u128 = if fsm.out_width >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << fsm.out_width) - 1
+        };
+        for row in mealy {
+            assert_eq!(row.len(), fanout);
+            assert!(row.iter().all(|&v| v & !out_mask == 0));
+        }
+        // The Mealy FSM validates and emits the nested case(state)->case(sel)
+        // output decode (output depends on the current input `sel`).
+        crate::ir::validate::validate(&m).expect("mealy fsm must validate");
+        let sv = crate::emit::to_sv(&m);
+        assert!(
+            sv.contains("case (sel)"),
+            "mealy output decode must read `sel`:\n{sv}"
+        );
+    }
 
     #[test]
     fn shrink_primary_input_trims_unused_high_bits() {

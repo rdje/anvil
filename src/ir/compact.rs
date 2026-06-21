@@ -1746,6 +1746,15 @@ pub fn merge_equivalent_fsms(m: &mut Module) -> u32 {
     let mut removed = 0u32;
 
     for fsm in &m.fsms {
+        // CAPABILITY-BREADTH-EXPANSION.2b (decision 0024): a Mealy FSM's
+        // output depends on `sel`, so its identity would also have to key on
+        // the full `mealy_outputs` table. Until that keying lands, Mealy FSMs
+        // are conservatively excluded from the merge (each stays its own
+        // canonical block) — sound, nothing retired (the memories-stay-
+        // state-by-instance precedent). Moore FSMs are unaffected.
+        if fsm.is_mealy() {
+            continue;
+        }
         let sig = FsmSignature {
             num_states: fsm.num_states,
             encoding: fsm.encoding,
@@ -4632,6 +4641,7 @@ mod tests {
             transitions: transitions.clone(),
             outputs: outputs.clone(),
             out_width: 8,
+            mealy_outputs: None,
         });
         m.fsms.push(crate::ir::Fsm {
             id: 1,
@@ -4642,6 +4652,7 @@ mod tests {
             transitions,
             outputs,
             out_width: 8,
+            mealy_outputs: None,
         });
 
         rebuild_instance_tables(&mut m);
@@ -5297,6 +5308,7 @@ mod tests {
             transitions,
             outputs,
             out_width,
+            mealy_outputs: None,
         });
         let fo = m.nodes.len() as NodeId;
         m.nodes.push(Node::FsmOut {
@@ -5408,6 +5420,7 @@ mod tests {
             transitions,
             outputs,
             out_width: 8,
+            mealy_outputs: None,
         });
         let fo1 = two.nodes.len() as NodeId;
         two.nodes.push(Node::FsmOut { fsm: f1, width: 8 });

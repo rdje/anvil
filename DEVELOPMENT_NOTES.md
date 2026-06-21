@@ -5,6 +5,49 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Mealy FSM output mechanism — impl-time refinements — `CAPABILITY-BREADTH-EXPANSION.2b.1`
+
+The first **code** slice of the Mealy lane. Decision `0024` pinned the model; the
+impl surfaced a few choices worth keeping:
+
+- **`Fsm.mealy_outputs: Option<Vec<Vec<u128>>>` (not a `bool` + a reshaped table).**
+  `None` ⇒ Moore (the default), `Some(table)` ⇒ Mealy. An `Option` field is the
+  lowest-blast-radius shape: every existing Moore path sees `None` and behaves
+  exactly as before, and `outputs` is retained untouched. Adding the field does
+  **not** perturb any hash, because the FSM identity surfaces hash explicit field
+  lists, not a derive: `FsmSignature` (the `merge_equivalent_fsms` key) and
+  `canonical_module_signature` (which never even iterates `module.fsms` — it keys
+  `FsmOut` by `(fsm, width)` only) are both unchanged ⇒ Moore stays byte-identical
+  (snapshots 6/6).
+
+- **`FsmOut` stays a fully-opaque leaf — the ADR's "fold `sel` into the FsmOut
+  deps" was found unnecessary for soundness.** On inspection, `Node::FsmOut` has
+  **no** `deps` field; its dep set is derived virtually (`from_fsm_virtual(fsm)` =
+  one `FsmVirtual` atom). Non-triviality is already satisfied by that atom;
+  `sel`'s cone stays reachable through compaction via the `fsm.sel` reference
+  (the `fsmout_keeps_sel_cone_through_compaction` invariant), Moore or Mealy. So
+  folding `sel` into the FsmOut deps would only refine **analyze** support-cone
+  *fidelity* (a Mealy output's combinational input-dependence), not correctness —
+  and would ripple into CSE keys / dedup / metrics for no soundness gain. Kept
+  `FsmOut` opaque (consistent with `FlopQ`/`MemRead`); the analyze sel-fold is a
+  deferred, clearly-scoped fidelity refinement, not a blocker.
+
+- **Mealy FSMs are conservatively excluded from `merge_equivalent_fsms`.** A
+  Mealy FSM's identity would have to key on the full 2-D `mealy_outputs` table;
+  until that keying lands, a one-line `if fsm.is_mealy() { continue; }` leaves each
+  Mealy FSM its own canonical block — sound (never an incorrect merge), nothing
+  retired (the memories-stay-state-by-instance precedent). Moore merge is
+  untouched. Whole-module dedup already excludes all FSM modules
+  (`sequential_leaf_eligible` ⇒ `!has_local_fsms()`), so no module-level work was
+  needed.
+
+- **The Mealy table is a pure `(state, sel_value)` formula, not an RNG draw.** The
+  only RNG consumed for Mealy is the single gating `gen_bool(fsm_mealy_prob)`; the
+  table values come from a deterministic `(s, j)` hash so the output genuinely
+  varies with the input `sel` without perturbing the RNG stream beyond that one
+  roll. The emitter's Moore `else`-branch reproduces the prior bytes exactly, so
+  `fsm_mealy_prob == 0.0` is byte-identical.
+
 ## 2026-06-22 — Mealy FSM output model + the `.1`-vs-`.2` ordering call — `CAPABILITY-BREADTH-EXPANSION.2a`
 
 The design ADR (decision `0024`) for the Mealy strand of
