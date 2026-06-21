@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — Coverage-steered generation outer loop (derive + `--steer`) — `COVERAGE-STEERED-GENERATION.2c.1`
+
+The third **code** slice of the steering lane: the *derive* step of the outer
+measure→derive→re-steer loop + the `--steer` CLI shim. Notes worth keeping:
+
+- **The feedback loop is OUTER, not in-generator — so `derive` is a pure
+  `CoverageReadout → SteeringConfig` function.** This is the reconciliation with
+  `feedback_rules_first_generation` (decision `0023` §4): each generation pass
+  stays a pure rules-first function of `(seed, knobs, steering-config)`; the
+  "feedback" is three separate, deterministic steps the orchestration runs —
+  *measure* (`.2b`'s `coverage` readout) → *derive* (`.2c.1`'s helper) → *re-steer*
+  (regenerate with the new steering-config). `derive_steering_from_coverage` never
+  touches the generator and never filters — it just maps under-hit categories to
+  up-weights via `weight = clamp(target_share / max(observed, eps), 0, max_weight)`.
+  Per-category (not per-knob) by default because that is the granularity a
+  `SteeringConfig` targets and the coarsest useful rebalancing lever.
+
+- **Derived weights are milli-quantized — the `.2b` determinism lesson applied
+  forward.** A steering weight is an *input* to a future generation run, so if
+  `derive` produced a raw `f64`-division weight it could differ by 1 ULP between
+  machines and silently break `(seed, knobs, steering-config)` reproducibility (the
+  exact hazard `.2b` hit on `fire_rate`). Each weight is quantized to milli
+  (`(w*1000).round()/1000`) — far finer than any steering decision needs, and the
+  `.round()` collapses sub-milli divergence. Milli (not ppm) here because weights
+  range up to `max_weight` (e.g. 8), not `[0,1]`.
+
+- **One classifier for `--steer`, reusing the existing taxonomy.**
+  `SteeringConfig::set_weight` is the single place that decides whether a `--steer`
+  key is a knob name (→ `per_knob`) or a category (→ `per_category`), via the
+  `KnobId::category_of_name` / `KnobId::all` inversion added in `.2b` — no second
+  name/category table (`feedback_full_factorization`). Knob names and category
+  names are disjoint, so the classification is unambiguous; an unknown key errors
+  naming the categories (the cold-path list is built from `KnobId::all`, not a
+  hand-kept constant).
+
+- **Why the fallible `--steer` parse lives in `resolve_config`, not
+  `apply_cli_overrides`.** `apply_cli_overrides(&mut self)` is infallible (it just
+  copies `Option` fields), but `--steer` can fail (unknown key / bad weight). Rather
+  than make the whole override-application fallible (it is called from several
+  places), the steer pairs are applied in `resolve_config` (which already returns
+  `Result` and already calls `validate`). MCP leaves `Overrides.steer` empty (it
+  sets steering via the `config` JSON `steering` block), so this adds no MCP
+  behaviour and the shared resolver stays one path. Precedence: preset-steer then
+  explicit-steer then `validate`, so explicit `--steer` beats a preset on the same
+  key and the merged weights are range-checked once.
+
 ## 2026-06-21 — Coverage-steered generation readout — `COVERAGE-STEERED-GENERATION.2b`
 
 The second **code** slice of the steering lane: the achieved-coverage *readout*

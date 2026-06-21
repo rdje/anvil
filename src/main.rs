@@ -97,6 +97,28 @@ fn parse_child_instances_per_depth_arg(s: &str) -> Result<ChildInstancesPerDepth
     })
 }
 
+/// Parse one `--steer <key>=<weight>` argument into a `(key, weight)` pair
+/// (`COVERAGE-STEERED-GENERATION.2c.1`). The `key` is left as a string — whether
+/// it is a knob name or a steering category is classified later by
+/// `SteeringConfig::set_weight` (in `resolve_config`), which is where the
+/// unknown-key error surfaces. Here we only enforce the `key=weight` shape and a
+/// parseable weight; the finite/non-negative range check is the config
+/// validator's job. Keys contain no `=`, so a plain `split_once('=')` is exact.
+fn parse_steer_arg(s: &str) -> Result<(String, f64), String> {
+    let (key, value) = s
+        .split_once('=')
+        .ok_or_else(|| format!("expected <key>=<weight>, got `{s}`"))?;
+    let key = key.trim();
+    if key.is_empty() {
+        return Err(format!("empty steer key in `{s}`"));
+    }
+    let weight = value
+        .trim()
+        .parse::<f64>()
+        .map_err(|_| format!("invalid steer weight `{value}` in `{s}`"))?;
+    Ok((key.to_string(), weight))
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "anvil", version, about = "Random synthesizable RTL generator")]
 struct Cli {
@@ -499,6 +521,16 @@ struct Cli {
     /// `book/src/knobs.md` and the `anvil://catalog/presets` MCP resource.
     #[arg(long, value_name = "NAME")]
     profile: Option<String>,
+    /// Bias construction-time coverage steering: repeatable
+    /// `--steer <key>=<weight>` where key is a knob name (e.g. `flop_prob`) or a
+    /// steering category (`state`/`selectors`/`datapath`/`terminals`/`sharing`/
+    /// `hierarchy`) and weight is a non-negative multiplier (`>1` emphasizes,
+    /// `<1` de-emphasizes, `1` neutral). Layers on top of `--config`/`--profile`
+    /// (explicit wins per key); default none ⇒ DUT byte-identical. The ergonomic
+    /// shim over `Config.steering` (`COVERAGE-STEERED-GENERATION.2c.1`,
+    /// decision `0023`).
+    #[arg(long = "steer", value_name = "KEY=WEIGHT", value_parser = parse_steer_arg)]
+    steer: Vec<(String, f64)>,
     /// Per-qualifying-gate probability of the `function automatic` emit-projection.
     #[arg(long)]
     function_emit_prob: Option<f64>,
@@ -1137,6 +1169,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         hierarchy_semantic_module_dedup: cli.hierarchy_semantic_module_dedup.then_some(true),
         hierarchy_sequential_module_dedup: cli.hierarchy_sequential_module_dedup.then_some(true),
         bisimulation_flop_merge: cli.bisimulation_flop_merge.then_some(true),
+        steer: cli.steer.clone(),
     }
 }
 
@@ -1174,6 +1207,44 @@ mod tests {
         assert_eq!(o.function_emit_prob, Some(1.0));
         // an un-passed promoted knob stays None
         assert_eq!(o.memory_prob, None);
+    }
+
+    /// COVERAGE-STEERED-GENERATION.2c.1 — repeatable `--steer KEY=WEIGHT` parses
+    /// into `Overrides.steer` and resolves into `Config.steering` (knob name →
+    /// per_knob, category → per_category); no `--steer` ⇒ empty steering.
+    #[test]
+    fn steer_flag_parses_and_resolves_into_steering() {
+        let cli = Cli::parse_from(["anvil", "--steer", "state=4.0", "--steer", "flop_prob=2.0"]);
+        let o = cli_overrides(&cli);
+        assert_eq!(
+            o.steer,
+            vec![("state".to_string(), 4.0), ("flop_prob".to_string(), 2.0)]
+        );
+        let cfg =
+            anvil::config::resolve_config(anvil::config::Config::default(), None, &o, 1).unwrap();
+        assert_eq!(cfg.steering.per_category.get("state"), Some(&4.0));
+        assert_eq!(cfg.steering.per_knob.get("flop_prob"), Some(&2.0));
+
+        // No --steer ⇒ empty steer vec ⇒ empty steering (DUT byte-identical).
+        let plain = cli_overrides(&Cli::parse_from(["anvil", "--seed", "1"]));
+        assert!(plain.steer.is_empty());
+    }
+
+    #[test]
+    fn parse_steer_arg_accepts_pair_and_rejects_malformed() {
+        assert_eq!(
+            parse_steer_arg("state=4.0").unwrap(),
+            ("state".to_string(), 4.0)
+        );
+        // trims whitespace.
+        assert_eq!(
+            parse_steer_arg(" flop_prob = 0.5 ").unwrap(),
+            ("flop_prob".to_string(), 0.5)
+        );
+        // missing '=' and a non-numeric weight both error (CLI-time).
+        assert!(parse_steer_arg("state").is_err());
+        assert!(parse_steer_arg("state=high").is_err());
+        assert!(parse_steer_arg("=4.0").is_err());
     }
 
     /// A `SetTrue` dedup bool maps to `Some(true)` only when present, else `None`

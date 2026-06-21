@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-21` (`.2b` coverage readout landed; frontier `.2c`)
+- Last updated: `2026-06-21` (`.2c.1` derive helper + `--steer` landed; frontier `.2c.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -88,6 +88,27 @@ design space while preserving every lane invariant.
   Verification: `pending`
   Commit: `pending`
 
+  Pre-split (introduced `2026-06-21` at the start of `.2c`, matching how `.2`
+  itself was split, to keep the code slice and the load-bearing book slice each
+  signoff-sized): `.2c.1` (CODE — the `derive_steering_from_coverage` helper + the
+  `--steer` CLI shim, with proofs) then `.2c.2` (DOCS — book steering subsection +
+  `agent-mcp.md` coverage/steering + USER_GUIDE + KM card; closes `.2c` and `.2`).
+  Children: `COVERAGE-STEERED-GENERATION.2c.1`, `.2c.2`.
+
+- ID: `COVERAGE-STEERED-GENERATION.2c.1`
+  Status: `done`
+  Goal: `The outer-loop CODE: (a) a pure deterministic derive_steering_from_coverage(&CoverageReadout, params) -> SteeringConfig helper (decision 0023 §4: per-category weight = clamp(target_share / max(observed_share, eps), 0, max_weight); emit only non-neutral weights to keep the SteeringConfig minimal); (b) the --steer <key>=<weight> repeatable CLI shim that fills Config.steering.per_category (known category) / per_knob (known KnobId name), validated. The MCP/--config target-set already exists (SteeringConfig is part of Config); this is the ergonomic shim + the derive convenience.`
+  Acceptance: `derive helper is pure + deterministic (byte-identical for the same (readout, params)) and produces an up-weight for an under-hit category and ~neutral for an at-target one; --steer parses key=weight into the right map, errors on a bad weight / unknown key, and composes with --config/--profile in the documented resolution order; unsteered default byte-identical (no --steer ⇒ empty steering ⇒ DUT byte-identical); full COMMIT.md cargo gate green.`
+  Verification: `done — src/introspect/coverage.rs: derive_steering_from_coverage(&CoverageReadout, &DeriveParams) -> SteeringConfig (per-category weight = clamp(target_share/max(observed,eps), 0, max_weight), milli-quantized for byte-stability, neutral weights omitted) + DeriveParams (target_share/max_weight/epsilon, neutral default). Pure read→config function — no generation, no filter (feedback in the orchestration, feedback_rules_first_generation). src/config.rs: SteeringConfig::set_weight (knob name → per_knob / category → per_category / else ConfigError::UnknownSteerKey, reusing KnobId::category_of_name + all — one classifier), validate() made pub, Overrides.steer (skip_serializing_if), resolve_config applies preset-then-explicit steer before validate. src/main.rs: --steer <key>=<weight> repeatable flag + parse_steer_arg + cli_overrides mapping. Proofs: 3 derive tests (up-weight under-hit + neutralize at-target + omit; clamp zero-fire to max_weight; deterministic + milli-quantized), 4 config tests (set_weight classify; resolve_config applies steer; unknown-key error; negative-weight error), 2 main tests (parse_steer_arg; --steer end-to-end resolves). CLI smoke: --steer state=8 ≠ unsteered SV; --steer state=1.0 byte-identical to unsteered; --steer bogus=2 errors naming categories. Full gate green: cargo check --all-targets, cargo test (snapshots 6/6), cargo clippy -D warnings, cargo fmt --check. Unsteered default DUT byte-identical.`
+  Commit: `COVERAGE-STEERED-GENERATION.2c.1 — outer-loop derive helper + --steer CLI shim`
+
+- ID: `COVERAGE-STEERED-GENERATION.2c.2`
+  Status: `pending`
+  Goal: `The DOCS + close: book steering subsection in algorithm.md + the coverage/steering surfaces in agent-mcp.md (incl. the schema 1.12 coverage_readout example refresh + the coverage MCP tool) + USER_GUIDE (the --steer shim + the measure→derive→re-steer recipe) + a KM card for the steering capability; mark .2c, .2, and re-evaluate the tree. Refreshes the owner-deferred steering-lane book/USER_GUIDE drift recorded at .2a/.2b.`
+  Acceptance: `book + USER_GUIDE accurately document steering (the prior multiplier, the SteeringConfig target, the coverage readout, the coverage MCP tool, --steer, and the outer loop) with runnable examples; the schema-1.12 example refresh lands; KM regen+check green; mdbook build clean; .2c + .2 marked done; INDEX/tree/TASK_TREE updated.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
@@ -95,7 +116,8 @@ design space while preserving every lane invariant.
 | 1 | `COVERAGE-STEERED-GENERATION.1` | `done` | Design ADR (decision `0023`) pinned the rules-first steering primitive (a prior multiplier at `roll_knob`, not a filter), the byte-stability contract, the `SteeringConfig` target model, the SCHEMA-DERIVED achieved-coverage readout, the outer measure→derive→re-steer loop, and the decision-`0017` API surface. |
 | 2 | `COVERAGE-STEERED-GENERATION.2a` | `done` | Steering core landed: `KnobId::category()`, `SteeringConfig` + `weight()`/`effective_prob()`, the `roll_knob` prior multiplier, `ConfigError::SteeringWeight`. All three proofs green (byte-identical default via snapshots 6/6; measurable distribution shift; no-filter architectural) + full cargo gate. |
 | 3 | `COVERAGE-STEERED-GENERATION.2b` | `done` | Achieved-coverage readout landed: `src/introspect/coverage.rs` (`CoverageReadout` + per-knob/per-category fire rates + the gate/operand/depth histograms), embedded as `IntrospectionPayload::coverage_readout` (schema `1.11→1.12`) + the standalone MCP `coverage` query (`CoverageDocument`), one projection feeding both. SCHEMA-DERIVED / DUT `.sv` byte-identical; `fire_rate` integer-ppm for byte-stable determinism. Full cargo gate green. |
-| 4 | `COVERAGE-STEERED-GENERATION.2c` | `pending` | The outer measure→derive→re-steer convenience (`derive_steering_from_coverage`) + the `--steer` CLI shim + book (`algorithm.md` steering subsection + `agent-mcp.md`) + USER_GUIDE + a KM card; close `.2`. Code + the owner-deferred steering-lane docs. Task-tree-owned. |
+| 4 | `COVERAGE-STEERED-GENERATION.2c.1` | `done` | Outer-loop CODE landed: the pure `derive_steering_from_coverage(&CoverageReadout, &DeriveParams) -> SteeringConfig` helper (decision `0023` §4, milli-quantized weights) + `SteeringConfig::set_weight` + the repeatable `--steer <key>=<weight>` CLI shim into `Config.steering` (preset-then-explicit in `resolve_config`). Unsteered default byte-identical (snapshots 6/6); CLI smoke proves steered≠unsteered, neutral=unsteered, bad-key errors. Full cargo gate green. |
+| 5 | `COVERAGE-STEERED-GENERATION.2c.2` | `pending` | **Next.** The DOCS + close: book steering subsection (`algorithm.md`) + `agent-mcp.md` (coverage/steering + the schema `1.12` example refresh) + USER_GUIDE + a KM card; mark `.2c` + `.2` done. Closes the owner-deferred steering-lane doc drift. Task-tree-owned. |
 
 ## Decisions
 
@@ -178,6 +200,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.1` | `decision 0023 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2a` | `SteeringConfig + KnobId::category() + roll_knob prior multiplier + ConfigError::SteeringWeight; cargo check --all-targets, cargo test (snapshots 6/6 + new steering unit/integration tests), cargo clippy -D warnings, cargo fmt --check all green; rules-first / DUT byte-identical when unset` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2b` | `src/introspect/coverage.rs (CoverageReadout + module_coverage/design_coverage) + KnobId::all()/category_of_name() + IntrospectionPayload::coverage_readout + CoverageDocument + MCP coverage tool; schema 1.11→1.12 + schema doc §5/§6.8/changelog; fire_rate integer-ppm determinism fix (caught by introspect_tool_round_trips); cargo check --all-targets, cargo test (snapshots 6/6 + new coverage unit + introspect/mcp coverage tests), cargo clippy -D warnings, cargo fmt --check all green; SCHEMA-DERIVED / DUT .sv byte-identical` | `done` |
+| `2026-06-21` | `COVERAGE-STEERED-GENERATION.2c.1` | `src/introspect/coverage.rs derive_steering_from_coverage + DeriveParams; src/config.rs SteeringConfig::set_weight + pub validate + Overrides.steer + resolve_config steer application + ConfigError::UnknownSteerKey; src/main.rs --steer flag + parse_steer_arg + cli_overrides; 9 new tests (3 derive + 4 config steer + 2 main CLI); cargo check --all-targets, cargo test (snapshots 6/6), cargo clippy -D warnings, cargo fmt --check all green; CLI smoke (steered≠unsteered, neutral=unsteered, bad-key error); unsteered default DUT byte-identical` | `done` |
 
 ## Commit Log
 
@@ -187,6 +210,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `COVERAGE-STEERED-GENERATION.1` | `COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023)` | Design-only; pins the rules-first prior-multiplier steering primitive at `roll_knob`, the byte-stability contract, the `SteeringConfig` target, the SCHEMA-DERIVED coverage readout, the outer feedback loop, and the API surface; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
 | `COVERAGE-STEERED-GENERATION.2a` | `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)` | First code slice: `KnobId::category()` (exhaustive 21-variant taxonomy), `SteeringConfig` (`per_knob`/`per_category` weights + `weight()`/`effective_prob()`/`is_empty()`/`validate()`), `Config.steering` (only `skip_serializing_if`), `ConfigError::SteeringWeight`, the `roll_knob` prior multiplier. Three proofs green (byte-identical default; distribution shift; no-filter) + full cargo gate. Rules-first / DUT byte-identical when unset. |
 | `COVERAGE-STEERED-GENERATION.2b` | `COVERAGE-STEERED-GENERATION.2b — achieved-coverage readout (--introspect section + MCP coverage query)` | Second code slice (the READ half): `src/introspect/coverage.rs` (`CoverageReadout` + `module_coverage`/`design_coverage`), `KnobId::all()`/`category_of_name()`, the `coverage_readout` payload section (schema `1.11→1.12`), the `CoverageDocument` envelope + the pure MCP `coverage` tool (one projection feeding both). Schema doc §5/§6.8/changelog. `fire_rate` integer-ppm for byte-stable determinism (1-ULP fix caught by the pre-existing round-trip test, not weakened). SCHEMA-DERIVED / DUT `.sv` byte-identical; full cargo gate green. |
+| `COVERAGE-STEERED-GENERATION.2c.1` | `COVERAGE-STEERED-GENERATION.2c.1 — outer-loop derive helper + --steer CLI shim` | Third code slice (the steering-OUT half): the pure `derive_steering_from_coverage` helper (decision `0023` §4, milli-quantized weights) + `SteeringConfig::set_weight` (one classifier) + `pub validate` + `Overrides.steer` + the repeatable `--steer <key>=<weight>` CLI shim (preset-then-explicit in `resolve_config`). 9 new proofs + CLI smoke (steered≠unsteered, neutral=unsteered, bad-key error). Unsteered default DUT byte-identical; full cargo gate green. |
 
 ## Changelog
 
@@ -208,3 +232,12 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
   exact-equality round-trip test, fixed without weakening it). SCHEMA-DERIVED / DUT
   `.sv` byte-identical; full cargo gate green. Frontier advances to `.2c` (the outer
   measure→derive→re-steer helper + `--steer` CLI shim + book/USER_GUIDE/KM; close `.2`).
+- `2026-06-21`: `.2c` pre-split into `.2c.1` (code) + `.2c.2` (docs/close) — matching
+  how `.2` itself was split — to keep the code slice and the load-bearing book slice
+  each signoff-sized. `.2c.1` landed (code): `derive_steering_from_coverage` +
+  `DeriveParams` (the outer-loop derive step, milli-quantized weights, rules-first —
+  no generation/filter) + `SteeringConfig::set_weight`/`pub validate` + `Overrides.steer`
+  + the `--steer <key>=<weight>` CLI shim (preset-then-explicit in `resolve_config`).
+  9 proofs + CLI smoke; unsteered default DUT byte-identical; full cargo gate green.
+  Frontier advances to `.2c.2` (book steering subsection + `agent-mcp.md` + USER_GUIDE
+  + KM card + the schema-`1.12` book example refresh; closes `.2c` + `.2`).

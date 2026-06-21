@@ -1,9 +1,67 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — COVERAGE-STEERED-GENERATION.2c.1 — outer-loop derive helper + `--steer` CLI shim
+
+**Landed as:** this commit (previous: `5151891`). **Third CODE slice of the
+coverage-steering lane — the steering-OUT half (derive + the ergonomic shim);
+unsteered default DUT byte-identical.** Implements decision
+[`0023`](docs/decisions/0023-coverage-steered-generation.md) §4 (the outer
+measure→derive→re-steer loop's *derive* step) + §5 (the `--steer` CLI shim over
+the already-MCP/`--config`-settable `Config.steering`). Task-tree-owned by
+`COVERAGE-STEERED-GENERATION.2c.1` (a leaf created by pre-splitting `.2c` at the
+start of this slice, per doctrine — own before edit).
+
+**What changed (why)**
+
+- **`src/introspect/coverage.rs`** — the pure `derive_steering_from_coverage(&CoverageReadout,
+  &DeriveParams) -> SteeringConfig` helper (decision `0023` §4 step 2): per
+  category, `weight = clamp(target_share / max(observed, epsilon), 0, max_weight)`,
+  so an under-hit category is up-weighted and an over-hit one down-weighted; only
+  non-neutral weights are emitted (an at-target run ⇒ near-empty config). It does
+  **not** run the generator and is **not** a filter — a pure
+  `CoverageReadout → SteeringConfig` function, so the feedback lives in the
+  orchestration (`feedback_rules_first_generation`). `DeriveParams` (target_share /
+  max_weight / epsilon) with a neutral default. Determinism: each weight is
+  milli-quantized (`(w*1000).round()/1000`) — the same byte-stability discipline as
+  the `.2b` `fire_rate` (a derived weight is an *input* to a future run, so it must
+  not drift by 1 ULP across machines).
+- **`src/config.rs`** — `SteeringConfig::set_weight(key, weight)` classifies `key`
+  against the fixed `KnobId` taxonomy (knob name → `per_knob`, category →
+  `per_category`, else `ConfigError::UnknownSteerKey`) — the single classifier the
+  `--steer` shim reuses; `SteeringConfig::validate` made `pub` (an agent that builds
+  a steering-config can validate it, decision `0017`); `Overrides.steer:
+  Vec<(String,f64)>` (`skip_serializing_if`); `resolve_config` applies preset-steer
+  then explicit-steer (explicit wins per key) before `validate`.
+- **`src/main.rs`** — the repeatable `--steer <key>=<weight>` CLI flag +
+  `parse_steer_arg` (CLI-time shape/parse check; the unknown-key + range checks stay
+  in `resolve_config`/`validate`) + the `cli_overrides` mapping.
+- **`README.md`** — a `--steer` bullet in the Current CLI truth (status-authority).
+
+**Why this is rules-first / byte-identical** — `--steer` only populates
+`Config.steering`; with no `--steer` the steering block stays empty ⇒ the `.2a`
+`roll_knob` short-circuit ⇒ DUT byte-identical. The derive helper is a pure
+read→config function (no generation, no filter). Proven end-to-end: `--steer
+state=8` changes the emitted SV; `--steer state=1.0` (neutral) is byte-identical to
+unsteered; an unknown `--steer bogus=2` errors cleanly naming the categories.
+
+**Validation** — `cargo check --all-targets` ✅; `cargo test` ✅ (snapshots 6/6
+byte-identical; new `derive_*` coverage tests + `set_weight`/`resolve_config` steer
+tests + `parse_steer_arg`/`--steer` CLI tests); `cargo clippy --all-targets -- -D
+warnings` ✅; `cargo fmt --all --check` ✅; CLI smoke (steered≠unsteered,
+neutral=unsteered, bad-key error) ✅.
+
+**Files touched** — `src/introspect/coverage.rs`, `src/config.rs`, `src/main.rs`,
+`README.md`, `docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`.
+
+**Book/USER_GUIDE/KM** — the steering narrative (book steering subsection +
+`agent-mcp.md` + USER_GUIDE recipe + KM card) lands at `.2c.2` (closes `.2`), per
+decision `0023`'s pre-split. README's factual CLI/`--steer` entry lands now.
+
 ## 2026-06-21 — COVERAGE-STEERED-GENERATION.2b — achieved-coverage readout (--introspect section + MCP `coverage` query)
 
-**Landed as:** this commit (previous: `2530bfd`). **Second CODE slice of the
+**Landed as:** `5151891` (previous: `2530bfd`). **Second CODE slice of the
 coverage-steering lane — the READ half; SCHEMA-DERIVED; DUT `.sv` byte-identical.**
 Implements decision [`0023`](docs/decisions/0023-coverage-steered-generation.md) §3
 + §5 (the achieved-coverage readout + the decision-`0017` API surface).

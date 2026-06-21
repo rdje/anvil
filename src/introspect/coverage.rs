@@ -36,10 +36,13 @@
 //!
 //! # Determinism
 //!
-//! Every map is a `BTreeMap`, every rate is `fires as f64 / attempts as f64`
-//! (exact IEEE-754, attempts `>= 1` for any present key), so a
-//! [`CoverageReadout`] is a byte-stable function of its input [`Metrics`].
+//! Every map is a `BTreeMap`, and every `fire_rate` is a round-half-up integer
+//! parts-per-million quotient (`KnobCoverage::new`), so a [`CoverageReadout`] is
+//! a byte-stable function of its input [`Metrics`] — no raw `f64` division
+//! reaches the document, which a bare `fires as f64 / attempts as f64` could let
+//! diverge by 1 ULP between evaluation contexts.
 
+use crate::config::SteeringConfig;
 use crate::ir::KnobId;
 use crate::metrics::Metrics;
 use serde::{Deserialize, Serialize};
@@ -200,6 +203,88 @@ fn readout_from_parts(
     }
 }
 
+/// Parameters for [`derive_steering_from_coverage`] — the **derive** step of the
+/// outer measure→derive→re-steer loop (decision `0023` §4 step 2). Tunable so a
+/// caller (a sweep, a CI job) can pick how aggressively to rebalance.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeriveParams {
+    /// The fire rate to steer each category *toward*. A category whose achieved
+    /// rate is below this gets up-weighted; one above gets down-weighted.
+    pub target_share: f64,
+    /// Clamp ceiling on the emitted weight, so a barely-exercised category cannot
+    /// produce an unbounded multiplier. (Floor is `0.0`.)
+    pub max_weight: f64,
+    /// Floor on the observed share in the denominator, so a zero-fire category
+    /// yields `target_share / epsilon` (a large but finite up-weight), never a
+    /// division by zero.
+    pub epsilon: f64,
+}
+
+impl Default for DeriveParams {
+    fn default() -> Self {
+        // A neutral midpoint target, a generous-but-bounded ceiling, and a
+        // milli-floor on the denominator.
+        DeriveParams {
+            target_share: 0.5,
+            max_weight: 8.0,
+            epsilon: 1e-3,
+        }
+    }
+}
+
+/// Quantize a steering weight to milli-precision via integer rounding, so a
+/// derived weight is **byte-stable across evaluation contexts** (the same
+/// determinism discipline as `KnobCoverage::new`'s `fire_rate`: a raw
+/// `f64`-division weight could differ by 1 ULP between machines, and the weight
+/// is an *input* to a future generation run — `(seed, knobs, steering-config)`
+/// must stay reproducible). Milli is far finer than any steering decision needs.
+fn quantize_weight_milli(w: f64) -> f64 {
+    // `w` is already clamped to `[0, max_weight]`, so `w * 1000.0` is a small
+    // non-negative finite value; `.round()` collapses any sub-milli divergence.
+    (w * 1000.0).round() / 1000.0
+}
+
+/// Derive a [`SteeringConfig`] that nudges each category's achieved fire rate
+/// toward `params.target_share` — the pure, deterministic **derive** step of the
+/// outer measure→derive→re-steer loop (decision `0023` §4). For each category in
+/// the readout:
+///
+/// ```text
+/// weight = clamp( target_share / max(observed_share, epsilon), 0.0, max_weight )
+/// ```
+///
+/// so an **under-hit** category (low observed share) gets `weight > 1` (more
+/// emphasis) and an over-hit one gets `weight < 1`. Only **non-neutral** weights
+/// (more than milli away from `1.0`) are emitted, so a run already at target
+/// yields an (almost) empty `SteeringConfig` ⇒ near-byte-identical re-runs. The
+/// result is a per-category steering target; an agent can layer per-knob weights
+/// on top.
+///
+/// This does **not** run the generator and is **not** a filter — it is a pure
+/// `CoverageReadout → SteeringConfig` function (`feedback_rules_first_generation`:
+/// the feedback lives in the orchestration, not the generator). Byte-identical
+/// for the same `(readout, params)` (every weight is milli-quantized).
+pub fn derive_steering_from_coverage(
+    readout: &CoverageReadout,
+    params: &DeriveParams,
+) -> SteeringConfig {
+    let mut per_category: BTreeMap<String, f64> = BTreeMap::new();
+    for (category, cell) in &readout.category_fire_rates {
+        let observed = cell.fire_rate.max(params.epsilon);
+        let weight =
+            quantize_weight_milli((params.target_share / observed).clamp(0.0, params.max_weight));
+        // Omit a neutral weight to keep the steering-config minimal (and an
+        // at-target re-run as close to byte-identical as possible).
+        if (weight - 1.0).abs() > 1e-6 {
+            per_category.insert(category.clone(), weight);
+        }
+    }
+    SteeringConfig {
+        per_knob: BTreeMap::new(),
+        per_category,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,5 +428,76 @@ mod tests {
         let s = serde_json::to_string(&readout).unwrap();
         let back: CoverageReadout = serde_json::from_str(&s).unwrap();
         assert_eq!(readout, back);
+    }
+
+    /// Build a readout carrying just the given per-category fire rates (the only
+    /// field `derive_steering_from_coverage` reads).
+    fn readout_with_category_rates(rates: &[(&str, f64)]) -> CoverageReadout {
+        let mut category_fire_rates = BTreeMap::new();
+        for (cat, rate) in rates {
+            category_fire_rates.insert(
+                (*cat).to_string(),
+                KnobCoverage {
+                    attempts: 1000,
+                    fires: (rate * 1000.0).round() as u64,
+                    fire_rate: *rate,
+                },
+            );
+        }
+        CoverageReadout {
+            category_fire_rates,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn derive_up_weights_under_hit_and_neutralizes_at_target() {
+        // target 0.5: an under-hit category (0.1) is up-weighted (~5x), an
+        // at-target one (0.5) is neutral and therefore omitted, and an over-hit
+        // one (1.0) is down-weighted (~0.5x).
+        let readout =
+            readout_with_category_rates(&[("state", 0.1), ("selectors", 0.5), ("datapath", 1.0)]);
+        let params = DeriveParams::default();
+        let steering = derive_steering_from_coverage(&readout, &params);
+
+        // Under-hit "state" up-weighted toward 0.5/0.1 = 5.0.
+        assert!((steering.per_category["state"] - 5.0).abs() < 1e-6);
+        // At-target "selectors" is neutral ⇒ omitted (keeps the config minimal).
+        assert!(!steering.per_category.contains_key("selectors"));
+        // Over-hit "datapath" down-weighted toward 0.5/1.0 = 0.5.
+        assert!((steering.per_category["datapath"] - 0.5).abs() < 1e-6);
+        // per_knob is untouched (the derive step targets categories).
+        assert!(steering.per_knob.is_empty());
+        // The derived config validates (weights finite, >= 0).
+        assert!(steering.validate().is_ok());
+    }
+
+    #[test]
+    fn derive_clamps_zero_fire_to_max_weight() {
+        // A never-firing category (0.0) hits the epsilon floor ⇒ a large weight,
+        // clamped to max_weight (not unbounded).
+        let readout = readout_with_category_rates(&[("hierarchy", 0.0)]);
+        let params = DeriveParams {
+            target_share: 0.5,
+            max_weight: 4.0,
+            epsilon: 1e-3,
+        };
+        let steering = derive_steering_from_coverage(&readout, &params);
+        assert_eq!(steering.per_category["hierarchy"], 4.0);
+    }
+
+    #[test]
+    fn derive_is_deterministic() {
+        // Same (readout, params) ⇒ byte-identical SteeringConfig (the weights are
+        // milli-quantized, so no cross-evaluation drift).
+        let readout = readout_with_category_rates(&[("state", 0.137), ("datapath", 0.291)]);
+        let params = DeriveParams::default();
+        let a = derive_steering_from_coverage(&readout, &params);
+        let b = derive_steering_from_coverage(&readout, &params);
+        assert_eq!(a, b);
+        // And every weight is milli-quantized.
+        for w in a.per_category.values() {
+            assert_eq!(*w, (w * 1000.0).round() / 1000.0);
+        }
     }
 }

@@ -488,8 +488,10 @@ impl SteeringConfig {
 
     /// Validate every weight is finite and non-negative. Mirrors the
     /// `Config` probability-range checks; a negative or non-finite weight
-    /// is a `ConfigError::SteeringWeight`.
-    fn validate(&self) -> Result<(), ConfigError> {
+    /// is a `ConfigError::SteeringWeight`. `pub` so an agent (or the outer
+    /// measure→derive→re-steer loop) can validate a steering-config it built
+    /// before handing it to generation (decision `0017`).
+    pub fn validate(&self) -> Result<(), ConfigError> {
         for (key, &w) in self.per_knob.iter().chain(self.per_category.iter()) {
             if !w.is_finite() || w < 0.0 {
                 return Err(ConfigError::SteeringWeight {
@@ -499,6 +501,34 @@ impl SteeringConfig {
             }
         }
         Ok(())
+    }
+
+    /// Set one emphasis weight from a `key=weight` shim (the `--steer` CLI,
+    /// `COVERAGE-STEERED-GENERATION.2c.1`). `key` is classified against the fixed
+    /// `KnobId` taxonomy: a known **knob name** (`KnobId::name`) lands in
+    /// `per_knob`; a known **category** (`KnobId::category`) lands in
+    /// `per_category`; anything else is a `ConfigError::UnknownSteerKey`. Knob
+    /// names and category names are disjoint, so the classification is
+    /// unambiguous. The weight itself is range-checked later by
+    /// [`validate`](SteeringConfig::validate) (so a caller can stage several
+    /// keys, then validate once). Inserting an existing key overwrites it, so
+    /// `--steer` composes with a `--config`/`--profile` steering block.
+    pub fn set_weight(&mut self, key: &str, weight: f64) -> Result<(), ConfigError> {
+        if KnobId::category_of_name(key).is_some() {
+            self.per_knob.insert(key.to_string(), weight);
+            Ok(())
+        } else if KnobId::all().iter().any(|k| k.category() == key) {
+            self.per_category.insert(key.to_string(), weight);
+            Ok(())
+        } else {
+            let mut categories: Vec<&str> = KnobId::all().iter().map(|k| k.category()).collect();
+            categories.sort_unstable();
+            categories.dedup();
+            Err(ConfigError::UnknownSteerKey {
+                key: key.to_string(),
+                categories: categories.join(", "),
+            })
+        }
     }
 }
 
@@ -1229,6 +1259,10 @@ pub enum ConfigError {
     /// fully suppresses).
     #[error("steering weight {key:?} ({value}) must be finite and >= 0.0")]
     SteeringWeight { key: String, value: f64 },
+    /// COVERAGE-STEERED-GENERATION.2c.1 — a `--steer <key>=<weight>` shim named a
+    /// `key` that is neither a known knob name nor a known steering category.
+    #[error("unknown steer key {key:?}; expected a knob name or a category ({categories})")]
+    UnknownSteerKey { key: String, categories: String },
     #[error("max_depth must be >= 1")]
     DepthTooSmall,
     #[error("min_width must be >= 1")]
@@ -1918,6 +1952,14 @@ pub struct Overrides {
     pub hierarchy_semantic_module_dedup: Option<bool>,
     pub hierarchy_sequential_module_dedup: Option<bool>,
     pub bisimulation_flop_merge: Option<bool>,
+    /// COVERAGE-STEERED-GENERATION.2c.1 — `--steer <key>=<weight>` pairs (already
+    /// split into `(key, weight)`). Applied last in [`resolve_config`] into
+    /// `Config.steering` via [`SteeringConfig::set_weight`], which classifies each
+    /// key as a knob name or a steering category. Empty by default ⇒ no steering
+    /// ⇒ DUT byte-identical. Not a single-value `Option` like the other overrides
+    /// because `--steer` is repeatable (one pair per occurrence).
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub steer: Vec<(String, f64)>,
 }
 
 /// A curated `--profile` preset (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision
@@ -2231,8 +2273,20 @@ pub fn resolve_config(
             available: preset_names(),
         })?;
         base.apply_cli_overrides(&preset);
+        // A preset may carry steering pairs (none do today); apply them before
+        // the explicit `--steer` so explicit overrides win on the same key.
+        for (key, weight) in &preset.steer {
+            base.steering.set_weight(key, *weight)?;
+        }
     }
     base.apply_cli_overrides(overrides);
+    // COVERAGE-STEERED-GENERATION.2c.1 — the `--steer <key>=<weight>` shim is the
+    // last layer before `validate` (explicit beats preset; `validate` then
+    // range-checks the merged weights). Empty ⇒ steering untouched ⇒ DUT
+    // byte-identical.
+    for (key, weight) in &overrides.steer {
+        base.steering.set_weight(key, *weight)?;
+    }
     base.seed = seed;
     base.validate()?;
     Ok(base)
@@ -2476,6 +2530,65 @@ mod tests {
         steering.per_knob.insert("flop_prob".to_string(), 0.0);
         // 0.15 * 0.0 = 0.0 -> fully suppressed.
         assert_eq!(steering.effective_prob(KnobId::FlopProb, 0.15), 0.0);
+    }
+
+    // --- COVERAGE-STEERED-GENERATION.2c.1: the `--steer` shim ------------------
+
+    #[test]
+    fn set_weight_classifies_knob_name_vs_category_vs_unknown() {
+        let mut s = SteeringConfig::default();
+        // A knob name lands in per_knob.
+        s.set_weight("flop_prob", 2.0).unwrap();
+        assert_eq!(s.per_knob.get("flop_prob"), Some(&2.0));
+        assert!(s.per_category.is_empty());
+        // A category name lands in per_category.
+        s.set_weight("hierarchy", 0.5).unwrap();
+        assert_eq!(s.per_category.get("hierarchy"), Some(&0.5));
+        // An unknown key errors (and names the categories).
+        let err = s.set_weight("not_a_key", 1.0).unwrap_err();
+        assert!(matches!(err, ConfigError::UnknownSteerKey { .. }));
+        assert!(err.to_string().contains("hierarchy"));
+        // Re-setting overwrites (so --steer composes with a preset block).
+        s.set_weight("flop_prob", 3.0).unwrap();
+        assert_eq!(s.per_knob.get("flop_prob"), Some(&3.0));
+    }
+
+    #[test]
+    fn resolve_config_applies_steer_overrides() {
+        // `--steer state=4 flop_prob=2` fills per_category / per_knob; the merged
+        // weights validate; an empty steer leaves steering empty (byte-identical).
+        let overrides = Overrides {
+            steer: vec![("state".to_string(), 4.0), ("flop_prob".to_string(), 2.0)],
+            ..Default::default()
+        };
+        let cfg = resolve_config(Config::default(), None, &overrides, 7).unwrap();
+        assert_eq!(cfg.steering.per_category.get("state"), Some(&4.0));
+        assert_eq!(cfg.steering.per_knob.get("flop_prob"), Some(&2.0));
+
+        // No --steer ⇒ steering stays empty ⇒ DUT byte-identical path.
+        let plain = resolve_config(Config::default(), None, &Overrides::default(), 7).unwrap();
+        assert!(plain.steering.is_empty());
+    }
+
+    #[test]
+    fn resolve_config_rejects_unknown_steer_key() {
+        let overrides = Overrides {
+            steer: vec![("bogus".to_string(), 2.0)],
+            ..Default::default()
+        };
+        let err = resolve_config(Config::default(), None, &overrides, 0).unwrap_err();
+        assert!(matches!(err, ConfigError::UnknownSteerKey { .. }));
+    }
+
+    #[test]
+    fn resolve_config_rejects_negative_steer_weight() {
+        // A bad weight is caught by validate() after the merge.
+        let overrides = Overrides {
+            steer: vec![("state".to_string(), -1.0)],
+            ..Default::default()
+        };
+        let err = resolve_config(Config::default(), None, &overrides, 0).unwrap_err();
+        assert!(matches!(err, ConfigError::SteeringWeight { .. }));
     }
 
     #[test]

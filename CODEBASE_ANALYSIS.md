@@ -371,6 +371,13 @@ src/
 │                     field ⇒ empty block omitted ⇒ --dump-config/
 │                     --introspect byte-identical when unset). New
 │                     ConfigError::SteeringWeight (finite, >= 0.0).
+│                     .2c.1 adds SteeringConfig::set_weight (classifies a
+│                     --steer key as a knob name → per_knob or a category →
+│                     per_category, else ConfigError::UnknownSteerKey;
+│                     reuses the KnobId taxonomy — one classifier), makes
+│                     validate() pub, adds Overrides.steer (the repeatable
+│                     --steer pairs), and applies preset-then-explicit steer
+│                     in resolve_config before validate (explicit wins).
 │                     ConstructionStrategy enum (clap::ValueEnum +
 │                     serde): Sequential, Shuffled, Interleaved
 │                     (default). GraphFirst variant retained as a
@@ -1010,6 +1017,14 @@ src/
 │                     (`IntrospectionPayload::coverage_readout`) AND returned by
 │                     the MCP `coverage` tool (same projection, no drift). 6
 │                     in-crate proofs. DUT `.sv` byte-identical.
+│                     `COVERAGE-STEERED-GENERATION.2c.1` adds the outer-loop
+│                     **derive** step: `derive_steering_from_coverage(&CoverageReadout,
+│                     &DeriveParams) -> SteeringConfig` — a pure read→config
+│                     function (per category `weight = clamp(target_share /
+│                     max(observed, eps), 0, max_weight)`, milli-quantized for
+│                     byte-stability, neutral weights omitted). Not a filter / no
+│                     generation ⇒ the feedback lives in the orchestration
+│                     (`feedback_rules_first_generation`). +3 proofs.
 ├── mcp/             Read-only in-process MCP server
 │   ├── mod.rs        (`AGENT-INTROSPECTION-MCP.4`). A dependency-light
 │                     JSON-RPC 2.0 dispatcher (`McpServer::handle`, a pure

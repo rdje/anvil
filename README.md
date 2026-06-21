@@ -805,6 +805,21 @@ exercising adversarial axes that previously fired only by chance
   --seed`, so an explicit knob always **overrides** the preset; an unknown
   name errors with the valid list. Default-off (no `--profile`) ⇒ DUT
   byte-identical.
+- `anvil --steer <key>=<weight>` (repeatable) biases construction-time coverage
+  steering (`COVERAGE-STEERED-GENERATION.2c.1`, decision `0023`): `key` is a knob
+  name (e.g. `flop_prob`) or a steering category
+  (`state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`) and `weight`
+  is a non-negative multiplier on that roll's probability (`>1` emphasizes, `<1`
+  de-emphasizes, `1` neutral). It is the ergonomic shim over `Config.steering`
+  (which is also `--config`/MCP-settable); it layers after `--profile` (explicit
+  wins per key) and is applied as a construction-time **prior** at the single
+  `roll_knob` draw — **rules-first**, never generate-then-filter. An unknown key
+  errors naming the valid categories; a non-finite/negative weight is rejected.
+  Default-off (no `--steer`) and a neutral `=1.0` are both DUT byte-identical. The
+  achieved coverage to steer *toward* is read from `--introspect`'s
+  `coverage_readout` / the MCP `coverage` tool, and
+  `introspect::coverage::derive_steering_from_coverage` turns a readout into a
+  steering target (the outer measure→derive→re-steer loop).
 - The 16 previously-config-file-only knobs are now also first-class CLI
   flags (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`), each the kebab-case of the
   field: `--function-emit-prob`, `--generate-loop-emit-prob`,
