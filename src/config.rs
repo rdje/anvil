@@ -1115,6 +1115,10 @@ impl Default for Config {
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    /// KNOB-ERGONOMICS-AND-PRESETS.2b.1 — `--profile <name>` (or the MCP
+    /// `profile` input) named a preset that is not in the `presets()` registry.
+    #[error("unknown profile {name:?}; available presets: {available}")]
+    UnknownProfile { name: String, available: String },
     #[error("min_inputs ({0}) > max_inputs ({1})")]
     InputRange(u32, u32),
     #[error("min_outputs ({0}) > max_outputs ({1})")]
@@ -1668,6 +1672,55 @@ impl Config {
         if let Some(v) = o.ram_abort_pct {
             self.ram_abort_pct = v;
         }
+        // KNOB-ERGONOMICS-AND-PRESETS.2b.1 — the 16 promoted knobs.
+        if let Some(v) = o.function_emit_prob {
+            self.function_emit_prob = v;
+        }
+        if let Some(v) = o.generate_loop_emit_prob {
+            self.generate_loop_emit_prob = v;
+        }
+        if let Some(v) = o.task_emit_prob {
+            self.task_emit_prob = v;
+        }
+        if let Some(v) = o.cone_function_emit_prob {
+            self.cone_function_emit_prob = v;
+        }
+        if let Some(v) = o.soft_union_slice_prob {
+            self.soft_union_slice_prob = v;
+        }
+        if let Some(v) = o.width_parameterization_prob {
+            self.width_parameterization_prob = v;
+        }
+        if let Some(v) = o.aggregate_prob {
+            self.aggregate_prob = v;
+        }
+        if let Some(v) = o.aggregate_array_prob {
+            self.aggregate_array_prob = v;
+        }
+        if let Some(v) = o.memory_prob {
+            self.memory_prob = v;
+        }
+        if let Some(v) = o.fsm_prob {
+            self.fsm_prob = v;
+        }
+        if let Some(v) = o.multi_clock_prob {
+            self.multi_clock_prob = v;
+        }
+        if let Some(v) = o.cdc_synchronizer_stages {
+            self.cdc_synchronizer_stages = v;
+        }
+        if let Some(v) = o.hierarchy_module_dedup {
+            self.hierarchy_module_dedup = v;
+        }
+        if let Some(v) = o.hierarchy_semantic_module_dedup {
+            self.hierarchy_semantic_module_dedup = v;
+        }
+        if let Some(v) = o.hierarchy_sequential_module_dedup {
+            self.hierarchy_sequential_module_dedup = v;
+        }
+        if let Some(v) = o.bisimulation_flop_merge {
+            self.bisimulation_flop_merge = v;
+        }
     }
 }
 
@@ -1739,11 +1792,250 @@ pub struct Overrides {
     pub hierarchy_parent_flop_prob: Option<f64>,
     pub max_rss_mb: Option<u64>,
     pub ram_abort_pct: Option<u32>,
+    // KNOB-ERGONOMICS-AND-PRESETS.2b.1 — the 16 previously-config-file-only
+    // knobs promoted to CLI flags (decision `0021`). All `Option`, so an unset
+    // flag never clobbers a preset or a `--config` base (explicit-beats-preset).
+    pub function_emit_prob: Option<f64>,
+    pub generate_loop_emit_prob: Option<f64>,
+    pub task_emit_prob: Option<f64>,
+    pub cone_function_emit_prob: Option<f64>,
+    pub soft_union_slice_prob: Option<f64>,
+    pub width_parameterization_prob: Option<f64>,
+    pub aggregate_prob: Option<f64>,
+    pub aggregate_array_prob: Option<f64>,
+    pub memory_prob: Option<f64>,
+    pub fsm_prob: Option<f64>,
+    pub multi_clock_prob: Option<f64>,
+    pub cdc_synchronizer_stages: Option<u32>,
+    pub hierarchy_module_dedup: Option<bool>,
+    pub hierarchy_semantic_module_dedup: Option<bool>,
+    pub hierarchy_sequential_module_dedup: Option<bool>,
+    pub bisimulation_flop_merge: Option<bool>,
+}
+
+/// A curated `--profile` preset (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision
+/// [`0021`]). A preset is a **named bundle of partial knob overrides** — which is
+/// exactly what [`Overrides`] already is — so applying a preset reuses the one
+/// [`Config::apply_cli_overrides`] applier (no second partial-config type). The
+/// [`presets`] table is the single source of truth (enumerable, not opaque
+/// closures, so it is API-queryable in `.2b.2`).
+#[derive(Debug)]
+pub struct Preset {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub overrides: Overrides,
+}
+
+/// The curated preset registry (the single source of truth). Deterministic; no
+/// randomness. Each preset only sets **existing** knobs — it introduces no new
+/// generator behaviour — so a preset is an opt-in re-shaping, and *not* selecting
+/// one keeps DUT output byte-identical.
+pub fn presets() -> Vec<Preset> {
+    vec![
+        Preset {
+            name: "arithmetic-heavy",
+            description: "Datapath bias: heavier arithmetic gate selection, wider \
+                          operators, more linear-combination coefficients and \
+                          constant comparands.",
+            overrides: Overrides {
+                gate_arith_weight: Some(6),
+                gate_bitwise_weight: Some(1),
+                max_gate_arity: Some(6),
+                coefficient_prob: Some(0.6),
+                const_comparand_prob: Some(0.6),
+                ..Default::default()
+            },
+        },
+        Preset {
+            name: "deep-hierarchy",
+            description: "Bounded recursive hierarchy (depth 2..=3, 2..=3 children \
+                          per parent) with sibling routing, parent-composed \
+                          child-input cones, and parent-local state.",
+            overrides: Overrides {
+                min_hierarchy_depth: Some(2),
+                max_hierarchy_depth: Some(3),
+                min_child_instances_per_module: Some(2),
+                max_child_instances_per_module: Some(3),
+                hierarchy_sibling_route_prob: Some(0.5),
+                hierarchy_child_input_cone_prob: Some(0.5),
+                hierarchy_parent_flop_prob: Some(0.3),
+                ..Default::default()
+            },
+        },
+        Preset {
+            name: "structured-emission-max",
+            description: "Turn on every richer-structured emit-projection \
+                          (function / generate-loop / task / cone-function); they \
+                          are mutually exclusive per gate, so all-on is safe and \
+                          behaviour-preserving.",
+            overrides: Overrides {
+                function_emit_prob: Some(1.0),
+                generate_loop_emit_prob: Some(1.0),
+                task_emit_prob: Some(1.0),
+                cone_function_emit_prob: Some(1.0),
+                ..Default::default()
+            },
+        },
+        Preset {
+            name: "sv2023-upopts",
+            description: "Target IEEE 1800-2023 and emit the version-distinctive \
+                          `union soft` low-bits-slice up-opt (Verilator \
+                          --language 1800-2023; Yosys/Icarus no-op).",
+            overrides: Overrides {
+                sv_version: Some(SvVersion::Sv2023),
+                soft_union_slice_prob: Some(1.0),
+                ..Default::default()
+            },
+        },
+    ]
+}
+
+/// The overrides bundle for a named preset, or `None` if the name is unknown.
+/// Moves the matched preset's overrides out (no `Clone` needed).
+pub fn preset_overrides(name: &str) -> Option<Overrides> {
+    presets()
+        .into_iter()
+        .find(|p| p.name == name)
+        .map(|p| p.overrides)
+}
+
+/// Comma-joined registry names, for the `UnknownProfile` error message.
+pub fn preset_names() -> String {
+    presets()
+        .iter()
+        .map(|p| p.name)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The one shared knob resolver used by **both** the CLI and the MCP surface
+/// (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision [`0021`]; the CLI is a shim over
+/// the same resolution). Precedence, lowest → highest:
+///
+/// 1. `base` — `Config::default()` or a `--config` / MCP `config` full base.
+/// 2. `profile` — the named preset's overrides (layered on top of `base`).
+/// 3. `overrides` — the explicit, per-knob CLI flags / MCP overrides (these are
+///    `Option`-by-field, so an unset knob never clobbers the preset ⇒ **explicit
+///    beats preset**).
+/// 4. `seed` — stamped last.
+///
+/// Then [`Config::validate`]. Determinism: the order is total and independent of
+/// CLI argument ordering, so a given `(base, profile, overrides, seed)` resolves
+/// to one canonical `Config` ⇒ byte-stable output. With `profile = None` and an
+/// empty `overrides`, the result equals `base` with `seed` stamped — the
+/// byte-identical default path.
+pub fn resolve_config(
+    mut base: Config,
+    profile: Option<&str>,
+    overrides: &Overrides,
+    seed: u64,
+) -> Result<Config, ConfigError> {
+    if let Some(name) = profile {
+        let preset = preset_overrides(name).ok_or_else(|| ConfigError::UnknownProfile {
+            name: name.to_string(),
+            available: preset_names(),
+        })?;
+        base.apply_cli_overrides(&preset);
+    }
+    base.apply_cli_overrides(overrides);
+    base.seed = seed;
+    base.validate()?;
+    Ok(base)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- KNOB-ERGONOMICS-AND-PRESETS.2b.1: presets + the shared resolver ------
+
+    /// The registry has exactly the four curated presets, in order, and every
+    /// one resolves to a *valid* `Config` off the default base (so a preset can
+    /// never ship knob values that fail `validate`).
+    #[test]
+    fn presets_registry_has_four_curated_presets_that_all_validate() {
+        let names: Vec<&str> = presets().iter().map(|p| p.name).collect();
+        assert_eq!(
+            names,
+            vec![
+                "arithmetic-heavy",
+                "deep-hierarchy",
+                "structured-emission-max",
+                "sv2023-upopts",
+            ]
+        );
+        for p in presets() {
+            resolve_config(Config::default(), Some(p.name), &Overrides::default(), 0)
+                .unwrap_or_else(|e| panic!("preset {} failed to validate: {e}", p.name));
+        }
+    }
+
+    /// The default resolver path (no profile, no explicit overrides) equals the
+    /// default config with only `seed` stamped — the unit-level proxy for the
+    /// byte-identical default contract (`tests/snapshots.rs` is the full guard).
+    #[test]
+    fn resolve_config_default_path_is_default_plus_seed() {
+        let got = resolve_config(Config::default(), None, &Overrides::default(), 7).unwrap();
+        let expected = Config {
+            seed: 7,
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(&got).unwrap(),
+            serde_json::to_value(&expected).unwrap()
+        );
+    }
+
+    /// A preset re-shapes the config: `structured-emission-max` turns on all four
+    /// emit-projection knobs.
+    #[test]
+    fn resolve_config_applies_a_preset() {
+        let cfg = resolve_config(
+            Config::default(),
+            Some("structured-emission-max"),
+            &Overrides::default(),
+            0,
+        )
+        .unwrap();
+        assert_eq!(cfg.function_emit_prob, 1.0);
+        assert_eq!(cfg.generate_loop_emit_prob, 1.0);
+        assert_eq!(cfg.task_emit_prob, 1.0);
+        assert_eq!(cfg.cone_function_emit_prob, 1.0);
+    }
+
+    /// Explicit per-knob overrides beat the preset (the `Option`-by-field
+    /// discipline): the preset sets `function_emit_prob = 1.0`, an explicit
+    /// override forces it back to `0.25`.
+    #[test]
+    fn resolve_config_explicit_override_beats_preset() {
+        let overrides = Overrides {
+            function_emit_prob: Some(0.25),
+            ..Default::default()
+        };
+        let cfg = resolve_config(
+            Config::default(),
+            Some("structured-emission-max"),
+            &overrides,
+            0,
+        )
+        .unwrap();
+        assert_eq!(cfg.function_emit_prob, 0.25);
+        // a knob the override did NOT touch keeps the preset value
+        assert_eq!(cfg.task_emit_prob, 1.0);
+    }
+
+    /// An unknown profile name is a clean error that lists the valid names.
+    #[test]
+    fn resolve_config_unknown_profile_errors_with_available_names() {
+        match resolve_config(Config::default(), Some("nope"), &Overrides::default(), 0) {
+            Err(ConfigError::UnknownProfile { name, available }) => {
+                assert_eq!(name, "nope");
+                assert!(available.contains("arithmetic-heavy"));
+                assert!(available.contains("sv2023-upopts"));
+            }
+            other => panic!("expected UnknownProfile, got {other:?}"),
+        }
+    }
 
     #[test]
     fn validate_rejects_duplicate_and_mux_rate_probabilities_outside_unit_interval() {

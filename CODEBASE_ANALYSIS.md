@@ -351,6 +351,18 @@ src/
 │
 ├── config.rs         Config struct (knobs), Default impl, validate(),
 │                     CLI Overrides struct, ConfigError taxonomy.
+│                     KNOB-ERGONOMICS-AND-PRESETS.2b.1 (decision 0021):
+│                     Overrides gains 16 promoted-knob fields (the
+│                     emit_prob family, aggregate/memory/fsm/multi_clock
+│                     probs, cdc stages, and the 4 dedup/identity bools)
+│                     so they are now CLI-settable; a `Preset` struct +
+│                     `presets()` registry (4 curated presets, single
+│                     source of truth) + `preset_overrides`/`preset_names`;
+│                     and the one shared `resolve_config(base, profile,
+│                     overrides, seed)` resolver (default|--config ->
+│                     --profile -> explicit -> seed -> validate) used by
+│                     the CLI (and the MCP surface in .2b.2). New
+│                     ConfigError::UnknownProfile.
 │                     ConstructionStrategy enum (clap::ValueEnum +
 │                     serde): Sequential, Shuffled, Interleaved
 │                     (default). GraphFirst variant retained as a

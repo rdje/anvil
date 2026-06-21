@@ -5,6 +5,33 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — Knob ergonomics impl: 16 promoted CLI flags + presets + the shared resolver — `KNOB-ERGONOMICS-AND-PRESETS.2b.1`
+
+`.2b.1` lands the `.2a` design. Two implementation points worth keeping:
+
+- **The four dedup/identity bools are `SetTrue` flags mapped to `Some(true)` only
+  when present** (`cli.hierarchy_module_dedup.then_some(true)` in `cli_overrides`).
+  A `SetTrue` clap flag is a plain `bool` (false when absent); mapping the absent
+  case to `None` (not `Some(false)`) is what preserves "an unset flag never
+  clobbers a preset/config value." These knobs are off-by-default opt-ins, so an
+  on-only CLI flag is the right ergonomic — you never need `--…-dedup false`, you
+  just omit it. The 12 prob/u32 knobs are already `Option<T>` clap flags, so they
+  map 1:1.
+- **`resolve_config` replaced the inline `apply_cli_overrides; seed; validate` in
+  `main.rs`'s DUT path** and is the single resolver the MCP `profile` input will
+  reuse in `.2b.2`. With `profile = None` and only-absent promoted flags it is
+  bit-for-bit the old path (proven: `tests/snapshots.rs` 6/6 unchanged + the
+  `resolve_config_default_path_is_default_plus_seed` unit test). `Config` is not
+  `PartialEq`, so the default-path test compares `serde_json::to_value` (a clean
+  byte-identical proxy). `Config` field defaults are untouched, so `--dump-config`
+  of a default run is unchanged too.
+- **User-facing docs (USER_GUIDE / README / `book/src/knobs.md` + the
+  `--profile` walk-through / KM card) are deferred to the `.2b.3` docs-closeout
+  leaf**, following the structured-emission precedent (`.2b.1` impl → `.2b.3`
+  docs). Tracked, not silent — landing in this same session.
+
+---
+
 ## 2026-06-18 — Knob ergonomics impl design-detail: reuse `Overrides` as the preset carrier; one shared resolver — `KNOB-ERGONOMICS-AND-PRESETS.2a`
 
 `.2a` pins the exact Rust shapes for the decision-`0021` design so `.2b` is a clean,

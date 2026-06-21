@@ -75,11 +75,11 @@ defaults, validation ranges, and presets first-class queryable facts).
   Commit: `KNOB-ERGONOMICS-AND-PRESETS.2a — impl design-detail (Overrides-as-preset-carrier + shared resolver + knob-catalog contract)`
 
 - ID: `KNOB-ERGONOMICS-AND-PRESETS.2b.1`
-  Status: `pending`
-  Goal: `Code: Overrides gains Default + Serialize(skip None); the presets() registry (4 curated presets) + Preset struct + lookup_preset; the shared resolve_config(base, profile, overrides, seed); the --profile CLI flag + the 16 promoted Option<T> CLI flags threaded through Overrides. Proofs: default (no --profile) byte-identical (snapshots 6/6 untouched); explicit flag beats preset; (seed,profile,overrides) byte-stable; unknown profile errors.`
-  Acceptance: `pending (set at pick)`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `Code: the presets() registry (4 curated presets) + Preset struct + preset_overrides/preset_names; the shared resolve_config(base, profile, overrides, seed); the --profile CLI flag + the 16 promoted Option<T> CLI flags threaded through Overrides + apply_cli_overrides + cli_overrides; ConfigError::UnknownProfile. (Serialize on Overrides deferred to .2b.2 where the presets catalog needs it.) Proofs: default (no --profile) byte-identical; explicit flag beats preset; unknown profile errors.`
+  Acceptance: `The 16 knobs are CLI-settable; --profile applies a preset; explicit flags beat the preset; default (no --profile) DUT output byte-identical (snapshots 6/6 untouched); unknown profile errors with the available names. cargo check/test/clippy/fmt green.`
+  Verification: `done — config.rs presets()/resolve_config + ConfigError::UnknownProfile; main.rs --profile + 16 Option flags + cli_overrides mapping (SetTrue bools via .then_some(true)) + resolve_config wired into the DUT path. lib 553→558 (+5 preset/resolver tests), anvil bin 14 (+2 CLI-wiring tests), snapshots 6/6 byte-identical, clippy -D warnings clean, fmt clean, full cargo test green; --dump-config smoke confirms presets/explicit-beats-preset/unknown-error/bool-toggle. User-facing docs deferred to .2b.3.`
+  Commit: `KNOB-ERGONOMICS-AND-PRESETS.2b.1 — promote 16 knobs to CLI flags + --profile preset registry + shared resolve_config`
 
 - ID: `KNOB-ERGONOMICS-AND-PRESETS.2b.2`
   Status: `pending`
@@ -101,7 +101,8 @@ defaults, validation ranges, and presets first-class queryable facts).
 | --- | --- | --- | --- |
 | 1 | `KNOB-ERGONOMICS-AND-PRESETS.1` | `done` | Design-first ADR (decision `0021`) audited the knob surface + pinned the promotion set, the 4 presets, the declarative registry shape, the resolution order, and the API-queryable knob-catalog/preset surface (decision `0017`). |
 | 2 | `KNOB-ERGONOMICS-AND-PRESETS.2a` | `done` | Impl design-detail: `Overrides` reused as the preset carrier, the `presets()` registry, the shared `resolve_config` (CLI = shim over the same resolver), and the completeness-gated knob catalog; `.2b` re-split. |
-| 3 | `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `pending` | First code slice: the preset registry + shared resolver + `--profile` + the 16 promoted `Option` CLI flags + byte-stability / explicit-beats-preset proofs. Task-tree-owned code. |
+| 3 | `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `done` | Code: preset registry + shared `resolve_config` + `--profile` + 16 promoted `Option` CLI flags + `ConfigError::UnknownProfile`; default byte-identical (snapshots 6/6), explicit-beats-preset + unknown-profile proofs; full `cargo test` green. |
+| 4 | `KNOB-ERGONOMICS-AND-PRESETS.2b.2` | `pending` | Next: the SCHEMA-DERIVED queryable knob catalog + completeness test + `anvil://catalog/knob-schema`/`presets` resources + the MCP `profile` input (+ `Serialize` on `Overrides`). |
 
 ## Decisions
 
@@ -149,6 +150,7 @@ defaults, validation ranges, and presets first-class queryable facts).
 | `2026-06-17` | `KNOB-ERGONOMICS-AND-PRESETS` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.1` | `decision 0021 written; knob-surface audit verified programmatically (86 fields → 67 CLI-reachable, 19 config-only); INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch check green; docs-only / DUT byte-identical` | `done` |
 | `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.2a` | `impl design-detail in DEVELOPMENT_NOTES (Overrides-as-preset-carrier, presets() registry, shared resolve_config, knob_catalog completeness test); .2b re-split into .2b.1/.2b.2/.2b.3; docs-only / DUT byte-identical` | `done` |
+| `2026-06-18` | `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `lib 553→558 (+5 preset/resolver tests); anvil bin 14 (+2 CLI-wiring tests); snapshots 6/6 byte-identical; clippy -D warnings clean; fmt clean; full cargo test green; --dump-config smoke (presets/explicit-beats-preset/unknown-error/bool-toggle)` | `done` |
 
 ## Commit Log
 
@@ -157,10 +159,12 @@ defaults, validation ranges, and presets first-class queryable facts).
 | `KNOB-ERGONOMICS-AND-PRESETS` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `KNOB-ERGONOMICS-AND-PRESETS.1` | `KNOB-ERGONOMICS-AND-PRESETS.1 — design ADR (decision 0021): CLI-flag promotion + --profile preset registry + queryable knob catalog` | Design-only; pins promotion set (16/19), 4 presets, declarative registry, resolution order, SCHEMA-DERIVED queryable catalog; pre-splits `.2` into `.2a`/`.2b`. |
 | `KNOB-ERGONOMICS-AND-PRESETS.2a` | `KNOB-ERGONOMICS-AND-PRESETS.2a — impl design-detail (Overrides-as-preset-carrier + shared resolver + knob-catalog contract)` | Docs-only; pins the Rust shapes + re-splits `.2b` into `.2b.1`/`.2b.2`/`.2b.3`. |
+| `KNOB-ERGONOMICS-AND-PRESETS.2b.1` | `KNOB-ERGONOMICS-AND-PRESETS.2b.1 — promote 16 knobs to CLI flags + --profile preset registry + shared resolve_config` | First code slice; default DUT byte-identical (snapshots 6/6). User-facing docs deferred to `.2b.3`. |
 
 ## Changelog
 
 - `2026-06-17`: Created task tree (registration via `USABILITY-LANE-OWNERSHIP.1`).
-- `2026-06-18`: `.1` design ADR landed (decision `0021`); then `.2a` impl
-  design-detail landed and re-split `.2b` into `.2b.1`/`.2b.2`/`.2b.3`. Frontier
-  advances to `.2b.1` (first code slice). Docs-only / DUT byte-identical.
+- `2026-06-18`: `.1` design ADR (decision `0021`); `.2a` impl design-detail (re-split
+  `.2b`); `.2b.1` first code slice — 16 knobs promoted to CLI flags + `--profile`
+  preset registry + shared `resolve_config`, default DUT byte-identical. Frontier
+  advances to `.2b.2` (queryable catalog + MCP `profile` input).

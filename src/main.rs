@@ -487,6 +487,66 @@ struct Cli {
     /// (macOS `memory_pressure` / Linux `/proc/meminfo`).
     #[arg(long)]
     ram_abort_pct: Option<u32>,
+
+    // KNOB-ERGONOMICS-AND-PRESETS.2b.1 — a curated `--profile` preset plus the
+    // 16 previously-config-file-only knobs promoted to CLI flags (decision
+    // `0021`). Explicit flags here override a `--profile` preset; not passing one
+    // leaves the preset / `--config` / default value intact (all `Option`, or a
+    // `SetTrue` bool mapped to `Some(true)` only when present).
+    /// Apply a curated knob preset before explicit flags
+    /// (`arithmetic-heavy` / `deep-hierarchy` / `structured-emission-max` /
+    /// `sv2023-upopts`). Explicit flags override the preset. See
+    /// `book/src/knobs.md` and the `anvil://catalog/presets` MCP resource.
+    #[arg(long, value_name = "NAME")]
+    profile: Option<String>,
+    /// Per-qualifying-gate probability of the `function automatic` emit-projection.
+    #[arg(long)]
+    function_emit_prob: Option<f64>,
+    /// Per-qualifying-replication probability of the `generate for` emit-projection.
+    #[arg(long)]
+    generate_loop_emit_prob: Option<f64>,
+    /// Per-qualifying-gate probability of the `task automatic` emit-projection.
+    #[arg(long)]
+    task_emit_prob: Option<f64>,
+    /// Per-qualifying-cone probability of the whole-cone `function automatic` emit-projection.
+    #[arg(long)]
+    cone_function_emit_prob: Option<f64>,
+    /// Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`).
+    #[arg(long)]
+    soft_union_slice_prob: Option<f64>,
+    /// Per-module probability of width parameterization (Phase 5).
+    #[arg(long)]
+    width_parameterization_prob: Option<f64>,
+    /// Per-module probability of packed-struct aggregate emission (Phase 5b).
+    #[arg(long)]
+    aggregate_prob: Option<f64>,
+    /// Per-module probability of packed-array aggregate emission.
+    #[arg(long)]
+    aggregate_array_prob: Option<f64>,
+    /// Per-module probability of an inferrable memory block (Phase 6).
+    #[arg(long)]
+    memory_prob: Option<f64>,
+    /// Per-module probability of a generated-encoding FSM block (Phase 6).
+    #[arg(long)]
+    fsm_prob: Option<f64>,
+    /// Per-module probability of multi-clock CDC promotion.
+    #[arg(long)]
+    multi_clock_prob: Option<f64>,
+    /// Destination-domain flop count in a generated CDC synchronizer chain (>= 2).
+    #[arg(long)]
+    cdc_synchronizer_stages: Option<u32>,
+    /// Enable the opt-in structural hierarchy module-dedup pass.
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    hierarchy_module_dedup: bool,
+    /// Enable the opt-in bounded-semantic hierarchy module-dedup pass.
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    hierarchy_semantic_module_dedup: bool,
+    /// Enable the opt-in bounded-sequential whole-module dedup pass.
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    hierarchy_sequential_module_dedup: bool,
+    /// Enable the opt-in bounded bisimulation flop-merge pass.
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    bisimulation_flop_merge: bool,
 }
 
 /// ANVIL subcommands (`BUG-HUNT-ORCHESTRATION.2d`). ANVIL is flat-flag by
@@ -580,15 +640,20 @@ fn main() -> anyhow::Result<()> {
         return run_non_dut_lane(&cli);
     }
 
-    let mut cfg = if let Some(path) = &cli.config {
+    let base = if let Some(path) = &cli.config {
         let text = std::fs::read_to_string(path)?;
         serde_json::from_str::<Config>(&text)?
     } else {
         Config::default()
     };
-    cfg.apply_cli_overrides(&cli_overrides(&cli));
-    cfg.seed = cli.seed;
-    cfg.validate().map_err(|e| anyhow::anyhow!("{}", e))?;
+    // KNOB-ERGONOMICS-AND-PRESETS.2b.1 — one shared resolver (decision `0021`):
+    // base (default | --config) -> --profile preset -> explicit flags -> seed,
+    // then validate. With no `--profile` and no promoted flags this is exactly
+    // the historical default|--config -> apply_cli_overrides -> seed path, so the
+    // default DUT output stays byte-identical (`tests/snapshots.rs` untouched).
+    let cfg =
+        anvil::config::resolve_config(base, cli.profile.as_deref(), &cli_overrides(&cli), cli.seed)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
 
     if cli.dump_config {
         println!("{}", serde_json::to_string_pretty(&cfg)?);
@@ -1052,6 +1117,26 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         hierarchy_parent_flop_prob: cli.hierarchy_parent_flop_prob,
         max_rss_mb: cli.max_rss_mb,
         ram_abort_pct: cli.ram_abort_pct,
+        // KNOB-ERGONOMICS-AND-PRESETS.2b.1 — the 16 promoted knobs. The four
+        // dedup/identity bools are `SetTrue` flags ⇒ map a present flag to
+        // `Some(true)` and an absent flag to `None` (so it never clobbers a
+        // preset / config value with a spurious `false`).
+        function_emit_prob: cli.function_emit_prob,
+        generate_loop_emit_prob: cli.generate_loop_emit_prob,
+        task_emit_prob: cli.task_emit_prob,
+        cone_function_emit_prob: cli.cone_function_emit_prob,
+        soft_union_slice_prob: cli.soft_union_slice_prob,
+        width_parameterization_prob: cli.width_parameterization_prob,
+        aggregate_prob: cli.aggregate_prob,
+        aggregate_array_prob: cli.aggregate_array_prob,
+        memory_prob: cli.memory_prob,
+        fsm_prob: cli.fsm_prob,
+        multi_clock_prob: cli.multi_clock_prob,
+        cdc_synchronizer_stages: cli.cdc_synchronizer_stages,
+        hierarchy_module_dedup: cli.hierarchy_module_dedup.then_some(true),
+        hierarchy_semantic_module_dedup: cli.hierarchy_semantic_module_dedup.then_some(true),
+        hierarchy_sequential_module_dedup: cli.hierarchy_sequential_module_dedup.then_some(true),
+        bisimulation_flop_merge: cli.bisimulation_flop_merge.then_some(true),
     }
 }
 
@@ -1069,6 +1154,38 @@ mod tests {
         let cli = Cli::parse_from(["anvil", "--seed", "42"]);
         assert!(cli.command.is_none());
         assert_eq!(cli.seed, 42);
+    }
+
+    // --- KNOB-ERGONOMICS-AND-PRESETS.2b.1: promoted CLI flags + --profile -----
+
+    /// A promoted prob flag flows into `Overrides` when passed, and stays `None`
+    /// (never clobbers) when absent; the `--profile` value is captured.
+    #[test]
+    fn promoted_prob_flag_and_profile_parse_into_overrides() {
+        let cli = Cli::parse_from([
+            "anvil",
+            "--profile",
+            "structured-emission-max",
+            "--function-emit-prob",
+            "1.0",
+        ]);
+        assert_eq!(cli.profile.as_deref(), Some("structured-emission-max"));
+        let o = cli_overrides(&cli);
+        assert_eq!(o.function_emit_prob, Some(1.0));
+        // an un-passed promoted knob stays None
+        assert_eq!(o.memory_prob, None);
+    }
+
+    /// A `SetTrue` dedup bool maps to `Some(true)` only when present, else `None`
+    /// (so it never overrides a preset/config value with a spurious `false`).
+    #[test]
+    fn promoted_dedup_bool_flag_maps_to_some_true_only_when_present() {
+        let on = Cli::parse_from(["anvil", "--hierarchy-module-dedup"]);
+        assert_eq!(cli_overrides(&on).hierarchy_module_dedup, Some(true));
+
+        let off = Cli::parse_from(["anvil", "--seed", "1"]);
+        assert_eq!(cli_overrides(&off).hierarchy_module_dedup, None);
+        assert_eq!(cli_overrides(&off).bisimulation_flop_merge, None);
     }
 
     /// `anvil hunt` with every flag set parses into the expected `HuntCommand`.

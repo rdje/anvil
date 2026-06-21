@@ -1,9 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2b.1 — promote 16 knobs to CLI flags + `--profile` preset registry + shared `resolve_config`
+
+**Landed as:** this commit (previous: `4d1b8c4`). **Code change — `src/config.rs`
++ `src/main.rs`; default DUT output byte-identical (`tests/snapshots.rs` 6/6
+untouched).** First code slice of the lane; implements the decision-`0021` /
+`.2a` design. Frontier advances to `.2b.2` (the queryable catalog + MCP `profile`
+input). User-facing docs (book / USER_GUIDE / README / KM) are deferred to the
+`.2b.3` docs-closeout leaf (the structured-emission precedent; tracked, landing
+this session).
+
+**What changed (why)**
+
+The 19-knob audit (`.1`) found 16 high-value knobs reachable only via `--config`
+JSON; this slice promotes them to first-class CLI flags and adds the `--profile`
+preset mechanism, all through the existing partial-override machinery.
+
+- **`src/config.rs`** — `Overrides` gains 16 `Option` fields (the `*_emit_prob`
+  family, `soft_union_slice_prob`, `width_parameterization_prob`,
+  `aggregate_prob`/`aggregate_array_prob`, `memory_prob`, `fsm_prob`,
+  `multi_clock_prob`, `cdc_synchronizer_stages`, and the 4 dedup/identity bools as
+  `Option<bool>`); `apply_cli_overrides` gains the 16 matching arms. New `Preset`
+  struct + `presets()` registry (the 4 curated presets — `arithmetic-heavy` /
+  `deep-hierarchy` / `structured-emission-max` / `sv2023-upopts` — the single
+  source of truth) + `preset_overrides`/`preset_names`. New
+  `ConfigError::UnknownProfile { name, available }`. New **shared**
+  `resolve_config(base, profile, overrides, seed)` — the one resolver
+  (`default|--config → --profile → explicit → seed → validate`) that both the CLI
+  and (in `.2b.2`) the MCP surface use. A preset *is* an `Overrides`, so applying
+  one reuses `apply_cli_overrides` (one applier, not two —
+  `feedback_full_factorization`).
+- **`src/main.rs`** — the `Cli` struct gains `--profile <NAME>` + the 16 promoted
+  flags (12 `Option` prob/u32 flags; the 4 dedup bools as `SetTrue`); `cli_overrides`
+  maps them (the bools via `.then_some(true)` so an absent flag is `None` and never
+  clobbers a preset/config value — explicit-beats-preset). The DUT path's inline
+  `apply_cli_overrides; seed; validate` is replaced by the shared `resolve_config`.
+- **Rules-first / no retirement / default-off:** the 3 kept-config-only knobs
+  (`library_prob`, `use_async_reset`, `max_nodes_per_module`) are untouched and
+  still MCP-settable; no `--profile` ⇒ byte-identical.
+
+**Validation**
+
+- `cargo check --all-targets` clean; **`cargo test --lib` 558/0** (+5:
+  `presets_registry_has_four_curated_presets_that_all_validate`,
+  `resolve_config_default_path_is_default_plus_seed`,
+  `resolve_config_applies_a_preset`, `resolve_config_explicit_override_beats_preset`,
+  `resolve_config_unknown_profile_errors_with_available_names`); **`anvil` bin 14/0**
+  (+2: `promoted_prob_flag_and_profile_parse_into_overrides`,
+  `promoted_dedup_bool_flag_maps_to_some_true_only_when_present`);
+  **`tests/snapshots.rs` 6/6 byte-identical** (the default-unchanged guard); full
+  `cargo test` green (RAM-guarded, decision `0003`).
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean.
+- `--dump-config` smoke: `--profile structured-emission-max` ⇒ all 4 emit knobs
+  `1.0`; `--profile … --function-emit-prob 0.25` ⇒ `0.25` (explicit beats preset)
+  with `task_emit_prob` still `1.0`; `--profile sv2023-upopts` ⇒ `sv_version=2023`
+  + `soft_union_slice_prob=1.0`; `--profile nope` ⇒ clean error listing all 4
+  names; `--hierarchy-module-dedup` ⇒ `true`.
+
+**Impact**
+
+16 previously-config-file-only knobs are now CLI-settable, and `--profile` applies
+a curated preset in one word. Default-off / DUT byte-identical. The MCP surface
+already accepted these knobs via full `Config`; `.2b.2` adds the queryable catalog
++ the MCP `profile` input. No book/USER_GUIDE/README change yet (deferred to `.2b.3`).
+
+**Files touched:** `src/config.rs`, `src/main.rs`, `CODEBASE_ANALYSIS.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`, `docs/TASK_TREE.md`,
+`docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`.
+
 ## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2a — impl design-detail (`Overrides`-as-preset-carrier + shared resolver + knob-catalog contract)
 
-**Landed as:** this commit (previous: `e68e2d1`). **Docs-only (DEVELOPMENT_NOTES +
+**Landed as:** `4d1b8c4` (previous: `e68e2d1`). **Docs-only (DEVELOPMENT_NOTES +
 task-tree). No `src/` change; DUT byte-identical.** Completes `.2a`; frontier
 advances to `.2b.1` (the first **code** slice).
 
