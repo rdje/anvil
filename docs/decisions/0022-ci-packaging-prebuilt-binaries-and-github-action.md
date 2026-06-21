@@ -20,9 +20,14 @@ evidence: docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.m
 
 # 0022 - CI packaging: a hand-rolled release workflow + a composite GitHub Action over `anvil hunt`
 
-- Date: 2026-06-18
-- Status: accepted (design; implementation pending under the pre-split `.2`)
-- Tree: `CI-PACKAGING-DISTRIBUTION.1` (design/decision leaf; no code/CI yet).
+- Date: 2026-06-18 (design); implemented `2026-06-21`
+- Status: accepted — **implemented** in `.2a` (`.github/workflows/release.yml`),
+  `.2b` (root `action.yml` + `scripts/anvil_hunt_action.sh` + `action-selftest.yml`),
+  and `.2c` (docs + KM card). The `.2c` slice closes `.2`; the tree stays
+  `active` (more targets / a Marketplace listing / an MCP-driven variant are
+  optional `.N`).
+- Tree: `CI-PACKAGING-DISTRIBUTION.1` (design/decision leaf; the pre-split
+  `.2a`/`.2b`/`.2c` carry the implementation).
 - Binds: decision [`0017`](0017-api-first-everything-mcp-accessible.md) (the Action
   drives the same CLI-shim-over-API surface — no Action-only private path).
 - Wraps: decision [`0018`](0018-bug-hunt-orchestration-loop.md) (the `anvil hunt`

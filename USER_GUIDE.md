@@ -1877,6 +1877,55 @@ sandbox. Omit `--out` and findings are reported in the JSON without on-disk
 bundles (the MCP `hunt` tool always omits the bundle and serves each reproducer
 as an `anvil://artifact/<run_id>/…` resource instead).
 
+### Use ANVIL in your CI (the GitHub Action)
+
+ANVIL ships a **drop-in composite GitHub Action** (`CI-PACKAGING-DISTRIBUTION`,
+decision `0022`) so a downstream-tool maintainer can continuously fuzz their
+parser/elaborator/synth against valid-by-construction RTL — without building
+ANVIL from source. The Action is a thin wrapper over the same `anvil hunt`
+loop above (no Action-only path, decision `0017`); it downloads a prebuilt
+release binary, runs the hunt against **your installed** tool(s), uploads a
+reproducer bundle per finding as a CI artifact, and (by default) fails the job
+on any finding.
+
+```yaml
+# .github/workflows/fuzz-with-anvil.yml
+name: Fuzz my SV tool with ANVIL
+on: [push, pull_request]
+jobs:
+  anvil-hunt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt-get update && sudo apt-get install -y verilator yosys
+      - uses: <owner>/anvil@v0.1.0      # pins the Action AND the binary it downloads
+        with:
+          tools: verilator,yosys        # your installed tools (no vendoring)
+          seeds: 128                     # fuzz 128 consecutive seeds
+          profile: sv2023-upopts         # a curated knob preset (optional)
+          # fail-on-finding: true        # default; set false to report without failing
+```
+
+The Action's inputs are the `anvil hunt` flags mapped 1:1
+(`tools`/`seed`/`seeds`/`profile`/`config`/`yosys-mode`/`diff-sim`/
+`divergence`/`budget`/`no-minimize`/`out`) plus four Action-level controls:
+
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `anvil-version` | the pinned ref | Which release tarball to download (defaults to the `@<tag>` you pinned the Action to). |
+| `anvil-bin` | (none) | Path to a prebuilt `anvil` binary to use **instead** of downloading (for source builds / a self-test). |
+| `artifact-name` | `anvil-hunt-bundles` | Name of the uploaded reproducer-bundle artifact (override to avoid collisions in a matrix). |
+| `fail-on-finding` | `true` | Fail the job when the hunt reports ≥ 1 finding. |
+
+It exposes `findings` (the `HuntReport.summary.n_failures` count), `report`
+(the saved `HuntReport` JSON path), and `bundle-dir` as step outputs.
+Because `anvil hunt` always exits 0 and prints the report, the Action decides
+red/green from `findings`. A clean sweep (`findings = 0`) is the **expected**
+result — a finding is a candidate downstream-tool bug, reproducible locally from
+the uploaded bundle's `repro.sh`. Prebuilt binaries come from the tag-triggered
+release workflow (`.github/workflows/release.yml`); see `book/src/recipes.md`
+("Continuously fuzz a downstream tool in CI") and the `ci-github-action`
+Knowledge Map card.
+
 ### `--introspect` (one-shot CLI)
 
 Add `--introspect` to a single-artifact run (no `--out`, `--count 1`) to print

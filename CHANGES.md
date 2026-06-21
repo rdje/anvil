@@ -1,6 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — CI-PACKAGING-DISTRIBUTION.2c — "Use ANVIL in your CI" docs + KM card (closes `.2`)
+
+**Landed as:** this commit (previous: `6df2ca8`). **Docs-only — README +
+USER_GUIDE + book recipe + a KM card + decision-0022 status note + task-tree
+closure. No `src/`/CI change; DUT byte-identical.** Final implementation slice of
+decision `0022`; closes `.2` (the implementation) — the tree stays `active` with
+no current frontier.
+
+**What changed (why)**
+
+`.2a` shipped the release workflow and `.2b` the composite Action; `.2c` makes the
+feature discoverable on the user-facing surfaces (the book is the only window a
+user has into ANVIL — `feedback_book_doctrine`).
+
+- **`USER_GUIDE.md`** — new "Use ANVIL in your CI (the GitHub Action)" subsection
+  after `anvil hunt`: a copy-paste `uses:` workflow snippet, the Action-level
+  input table (`anvil-version`/`anvil-bin`/`artifact-name`/`fail-on-finding`),
+  the `findings`/`report`/`bundle-dir` outputs, and the red/green-from-`findings`
+  contract (since `anvil hunt` always exits 0).
+- **`README.md`** — a "Use ANVIL in your CI" bullet in the CLI-truth list (after
+  the `anvil hunt` bullet): the release workflow + the drop-in Action, thin shim
+  over `anvil hunt` (decision `0017`), user-installed tools, DUT byte-identical.
+- **`book/src/recipes.md`** — a new recipe "I want to continuously fuzz a
+  downstream tool in my CI": the local `anvil hunt` one-liner (skip-sentineled —
+  it invokes external tools) + the `uses:` GitHub Action snippet (a `yaml` fence,
+  not run by the book harness). Honors the book doctrine without changing the
+  byte-identical book-runnable contract (runnable bash count unchanged at 54).
+- **`docs/knowledge/ci-github-action.md`** (new KM card, **KM 56→57**) — the
+  shipped-Action *usage* fact (inputs, pin-by-ref, binary resolution,
+  red/green-from-`findings`, the self-test), with answers distinct from decision
+  `0022`'s *design* answers (no duplicate question keys).
+- **`docs/decisions/0022-…md`** — body status note: design `2026-06-18`,
+  **implemented `2026-06-21`** in `.2a`/`.2b`/`.2c` (front-matter untouched ⇒ KM
+  map unaffected by this edit).
+- **`docs/tasks/CI-PACKAGING-DISTRIBUTION.md`** — `.2c` → `done`; `.2` parent →
+  `done`; Current Frontier marks `.2` complete (tree `active`, no frontier).
+- **`docs/TASK_TREE.md`** — CI-PACKAGING row: `.2` complete, no current frontier.
+
+**Validation**
+
+- `mdbook build book` clean; the new recipe's `bash` block carries a
+  `<!-- book-test: skip — … -->` sentinel on the line immediately before the
+  fence (the format the `book_examples` harness requires), so runnable count is
+  unchanged (54) and `skip_sentinels_have_reasons` stays satisfied; the `yaml`
+  fence is not parsed by the bash-only harness.
+- `knowledge-map` gen+check green (**57 facts**, card indexed); the new card's
+  answers do not collide with decision `0022`'s. `scripts/check_memory_architecture.sh`
+  green. No Rust touched ⇒ `cargo` suite unaffected (green at `51d97d9`;
+  snapshots 6/6).
+
+**Impact**
+
+- `CI-PACKAGING-DISTRIBUTION.2` (the whole CI-packaging implementation) is
+  complete and discoverable from README, USER_GUIDE, the book, and the KM. The
+  tree stays `active` for optional `.N` (more targets / a Marketplace listing /
+  an MCP-driven variant). Default DUT output byte-identical.
+
+**Files touched:** `README.md`, `USER_GUIDE.md`, `book/src/recipes.md`,
+`docs/knowledge/ci-github-action.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md`,
+`docs/tasks/CI-PACKAGING-DISTRIBUTION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`, `DEVELOPMENT_NOTES.md`.
+
 ## 2026-06-21 — CI-PACKAGING-DISTRIBUTION.2b — drop-in composite GitHub Action over `anvil hunt`
 
 **Landed as:** this commit (previous: `9527fe2`). **CI-infra only — a root

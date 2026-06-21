@@ -635,6 +635,16 @@ exercising adversarial axes that previously fired only by chance
   (the MCP path instead serves each reproducer as an `anvil://artifact/<run_id>/…`
   resource). The flat-flag default path (`anvil --seed N …`) is unchanged when no
   subcommand is given ⇒ DUT byte-identical. See `USER_GUIDE.md`.
+- **Use ANVIL in your CI** (`CI-PACKAGING-DISTRIBUTION`, decision `0022`): a
+  tag-triggered release workflow (`.github/workflows/release.yml`) publishes
+  prebuilt per-platform `anvil`+`anvil-mcp` archives + `SHA256SUMS` on every `v*`
+  tag, and a **drop-in composite GitHub Action** (root `action.yml`) wraps `anvil
+  hunt` so a downstream-tool maintainer adds one `uses: <owner>/anvil@<tag>` step
+  (naming their installed `tools` + an optional `--profile`) and gets red CI plus
+  reproducer-bundle artifacts on any finding. The Action is a thin shim over the
+  same `anvil hunt` engine (no Action-only path, decision `0017`); user-installed
+  tools (no vendoring). CI-infra only ⇒ DUT byte-identical. See `USER_GUIDE.md`
+  ("Use ANVIL in your CI") and `book/src/recipes.md`.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
   (schema `1.11`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde

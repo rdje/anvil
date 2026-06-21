@@ -612,6 +612,46 @@ cargo run --release -- --seed 1 --count 1000 --out ./parse-stress/ \
 Large, deep, unusual-width modules. Parsing does not care about
 semantic validity per se, so crank the structural diversity.
 
+## "I want to continuously fuzz a downstream tool in my CI"
+
+Locally, `anvil hunt` is the whole fuzz → detect → minimize loop in one
+command (a clean sweep is the expected result; a finding is a candidate
+downstream-tool bug):
+
+<!-- book-test: skip — anvil hunt invokes Verilator/Yosys (external tools), not the generator surface -->
+```bash
+anvil hunt --seed 1 --seeds 64 --tools verilator,yosys --out ./hunt-bundles
+```
+
+To get the same loop running in *someone else's* CI, ANVIL ships a **drop-in
+composite GitHub Action** (`CI-PACKAGING-DISTRIBUTION`, decision `0022`). Pin it
+to a release — that single pin also selects the prebuilt binary it downloads —
+name your installed tool(s), and you get red CI plus a reproducer bundle per
+finding:
+
+```yaml
+# .github/workflows/fuzz-with-anvil.yml
+name: Fuzz my SV tool with ANVIL
+on: [push, pull_request]
+jobs:
+  anvil-hunt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt-get update && sudo apt-get install -y verilator yosys
+      - uses: <owner>/anvil@v0.1.0
+        with:
+          tools: verilator,yosys     # your installed tools (no vendoring)
+          seeds: 128
+          profile: sv2023-upopts     # a curated knob preset (optional)
+```
+
+The Action is a thin wrapper over the same `anvil hunt` engine — no Action-only
+path (decision `0017`). Its inputs are the `anvil hunt` flags mapped 1:1 plus
+`anvil-version` / `anvil-bin` / `artifact-name` / `fail-on-finding`; it exposes a
+`findings` output and uploads the reproducer bundles as a CI artifact. Each
+bundle's `repro.sh` reproduces the exact `.sv` byte-for-byte locally. See
+`USER_GUIDE.md` ("Use ANVIL in your CI") for the full input table.
+
 ## "I want to drive a formal equivalence flow"
 
 Generate many small modules with moderate complexity so the formal

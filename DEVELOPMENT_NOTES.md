@@ -5,6 +5,32 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — CI packaging `.2c`: "Use ANVIL in your CI" docs + KM card (closes `.2`) — `CI-PACKAGING-DISTRIBUTION.2c` (decision 0022)
+
+`.2c` is the docs-and-close slice. Two choices worth recording:
+
+- **A separate KM usage card, not an edit to decision `0022`'s answers.** The
+  `0022` ADR already answers the *design* questions ("is there an ANVIL GitHub
+  Action", "what release mechanism…"). The shipped Action raises new *usage*
+  questions ("what inputs does the Action take", "how do I pin it to a release",
+  "does it fail my CI on a finding"). I wrote a new `docs/knowledge/ci-github-action.md`
+  card with answers **disjoint** from `0022`'s, rather than mutating the ADR's
+  front-matter — so there are no duplicate question keys (the KM derive-and-diff
+  gate stays clean) and the design vs usage facts each have one canonical home
+  (the KM "one canonical card per fact" rule). `0022`'s *body* got a one-line
+  "implemented" status note (front-matter untouched ⇒ KM map unchanged).
+- **The book recipe leads with a `yaml` fence.** The `book_examples` harness only
+  runs ```bash fences; the `uses:` GitHub-Action snippet is ```yaml, so it is
+  documented without being executed (a CI runner is not the book-test
+  environment). The one `anvil hunt` bash line in the recipe invokes external
+  tools, so it carries the `<!-- book-test: skip — … -->` sentinel on the line
+  immediately before the fence (the harness requires that exact placement) — the
+  byte-identical book-runnable contract (54 runnable blocks) is preserved.
+
+Docs-only; default DUT output byte-identical. `.2c` closes `.2` (the
+implementation); the tree stays `active` with no current frontier — more targets,
+a Marketplace listing, or an MCP-driven Action variant are optional `.N` picks.
+
 ## 2026-06-21 — CI packaging impl `.2b`: the drop-in composite Action over `anvil hunt` — `CI-PACKAGING-DISTRIBUTION.2b` (decision 0022)
 
 `.2b` implements the composite GitHub Action the `.1` ADR pinned: a root
