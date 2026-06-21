@@ -5,6 +5,73 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-18 — Knob ergonomics impl design-detail: reuse `Overrides` as the preset carrier; one shared resolver — `KNOB-ERGONOMICS-AND-PRESETS.2a`
+
+`.2a` pins the exact Rust shapes for the decision-`0021` design so `.2b` is a clean,
+well-owned code slice. Grounded in the current code:
+`Config::apply_cli_overrides(&Overrides)` (the Option-by-field applier),
+`main.rs` resolution (`base = --config full | Config::default(); apply_cli_overrides;
+cfg.seed = cli.seed; validate`), and `mcp::config_from_args` (full `config` arg →
+`Config` → validate). The pinned design-detail:
+
+- **The preset carrier IS `Overrides` — no second partial-config type.** A preset is
+  a named bundle of partial overrides, which is *exactly* what `Overrides` already
+  is (all-`Option` fields, applied by `apply_cli_overrides`). So a preset reuses
+  `Overrides`, and applying a preset is just a second `cfg.apply_cli_overrides(&preset.overrides)`
+  call — one applier, not two (full-factorization, `feedback_full_factorization`).
+  Consequence: a preset can set any **CLI-overridable** knob (the 66 existing + the
+  16 `.2b.1` promotes). The 3 kept-config-only knobs (`library_prob`,
+  `use_async_reset`, `max_nodes_per_module`) are not preset-settable in the first cut
+  — none of the 4 curated presets need them; promoting one later (additive) is the
+  path if a future preset does. `Overrides` gains `#[derive(Serialize)]` with
+  per-field `skip_serializing_if = "Option::is_none"` so a preset's override set is
+  enumerable for `anvil://catalog/presets` (decision 0017 queryability).
+
+- **`Overrides` needs `Default` (all-`None`).** Presets are built with struct-update
+  syntax: `Overrides { function_emit_prob: Some(1.0), cone_function_emit_prob: Some(1.0), ..Default::default() }`.
+  The registry is one function `pub fn presets() -> Vec<Preset>` (the single source
+  of truth) returning `Preset { name: &'static str, description: &'static str, overrides: Overrides }`
+  for the 4 curated presets — deterministic, no randomness. `pub fn lookup_preset(name) -> Option<&Preset>`
+  (or returns owned) for resolution; unknown name is an error.
+
+- **One shared resolver, used by both the CLI and MCP (CLI is a shim).** Signature
+  ~ `fn resolve_config(base: Config, profile: Option<&str>, overrides: &Overrides, seed: u64) -> Result<Config>`:
+  apply the looked-up preset's `Overrides` to `base`, then apply the explicit
+  `overrides`, then stamp `seed`, then `validate()`. Order =
+  `default|--config(base) → profile → explicit → seed` (decision 0021). On the CLI,
+  `overrides = cli_overrides(&cli)` (only user-passed flags ⇒ explicit beats preset).
+  On MCP, the first cut has **no** per-knob `overrides` above the profile (the
+  `config` arg is the full base, `profile` layers on top); a partial MCP `overrides`
+  input is a recorded additive `.N`. Unknown profile ⇒ a CLI error listing valid
+  names / MCP `-32602` (the existing unknown-query convention).
+
+- **`config_from_args` gains a `profile` arg.** `let cfg = base-from-config-or-default;
+  if let Some(p)=args["profile"] { apply preset }; seed; validate`. The MCP
+  `generate`/`introspect`/`analyze` input schemas add `profile: string` (optional),
+  documented as "a curated knob bundle; see anvil://catalog/presets".
+
+- **The rich knob catalog mirrors `downstream::adapter_catalog()`.** A new
+  `fn knob_catalog() -> Vec<KnobInfo>` where
+  `KnobInfo { name, group, ty, default: Value, validation: ValidationKind, cli_flag: Option<String>, config_only: bool }`.
+  Names + defaults are projected from `serde_json::to_value(Config::default())`
+  (derived); `group`/`validation`/`cli_flag` come from one metadata table keyed by
+  field name. **Completeness test:** assert the set of catalog `name`s equals the set
+  of keys in `to_value(Config::default())` (no missing, no orphan) — a new `Config`
+  field then *must* get a catalog entry or the test fails (the KM derive-and-diff
+  anti-drift pattern). Surfaced as a new `anvil://catalog/knob-schema` resource
+  (+ optionally a pure `knob_catalog` MCP tool); the raw `anvil://catalog/knobs`
+  (`Config::default()` dump) is kept untouched (no retirement).
+
+- **`.2b` re-split for signoff-sized slices:** `.2b.1` = `Overrides`
+  `Default`/`Serialize` + the 16 promoted `Option` CLI flags + the preset registry
+  + the shared resolver + `--profile` CLI flag + byte-stability / explicit-beats-preset
+  proofs (DUT byte-identical: no `--profile` ⇒ snapshots untouched). `.2b.2` = the
+  SCHEMA-DERIVED `knob_catalog` + completeness test + `anvil://catalog/knob-schema`
+  + `anvil://catalog/presets` + the MCP `profile` input. `.2b.3` = docs
+  (`book/src/knobs.md` + `book/src/agent-mcp.md` + USER_GUIDE + README + KM card).
+
+---
+
 ## 2026-06-18 — Knob ergonomics design: promotion cut, declarative presets, resolution order — `KNOB-ERGONOMICS-AND-PRESETS.1` (decision 0021)
 
 `.1` is the design ADR for the knob-ergonomics lane. The full rationale is decision

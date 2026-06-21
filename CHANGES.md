@@ -1,9 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.2a — impl design-detail (`Overrides`-as-preset-carrier + shared resolver + knob-catalog contract)
+
+**Landed as:** this commit (previous: `e68e2d1`). **Docs-only (DEVELOPMENT_NOTES +
+task-tree). No `src/` change; DUT byte-identical.** Completes `.2a`; frontier
+advances to `.2b.1` (the first **code** slice).
+
+**What changed (why)**
+
+The decision-`0021` design (`.1`) pinned *what* to build; `.2a` pins the exact Rust
+shapes so `.2b` is a clean, task-tree-owned code slice, grounded in the live code
+(`Config::apply_cli_overrides(&Overrides)`, the `main.rs` resolution flow,
+`mcp::config_from_args`, and the `downstream::adapter_catalog()` precedent).
+
+- **`DEVELOPMENT_NOTES.md`** — new entry pinning: (1) **the preset carrier IS
+  `Overrides`** (a preset is a partial override bundle = exactly what `Overrides`
+  already is; applying a preset is a second `apply_cli_overrides` call — one applier,
+  not two), gaining `Default` (all-`None`) + `Serialize`(skip-`None`) derives so a
+  preset's overrides are enumerable for the catalog; (2) the `presets() -> Vec<Preset>`
+  registry (single source of truth) + `Preset { name, description, overrides }` +
+  `lookup_preset`; (3) **one shared `resolve_config(base, profile, overrides, seed)`**
+  used by both CLI and MCP (CLI = shim) with order
+  `default|--config → profile → explicit → seed`; (4) `config_from_args` + the MCP
+  input schemas gain a `profile` arg; (5) the SCHEMA-DERIVED `knob_catalog()`
+  (`KnobInfo` + a metadata table) with a **completeness test** (`catalog names ==
+  Config::default() serde keys`) mirroring `adapter_catalog()`, surfaced as a new
+  `anvil://catalog/knob-schema` resource (raw `anvil://catalog/knobs` kept).
+- **`docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`** — `.2a` → `done`; **`.2b` re-split
+  into `.2b.1`** (preset registry + resolver + `--profile` + 16 promoted `Option`
+  CLI flags + byte-stability/explicit-beats-preset proofs), **`.2b.2`** (knob catalog
+  + completeness test + `knob-schema`/`presets` resources + MCP `profile` input),
+  **`.2b.3`** (book/USER_GUIDE/README/KM docs); frontier table + logs updated.
+- **`docs/TASK_TREE.md`** — KNOB-ERGONOMICS row frontier `.2a` → `.2b.1`.
+
+**Validation**
+
+- Docs-only / no code: no `src/`, `tests/`, or build edits; DUT byte-identical by
+  construction; `tests/snapshots.rs` not run (no generator change). `cargo check`
+  was green at bootstrap and is untouched.
+- `scripts/check_memory_architecture.sh` green; KM unchanged (no `answers:` edit ⇒
+  `KNOWLEDGE_MAP.md` byte-identical, not re-touched).
+
+**Impact**
+
+The implementation is fully specified and sliced; `.2b.1` is the next pick (real
+code, task-tree-owned). No user-visible change yet.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/KNOB-ERGONOMICS-AND-PRESETS.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-18 — KNOB-ERGONOMICS-AND-PRESETS.1 — design ADR (decision 0021): CLI-flag promotion + `--profile` preset registry + queryable knob catalog
 
-**Landed as:** this commit (previous: `2f17147`). **Docs-only (decision record +
+**Landed as:** `e68e2d1` (previous: `2f17147`). **Docs-only (decision record +
 task-tree + DEVELOPMENT_NOTES + KM). No `src/` change; DUT byte-identical; no
 snapshot/test impact.** Completes the design leaf `KNOB-ERGONOMICS-AND-PRESETS.1`;
 frontier advances to `.2a` (impl design-detail).
