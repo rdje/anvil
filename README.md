@@ -702,8 +702,9 @@ exercising adversarial axes that previously fired only by chance
   gate, not a behavioural testbench. `slang` is the closed registry's
   **second** new adapter and the first **fact-bearing** one — it also dumps a
   `--ast-json` view of the top's ports + child instances (the
-  `extract_facts` hook, `.2c.1`); surfacing those facts in the matrix report
-  is `.2c.2b`. `slang` is absent on most hosts; when so this column is a
+  `extract_facts` hook, `.2c.1`); those facts are surfaced in the matrix
+  report as `ModuleReport.slang_facts` / `DesignReport.slang_facts` (`.2c.2b`).
+  `slang` is absent on most hosts; when so this column is a
   **friendly no-op** (a presence probe means a requested-but-missing `slang`
   records no column and never fails the run). Recorded as `ModuleReport.slang`
   / `DesignReport.slang` and tallied as `slang pass/fail`, selectable via the

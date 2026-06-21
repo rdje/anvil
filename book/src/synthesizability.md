@@ -155,8 +155,8 @@ elaboration), so it trips bugs the others cannot. A clean elaboration
 accepts; a non-zero exit or a warning is a finding. `slang` is the
 registry's second new adapter and the first **fact-bearing** one — it
 also dumps a `--ast-json` view of the top's ports + child instances (the
-`extract_facts` hook); surfacing those facts in the matrix report is a
-follow-up. Like `--sv2v` it is an acceptance gate, selectable over the
+`extract_facts` hook), surfaced in each report under `slang_facts`. Like
+`--sv2v` it is an acceptance gate, selectable over the
 MCP/CLI `tools` arg, and a **friendly no-op** when `slang` is absent (a
 presence probe means a requested-but-missing `slang` records no column
 and never fails the run).

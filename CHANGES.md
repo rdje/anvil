@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-21 — DOWNSTREAM-ADAPTER-EXPANSION.2c.2b — live `extract_facts` fact-surfacing in the `tool_matrix` slang report (decision 0020)
+
+**Landed as:** this commit (previous: `4865a3c`). **Code change — `src/bin/tool_matrix.rs`
++ `tests/slang_e2e.rs` + docs/KM; default-off / banked reports + `--resume` + snapshots 6/6
+byte-identical (incl. `CoverageSummary` unchanged).** Closes `.2c.2`, the `.2c` (slang)
+sub-tree, and `DOWNSTREAM-ADAPTER-EXPANSION.2` (the implementation).
+
+**What changed (why)**
+
+`.2c.1` landed the `Adapter` trait's `extract_facts` hook; `.2c.2a` landed the `--slang`
+accept/reject column. This slice makes the hook *live in the matrix report* — the genuinely
+new capability that distinguishes `slang` (the first fact-bearing adapter) from `sv2v`:
+
+- **`src/bin/tool_matrix.rs`** — import `AdapterFacts`; `ModuleReport.slang_facts` +
+  `DesignReport.slang_facts: Option<AdapterFacts>` (`#[serde(default, skip_serializing_if =
+  "Option::is_none")]` ⇒ off the wire when `None`, so default reports stay byte-identical).
+  The slang column in `run_module_tools` / `run_design_tools` now builds its `AdapterRunCx`
+  **explicitly** (instead of the `run_column` closure) so the *same* cx feeds
+  `AcceptanceTool::Slang.adapter().extract_facts(&cx, &inv)` after the run, projecting the
+  `<stem>.slang.json` `--ast-json` side file; the facts thread out (`ModuleToolColumns`
+  grows 5→6) into the report. SCHEMA-DERIVED — a projection of *slang's* AST, never an ANVIL
+  behavioural oracle (decision `0004`).
+- **`tests/slang_e2e.rs`** — the `#[ignore]` real-tool gate now keeps the sandbox and, after
+  `validate` accepts, projects the kept `<top>.slang.json` through the public adapter
+  `extract_facts` and asserts the facts (a named top + ≥1 port). This is the eventual
+  real-tool confirmation that the parser — written against slang's *published* schema while
+  slang was absent — matches actual slang output. The portable proof (always-run) is
+  unchanged.
+- **Scope refinement — the opportunistic `saw_slang_facts` coverage fact was DROPPED.** A
+  plain `CoverageSummary` bool is *always* serialized, so it would change **every**
+  `tool_matrix` report's JSON for all runs (verified: a no-op smoke showed it appearing 18×)
+  — unlike the off-the-wire `slang_facts` field. The `sv2v` column (the direct precedent)
+  added no coverage fact, and the decision-`0020` requirement is met by the report field, so
+  the fact was removed to keep `CoverageSummary` byte-identical. Its planned proof was
+  replaced by `slang_facts_serialize_only_when_present` (None ⇒ key absent; Some ⇒ the
+  SCHEMA-DERIVED projection with slang's own `type` key via the `ty` serde rename).
+- **Docs** — README / USER_GUIDE / `book/src/synthesizability.md` / the `slang-adapter.md` KM
+  card updated from "surfacing those facts is a follow-up" to "surfaced under `slang_facts`".
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo test --bin tool_matrix` **78/0** (the
+  `slang_facts_serialize_only_when_present` proof replaced the dropped coverage-fact proof;
+  the report constructors gained `slang_facts: None`); `cargo test --test slang_e2e` portable
+  **1/0** (+ `#[ignore]` gate now also asserts facts, skips green when slang absent);
+  `cargo test --lib` unaffected (bin-only slice); `cargo test --test snapshots` **6/6**
+  byte-identical.
+- No-op smoke (`--skip-verilator --skip-yosys --slang`, slang absent) ⇒ exit 0, **0**
+  `slang` / `slang_facts` / `saw_slang_facts` keys (the report — including `CoverageSummary`
+  — is byte-identical).
+- `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean;
+  `mdbook build book` clean; `check_memory_architecture` + KM gen/check green (53 facts).
+  Heavy steps RAM-guarded (decision `0003`).
+
+**Impact**
+
+`tool_matrix --slang` now surfaces each artifact's elaboration **facts** (top/ports/instances)
+in the report, completing the `slang` adapter and proving the `Adapter` trait's richer
+SCHEMA-DERIVED path end-to-end. **All of `DOWNSTREAM-ADAPTER-EXPANSION.2` is delivered** (the
+closed registry + catalog, the `sv2v` and `slang` columns); the tree stays `active` with **no
+current frontier** — `surelog`/UHDM + a generic commercial-wrapper adapter are open-ended
+`.2d+` future picks (nothing retired). Default-off / DUT byte-identical.
+
+**Files touched:** `src/bin/tool_matrix.rs`, `tests/slang_e2e.rs`,
+`docs/knowledge/slang-adapter.md`, `README.md`, `USER_GUIDE.md`,
+`book/src/synthesizability.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+`MEMORY.md`, `docs/TASK_TREE.md`, `docs/tasks/DOWNSTREAM-ADAPTER-EXPANSION.md`. (The
+`docs/knowledge/slang-adapter.md` edit is body-only — the `answers:` front-matter is
+unchanged, so `KNOWLEDGE_MAP.md` is byte-identical and not re-touched.)
+
 ## 2026-06-21 — DOWNSTREAM-ADAPTER-EXPANSION.2c.2a — the `tool_matrix --slang` elaboration-acceptance column (decision 0020)
 
 **Landed as:** this commit (previous: `d9f251e`). **Code change — `src/bin/tool_matrix.rs`

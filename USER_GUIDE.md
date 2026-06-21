@@ -948,8 +948,8 @@ Useful options:
   in each report and tallied as `slang pass/fail` in the summary line.
   `slang` is the first **fact-bearing** adapter — it also dumps a
   `--ast-json` view of the top's ports + child instances (the `extract_facts`
-  hook); surfacing those facts in the matrix report is a follow-up
-  (`.2c.2b`). Like `--sv2v` it is an acceptance gate, not a behavioural
+  hook), surfaced in each report under `slang_facts`. Like `--sv2v` it is an
+  acceptance gate, not a behavioural
   testbench, and a **friendly no-op** when `slang` is absent (a presence
   probe ⇒ the column records nothing and never fails the run).
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the

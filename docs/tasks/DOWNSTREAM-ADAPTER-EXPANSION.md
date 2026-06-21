@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `DOWNSTREAM-ADAPTER-EXPANSION`
-- Status: `active`
+- Status: `active` (no current frontier — the `.2` implementation is complete; `surelog`/UHDM + a generic commercial-wrapper adapter are open-ended `.2d+` future picks, nothing retired)
 - Roadmap lane: `Usability / breadth — more downstream tool reach (north star, idea 3)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-21` (`.2c.1` + `.2c.2a` done [slang downstream adapter + the trait's first extract_facts hook + MCP selectability; the tool_matrix --slang column]; frontier `.2c.2b` [the novel live extract_facts fact-surfacing])
+- Last updated: `2026-06-21` (`.2c` complete — `.2c.1` [slang adapter + the trait's first extract_facts hook + MCP] + `.2c.2a` [the tool_matrix --slang column] + `.2c.2b` [the live extract_facts fact-surfacing]; `.2` implementation done; **no current frontier** — `.2d+` surelog/UHDM/commercial-wrapper are open-ended future picks)
 - Owner: repo-local workflow
 
 ## Goal
@@ -59,9 +59,10 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.1`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2`
-  Status: `active`
+  Status: `done`
   Goal: `Implement the .1 design (decision 0020): the closed Adapter trait/registry + the adapter-catalog query + the first new adapters as columns + MCP/config selection + proofs + a real-tool gate (or a clean absent-tool no-op) + book/USER_GUIDE/README/KM. Default-off / DUT byte-identical. Pre-split per decision 0020.`
   Children: `DOWNSTREAM-ADAPTER-EXPANSION.2a`, `DOWNSTREAM-ADAPTER-EXPANSION.2b`, `DOWNSTREAM-ADAPTER-EXPANSION.2c`
+  Result: `Done — the closed Adapter registry + the catalog query (.2a) + the first two new adapters as columns: sv2v (.2b, accept/reject) and slang (.2c, accept/reject + the trait's first extract_facts JSON-AST hook). Both selectable via the tools arg + queryable (reports + adapter_catalog), CLI a shim (decision 0017); allow-list/sandbox/RAM-guard/audit preserved (decision 0004); default-off / DUT byte-identical. surelog/UHDM + a generic commercial-wrapper adapter are open-ended .2d+ future picks (nothing retired), so the implementation objective is complete with no current frontier.`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2a`
   Status: `active`
@@ -114,9 +115,10 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2b.2`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2c`
-  Status: `active`
+  Status: `done`
   Goal: `The second new adapter, slang (the richer one), landing the trait's FIRST optional extract_facts hook — a SCHEMA-DERIVED JSON-AST projection of top/ports/instances from slang --ast-json — proving the richer adapter path beyond accept/reject; absent-tool no-op + #[ignore] real-tool gate; docs. (surelog/UHDM + a generic commercial-wrapper adapter are future .2d+ leaves.) Pre-split (mirroring .2a/.2b) into the additive downstream+MCP surface (.2c.1) and the byte-identical-sensitive tool_matrix column + live report fact-surfacing + the real-tool gate + book/USER_GUIDE/README/KM (.2c.2), so each sub-slice commits independently.`
   Children: `DOWNSTREAM-ADAPTER-EXPANSION.2c.1`, `DOWNSTREAM-ADAPTER-EXPANSION.2c.2`
+  Result: `Done — the slang adapter is fully delivered. .2c.1: the downstream adapter + the trait's first extract_facts JSON-AST hook + MCP selectability/discoverability. .2c.2 (= .2c.2a column + .2c.2b live fact-surfacing): the tool_matrix --slang column + ModuleReport/DesignReport.slang_facts + the #[ignore] real-tool accept+facts gate. slang is the first fact-bearing adapter (supports_facts=true). slang absent on this host ⇒ schema verified against published docs + a faithful synthetic fixture; the #[ignore] gate upgrades to a banked proof once slang is installed. Default-off / DUT byte-identical throughout.`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2c.1`
   Status: `done`
@@ -127,9 +129,10 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2c.1`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2c.2`
-  Status: `active`
+  Status: `done`
   Goal: `The tool_matrix slang surface, pre-split (mirroring the .2a/.2b discipline) into the byte-identical-sensitive accept/reject column (.2c.2a, a faithful --sv2v mirror) and the genuinely-new live extract_facts fact-surfacing (.2c.2b), so each commit's byte-identical proof stays crisp.`
   Children: `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`, `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b`
+  Result: `Done — both children landed. .2c.2a: the tool_matrix --slang accept/reject column (a faithful --sv2v mirror). .2c.2b: the live extract_facts fact-surfacing (ModuleReport/DesignReport.slang_facts populated from the column's --ast-json side file; the slang_e2e #[ignore] gate asserts real-slang facts; the opportunistic saw_slang_facts coverage fact was dropped to keep CoverageSummary byte-identical). Default-off / banked reports + --resume + snapshots 6/6 byte-identical throughout.`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`
   Status: `done`
@@ -140,25 +143,29 @@ with its results queryable over MCP. Builds on the hardened
   Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`
 
 - ID: `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b`
-  Status: `pending`
-  Goal: `The live extract_facts fact-surfacing in tool_matrix (the genuinely-new part): ModuleReport/DesignReport.slang_facts: Option<AdapterFacts> (serde skip_serializing_if), populated by calling AcceptanceTool::Slang.adapter().extract_facts(&cx, &inv) after the slang column runs (where the --ast-json side file is produced) + an opportunistic saw_slang_facts coverage fact (never a required gate) + the slang_e2e #[ignore] gate extended to assert facts when slang is present + the book "fact-bearing adapter" note + the KM card updated. Default-off ⇒ byte-identical.`
-  Acceptance: `pending (refine at pick)`
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: `The live extract_facts fact-surfacing in tool_matrix (the genuinely-new part; closes .2c). src/bin/tool_matrix.rs: import AdapterFacts; ModuleReport/DesignReport.slang_facts: Option<AdapterFacts> (serde skip_serializing_if ⇒ byte-identical when off); the slang column in run_module_tools/run_design_tools builds its AdapterRunCx explicitly (so the cx is available) and, when the slang invocation ran, calls AcceptanceTool::Slang.adapter().extract_facts(&cx,&inv) to project the <stem>.slang.json side file; the facts thread out (ModuleToolColumns grows 5→6) into the report; the tests/slang_e2e.rs #[ignore] gate extended to read the kept-sandbox <top>.slang.json via the adapter's extract_facts and assert facts.top/ports when slang is present; the slang KM card + book/README/USER_GUIDE updated to say the facts are now surfaced. Default-off ⇒ banked reports + --resume + snapshots 6/6 byte-identical. SCOPE REFINEMENT at pick: the opportunistic saw_slang_facts CoverageSummary fact was DROPPED (a plain bool would change every report's CoverageSummary JSON for all runs, unlike the off-the-wire slang_facts field; the sv2v column precedent added no coverage fact; the decision-0020 requirement is met by the report field). A serde-skip proof replaces the coverage-fact proof.`
+  Acceptance: `ModuleReport/DesignReport.slang_facts populated from real slang --ast-json when the column runs (None otherwise ⇒ off the wire ⇒ byte-identical, incl. CoverageSummary unchanged — no coverage fact added); the slang_e2e #[ignore] gate asserts real-slang facts (top + >=1 port) when slang is present, skips green when absent; cargo check --all-targets; cargo test --bin tool_matrix (+ a slang_facts serde-skip threading proof; the existing report constructors gain slang_facts: None); snapshots 6/6 byte-identical; clippy -D warnings; fmt --check; mdbook build; KM gen/check (53 facts). Default-off ⇒ banked reports + --resume + snapshots byte-identical. Closes .2c.2 and the .2c (slang) sub-tree.`
+  Result: `Landed the live extract_facts fact-surfacing in src/bin/tool_matrix.rs, additive / byte-identical when off. Imported AdapterFacts; ModuleReport/DesignReport.slang_facts: Option<AdapterFacts> (serde default + skip_serializing_if ⇒ off the wire when None ⇒ default reports byte-identical). The slang column in run_module_tools/run_design_tools now builds its AdapterRunCx explicitly (vs the run_column closure) so the same cx feeds AcceptanceTool::Slang.adapter().extract_facts(&cx,&inv) after the run, projecting the <stem>.slang.json side file; the facts thread out (ModuleToolColumns 5→6) into the report. tests/slang_e2e.rs #[ignore] gate extended (keep_sandbox=true, then extract_facts over the kept <top>.slang.json) to assert facts.adapter/top + >=1 port against real slang — the eventual confirmation the published-schema parser matches real slang output. KEY SCOPE REFINEMENT: the planned opportunistic saw_slang_facts CoverageSummary fact was DROPPED — a plain bool changes every report's CoverageSummary JSON for ALL runs (verified: it appeared 18x in a no-op smoke), unlike the off-the-wire slang_facts field; the sv2v column added no coverage fact; the requirement is met by the report field. Replaced its proof with slang_facts_serialize_only_when_present (None ⇒ key absent; Some ⇒ the SCHEMA-DERIVED projection with slang's own `type` key). Docs: README/USER_GUIDE/synthesizability.md/KM card updated from "follow-up" to "surfaced under slang_facts". Default-off ⇒ banked reports + --resume + snapshots 6/6 byte-identical (no-op smoke: slang absent ⇒ 0 slang/slang_facts/saw_slang_facts keys).`
+  Verification: `cargo check --all-targets clean; cargo test --bin tool_matrix 78/0 (+1 net vs .2c.2a: slang_facts_serialize_only_when_present replaced the dropped coverage-fact proof; constructors gained slang_facts: None); cargo test --test slang_e2e portable 1/0 + #[ignore] 1 (slang absent ⇒ skips green; the gate now also asserts facts); snapshots 6/6 byte-identical; lib unaffected (bin-only slice); no-op smoke (--skip-verilator --skip-yosys --slang) ⇒ exit 0, 0 slang/slang_facts/saw_slang_facts keys (CoverageSummary byte-identical); clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green (53 facts). Heavy steps RAM-guarded (decision 0003). Closes .2c.2, the .2c (slang) sub-tree, and DOWNSTREAM-ADAPTER-EXPANSION.2 (the implementation).`
+  Commit: `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
-| --- | --- | --- | --- |
-| 1 | `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b` | `pending` | the live `extract_facts` fact-surfacing: `ModuleReport`/`DesignReport.slang_facts: Option<AdapterFacts>` (serde skip) populated from the slang column's `--ast-json` side file + a `saw_slang_facts` coverage fact + the `slang_e2e` `#[ignore]` gate extended to assert facts + a book "fact-bearing adapter" note + the KM card updated. Default-off / byte-identical. |
+**No current frontier.** The `.2` implementation is complete: the closed
+`Adapter` registry + catalog (`.2a`), the `sv2v` accept/reject column (`.2b`), and
+the `slang` accept/reject + `extract_facts` fact-bearing adapter (`.2c`) are all
+delivered, default-off / DUT byte-identical. `surelog`/UHDM and a generic
+commercial-wrapper adapter are open-ended `.2d+` future picks (each its own pick;
+nothing retired) — not a blocker, so the tree stays `active` with no current
+frontier (the `STRUCTURED-EMISSION-EXPANSION` precedent).
 
-Done: `.2c.1` (`slang` downstream adapter + the `Adapter` trait's first
-`extract_facts` JSON-AST fact hook + `AdapterFacts` projections + MCP
-selectability/discoverability) — additive / DUT byte-identical. `.2c.2a` (the
-byte-identical-sensitive `tool_matrix --slang` accept/reject column + the
-`#[ignore]` real-tool accept gate + README/USER_GUIDE/book/KM) — default-off /
-byte-identical. `.2c.2b` (the novel live `extract_facts` fact-surfacing) is the
-last leaf of `.2c`.
+Done: `.1` (decision `0020` ADR); `.2a` (registry + catalog); `.2b` (`sv2v`);
+`.2c` (`slang`) = `.2c.1` (downstream adapter + the `Adapter` trait's first
+`extract_facts` JSON-AST hook + `AdapterFacts` + MCP selectability/discoverability)
++ `.2c.2a` (the `tool_matrix --slang` accept/reject column) + `.2c.2b` (the live
+`extract_facts` fact-surfacing — `ModuleReport`/`DesignReport.slang_facts` + the
+`#[ignore]` real-tool accept+facts gate). All default-off / DUT byte-identical.
 
 Done: `.2b` (`sv2v`, the first new adapter) — `.2b.1` the downstream adapter (4th
 `AcceptanceTool` / `run_sv2v` / `Sv2vAdapter` / registry entry) + MCP selectability
@@ -228,6 +235,7 @@ registry, byte-identical — `.2a` complete).
 | `2026-06-18` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` | `cargo check --all-targets clean; cargo test --bin tool_matrix 76/0 (+1 --sv2v CLI proof; tally proof extended); snapshots 6/6 byte-identical; sv2v_e2e portable 1/0 + #[ignore] 1 (sv2v absent ⇒ skips green); lib 549/0 (bin-only slice); real --sv2v smoke a friendly no-op (exit 0, sv2v 0/0, 0 invocations); clippy -D warnings clean (type alias + documented #[allow] collector); fmt --check clean; mdbook build clean; KM gen/check green (52 facts); DUT byte-identical; RAM-guarded` | `done` |
 | `2026-06-21` | `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` | `cargo check --all-targets clean; cargo test --lib 553/0 (+4 net: slang parser fixture / fallback / extract_facts wrapper + mcp parse_validate_tools_accepts_slang; 4→5 adapter registry/catalog/from_name/warning/per-kind-routing proofs); snapshots 6/6 byte-identical (no generator change); downstream:: 30/0 + mcp:: 73/0 focused post-fmt; clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green (52 facts — slang KM card is .2c.2); DUT default byte-identical; slang absent ⇒ schema verified against published docs, real-tool gate deferred to .2c.2; RAM-guarded` | `done` |
 | `2026-06-21` | `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` | `cargo check --all-targets clean; cargo test --bin tool_matrix 77/0 (+1 --slang CLI proof; summarize + unit_divergence proofs extended to slang); slang_e2e portable 1/0 + #[ignore] 1 (slang absent ⇒ skips green); snapshots 6/6 byte-identical; book_examples 3/3 (new --slang block book-test: skip); lib unaffected (bin-only slice); real --slang smoke a friendly no-op (exit 0, slang 0/0, 0 invocations); clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green (53 facts); default-off byte-identical; RAM-guarded` | `done` |
+| `2026-06-21` | `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b` | `cargo check --all-targets clean; cargo test --bin tool_matrix 78/0 (slang_facts_serialize_only_when_present replaced the dropped coverage-fact proof; constructors gained slang_facts: None); slang_e2e portable 1/0 + #[ignore] 1 (gate now also asserts facts; skips green when slang absent); snapshots 6/6 byte-identical; lib unaffected (bin-only slice); no-op smoke ⇒ 0 slang/slang_facts/saw_slang_facts keys (CoverageSummary byte-identical — coverage fact DROPPED); clippy -D warnings clean; fmt --check clean; mdbook build clean; check_memory_architecture + KM gen/check green (53 facts); default-off byte-identical; RAM-guarded. Closes .2c.2 / .2c / .2.` | `done` |
 
 ## Commit Log
 
@@ -242,6 +250,7 @@ registry, byte-identical — `.2a` complete).
 | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2` | `DOWNSTREAM-ADAPTER-EXPANSION.2b.2 — tool_matrix sv2v transpile-acceptance column + real-tool gate` | The `tool_matrix --sv2v` column mirroring `--iverilog-compile` (CLI flag/bin, `ModuleReport`/`DesignReport.sv2v`, checkpoint + `--resume` guard, tally + console line + `MatrixReport.sv2v_enabled`, `unit_divergence` inclusion), gated on a `tool_version` presence probe for the friendly no-op; `tests/sv2v_e2e.rs` `#[ignore]` real-tool gate; README/USER_GUIDE/book + a KM card. `.2b` complete; frontier advances to `.2c` (slang). |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2c.1` | `DOWNSTREAM-ADAPTER-EXPANSION.2c.1 — slang downstream adapter + the trait's first extract_facts JSON-AST hook + MCP selectability` | The second new adapter `slang`, and the `Adapter` trait's first `extract_facts` fact hook: `AdapterFacts`/`AdapterPortFact`/`AdapterInstanceFact` + the defaulted hook + `AdapterTarget::stem()` + `AcceptanceTool::Slang` + `run_slang`/`run_slang_design` + `parse_slang_ast_facts` + a `SlangAdapter` (`supports_facts=>true`) + a 5th registry entry + a `first_tool_warning` arm; `mcp` `tools` enums + `parse_validate_tools` allow-list updated to 5; book API pages + README/USER_GUIDE allow-list synced. Additive / DUT byte-identical (no `tool_matrix` column — that is `.2c.2`). `.2c` split into `.2c.1`/`.2c.2`; frontier advances to `.2c.2`. |
 | `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` | `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a — tool_matrix slang elaboration-acceptance column` | The `tool_matrix --slang` column mirroring `--sv2v` (CLI flag/bin, `ModuleReport`/`DesignReport.slang`, the `ModuleToolColumns` 4→5 tuple, checkpoint + `--resume` guard, tally + console line + `MatrixReport.slang_enabled`, `unit_divergence` inclusion), gated on a `tool_version` presence probe for the friendly no-op; `tests/slang_e2e.rs` portable proof + `#[ignore]` real-tool accept gate; README/USER_GUIDE/book + a `docs/knowledge/slang-adapter.md` KM card (52→53). Default-off / byte-identical. `.2c.2` split into `.2c.2a`/`.2c.2b`; frontier advances to `.2c.2b` (the live fact-surfacing). |
+| `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b` | `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b — live extract_facts fact-surfacing in the tool_matrix slang report` | The slang column's `--ast-json` is projected through `extract_facts` into `ModuleReport`/`DesignReport.slang_facts: Option<AdapterFacts>` (serde skip ⇒ byte-identical when off; `ModuleToolColumns` 5→6; the slang column builds its `AdapterRunCx` explicitly so the cx feeds the hook); the `tests/slang_e2e.rs` `#[ignore]` gate now asserts real-slang facts (top + ≥1 port). Scope refinement: the planned `saw_slang_facts` coverage fact was DROPPED (a plain bool would change every report's `CoverageSummary`; the sv2v column added none; the requirement is met by the report field) — replaced by a serde-skip proof. README/USER_GUIDE/book/KM updated from "follow-up" to "surfaced under `slang_facts`". **Closes `.2c.2`, `.2c`, and `.2` (the implementation); the tree has no current frontier — `.2d+` are open-ended future picks.** |
 
 ## Changelog
 
@@ -348,3 +357,25 @@ registry, byte-identical — `.2a` complete).
   card (52→53). Default-off ⇒ banked reports + `--resume` + snapshots 6/6 byte-identical.
   Gate green (tool_matrix 77/0, slang_e2e portable 1/0, snapshots 6/6, book_examples 3/3,
   clippy/fmt, mdbook, KM). Frontier advanced to `.2c.2b` (the live fact-surfacing).
+- `2026-06-21`: **`.2c.2b` done — closes `.2c.2`, `.2c`, and `.2`.** The live
+  `extract_facts` fact-surfacing in `src/bin/tool_matrix.rs`: `AdapterFacts` imported;
+  `ModuleReport`/`DesignReport.slang_facts: Option<AdapterFacts>` (serde `default` +
+  `skip_serializing_if` ⇒ off the wire when `None` ⇒ default reports byte-identical); the
+  slang column in `run_module_tools`/`run_design_tools` now builds its `AdapterRunCx`
+  explicitly so the same cx feeds `AcceptanceTool::Slang.adapter().extract_facts(&cx,&inv)`
+  after the run, projecting the `<stem>.slang.json` side file; the facts thread out
+  (`ModuleToolColumns` 5→6) into the report. The `tests/slang_e2e.rs` `#[ignore]` gate now
+  keeps the sandbox and asserts real-slang facts (a named top + ≥1 port) — the eventual
+  confirmation the published-schema parser matches real slang output. **Scope refinement:**
+  the planned opportunistic `saw_slang_facts` `CoverageSummary` fact was DROPPED — a plain
+  bool changes every report's `CoverageSummary` JSON for ALL runs (verified: it appeared 18×
+  in a no-op smoke), unlike the off-the-wire `slang_facts` field; the `sv2v` column added no
+  coverage fact; the decision-`0020` requirement is met by the report field. Replaced its
+  proof with `slang_facts_serialize_only_when_present`. Docs (README/USER_GUIDE/
+  `synthesizability.md`/KM card) updated from "follow-up" to "surfaced under `slang_facts`".
+  Default-off ⇒ banked reports + `--resume` + snapshots 6/6 byte-identical (no-op smoke:
+  slang absent ⇒ 0 `slang`/`slang_facts`/`saw_slang_facts` keys). Gate green (tool_matrix
+  78/0, slang_e2e portable 1/0, snapshots 6/6, clippy/fmt, mdbook, KM 53). **The
+  `DOWNSTREAM-ADAPTER-EXPANSION.2` implementation is complete; the tree has no current
+  frontier** — `surelog`/UHDM + a generic commercial-wrapper adapter are open-ended `.2d+`
+  future picks (nothing retired).

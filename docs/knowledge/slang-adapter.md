@@ -38,8 +38,14 @@ acceptance gate, not a behavioural oracle.
   ANVIL behavioural oracle (decision `0004`).
 - **`.2c.2a` — the `tool_matrix` column.** `tool_matrix --slang` (override the
   binary with `--slang-bin`) records `ModuleReport.slang` / `DesignReport.slang`
-  and tallies `slang pass/fail`. Surfacing the extracted `AdapterFacts` into the
-  matrix report is the follow-up `.2c.2b`.
+  and tallies `slang pass/fail`.
+- **`.2c.2b` — the live facts in the report.** When the `slang` column runs, its
+  `--ast-json` is projected through `extract_facts` into
+  `ModuleReport.slang_facts` / `DesignReport.slang_facts` (`Option<AdapterFacts>`,
+  off the wire when absent ⇒ default runs byte-identical). The `#[ignore]`
+  real-tool gate in `tests/slang_e2e.rs` asserts those facts (a named top + a
+  port) against actual slang when it is on PATH — the eventual confirmation that
+  the published-schema parser matches real slang output.
 
 **Friendly absent-tool no-op.** `slang` is absent on most hosts. A presence probe
 (`downstream::tool_version`) means a requested-but-missing `slang` records *no*

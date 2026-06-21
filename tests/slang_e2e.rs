@@ -24,7 +24,10 @@
 //!    facts in the `tool_matrix` report is `.2c.2b`; this gate proves acceptance.)
 
 use anvil::config::Config;
-use anvil::downstream::{self, adapter_catalog, validate, AcceptanceTool, ValidateOptions};
+use anvil::downstream::{
+    self, adapter_catalog, validate, AcceptanceTool, AdapterRunCx, AdapterTarget, ValidateOptions,
+};
+use std::path::{Path, PathBuf};
 
 /// Portable: the public downstream API exposes `slang` as a fifth registered,
 /// allow-listed adapter — selectable + discoverable with no tool installed — and
@@ -48,11 +51,15 @@ fn slang_is_a_public_fact_bearing_adapter() {
 }
 
 /// Tool-gated: with `slang` on PATH, it elaborates ANVIL's valid-by-construction
-/// DUT output cleanly (accepts). Skips green when `slang` is absent — the friendly
-/// no-op precedent (`tool_version` probe); the portable test above always runs.
+/// DUT output cleanly (accepts) **and** the `.2c.2b` `extract_facts` hook projects
+/// real `slang --ast-json` into `AdapterFacts` (a named top with at least one
+/// port). This is the eventual real-tool confirmation that the parser written
+/// against slang's published schema (slang was absent at landing) matches actual
+/// slang output. Skips green when `slang` is absent — the friendly no-op precedent
+/// (`tool_version` probe); the portable test above always runs.
 #[test]
 #[ignore = "requires slang on PATH"]
-fn slang_accepts_anvil_dut_output_end_to_end() {
+fn slang_accepts_anvil_dut_output_and_extracts_facts_end_to_end() {
     if downstream::tool_version("slang").is_none() {
         eprintln!("slang not on PATH; skipping the real-tool gate (portable proof still ran)");
         return;
@@ -64,6 +71,9 @@ fn slang_accepts_anvil_dut_output_end_to_end() {
     let opts = ValidateOptions {
         tools: vec![AcceptanceTool::Slang],
         sandbox_root: std::env::temp_dir().join("anvil-slang-e2e"),
+        // Keep the sandbox so the `<top>.slang.json` side file `run_slang` wrote
+        // survives for the `extract_facts` projection below.
+        keep_sandbox: true,
         ..Default::default()
     };
     let report = validate(42, &cfg, &opts).unwrap();
@@ -72,8 +82,46 @@ fn slang_accepts_anvil_dut_output_end_to_end() {
         report.ok,
         "slang must accept ANVIL's valid-by-construction RTL by construction: {report:?}"
     );
+    let inv = report
+        .tools
+        .iter()
+        .find(|t| t.tool == "slang")
+        .expect("the slang invocation must be recorded")
+        .clone();
+
+    // Project the kept-sandbox `<top>.slang.json` through the public adapter hook —
+    // exactly the path `tool_matrix --slang` (`.2c.2b`) drives.
+    let sandbox = PathBuf::from(&report.sandbox);
+    let sv_path = sandbox.join(format!("{}.sv", report.top));
+    let target = if report.kind == "design" {
+        AdapterTarget::Design {
+            sv_paths: std::slice::from_ref(&sv_path),
+            top: &report.top,
+        }
+    } else {
+        AdapterTarget::Module {
+            sv_path: &sv_path,
+            stem: &report.top,
+        }
+    };
+    let cx = AdapterRunCx {
+        binary: "slang",
+        out_dir: &sandbox,
+        target,
+        yosys_mode: anvil::downstream::YosysMode::WithoutAbc,
+        language: None,
+    };
+    let facts = AcceptanceTool::Slang
+        .adapter()
+        .extract_facts(&cx, &inv)
+        .expect("real slang --ast-json must project into AdapterFacts");
+    assert_eq!(facts.adapter, "slang");
+    assert!(!facts.top.is_empty(), "facts must name the elaborated top");
     assert!(
-        report.tools.iter().any(|t| t.tool == "slang"),
-        "the slang invocation must be recorded"
+        !facts.ports.is_empty(),
+        "an ANVIL DUT module has ports, so the AST projection must too: {facts:?}"
     );
+
+    // Clean up the kept sandbox so the test leaves no residue.
+    let _ = std::fs::remove_dir_all::<&Path>(sandbox.as_ref());
 }

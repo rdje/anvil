@@ -11,8 +11,8 @@ use anvil::config::{
 // delegates verbatim to those primitives, so the serialized `ToolInvocation`
 // shape (and banked reports + `--resume`) stay unchanged.
 use anvil::downstream::{
-    tool_version, yosys_mode_slug, AcceptanceTool, AdapterRunCx, AdapterTarget, ToolInvocation,
-    ValidateReport, YosysMode,
+    tool_version, yosys_mode_slug, AcceptanceTool, AdapterFacts, AdapterRunCx, AdapterTarget,
+    ToolInvocation, ValidateReport, YosysMode,
 };
 // ACCEPTANCE-DIVERGENCE-HUNTING.2c.2 — the opt-in acceptance-divergence column
 // reuses the one shared detector in `anvil::divergence`: `classify_report`
@@ -283,6 +283,14 @@ struct ModuleReport {
     /// when `None`, so default runs stay byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     slang: Option<ToolInvocation>,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b` — the SCHEMA-DERIVED facts the
+    /// `slang` column's `--ast-json` produced (top/ports/instances), via the
+    /// `extract_facts` hook. `None` unless the `slang` column ran and produced
+    /// a parseable AST; off the wire when `None`, so default runs stay
+    /// byte-identical. Never a behavioural oracle — a projection of slang's
+    /// own AST (decision `0004`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slang_facts: Option<AdapterFacts>,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — opt-in cross-simulator
     /// byte-equal-trace report. `None` when `--diff-sim` was not
     /// set OR this scenario was not in the per-axis subset OR
@@ -422,6 +430,12 @@ struct DesignReport {
     /// `None` unless `--slang` was set; off the wire when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     slang: Option<ToolInvocation>,
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b` — the SCHEMA-DERIVED facts the
+    /// `slang` column's `--ast-json` produced (the design-level counterpart of
+    /// `ModuleReport.slang_facts`). `None` unless the `slang` column ran and
+    /// produced a parseable AST; off the wire when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    slang_facts: Option<AdapterFacts>,
     /// `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — opt-in acceptance-divergence
     /// column (decision `0019`); the design-level counterpart of
     /// `ModuleReport.divergence`. `None` unless `--divergence` was set AND this
@@ -5192,7 +5206,7 @@ fn materialize_prepared_module(
     // even when both knobs are off or a seed produced no qualifying cone.
     let emitted_cone_function = prepared.sv_text.contains("__cf(");
 
-    let (verilator, yosys, iverilog_compile, sv2v, slang) = run_module_tools(
+    let (verilator, yosys, iverilog_compile, sv2v, slang, slang_facts) = run_module_tools(
         cli,
         scenario_dir,
         &prepared.paths.sv_path,
@@ -5246,6 +5260,7 @@ fn materialize_prepared_module(
         iverilog_compile,
         sv2v,
         slang,
+        slang_facts,
         diff_sim,
         divergence,
         emitted_soft_union_overlay,
@@ -5464,6 +5479,7 @@ type ModuleToolColumns = (
     Option<ToolInvocation>,
     Option<ToolInvocation>,
     Option<ToolInvocation>,
+    Option<AdapterFacts>,
 );
 
 fn run_module_tools(
@@ -5544,17 +5560,28 @@ fn run_module_tools(
     // mirroring sv2v: skipped for `union soft` up-opt modules (slang would accept
     // 2023 syntax, but the column stays aligned with the other added adapters), and
     // a **friendly no-op** when slang is absent (a `tool_version` presence probe so a
-    // requested-but-missing slang records no column and never bails the run). The
-    // `--ast-json` facts this column produces are surfaced at `.2c.2b`.
-    let slang = if cli.slang && !verilator_only && tool_version(&cli.slang_bin).is_some() {
-        run_column(AcceptanceTool::Slang, &cli.slang_bin, None)?
-            .into_iter()
-            .next()
-    } else {
-        None
-    };
+    // requested-but-missing slang records no column and never bails the run).
+    // `.2c.2b` — built with an explicit cx (vs the `run_column` closure) so the same
+    // cx feeds the `extract_facts` hook after the run, projecting the
+    // `<stem>.slang.json` `--ast-json` side file into SCHEMA-DERIVED facts.
+    let (slang, slang_facts) =
+        if cli.slang && !verilator_only && tool_version(&cli.slang_bin).is_some() {
+            let cx = AdapterRunCx {
+                binary: &cli.slang_bin,
+                out_dir: scenario_dir,
+                target,
+                yosys_mode: cli.yosys_mode,
+                language: None,
+            };
+            let adapter = AcceptanceTool::Slang.adapter();
+            let inv = adapter.run(&cx)?.into_iter().next();
+            let facts = inv.as_ref().and_then(|i| adapter.extract_facts(&cx, i));
+            (inv, facts)
+        } else {
+            (None, None)
+        };
 
-    Ok((verilator, yosys, iverilog_compile, sv2v, slang))
+    Ok((verilator, yosys, iverilog_compile, sv2v, slang, slang_facts))
 }
 
 fn run_design_tools(
@@ -5649,12 +5676,22 @@ fn run_design_tools(
 
     // `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a` — the opt-in slang elaboration column
     // (design-level), mirroring sv2v; a friendly no-op when slang is absent.
-    let slang = if cli.slang && tool_version(&cli.slang_bin).is_some() {
-        run_column(AcceptanceTool::Slang, &cli.slang_bin, None)?
-            .into_iter()
-            .next()
+    // `.2c.2b` — an explicit cx feeds the `extract_facts` hook after the run,
+    // projecting the design's `<top>.slang.json` `--ast-json` side file.
+    let (slang, slang_facts) = if cli.slang && tool_version(&cli.slang_bin).is_some() {
+        let cx = AdapterRunCx {
+            binary: &cli.slang_bin,
+            out_dir: scenario_dir,
+            target,
+            yosys_mode: cli.yosys_mode,
+            language: None,
+        };
+        let adapter = AcceptanceTool::Slang.adapter();
+        let inv = adapter.run(&cx)?.into_iter().next();
+        let facts = inv.as_ref().and_then(|i| adapter.extract_facts(&cx, i));
+        (inv, facts)
     } else {
-        None
+        (None, None)
     };
 
     // `ACCEPTANCE-DIVERGENCE-HUNTING.2c.2` — classify the tools just run on this
@@ -5683,6 +5720,7 @@ fn run_design_tools(
         iverilog_compile,
         sv2v,
         slang,
+        slang_facts,
         divergence,
     })
 }
@@ -11046,6 +11084,7 @@ mod tests {
                 error: None,
                 version: None,
             }),
+            slang_facts: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -11094,6 +11133,7 @@ mod tests {
             iverilog_compile: None,
             sv2v: None,
             slang: None,
+            slang_facts: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -11161,6 +11201,7 @@ mod tests {
             iverilog_compile: None,
             sv2v: None,
             slang: None,
+            slang_facts: None,
             diff_sim: None,
             divergence: None,
             emitted_soft_union_overlay: false,
@@ -11224,6 +11265,7 @@ mod tests {
                 iverilog_compile: None,
                 sv2v: None,
                 slang: None,
+                slang_facts: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11696,6 +11738,7 @@ mod tests {
                 iverilog_compile: None,
                 sv2v: None,
                 slang: None,
+                slang_facts: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11855,6 +11898,7 @@ mod tests {
                 iverilog_compile: None,
                 sv2v: None,
                 slang: None,
+                slang_facts: None,
                 yosys: vec![],
                 diff_sim: None,
                 divergence: None,
@@ -11901,6 +11945,61 @@ mod tests {
         });
         let cov2 = summarize_coverage(&scenario, &modules, false);
         assert!(cov2.saw_acceptance_divergence);
+    }
+
+    /// `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b` — the slang column's `extract_facts`
+    /// `AdapterFacts` thread into `ModuleReport.slang_facts` and serialize there,
+    /// but the field is **off the wire when `None`** (`skip_serializing_if`), so a
+    /// default run (slang column off) is byte-identical to a pre-`.2c.2b` report.
+    #[test]
+    fn slang_facts_serialize_only_when_present() {
+        let mut module = ModuleReport {
+            file: "mod_0.sv".to_string(),
+            name: "mod_0".to_string(),
+            metrics: Metrics::default(),
+            verilator: None,
+            iverilog_compile: None,
+            sv2v: None,
+            slang: None,
+            slang_facts: None,
+            yosys: vec![],
+            diff_sim: None,
+            divergence: None,
+            emitted_soft_union_overlay: false,
+            emitted_combinational_function: false,
+            emitted_generate_loop: false,
+            emitted_combinational_task: false,
+            emitted_cone_function: false,
+        };
+        // None ⇒ the key is absent from the serialized report (byte-identical).
+        let json = serde_json::to_value(&module).unwrap();
+        assert!(json.get("slang_facts").is_none());
+        // Some ⇒ the SCHEMA-DERIVED projection appears, with slang's own keys
+        // (`type` via the `ty` serde rename).
+        module.slang_facts = Some(AdapterFacts {
+            adapter: "slang".to_string(),
+            top: "mod_0".to_string(),
+            ports: vec![anvil::downstream::AdapterPortFact {
+                name: "a".to_string(),
+                direction: "In".to_string(),
+                ty: "logic[3:0]".to_string(),
+            }],
+            instances: vec![anvil::downstream::AdapterInstanceFact {
+                name: "u0".to_string(),
+                definition: "child".to_string(),
+            }],
+        });
+        let json = serde_json::to_value(&module).unwrap();
+        assert_eq!(json["slang_facts"]["adapter"], serde_json::json!("slang"));
+        assert_eq!(json["slang_facts"]["top"], serde_json::json!("mod_0"));
+        assert_eq!(
+            json["slang_facts"]["ports"][0]["type"],
+            serde_json::json!("logic[3:0]")
+        );
+        assert_eq!(
+            json["slang_facts"]["instances"][0]["definition"],
+            serde_json::json!("child")
+        );
     }
 
     // NOTE: `parse_dut_ports_recognises_anvil_emitter_shape` and
@@ -12026,6 +12125,7 @@ mod tests {
             iverilog_compile: None,
             sv2v: None,
             slang: None,
+            slang_facts: None,
             yosys: vec![],
             diff_sim: None,
             divergence: None,

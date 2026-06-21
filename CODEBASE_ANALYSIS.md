@@ -803,8 +803,20 @@ src/
 │                     `unit_divergence` inclusion — all gated on a `tool_version`
 │                     presence probe (the friendly no-op). `tests/slang_e2e.rs` is the
 │                     portable proof + `#[ignore]` real-tool accept gate. Default-off
-│                     ⇒ banked reports + `--resume` + snapshots byte-identical. The
-│                     live `extract_facts` fact-surfacing is `.2c.2b`.
+│                     ⇒ banked reports + `--resume` + snapshots byte-identical.
+│                     `.2c.2b` makes the `extract_facts` hook live in the report:
+│                     `ModuleReport`/`DesignReport.slang_facts: Option<AdapterFacts>`
+│                     (serde `skip_serializing_if` ⇒ byte-identical when off), populated
+│                     by building the slang column's `AdapterRunCx` explicitly and
+│                     calling `AcceptanceTool::Slang.adapter().extract_facts(&cx,&inv)`
+│                     over the `<stem>.slang.json` side file (`ModuleToolColumns` 5→6).
+│                     The `slang_e2e` `#[ignore]` gate now asserts real-slang facts
+│                     (top + ≥1 port). No `saw_slang_facts` coverage fact (a plain bool
+│                     would change every report's `CoverageSummary`; the requirement is
+│                     met by the off-the-wire field). **`DOWNSTREAM-ADAPTER-EXPANSION.2`
+│                     is complete** (registry + catalog + `sv2v` + `slang`); the tree
+│                     stays `active` with no current frontier (`.2d+` surelog/UHDM /
+│                     commercial-wrapper are open-ended future picks).
 ├── hunt/            Turnkey downstream bug-hunt loop
 │   └── mod.rs        (`BUG-HUNT-ORCHESTRATION`, decision `0018`). A **thin
 │                     orchestrator** — `run(&HuntRequest) -> Result<HuntReport>`

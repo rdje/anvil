@@ -5,6 +5,34 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-21 — Live `slang` facts in the matrix report; why no coverage fact — `DOWNSTREAM-ADAPTER-EXPANSION.2c.2b`
+
+`.2c.2b` surfaces the `extract_facts` projection in the `tool_matrix` report
+(`ModuleReport`/`DesignReport.slang_facts: Option<AdapterFacts>`, off the wire when `None`).
+Two decisions worth keeping:
+
+- **The slang column builds its `AdapterRunCx` explicitly, not via the `run_column` closure.**
+  The other columns only need the `ToolInvocation` `run_column` returns; slang additionally
+  needs the *same* cx to call `extract_facts(&cx, &inv)` afterward (the hook reconstructs the
+  `<stem>.slang.json` path from `cx.out_dir` + `cx.target.stem()`). Reusing one cx for both
+  `run` and `extract_facts` keeps the side-file path consistent and avoids re-deriving it.
+
+- **Rejected: an opportunistic `saw_slang_facts` `CoverageSummary` fact.** It was in the
+  `.2c.2b` plan, implemented, then removed. Every other `saw_*` fact is a plain always-
+  serialized bool, so adding one changes *every* `tool_matrix` report's `CoverageSummary`
+  JSON — verified directly: a no-op `--slang` smoke (slang absent) showed `saw_slang_facts`
+  appearing 18× (once per scenario + global). That is a report-shape change for **all** runs,
+  not just `--slang` runs — the opposite of the off-the-wire `slang_facts` field. The direct
+  precedent, the `sv2v` column (`.2b.2`), added **no** coverage fact, and the decision-`0020`
+  requirement ("surface the facts in the report") is fully met by the `slang_facts` field. So
+  the coverage fact was dropped for byte-identical cleanliness + precedent consistency; its
+  proof became `slang_facts_serialize_only_when_present` (the serde-skip guarantee — a more
+  direct proof of the byte-identical claim than a coverage-fact assertion). Lesson:
+  `skip_serializing_if` Option fields are byte-identical-safe to add; always-serialized
+  scalars are not — prefer the former for opt-in report data.
+
+---
+
 ## 2026-06-21 — The `tool_matrix --slang` column — a faithful `--sv2v` mirror — `DOWNSTREAM-ADAPTER-EXPANSION.2c.2a`
 
 `.2c.2a` adds the `tool_matrix --slang` elaboration-acceptance column by mirroring the
