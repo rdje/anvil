@@ -5,6 +5,131 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Wider (k>2) multi-output task groups — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.13a`
+
+The design-detail leaf for the first **deepening** of the sixth structured
+surface (decision `0025`, the multi-output combinational `task automatic`): widen
+a co-supported group from the first-cut **pair** (`k = 2`) to a bounded **`k > 2`**
+group. This is the recorded `.13` follow-up named in decision `0025` ("Wider
+groups (`k > 2`) … a recorded follow-up (`.13+`)") and the README/resume-pointer
+natural next. No source change at this leaf; this entry grounds the widening in the
+real code and pins every `.13b` impl choice so the implementation slice is
+mechanical. Read against `src/ir/multi_output_task_emit.rs`
+(`annotate_multi_output_task_groups` + `admissible` / `sibling_marked` /
+`nonconst_operands` / `shares_nonconst_operand` / `in_fanin`), `src/emit/sv.rs`
+(`multi_output_task_params` / `render_multi_output_task_decl` /
+`render_multi_output_task_call` ~`1843`–`1940` + the per-gate passthrough ~`583`),
+`src/gen/mod.rs` (the two guarded `multi_output_task_emit_prob > 0.0` call sites
+~`133` and ~`364`), and `src/config.rs` (`default_multi_output_task_emit_prob` =
+`0.0`).
+
+**(0) The widening locus is a single function — the emitter is already
+k-agnostic.** Verified by reading `src/emit/sv.rs`: the emit loop builds
+`members = [leader] ++ partners`, `sort_unstable()`s, and hands `&members` to
+`multi_output_task_params` / `render_multi_output_task_decl` /
+`render_multi_output_task_call`, all of which iterate `members` of **arbitrary
+length** (`o0..o{k-1}` outputs, deduplicated `a0..a{m-1}` inputs, `k` `__mtv`
+vars + `k` passthroughs). The carrier `Module.multi_output_task_groups:
+BTreeMap<NodeId, Vec<NodeId>>` already holds `k-1` partners. So **the only source
+change is in `annotate_multi_output_task_groups`** — it currently stops after one
+partner (`m.multi_output_task_groups.insert(ga, vec![gb])`). No emitter change, **no
+new knob** (reuse `multi_output_task_emit_prob`), **no new metric / no schema bump**
+(`num_emitted_multi_output_tasks = multi_output_task_groups.len()` counts *groups*,
+valid for any `k`), and the `--multi-output-task-gate` stays valid (`__mt(`
+detection + downstream-clean; re-bank with the now-wider groups).
+
+**(1) The greedy group-extension algorithm (keep the per-leader inline roll).**
+The pass keeps its exact roll mechanism — **one `gen_bool(prob)` roll per ungrouped
+leader `ga`** in ascending `NodeId`. On a fire, instead of finding the *first*
+eligible partner and stopping, greedily **collect all eligible partners** in
+ascending `NodeId` order into the group, up to a cap:
+
+```text
+group = [ga]
+for gc in candidates where gc > ga and gc ∉ used (ascending):
+    if group.len() == MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS: break
+    if connected_co_support(gc, group) and independent_of_all(gc, group):
+        group.push(gc)
+if group.len() >= 2:
+    insert {ga: group[1..]}; mark every member used
+```
+
+A group forms iff at least one partner was admitted (size `>= 2`), so the `k = 2`
+behaviour is the *exact* subset when only one partner qualifies — every existing
+pair proof still holds verbatim.
+
+**(2) The connectivity rule generalizes "shares a non-constant operand" to
+*connected co-support*.** A candidate `gc` joins the group iff it shares `>= 1`
+non-constant direct operand with **at least one current member** (not necessarily
+the leader). This generalizes the pair rule (`shares_nonconst_operand(ga, gb)`)
+while keeping the group a genuine deduplicated shared-formal structure: every
+formal that is shared still feeds `>= 2` outputs (the "co-supported sink"
+essence). *Considered stricter alternative — leader-anchored (star) co-support*
+(`gc` must share with `ga` specifically): more conservative but finds fewer/narrower
+groups and adds no soundness; **rejected** in favour of connected co-support, which
+maximizes the new elaboration interaction surface (`project_anvil_north_star`)
+while staying valid-by-construction.
+
+**(3) The soundness rule generalizes to *mutual fan-in independence across all
+members*.** A candidate `gc` joins iff it is mutually fan-in-independent with
+**every** current member — `!in_fanin(m, member, gc) && !in_fanin(m, gc, member)`
+for each `member` (both directions, as the pair code already checks, for
+robustness against any future `NodeId`-invariant change; with the operand-
+topological invariant `gc > member` makes `gc ∈ fanin(member)` automatically
+false). Because each addition is checked against all current members and the
+existing members were already pairwise independent, the invariant *"all members
+pairwise fan-in-independent"* is maintained inductively — so the co-emitted task
+is **cycle-free by construction** for any `k` (the multi-output analogue of the
+cone-function single-use rule; no `UNOPTFLAT` through the single `always_comb`).
+
+**(4) The cap is a named const — bounded and reviewable first cut.**
+`const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS: usize = 8;` (leader + up to 7
+partners). The cap keeps any one group reviewable and lets **multiple** groups
+form per module (a leader stops absorbing at the cap; the next ungrouped leader
+forms its own group), so the surface stays diverse rather than collapsing a dense
+comb module into one giant task. Raising or removing the cap is a trivial future
+follow-up (it is a single constant); `8` is generous enough that `k = 3..8` groups
+form readily on the `--multi-output-task-gate` DUTs (high `terminal_reuse_prob` +
+shallow `max_depth` ⇒ many co-supported independent siblings) yet bounded.
+
+**(5) Byte-identical + RNG-stream argument.** Default
+`multi_output_task_emit_prob = 0.0` ⇒ the generator **does not call** the pass
+(guarded `> 0.0` at both `src/gen/mod.rs` sites) ⇒ byte-identical stream + output;
+no `tests/snapshots.rs` snapshot sets the knob (confirmed). At the gate's
+`prob = 1.0`, `rng.gen_bool(1.0)` short-circuits in rand 0.8's `Bernoulli`
+(`p == 1.0 ⇒ ALWAYS_TRUE` sentinel, no `u64` drawn), so the pass consumes **zero**
+RNG draws regardless of how wide the groups grow — the wider grouping cannot shift
+the RNG state seen by `cone_function` (which the gate leaves off anyway). The only
+behavioural change is **wider groups at `prob > 0.0`**, the intended deepening; the
+gate is re-banked downstream-clean. (For `prob ∈ (0,1)` the realized roll count
+tracks the grouping, exactly as it already did for `k = 2` — no contract covers
+that mixed-knob path, and the default-off + gate points are both preserved.)
+
+**(6) `.13b` proof plan.** New lib proofs in `multi_output_task_emit.rs`:
+`prob_one_groups_a_co_supported_triple` (three mutually-independent gates sharing
+operands ⇒ one group `{leader: [m1, m2]}`); `group_extends_only_to_connected_
+co_support` (a fourth gate sharing nothing with the group is **not** admitted);
+`group_excludes_fan_in_dependent_member_when_widening` (a candidate in a member's
+fan-in is **not** admitted ⇒ cycle-free maintained at `k > 2`);
+`group_respects_the_member_cap` (more than `MAX` co-supported independent gates ⇒
+the group caps at `MAX`, the surplus left ungrouped for a later leader); and an
+emit proof `grouped_triple_emits_three_output_task` (a 3-member group renders one
+`__mt(` task with `o0,o1,o2` + the deduplicated `a*` inputs + 3 `__mtv` +
+3 passthroughs — exercising the already-k-agnostic emitter). Every existing pair
+proof stays green (the `k = 2` subset). Plus a forced
+`multi_output_task_emit_prob = 1.0` sweep proving `k >= 3` groups fire and are
+Verilator `-Wall` Δ=0 + both Yosys + Icarus clean, and a re-bank of
+`--multi-output-task-gate`.
+
+**Rejected at this leaf:** leader-anchored (star) co-support [point 2]; an
+unbounded group [point 4 — a dense module would collapse to one giant task, less
+reviewable and crowding out multiple-group diversity]; a new
+`max_multi_output_task_group_size` config knob [unnecessary surface for a first
+cut — the internal const is enough; promote to a knob only if a user needs it];
+rolling once per candidate up front to make the roll count `k`-invariant [the
+default-off + `prob=1.0` gate points are already byte-/stream-stable per point 5, so
+the extra refactor buys nothing and would perturb the `k=2` mixed-prob path].
+
 ## 2026-06-22 — Doctrine-enforcement adoption (portable architecture #4) — `DOCTRINE-ENFORCEMENT-ADOPTION`
 
 Decision `0026`. ANVIL already ran three portable architectures (task-trees,

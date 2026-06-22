@@ -1,6 +1,57 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.13a — wider (k>2) multi-output task groups impl design-detail
+
+**Landed as:** this commit (previous: `2e2eb72`). Docs-only / no source /
+DUT byte-identical. Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.13a`
+(the first *deepening* of the sixth structured surface; the recorded `.13`
+follow-up of decision `0025`).
+
+**What changed (why)**
+
+- **`DEVELOPMENT_NOTES.md`** — a new design-detail entry "Wider (k>2) multi-output
+  task groups — impl design-detail — `.13a`" grounding the deepening in a fresh
+  read of the real code. Key finding: the **emitter is already k-agnostic** —
+  `src/emit/sv.rs` builds `members = [leader] ++ partners`, sorts, and
+  `multi_output_task_params` / `render_multi_output_task_decl` /
+  `render_multi_output_task_call` all iterate `members` of arbitrary length
+  (`o0..o{k-1}` outputs, deduplicated `a0..a{m-1}` inputs, `k` `__mtv` vars +
+  `k` passthroughs); the carrier `Module.multi_output_task_groups:
+  BTreeMap<NodeId,Vec<NodeId>>` already holds `k-1` partners. **So the only `.13b`
+  source change is widening `src/ir/multi_output_task_emit.rs`
+  `annotate_multi_output_task_groups`** (it currently stops after the first
+  partner). Pinned: (1) keep the per-leader inline `gen_bool(prob)` roll; on a
+  fire, greedily collect ALL eligible partners up to a cap (a group forms iff
+  `>= 1` partner ⇒ `k=2` is the exact subset, every pair proof holds); (2)
+  **connected co-support** = a candidate joins iff it shares `>= 1` non-constant
+  operand with at least one current member (leader-anchored star rejected); (3)
+  **generalized mutual fan-in independence** with all current members (both
+  `in_fanin` directions; inductively maintained ⇒ cycle-free at any `k`); (4) a
+  named `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`; (5) **no new knob /
+  metric / schema** (the metric counts groups, valid for any `k`); (6) the
+  byte-identical/RNG argument (default `0.0` ⇒ the pass is not called — guarded
+  `> 0.0` at both `gen/mod.rs` sites; at `prob=1.0` `gen_bool(1.0)` short-circuits
+  in rand 0.8's `Bernoulli` ⇒ zero RNG draws ⇒ no `cone_function` stream shift); (7)
+  the `.13b` proof plan + rejected alternatives.
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — registered `.13` (active) +
+  `.13a` (done) + `.13b` (pending impl) + `.13c` (pending docs) in the Task Tree;
+  root node Goal/Children updated; Current Frontier set to `.13b`; a Decisions note
+  (no new ADR — covered by decision `0025`'s recorded `.13` follow-up); Verification
+  Log + Commit Log + Changelog + "most recent completions" rows for `.13a`;
+  Metadata "Last updated".
+- **`docs/TASK_TREE.md`** — the `STRUCTURED-EMISSION-EXPANSION` row updated: `.13a`
+  done, frontier → `.13b`, future surfaces renumbered `.14+`.
+
+**Validation** — `bash scripts/check_doctrines.sh` green (4 doctrines;
+`MEMORY-ARCH` + `KNOWLEDGE-MAP` pass; the scope-aware code checks exempt — docs-only
+commit). `mdbook build book` clean. No `src/` touched ⇒ `cargo check/clippy/fmt/test`
+unaffected (`cargo test --lib` 600 + snapshots 6/6 per the `.12b.3` bank still hold).
+
+**Impact** — no behavioural change (docs/tree only). Establishes task-tree
+ownership of the `.13b` source change *before* the edit (the 2026-05-17 doctrine).
+DUT byte-identical.
+
 ## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.6 — closeout: live-doc + book + KM alignment; tree done
 
 **Landed as:** this commit (previous: `ea04769`). **Closes the
