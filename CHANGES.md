@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.3 — multi-output task user docs (sixth surface end-to-end)
+
+**Landed as:** this commit (previous: `92ed8d8`). **The user-facing closeout — the
+sixth structured surface (the multi-output combinational `task automatic`, decision
+`0025`) is now delivered end-to-end; `.12b.3` / `.12b` / `.12` all close.** Docs-only
+/ DUT byte-identical (no `src/` touched). Task-tree-owned by
+`STRUCTURED-EMISSION-EXPANSION.12b.3`.
+
+**What changed (why)**
+
+- **`book/src/structured-emission.md`** — a new `## The sixth surface: a
+  multi-output task automatic` section: a **byte-verified** seed-3 before/after (the
+  inline `xor_0 = i_1 ^ i_2; not_0 = ~i_2;` pair becomes one `task automatic
+  xor_0__mt(output o0, o1, input a0, a1)` where the shared operand `i_2` is the
+  single formal `a1` feeding **both** outputs — the co-supported sink — + per-member
+  `<wire>__mtv` vars + one `always_comb` + per-member passthrough `assign`s); the
+  shared-non-constant-operand rule; the fan-in-independence soundness rule;
+  members-keep-their-wires; the mutual exclusion + pass ordering; the metric @
+  schema `1.14` + the `--multi-output-task-gate` proof; a skip-sentinelled repro.
+  The chapter intro now lists the multi-output task as a current surface.
+- **`book/src/knobs.md`** / **`USER_GUIDE.md`** / **`README.md`** — the
+  `multi_output_task_emit_prob` knob entry (the knob, beside
+  `cone_function_emit_prob`).
+- **`docs/knowledge/multi-output-task-emit.md`** (new KM card) — the operational
+  how-to ("how do I emit a multi-output task", the knob, the pairing rules, the
+  soundness rule, the gate), cross-linked to decision `0025` /
+  [[combinational-task-emit]] / [[multi-gate-cone-function-emit]], with a working
+  `reverify`; `KNOWLEDGE_MAP.md` regenerated (61 → 62 facts / 551 → 565 keys).
+- **`book/src/{api-tools,agent-mcp,api-introspection,api-reference}.md`** — the
+  deferred introspection schema **`1.13 → 1.14`** book-example refresh:
+  current-version statements + JSON `schema_version` examples bumped to `1.14`; the
+  `1.13 → 1.14` MINOR entry (`module_metrics.num_emitted_multi_output_tasks`) added
+  to the changelog narratives; the historical `num_mealy_fsm_modules @ 1.13` refs in
+  `sequential.md`/`knobs.md` left intact.
+
+**Validation**
+
+- `mdbook build book` clean; `bash knowledge-map/scripts/gen_knowledge_map.sh` (62
+  facts / 565 keys) + `check_knowledge_map.sh` OK; `bash
+  scripts/check_memory_architecture.sh` OK; `cargo test --test book_examples` **3/3
+  passed** (the new repro block carries `<!-- book-test: skip -->`). The book seed-3
+  before/after is byte-verified against `anvil --seed 3` output and the ON form is
+  downstream-clean (Verilator `-Wall` 2012/2017/2023 rc=0 + both Yosys rc=0 + Icarus
+  rc=0). No `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected.
+
+**Impact**
+
+- The sixth structured-emission surface is delivered **end-to-end** (decision +
+  design-detail + live surface + metric/schema + repo-owned gate + user docs). The
+  `STRUCTURED-EMISSION-EXPANSION` lane stays `active` with no current frontier
+  (open-ended; future surfaces `.13+`). **SIX structured surfaces total.**
+  Default-off / DUT byte-identical. No ROADMAP phase label changed.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.2b — repo-owned tool_matrix --multi-output-task-gate
 
 **Landed as:** this commit (previous: `21bc84c`). **The repo-owned downstream gate

@@ -11,9 +11,9 @@ output drives. Every downstream parser, elaborator, linter, and synth
 tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
 construction in a richer SystemVerilog surface — today a single-gate
-`function`, a `generate for` loop, a `task`, and a whole-cone `function`,
-and later nested `generate` or an `interface` — so the tools have more legal
-structural variety to ingest,
+`function`, a `generate for` loop, a `task`, a whole-cone `function`, and a
+multi-output `task`, and later nested `generate` or an `interface` — so the
+tools have more legal structural variety to ingest,
 and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds
 *shape*, never *behaviour*.)
@@ -628,3 +628,130 @@ anvil --seed 4 --config base.json
 
 Flip `cone_function_emit_prob` back to `0.0` and the output is byte-identical to
 the default lane.
+
+## The sixth surface: a multi-output `task automatic`
+
+The sixth surface **generalizes the [third surface](#the-third-surface-a-combinational-task-automatic)**.
+The single-gate task had one `output`. The sixth surface co-emits a
+**co-supported pair** of combinational gates into **one** `task automatic` with
+several `output` arguments and a **deduplicated** `input` list: a non-constant
+operand the two gates *share* becomes **one** input formal feeding multiple
+outputs — the "co-supported sink". One `always_comb` call drives a per-member
+output var, and each member's net is driven by a passthrough `assign`. Because
+each output is the member gate's exact operation over those formals, the task
+computes exactly the two inline assigns — **behaviour-preserving by construction**.
+
+It uses its **own** knob,
+[`multi_output_task_emit_prob`](knobs.md#structured-emission) (default `0.0`),
+*separate* from the single-gate `task_emit_prob`, so the shipped single-gate
+surface stays byte-identical. A new
+[`num_emitted_multi_output_tasks`](agent-mcp.md) metric counts the task groups it
+emits, bumping the introspection schema to `1.14`.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the default). Two
+outputs are driven by two sibling gates that share the input `i_2`:
+
+```systemverilog
+    wire [3:0] xor_0;
+    wire [3:0] not_0;
+
+    assign xor_0 = i_1 ^ i_2;
+    assign not_0 = ~i_2;
+
+    assign o_0 = xor_0;
+    assign o_1 = not_0;
+```
+
+With `multi_output_task_emit_prob = 1.0`, the *same* pair is co-emitted as one
+multi-output `task automatic`. The shared operand `i_2` becomes a single input
+formal `a1` that feeds **both** outputs; each member's `assign` becomes a
+passthrough from its `<wire>__mtv` output var:
+
+```systemverilog
+    wire [3:0] xor_0;
+    wire [3:0] not_0;
+
+    task automatic xor_0__mt(output logic [3:0] o0, output logic [3:0] o1, input logic [3:0] a0, input logic [3:0] a1);
+        o0 = a0 ^ a1;
+        o1 = ~a1;
+    endtask
+    logic [3:0] xor_0__mtv;
+    logic [3:0] not_0__mtv;
+    always_comb xor_0__mt(xor_0__mtv, not_0__mtv, i_1, i_2);
+
+    assign xor_0 = xor_0__mtv;
+    assign not_0 = not_0__mtv;
+
+    assign o_0 = xor_0;
+    assign o_1 = not_0;
+```
+
+The task computes `o0 = i_1 ^ i_2` and `o1 = ~i_2` — exactly the inline pair —
+with the shared `i_2` passed once as `a1`. Only the two members' drives change;
+the output drives `assign o_0 = xor_0;` / `assign o_1 = not_0;` are byte-identical.
+
+### What gets wrapped (and what doesn't)
+
+- **The members** are admissible combinational gates (not a `Slice`, not a
+  procedural structured selector — the same candidate rules as the single-gate
+  `task`). The first cut groups a **pair** (`k = 2`); wider co-supported groups
+  are a recorded follow-up.
+- **The pair must share a non-constant operand.** A shared *constant* folds inline
+  as a literal (so it is never a shared formal); without a shared non-constant
+  operand the task would be merely two unrelated tasks fused, with no new
+  interaction — so such gates are not grouped.
+- **The pair must be mutually fan-in-independent** — neither member may lie in the
+  other's fan-in cone. If it did, the member's net (driven by the shared task's
+  passthrough) would feed, through gates outside the task, into a direct operand
+  the task reads, closing a combinational cycle through the single `always_comb`
+  call (a Verilator `UNOPTFLAT`). The independence rule makes the co-emitted task
+  cycle-free by construction.
+- **Members keep their module wires** (unlike a cone-function interior): they are
+  co-equal roots, not absorbed, so there is no use-count rule and DAG-shared
+  members are fine — only their drive changes.
+- The surface is **mutually exclusive** with the five per-gate / per-cone
+  projections: it runs after the single-gate `task` and before the cone `function`,
+  and never groups a gate already marked by one of them.
+- **Combinational only** — each member is a combinational gate; a flop `Q` is a
+  leaf formal.
+
+### How anvil proves it
+
+- The [`num_emitted_multi_output_tasks`](agent-mcp.md) metric (a post-hoc count of
+  `Module.multi_output_task_groups`) is surfaced in `--introspect` at schema
+  `1.14`, so a sweep can confirm the surface fired.
+- The repo-owned `tool_matrix --multi-output-task-gate` forces
+  `multi_output_task_emit_prob = 1.0` over comb-only DUTs across all three
+  construction strategies and requires the `saw_multi_output_task_emit` coverage
+  fact — a genuinely-emitted multi-output task (detected from the SV text's
+  `<leader>__mt(` token, distinct from the single-gate `<wire>__t(` and the cone
+  `<root>__cf(`) accepted by Verilator **and** Yosys. Banked clean (3 scenarios /
+  12 modules / 6 emitting a multi-output task / `coverage_gaps = []` / `12/0`
+  Verilator + both Yosys + Icarus).
+- Library tests pin the pairing: a co-supported independent pair groups, gates
+  without a shared non-constant operand do not, a shared *constant* alone does not,
+  fan-in-dependent gates do not, a `Slice` / structured / sibling-marked member is
+  excluded, and a grouped pair emits the multi-output task while the unmarked
+  default stays the inline pair.
+
+The picked-sixth rationale (the deferred runner-up from the fifth-surface probe,
+chosen for the genuinely-new "multiple `output` formals + a shared input formal"
+elaboration interaction) is recorded in decision `0025`
+(`docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md`).
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 3 --dump-config > base.json
+# edit base.json: set "multi_output_task_emit_prob": 1.0 (a small comb-only shape
+# makes the one task pair easy to read: "flop_prob": 0.0, "constant_prob": 0.0,
+# "terminal_reuse_prob": 0.9, "min_inputs": 3, "max_inputs": 3, "min_outputs": 2,
+# "max_outputs": 2, "min_width": 4, "max_width": 4, "max_depth": 1)
+anvil --seed 3 --config base.json
+```
+
+Flip `multi_output_task_emit_prob` back to `0.0` and the output is byte-identical
+to the default lane.

@@ -617,6 +617,48 @@ instead of creating fresh logic.
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
 
+- `multi_output_task_emit_prob` (the `--multi-output-task-emit-prob` CLI flag, or
+  `--config` JSON, like `task_emit_prob` / `cone_function_emit_prob`; default
+  `0.0` ⇒ byte-identical; validated `0.0..=1.0`) — the **sixth richer-structured
+  emission surface** (decision `0025`). Probability, per ungrouped *qualifying*
+  combinational gate (the same candidate set as `task_emit_prob`), that anvil
+  pairs it with the next qualifying gate that **shares a non-constant operand** and
+  is **fan-in-independent**, and co-emits the pair as **one** multi-output
+  `task automatic` with a **deduplicated** input list instead of two inline
+  `assign`s:
+
+  ```systemverilog
+  task automatic xor_0__mt(output logic [3:0] o0, output logic [3:0] o1, input logic [3:0] a0, input logic [3:0] a1);
+      o0 = a0 ^ a1;   // xor_0 = i_1 ^ i_2
+      o1 = ~a1;        // not_0 = ~i_2  (the shared operand i_2 is the single formal a1)
+  endtask
+  logic [3:0] xor_0__mtv;
+  logic [3:0] not_0__mtv;
+  always_comb xor_0__mt(xor_0__mtv, not_0__mtv, i_1, i_2);
+  assign xor_0 = xor_0__mtv;   // was: assign xor_0 = i_1 ^ i_2;
+  assign not_0 = not_0__mtv;   // was: assign not_0 = ~i_2;
+  ```
+
+  It **generalizes** the single-gate `task_emit_prob` projection from one `output`
+  to several, so it has its **own** knob — the shipped single-gate surface stays
+  byte-identical (reusing `task_emit_prob` was rejected). A shared non-constant
+  operand becomes one input formal feeding multiple outputs (the "co-supported
+  sink"); a shared *constant* folds inline (never a formal). The
+  **fan-in-independence** rule is the soundness condition — co-emitting a member
+  that lies in another's fan-in would close a combinational cycle through the
+  shared `always_comb` call. Members keep their module wires (co-equal roots, not
+  absorbed). Selection is rules-first at construction time; the first cut is a
+  **pair** (wider groups are a recorded follow-up). The six emit-projections
+  (`function_emit` / `generate_loop` / `task_emit` / `multi_output_task` /
+  `cone_function` / `soft_union`) are mutually exclusive on a gate — this pass runs
+  after the single-gate `task` and before the cone `function`. Combinational only.
+  `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `num_emitted_multi_output_tasks` metric in `--introspect` (schema `1.14`). Proven
+  downstream-clean by the repo-owned `tool_matrix --multi-output-task-gate`
+  (Verilator + both Yosys modes + Icarus; `saw_multi_output_task_emit`). See
+  [Structured Emission Surfaces](structured-emission.md) for the full
+  walk-through.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`

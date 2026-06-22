@@ -511,6 +511,31 @@ with a matching `--kebab-case` CLI flag since
   surface is proven downstream-clean by `tool_matrix --cone-function-gate` (see
   the matrix section below). Full walk-through:
   `book/src/structured-emission.md`.
+- `multi_output_task_emit_prob` (the `--multi-output-task-emit-prob` CLI flag, or
+  `--config` JSON, like `task_emit_prob` / `cone_function_emit_prob`; decision
+  `0025`) is the **sixth richer-structured emission surface**, a **generalization
+  of the single-gate `task_emit_prob` surface** from one `output` to several. Per
+  ungrouped qualifying gate (the same candidate set as `task_emit_prob`), it is the
+  probability the emitter pairs it with the next qualifying gate that **shares a
+  non-constant operand** and is **fan-in-independent**, and co-emits the pair as
+  one multi-output `task automatic` with a **deduplicated** input list — a shared
+  operand becomes one input formal feeding multiple outputs (the "co-supported
+  sink") — called once from `always_comb` into per-member `<wire>__mtv` vars, each
+  member's net driven by a passthrough `assign`. It is an **emit-time projection**
+  (behaviour-preserving, no new IR truth) with its **own** knob, so the shipped
+  single-gate surface stays byte-identical. The fan-in-independence rule is the
+  soundness condition (co-emitting a fan-in-dependent member would close a
+  combinational cycle through the shared `always_comb`); members keep their module
+  wires (co-equal roots). The first cut groups a **pair** (wider groups are a
+  recorded follow-up). The six emit-projections are mutually exclusive on a gate
+  (this pass runs after the single-gate `task`, before the cone `function`).
+  Combinational only. `default = 0.0` is byte-identical; the emitted count is
+  surfaced as `num_emitted_multi_output_tasks` in `--introspect` (schema `1.14`).
+  Set it in a `--config` JSON, e.g.
+  `{ "seed": 3, "multi_output_task_emit_prob": 1.0, "flop_prob": 0.0, … }`. The
+  surface is proven downstream-clean by `tool_matrix --multi-output-task-gate` (see
+  the matrix section below). Full walk-through:
+  `book/src/structured-emission.md`.
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
