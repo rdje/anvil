@@ -2101,8 +2101,18 @@ In `ir::validate::validate_design`:
 - `cargo clippy --all-targets -- -D warnings` — clean.
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
-- `knowledge-map/scripts/check_knowledge_map.sh` and
-  `scripts/check_memory_architecture.sh` — clean.
+- `scripts/check_doctrines.sh` — the doctrine-enforcement registry+driver
+  (`DOCTRINE-ENFORCEMENT-ADOPTION`, decision `0026`) — clean: `PASS` × 4
+  doctrines (`MEMORY-ARCH` → `scripts/check_memory_architecture.sh`;
+  `KNOWLEDGE-MAP` → `knowledge-map/scripts/check_knowledge_map.sh`;
+  `CODE-CHANGE-EVIDENCE` → `scripts/check_diagnosis_evidence.sh`;
+  `TASK-TREE-OWNERSHIP` → `scripts/check_task_tree_ownership.sh`). The driver
+  collects all results, meta-checks each registered check exists+executable,
+  and exits nonzero on any breach. `.githooks/pre-commit` (E3) and
+  `.github/workflows/ci.yml` (E4) both run it; the two code-scoped checks are
+  scope-aware (non-code commits exempt). The standard + live registry is
+  `DOCTRINE_ENFORCEMENT.md`; ANVIL's own diagnostic toolbox + the
+  acceptance-checklist is `TOOLBOX.md`.
 - Generator-output smoke: focused current default `tool_matrix`
   (`cargo run --bin tool_matrix -- --out
   /tmp/anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap

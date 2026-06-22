@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **63** facts · **577** question keys.
+> **64** facts · **589** question keys.
 
 ## Questions → fact
 
@@ -142,11 +142,13 @@
 - "does verilator 5.046 differentiate 1800-2012 1800-2017 1800-2023" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "does whole-module sequential equivalence retire the combinational module dedup" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "how are ANVIL presets defined" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
+- "how are ANVIL's doctrines enforced" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "how are ANVIL's doctrines mechanically enforced" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
 - "how are downstream coverage gaps surfaced over MCP" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "how can ANVIL prove a 3-flop CDC synchronizer was generated" -> [n-flop-cdc-synchronizer](docs/knowledge/n-flop-cdc-synchronizer.md) · 2026-06-05
 - "how deep is a module in the hierarchy / what is its depth from the top" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how do I add a new enforced doctrine to ANVIL" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
+- "how do I add a new enforced doctrine" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "how do I add slang or sv2v or surelog to ANVIL" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "how do I add the ANVIL GitHub Action to my workflow" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
 - "how do I add the slang elaboration acceptance column" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
@@ -197,6 +199,7 @@
 - "how do I run anvil hunt with divergence detection" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I run slang on ANVIL output" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "how do I run sv2v on ANVIL output" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
+- "how do I run the doctrine checks" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "how do I set ANVIL's config-file-only knobs from the CLI" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how do I set ANVIL's config-file-only knobs from the CLI" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
 - "how do I turn on ANVIL structured emission from the CLI" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
@@ -301,6 +304,7 @@
 - "is slang a downstream tool in ANVIL" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "is sv2v a downstream tool in ANVIL" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "is task-tree ownership of code changes mechanically enforced" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
+- "is task-tree ownership of code mechanically gated" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "is the ANVIL FSM output Moore or Mealy by default" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'`
 - "is the ANVIL FSM output Moore or Mealy" -> [mealy-fsm-outputs](docs/decisions/0024-mealy-fsm-outputs.md) · 2026-06-22 · reverify: `'printf ''module mealy_clean(input logic clk,input logic rst_n,input logic [1:0] sel,output logic [3:0] y);localparam logic[1:0] S0=2'"'"'d0,S1=2'"'"'d1,S2=2'"'"'d2,S3=2'"'"'d3;logic[1:0] state_q,next_state;always_comb unique case(state_q) S0:next_state=sel[0]?S1:S2;S1:next_state=sel[1]?S2:S3;S2:next_state=sel[0]?S3:S0;default:next_state=S0;endcase always_ff @(posedge clk or negedge rst_n) if(!rst_n) state_q<=S0; else state_q<=next_state;always_comb unique case(state_q) S0:y=(sel==2'"'"'d0)?4'"'"'h1:(sel==2'"'"'d1)?4'"'"'h2:4'"'"'h4;S1:y=(sel==2'"'"'d0)?4'"'"'h3:4'"'"'h5;S2:y=(sel==2'"'"'d0)?4'"'"'hA:4'"'"'hB;default:y=4'"'"'hE;endcase endmodule\n'' > /tmp/mealy_clean.sv && for L in 1800-2012 1800-2017 1800-2023; do verilator --lint-only -Wall --language $L /tmp/mealy_clean.sv && echo "verilator $L CLEAN"; done && yosys -q -p "read_verilog -sv /tmp/mealy_clean.sv; synth -noabc; check" && iverilog -g2012 -o /dev/null /tmp/mealy_clean.sv && echo ALL-TOOL-CLEAN'`
 - "is the ANVIL MCP server inside the generator core" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
@@ -351,6 +355,7 @@
 - "what depends on input X in an ANVIL module" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "what did the reset-all memory probe show" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "what doctrines does ANVIL mechanically check" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
+- "what doctrines does the driver check" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "what does --iverilog-compile do" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
 - "what does --profile do in ANVIL" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "what does --sv-version do" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
@@ -402,8 +407,10 @@
 - "what is ANVIL's agent / MCP interface architecture" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "what is ANVIL's first up-opted SystemVerilog construct" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "what is ANVIL's task-tree doctrine" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
+- "what is CODE-CHANGE-EVIDENCE / TASK-TREE-OWNERSHIP" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "what is ROADMAP steering gap 3 about adversarial axis coverage" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
 - "what is TOOLBOX.md for" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
+- "what is TOOLBOX.md" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "what is a DerivedAnalysisDocument" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a DivergenceReport and what fields does it have" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "what is a DivergenceReport" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
@@ -428,6 +435,7 @@
 - "what is saw_mealy_fsm_design" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'`
 - "what is saw_sv_version_2023_soft_union_upopt" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "what is saw_sv_version_targeted_acceptance" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
+- "what is scripts/check_doctrines.sh" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "what is sequential_module_proof_signatures" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what is soft_union_slice_prob" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "what is the ANVIL CI packaging plan" -> [ci-packaging-prebuilt-binaries-and-github-action](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md) · 2026-06-18
@@ -472,6 +480,7 @@
 - "what is the flop_reset_provenance query" -> [semantic-introspection-flop-reset-provenance](docs/knowledge/semantic-introspection-flop-reset-provenance.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the fourth STRUCTURED-EMISSION-EXPANSION surface" -> [structured-emission-fourth-surface-wide-lane-generate-loop](docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md) · 2026-06-17
 - "what is the fourth portable architecture" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
+- "what is the fourth portable architecture" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "what is the genvar increment form in an emitted generate loop" -> [generate-loop-emit](docs/knowledge/generate-loop-emit.md) · 2026-06-17 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"generate_loop_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"min_width\":4,\"max_width\":8,\"min_inputs\":3,\"max_inputs\":5,\"min_outputs\":1,\"max_outputs\":2,\"max_depth\":3});json.dump(c,open(\"/tmp/gl.json\",\"w\"))" && cargo run --quiet -- --seed 12 --config /tmp/gl.json | tee /tmp/gl.sv | grep -c "generate" && verilator --lint-only /tmp/gl.sv && echo CLEAN'`
 - "what is the input_reach query" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the module dedup proof boundary" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
@@ -491,6 +500,7 @@
 - "what modules does a module instantiate" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what release mechanism does ANVIL use" -> [ci-packaging-prebuilt-binaries-and-github-action](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md) · 2026-06-18
 - "what roadmap work remains after the five follow-up bullets" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
+- "what runs in the pre-commit hook and CI" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "what sequential coinductive flop class does ANVIL support" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "what sequential equivalence does ANVIL prove beyond exact self-hold" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
 - "what structured SV surface comes after the combinational function" -> [structured-emission-second-surface-generate-loop](docs/decisions/0013-structured-emission-second-surface-generate-loop.md) · 2026-06-16
@@ -503,6 +513,7 @@
 - "when are unused module definitions pruned" -> [hierarchy-dedup-prune](docs/knowledge/hierarchy-dedup-prune.md) · 2026-06-05
 - "when is focused workflow validation enough" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "when should git_message_brief.txt be cleared" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
+- "where are ANVIL's own diagnostic tools listed" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "where do hunt reproducer bundles get written" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
 - "where does ANVIL retain a divergent artifact reproducer" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "where does the ANVIL Action upload reproducer bundles" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
@@ -519,6 +530,7 @@
 - "where is the banked signoff knob-sweep report" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
 - "where is the banked sv-version gate report" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
 - "where is the doctrine registry and driver" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
+- "where is the doctrine registry and driver" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "where is the union soft up-opt implemented" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
 - "which ANVIL knobs have no CLI flag" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "which ANVIL knobs still have no CLI flag" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
@@ -728,6 +740,15 @@ _Construction-time coverage steering — a deterministic per-category probabilit
 - **date:** 2026-06-21 · **status:** accepted
 - **evidence:** `docs/decisions/0023-coverage-steered-generation.md; docs/decisions/0017-api-first-everything-mcp-accessible.md; docs/decisions/0011-semantic-introspection-derived-query-surface.md; src/gen/cone.rs (the roll_knob site); src/ir/types.rs (KnobId + knob_rolls telemetry); src/metrics.rs (knob_roll_attempts/knob_roll_fires + gate/operand/depth histograms); docs/tasks/COVERAGE-STEERED-GENERATION.md`
 - **source:** [`docs/decisions/0023-coverage-steered-generation.md`](docs/decisions/0023-coverage-steered-generation.md)
+
+### doctrine-enforcement
+_ANVIL's doctrines are mechanically enforced by scripts/check_doctrines.sh (the registry+driver)_
+
+- **answers:** how are ANVIL's doctrines enforced | what is scripts/check_doctrines.sh | where is the doctrine registry and driver | how do I add a new enforced doctrine | what doctrines does the driver check | is task-tree ownership of code mechanically gated | what runs in the pre-commit hook and CI | what is TOOLBOX.md | where are ANVIL's own diagnostic tools listed | how do I run the doctrine checks | what is CODE-CHANGE-EVIDENCE / TASK-TREE-OWNERSHIP | what is the fourth portable architecture
+- **date:** 2026-06-22 · **status:** current
+- **evidence:** `DOCTRINE_ENFORCEMENT.md; scripts/check_doctrines.sh; scripts/check_diagnosis_evidence.sh; scripts/check_task_tree_ownership.sh; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; TOOLBOX.md; .githooks/pre-commit; .github/workflows/ci.yml; docs/decisions/0026-doctrine-enforcement-adoption.md; docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md`
+- **reverify:** `bash scripts/check_doctrines.sh`
+- **source:** [`docs/knowledge/doctrine-enforcement.md`](docs/knowledge/doctrine-enforcement.md)
 
 ### doctrine-enforcement-adoption
 _ANVIL adopts the portable doctrine-enforcement architecture — every doctrine paired with a deterministic check, run from one registry+driver, gated by the git hook (E3) and CI (E4)_

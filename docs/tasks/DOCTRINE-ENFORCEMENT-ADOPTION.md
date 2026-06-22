@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `DOCTRINE-ENFORCEMENT-ADOPTION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Workflow / mechanical doctrine enforcement`
 - Created: `2026-06-22`
 - Last updated: `2026-06-22`
@@ -68,7 +68,7 @@ the donor project's portable kit). Reference: decision `0026`.
 ## Task Tree
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION`
-  Status: `active`
+  Status: `done`
   Goal: `Adopt portable architecture #4 (doctrine enforcement) in ANVIL.`
   Children: `DOCTRINE-ENFORCEMENT-ADOPTION.1`, `.2`, `.3`, `.4`, `.5`, `.6`
 
@@ -108,11 +108,11 @@ the donor project's portable kit). Reference: decision `0026`.
   Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.6`
-  Status: `pending`
+  Status: `done`
   Goal: `Closeout — align CODEBASE_ANALYSIS.md / DEVELOPMENT_NOTES.md / the mdBook / a KM card; verify the full driver + COMMIT.md gate green; close the tree.`
   Acceptance: `The new enforcement layer is reflected in the live workspace analysis, the design-rationale log, the book's architecture/enforcement narrative, and a Knowledge Map fact card with a working reverify. Full driver + cargo check/clippy/fmt/test + mdbook green. Tree marked done.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `bash scripts/check_doctrines.sh PASS x4 (KM 64 facts / 589 keys); cargo check --all-targets + cargo clippy --all-targets -D warnings + cargo fmt --all --check clean; mdbook build book clean; full cargo test not required (no src/ changed, 0003-resource-safe-validation). mdbook test book: my edited architecture.md tested clean; the run fails only on PRE-EXISTING untagged ``` fences in the unmodified agent-mcp.md under local mdbook 0.5.2 (CI pins 0.4.40 where it is green) — recorded as an out-of-scope finding, not a regression.`
+  Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.6 — closeout: live-doc + book + KM alignment; tree done`
 
 ## Current Frontier
 
@@ -123,7 +123,12 @@ the donor project's portable kit). Reference: decision `0026`.
 | 3 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `done` | TOOLBOX (ANVIL's diagnostic tools) + `CODE-CHANGE-EVIDENCE` registered. |
 | 4 | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `done` | `TASK-TREE-OWNERSHIP` registered; flagship doctrine mechanically gated. |
 | 5 | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `done` | Six harness pointers route to the doctrine kit. |
-| 6 | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `in_progress` | Closeout + live-doc/book/KM alignment; verify and close. |
+| 6 | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `done` | Closeout done; tree closed. |
+
+Tree complete — no remaining frontier. Portable architecture #4 (doctrine
+enforcement) is adopted end-to-end: standard + decision `0026`, the
+registry+driver over four doctrines, `TOOLBOX.md`, the discovery layer, and the
+live-doc/book/KM closeout.
 
 ## Decisions
 
@@ -152,8 +157,15 @@ the donor project's portable kit). Reference: decision `0026`.
 
 - Whether to extend `.githooks/commit-msg` to assert the subject's leaf id
   *exists* in a `docs/tasks/*.md` file for code commits (the un-fakeable
-  ownership leg). Tracked as a possible deepening in `.4`; does not block the
-  frontier.
+  ownership leg). A future optional deepening; does not block this tree.
+- **Discovered during `.6` (out of scope, for a follow-up book/tooling tree):**
+  `mdbook test book` fails under local **mdbook 0.5.2** on **pre-existing
+  untagged ``` fences** in `book/src/agent-mcp.md` (plain-text `generate ·
+  introspect · …` and `anvil://…` listings that 0.5.x compiles as Rust). CI
+  pins **mdbook 0.4.40** where it is green, so this is latent. Fix options:
+  tag those fences `text` across the book, or bump the CI mdbook pin. Belongs to
+  a `LIVE-DOC-BOOK-ALIGNMENT`-style tree, not this one (no doctrine-enforcement
+  artifact is involved).
 
 ## Blockers
 
@@ -168,6 +180,7 @@ the donor project's portable kit). Reference: decision `0026`.
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | evidence check on 4 staged-set cases (exempt / pass / code-only FAIL / Cargo.lock FAIL); `bash scripts/check_doctrines.sh` (PASS x3, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | ownership check on 4 staged-set cases (exempt / pass / no-task FAIL / template-only FAIL); `bash scripts/check_doctrines.sh` (PASS x4, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `bash scripts/check_doctrines.sh` (6 bootstrap pointers ok incl. GEMINI.md + .windsurfrules, PASS x4, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
+| `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `bash scripts/check_doctrines.sh` (PASS x4; KM 64 facts/589 keys); `cargo check --all-targets` + `clippy -D warnings` + `fmt --check`; `mdbook build book` — all clean | passed; full `cargo test` not required (no src/ changed); `mdbook test book` fails only on pre-existing untagged fences in unmodified `agent-mcp.md` under local mdbook 0.5.2 (CI pins 0.4.40, green) — recorded as out-of-scope finding |
 
 ## Commit Log
 
@@ -177,7 +190,8 @@ the donor project's portable kit). Reference: decision `0026`.
 | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI` | `fbe6849`; driver + hook/CI; the existing checks are registered, not rewritten. |
 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `DOCTRINE-ENFORCEMENT-ADOPTION.3 — TOOLBOX.md (ANVIL's own diagnostic tools) + CODE-CHANGE-EVIDENCE check` | `fb5ecac`; TOOLBOX + scope-aware evidence check; driver now 3 doctrines. |
 | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `DOCTRINE-ENFORCEMENT-ADOPTION.4 — mechanize the flagship TASK-TREE-OWNERSHIP doctrine` | `4a49681`; scope-aware ownership check; driver now 4 doctrines. |
-| `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit` | `pending hash`; 6 harness pointers + README ramp-up items 18+19. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit` | `ea04769`; 6 harness pointers + README ramp-up items 18+19. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `DOCTRINE-ENFORCEMENT-ADOPTION.6 — closeout: live-doc + book + KM alignment; tree done` | `pending hash`; closes the tree; adoption complete end-to-end. |
 
 ## Changelog
 
@@ -197,3 +211,8 @@ the donor project's portable kit). Reference: decision `0026`.
 - `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.5` (six harness bootstrap
   pointers — incl. new `GEMINI.md` + `.windsurfrules` — route to `DOCTRINE_ENFORCEMENT.md`
   + `TOOLBOX.md`; `BOOTSTRAP_FILES` + README ramp-up updated); frontier advanced to `.6`.
+- `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.6` (closeout — `CODEBASE_ANALYSIS.md`
+  + `DEVELOPMENT_NOTES.md` + `book/src/architecture.md` "Doctrine enforcement" section +
+  `docs/knowledge/doctrine-enforcement.md` KM card); **tree marked `done`** — portable
+  architecture #4 adopted end-to-end. Recorded the out-of-scope mdbook-0.5.2 untagged-fence
+  finding in Open Questions.

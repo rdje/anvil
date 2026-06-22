@@ -5,6 +5,47 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Doctrine-enforcement adoption (portable architecture #4) — `DOCTRINE-ENFORCEMENT-ADOPTION`
+
+Decision `0026`. ANVIL already ran three portable architectures (task-trees,
+`MEMORY_ARCHITECTURE.md`, the Knowledge Map) with their checks wired *directly*
+into `.githooks/pre-commit` + CI. This tree adds the fourth — doctrine
+enforcement — and unifies them behind one registry+driver
+(`scripts/check_doctrines.sh`). Rationale + design choices that don't belong in
+the decision record:
+
+- **Why a driver over the existing checks, not a rewrite.** The two existing
+  checks are registered verbatim; the driver only adds the meta-check
+  (each registered check exists+executable — a dangling registry entry was
+  previously possible) and a collect-all-results report. Editing the hook per
+  new check is gone; adding a doctrine is one registry line.
+- **Why the new checks are *structural co-staging proxies*, not oracles.** At
+  pre-commit the subject line is not yet available (the `commit-msg` hook sees
+  it, `pre-commit` does not), and re-running the cargo/`tool_matrix` oracle on
+  every commit is too slow for the local gate (`DOCTRINE_ENFORCEMENT.md` §4(7)).
+  So `CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` prove the *mandatory files
+  are co-staged* (`CHANGES.md`+`MEMORY.md`; an owning `docs/tasks/*.md`); the
+  un-fakeable leg is the `cargo test` + `tool_matrix` re-run at `COMMIT.md`/CI
+  and the `commit-msg` leaf-id gate. §9 states this honest limit openly — the
+  goal is expensive-and-visible non-compliance, not literal impossibility.
+- **Why scope-aware.** A code-only doctrine must exempt pure docs/workflow
+  commits (§4(5)) — otherwise it would block its *own* adoption (every leaf here
+  is workflow/docs) and all future doc commits. The code globs are
+  `src/|tests/|examples/|build.rs|Cargo.toml|Cargo.lock`; `scripts/`, `.githooks/`,
+  `docs/`, `*.md` are explicitly **not** code.
+- **bash 3.2 compatibility.** macOS ships bash 3.2, so the new checks avoid
+  `mapfile`/`readarray` and use `printf … | grep` over the staged list. A
+  `DOCTRINE_STAGED_OVERRIDE` env seam exists for the self-test only (documented
+  as such; not a security boundary — `--no-verify` already exists).
+- **`TOOLBOX.md` is ANVIL-specific (owner steer).** It catalogs ANVIL's *own*
+  diagnostic instruments (trace/metrics/introspect/`analyze`/`coverage`/`validate`/
+  `minimize`/`hunt`/`divergence`/`--diff-sim`/`tool_matrix` gates/snapshots/
+  `ram_guard`), grouped by what you are diagnosing, not a generic debug toolbox —
+  the first stop when a generated artifact misbehaves.
+- **Cargo.lock counted as code.** A lockfile bump alters build behaviour, so a
+  `Cargo.lock`-only commit is treated as a code change (must carry the evidence +
+  an owning leaf). Conservative and consistent with the doctrine's scope wording.
+
 ## 2026-06-22 — Multi-output task surface — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.12b.1`
 
 The live surface implemented decision `0025` / the `.12a` design with **no

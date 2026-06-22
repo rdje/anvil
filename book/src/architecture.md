@@ -438,6 +438,38 @@ commit. The legacy `rN` slice numbering is not retired — it survives
 only as the optional within-leaf cadence *inside* a tree. The full
 workflow is `docs/TASK_TREE.md`; the commit mechanics are `COMMIT.md`.
 
+## Doctrine enforcement
+
+A doctrine that is only written down is a suggestion. ANVIL pairs each
+load-bearing doctrine with a **deterministic check** and runs them all
+from one registry+driver, `scripts/check_doctrines.sh`, so compliance is
+re-checkable rather than a "trust me" claim. The standard is
+`DOCTRINE_ENFORCEMENT.md`; it is the fourth portable architecture, beside
+task-trees, the memory architecture (`MEMORY_ARCHITECTURE.md`), and the
+Knowledge Map. The live registry:
+
+- **`MEMORY-ARCH`** — the durable memory-architecture invariants (the
+  resume pointer's size cap and required fields, the bootstrap pointers,
+  the decisions index).
+- **`KNOWLEDGE-MAP`** — the generated `KNOWLEDGE_MAP.md` is in sync with
+  its fact cards (regenerate-and-diff).
+- **`CODE-CHANGE-EVIDENCE`** — a code change co-stages the mandatory
+  `CHANGES.md` + `MEMORY.md` (`COMMIT.md`).
+- **`TASK-TREE-OWNERSHIP`** — a code change co-stages an owning
+  `docs/tasks/*.md`, mechanizing the doctrine above.
+
+The driver collects every check's result, meta-checks that each
+registered check exists and is executable (so the registry can never
+point at a missing script), and exits nonzero on any breach. The two
+code-scoped checks are *scope-aware*: they govern only commits that
+stage `src/`/`tests/`/`examples/` or a behaviour-altering manifest, and
+exempt pure docs / workflow commits. Enforcement is layered exactly like
+the memory architecture: discovery in every harness's bootstrap pointer
+(E1), the per-doctrine checks (E2), `.githooks/pre-commit` (E3), and the
+same driver in CI (E4) — which a `--no-verify` cannot reach. When a
+generated artifact misbehaves, the instruments to reach for are
+catalogued in `TOOLBOX.md`.
+
 ## Testing strategy
 
 Three layers:

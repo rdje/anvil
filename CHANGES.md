@@ -1,6 +1,48 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.6 — closeout: live-doc + book + KM alignment; tree done
+
+**Landed as:** this commit (previous: `ea04769`). **Closes the
+`DOCTRINE-ENFORCEMENT-ADOPTION` tree — portable architecture #4 is adopted end-to-end.**
+Workflow/docs only / DUT byte-identical (no `src/`). Task-tree-owned by
+`DOCTRINE-ENFORCEMENT-ADOPTION.6`.
+
+**What changed (why)**
+
+- **`CODEBASE_ANALYSIS.md`** — the Build-hygiene check bullet now records
+  `scripts/check_doctrines.sh` (the registry+driver) and its four doctrines, with the
+  meta-check + E3/E4 wiring and the scope-aware code-only checks.
+- **`book/src/architecture.md`** — a new `## Doctrine enforcement` section (the book is
+  the user-facing surface): the driver, the four-doctrine registry, the meta-check, the
+  scope-aware code-only checks, the E1→E4 layering, and the pointer to `TOOLBOX.md`.
+- **`DEVELOPMENT_NOTES.md`** — a dated rationale entry: why a driver over the existing
+  checks (not a rewrite), why structural co-staging proxies (not oracles) at pre-commit,
+  why scope-aware, bash-3.2 compatibility, the ANVIL-specific `TOOLBOX.md`, Cargo.lock as
+  code.
+- **`docs/knowledge/doctrine-enforcement.md`** (new KM card) — retrievable how-to
+  (answers + `reverify: bash scripts/check_doctrines.sh`); `KNOWLEDGE_MAP.md` regenerated
+  (63 → 64 facts / 577 → 589 keys).
+- **`docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md`** + **`docs/TASK_TREE.md`** — tree +
+  index marked `done`.
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` → `PASS` × 4, exit `0` (KM 64 facts / 589 keys).
+  `cargo check --all-targets` + `cargo clippy --all-targets -- -D warnings` + `cargo fmt
+  --all --check` clean. `mdbook build book` clean. Full `cargo test` not required (no
+  `src/` changed across the whole tree, `0003-resource-safe-validation`). **`mdbook test
+  book`:** the edited `architecture.md` tested clean; the run fails **only** on
+  PRE-EXISTING untagged ` ``` ` fences in the **unmodified** `book/src/agent-mcp.md` under
+  local **mdbook 0.5.2** (CI pins **0.4.40** where it is green) — recorded as an
+  out-of-scope book/tooling finding (Open Questions), not a regression.
+
+**Impact**
+
+- ANVIL now runs **all four** portable architectures; the `DOCTRINE-ENFORCEMENT-ADOPTION`
+  tree is `done`. No ROADMAP phase label changed (this is workflow/enforcement). Active
+  work returns to the open-ended `STRUCTURED-EMISSION-EXPANSION` lane (no current frontier).
+
 ## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit
 
 **Landed as:** this commit (previous: `4a49681`). **E1 discovery — a fresh agent in any
