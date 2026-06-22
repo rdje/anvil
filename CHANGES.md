@@ -1,9 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT.1 — align roadmap owner-directed-lane status
+
+**Landed as:** this commit (previous: `f6c9c1a`). Docs-only / no source /
+DUT byte-identical. Tracked by `LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT.1` (a
+live-doc alignment; exempt from the code task-tree-ownership doctrine, owned by a
+tree per the repo's `LIVE-DOC-*-ALIGNMENT` convention). **Closes `.1` and the
+tree.**
+
+**What changed (why)**
+
+A session-bootstrap audit found `ROADMAP.md`'s three owner-directed-lane sections
+had drifted behind the delivered reality already recorded in `docs/TASK_TREE.md`
+(verified current), `README.md` (current), the `docs/decisions/` records, and the
+code/git log. The owner mandate is roadmap ↔ codebase ↔ book locked, no drift, so
+eight stale lane statements were brought back into lockstep. No source touched;
+DUT output unchanged.
+
+- **`ROADMAP.md` — §"Owner-directed capability lanes (2026-06-15)"**:
+  - `STRUCTURED-EMISSION-EXPANSION` was stale at the **fourth** surface ("future
+    vetted surfaces (`.9`+)"). Added the delivered **fifth** surface
+    (`cone_function`, decision `0016` — a whole-cone `function automatic`
+    projection, `cone_function_emit_prob`, schema `1.11`, `tool_matrix
+    --cone-function-gate`) and **sixth** surface (`multi_output_task`, decision
+    `0025` — a co-supported, fan-in-independent multi-output `task automatic`
+    group `k>=2` up to 8, first a pair then widened to `k>2`,
+    `multi_output_task_emit_prob`, schema `1.14`, `--multi-output-task-gate`).
+    Corrected the close: six surfaces delivered, remaining future =
+    nested/multi-level `generate` + `interface`/`modport` (empirically
+    disqualified), `.14`+.
+- **`ROADMAP.md` — §"Post-phase capability lanes (owner-directed, 2026-06-15)"**:
+  - `AGENT-MCP-EXPANSION` `active` → `done` (closed `2026-06-15`).
+  - `SIGNOFF-AUTOMATION-EXPANSION` `proposed` → `active` with `.1`/`.2` delivered
+    (`--signoff-knob-sweep-gate` + four `saw_*` facts).
+  - `IDENTITY-DEEPENING` — recorded `.3b.2b` (decision `0008`,
+    `hierarchy_sequential_module_dedup`, schema `1.4`) as delivered (was "`.3` is
+    the named future leaf").
+- **`ROADMAP.md` — §"Owner-directed usability + capability lanes (2026-06-17)"**:
+  - intro: lanes 1/2/**6** delivered (lane 6 `COVERAGE-STEERED-GENERATION` closed
+    `2026-06-22`); lanes 3/4/5/7 advanced + stay `active`.
+  - `DOWNSTREAM-ADAPTER-EXPANSION` `.2a.2` → `.2a.3` + `.2b` (sv2v) + `.2c` (slang)
+    all delivered, `.2` complete, tree `active` no frontier.
+  - `KNOB-ERGONOMICS-AND-PRESETS` goal-only → delivered (decision `0021`: 16 CLI
+    flags + 4 `--profile` presets + queryable catalog).
+  - `CI-PACKAGING-DISTRIBUTION` goal-only → delivered (decision `0022`:
+    `release.yml` + root `action.yml`).
+  - `CAPABILITY-BREADTH-EXPANSION` Mealy framed as planned → delivered (decision
+    `0024`: `fsm_mealy_prob`, schema `1.13`, `phase6_mealy_fsm` gate +
+    `saw_mealy_fsm_design`); the SV up-opt strand stays deferred-not-retired.
+- **`docs/TASK_TREE.md`** — new `LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT` index
+  row; **`docs/tasks/LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT.md`** — new tree file.
+
+**No-aspirational-claims discipline:** every "delivered" statement is grounded in
+an on-disk artifact verified during the audit — the decision record, a source
+symbol (`fsm_mealy_prob`/`num_mealy_fsm_modules` in `src/config.rs`/`src/metrics.rs`,
+`ConeFunctionSweep`/`MultiOutputTaskSweep` in `src/bin/tool_matrix.rs`, sv2v/slang
+in `src/downstream/mod.rs`), the git log (`CAPABILITY-BREADTH-EXPANSION.2b.1`–`.2b.3`),
+the introspection `SCHEMA_VERSION = "1.14"`, or a workflow file
+(`.github/workflows/release.yml` + `action.yml`).
+
+**Validation**
+
+- `docs/TASK_TREE.md` lane rows audited current (tails reflect all delivered
+  work) — only `ROADMAP.md` was drifted; rows not edited beyond the new tree row.
+- `git diff --check` clean; previously-absent tokens (`fifth surface`, `sixth
+  surface`, `cone_function_emit_prob`, `multi_output_task_emit_prob`, `0016`,
+  `0024`, `0025`, `0021`, `0022`, `fsm_mealy_prob`) each now present once.
+- `scripts/check_doctrines.sh` green (4 doctrines).
+
+**Impact:** ROADMAP now matches the delivered reality across all owner-directed
+lanes. No CLI/knob/IR change; DUT byte-identical (no source touched).
+
+**Files touched:** `ROADMAP.md`, `docs/TASK_TREE.md`,
+`docs/tasks/LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.13c — wider (k>2) multi-output task user docs
 
-**Landed as:** this commit (previous: `68aeea2`). Docs-only / no source /
+**Landed as:** `f6c9c1a` (previous: `68aeea2`). Docs-only / no source /
 DUT byte-identical. Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.13c`. **Closes
 `.13c` / `.13` — the first deepening of the sixth structured surface (wider `k>2`
 multi-output `task automatic` groups) is delivered end-to-end; the lane returns to

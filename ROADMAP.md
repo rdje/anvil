@@ -302,11 +302,34 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    reusing `generate_loop_emit_prob` + `num_emitted_generate_loops` (no new knob
    / no schema bump); downstream-clean (a per-seed ON-vs-OFF sweep emits 9
    wider-lane part-selects, Verilator `-Wall` Δ=0 + Yosys both modes + Icarus;
-   `--generate-loop-gate` regression-clean 12/0). **No current frontier.**
-   Nested/multi-level `generate`, `interface`/`modport`, and richer
-   (multi-output) tasks are future vetted surfaces (`.9`+), each with its own
-   decision; the tree stays `active`. Serves ROADMAP steering gap 1 (richer
-   structured emission). Nothing retired.
+   `--generate-loop-gate` regression-clean 12/0). The **fifth surface**
+   (decision
+   [`0016`](docs/decisions/0016-structured-emission-fifth-surface-cone-function.md),
+   leaves `.9`/`.10b`) — a default-off combinational `function automatic`
+   emit-projection of a whole **cone** (a root gate plus its single-use interior
+   gates, deepening the first surface from one gate to a cone over the cone's
+   boundary leaves) under its own `cone_function_emit_prob` knob (introspection
+   schema `1.11`, `num_emitted_cone_functions`) — is **delivered end-to-end**
+   (`src/ir/cone_function_emit.rs` + the emitter render + `tool_matrix
+   --cone-function-gate`, banked clean `/tmp/anvil-cone-function-gate-r1`). The
+   **sixth surface** (decision
+   [`0025`](docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md),
+   leaves `.11`/`.12b`/`.13`) — a default-off multi-output combinational
+   `task automatic` that co-emits a **co-supported, fan-in-independent group**
+   (`k >= 2`, bounded at 8 members, generalizing the third surface from one
+   `output` to several with a deduplicated input list; first shipped as a pair,
+   then widened to `k>2`) under its own `multi_output_task_emit_prob` knob
+   (introspection schema `1.14`, `num_emitted_multi_output_tasks`) — is
+   **delivered end-to-end** (`src/ir/multi_output_task_emit.rs` + the emitter
+   render + `tool_matrix --multi-output-task-gate`, banked clean
+   `/tmp/anvil-mo-k3-gate-r1` with a genuine `k=3` group). **Six structured
+   surfaces now delivered end-to-end; no current frontier.** Nested/multi-level
+   `generate` (clean but bigger blast radius) and `interface`/`modport`
+   (empirically **disqualified** — Icarus syntax-fails the modport port and both
+   Yosys modes warn on the implicit interface-member decl) are the remaining
+   future vetted surfaces (`.14`+), each with its own decision; the tree stays
+   `active`. Serves ROADMAP steering gap 1 (richer structured emission). Nothing
+   retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
    everything MCP-queryable via a top-notch API). A first-class, versioned,
@@ -2375,23 +2398,31 @@ task trees via `CAPABILITY-LANE-OWNERSHIP.1` and tracked in
 capability-deepening that lands as task-tree leaves. Agent-chosen
 execution order is `2 → 3 → 1`:
 
-- `AGENT-MCP-EXPANSION` (`active`) — broaden the read-mostly agent/MCP
-  interface (coverage-gap MCP tool, non-DUT lanes over MCP, optional
-  HTTP transport); every lane invariant from decision `0004` preserved,
-  default `--artifact dut` byte-identical.
-- `SIGNOFF-AUTOMATION-EXPANSION` (`proposed`) — broaden downstream
+- `AGENT-MCP-EXPANSION` (`done` — closed `2026-06-15`) — broadened the
+  read-mostly agent/MCP interface (coverage-gap MCP tool, non-DUT lanes
+  over MCP, optional HTTP transport); every lane invariant from decision
+  `0004` preserved, default `--artifact dut` byte-identical.
+- `SIGNOFF-AUTOMATION-EXPANSION` (`active`) — broaden downstream
   signoff automation (richer adversarial knob sweeps, additional
   simulator/frontend acceptance columns, new valid-by-construction
-  artifact families), warning-as-failure preserved.
+  artifact families), warning-as-failure preserved. `.1` (decision
+  `0006`) + `.2` **delivered** the first richer-knob-sweep increment
+  (`tool_matrix --signoff-knob-sweep-gate` + the four `saw_*` coverage
+  facts, banked clean `/tmp/anvil-signoff-knob-sweep-r1`); the lane stays
+  `active` with no current frontier (higher-ceiling leaves preserved).
 - `IDENTITY-DEEPENING` (`active`) — advance steering gap 2
   (NodeId-as-identity): bounded hierarchical/module semantic identity
   beyond canonical structural signatures and broader bounded sequential
   equivalence, proof discipline and budgets unchanged. `.1` chose the
   first extension (decision `0007`); `.2` (`= .2a` design + `.2b` impl)
   **delivered** the opt-in bounded **bisimulation flop merge**
-  (`merge_bisimilar_flops`, default-off / byte-identical, banked
-  downstream-clean across Verilator + both Yosys + Icarus). `.3`
-  (whole-module sequential equivalence) is the named future leaf.
+  (`merge_bisimilar_flops`); `.3` (`.3b.2b`, decision `0008`)
+  **delivered** the opt-in cross-module **whole-module sequential
+  equivalence** dedup (`hierarchy_sequential_module_dedup`, introspection
+  schema `1.4`) — all default-off / byte-identical, banked
+  downstream-clean across Verilator + both Yosys + Icarus. The lane stays
+  `active` with no current frontier (deeper memory/FSM/wrapper/retimed
+  module-equivalence boundaries are named future leaves).
 
 ## Owner-directed usability + capability lanes (2026-06-17)
 
@@ -2413,8 +2444,10 @@ structure-first / no-shadow-simulator ceiling (decision `0004`, steering gap 4)
 is unchanged. `SEMANTIC-INTROSPECTION-EXPANSION` + `AGENT-MCP-EXPANSION` are the
 cross-cutting homes for this deepening.
 
-The seven lanes (north-star-ordered). Lanes 1 and 2 are **delivered**
-(`2026-06-17`, both trees closed). Lane 2 (`ACCEPTANCE-DIVERGENCE-HUNTING`,
+The seven lanes (north-star-ordered). Lanes 1, 2, and 6 are
+**delivered** (trees closed: lanes 1+2 `2026-06-17`, lane 6
+`2026-06-22`); lanes 3, 4, 5, and 7 have each shipped substantial
+increments and stay `active`. Lane 2 (`ACCEPTANCE-DIVERGENCE-HUNTING`,
 decision `0019`) shipped end-to-end — `.2a` (the shared
 `downstream::tool_verdict` accept/warn/reject classifier extract), `.2b` (the
 `src/divergence/` library core: `divergence::run` + the report types, reusing
@@ -2524,13 +2557,32 @@ other five remain `active` with a design-first `.1` ADR frontier:
    byte-identically (lib 545/0, snapshots 6/6, tool_matrix 75/0). **`.2a.2` done**
    — the `anvil://catalog/adapters` MCP discoverability resource (`{id, binary,
    present, supports_facts}` over `downstream::adapter_catalog()`, decision `0017`).
-   `.2a.3` (route `validate_tool_specs` + the `tool_matrix` columns through the
-   registry, byte-identical) next, then `.2b` (sv2v) / `.2c` (slang).
+   **`.2a.3` + `.2b` (sv2v) + `.2c` (slang) all delivered** — the `Adapter`
+   registry now carries the `sv2v` SystemVerilog→Verilog-2005 transpile accept
+   column (`tool_matrix --sv2v`) and the `slang` elaboration accept column
+   (`tool_matrix --slang`; the first **fact-bearing** adapter, with a `--ast-json`
+   `slang_facts` hook), both selectable via the `validate`/`hunt`/`divergence`
+   `tools` arg + `anvil hunt --tools`; absent on most hosts ⇒ friendly no-op +
+   `#[ignore]` real-tool gate. **The `.2` implementation is complete; the tree
+   stays `active` with no current frontier** (`surelog`/UHDM + a generic
+   commercial-wrapper adapter are open-ended `.2d+` future picks).
    Default-off / DUT byte-identical.
-4. `KNOB-ERGONOMICS-AND-PRESETS` — CLI flags + curated `--profile` presets + full
-   MCP knob steerability + an API-queryable knob catalog & preset registry.
-5. `CI-PACKAGING-DISTRIBUTION` — prebuilt binaries + a drop-in GitHub Action for
-   continuous downstream fuzzing, driven through the same API.
+4. `KNOB-ERGONOMICS-AND-PRESETS` — **delivered** (decision
+   [`0021`](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md)):
+   16 previously config-file-only knobs promoted to first-class CLI flags + the
+   curated 4-preset `--profile` registry (`arithmetic-heavy` / `deep-hierarchy` /
+   `structured-emission-max` / `sv2023-upopts`) with `default→config→profile→
+   explicit→seed` byte-stable resolution + a SCHEMA-DERIVED queryable knob catalog
+   + `anvil://catalog/presets`; full MCP knob steerability preserved. The lane
+   stays `active` with no current frontier. Default-off / DUT byte-identical.
+5. `CI-PACKAGING-DISTRIBUTION` — **delivered** (decision
+   [`0022`](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md)):
+   the `v*`-tag release matrix (`.github/workflows/release.yml` — per-platform
+   `anvil`+`anvil-mcp` archives + `SHA256SUMS`) + the drop-in composite GitHub
+   Action (root `action.yml`) wrapping `anvil hunt` so a downstream-tool
+   maintainer adds one `uses:` step and gets red CI + reproducer-bundle artifacts
+   on any finding; user-installed tools (no vendoring). CI-infra only ⇒ DUT
+   byte-identical. The lane stays `active` with no current frontier.
 6. `COVERAGE-STEERED-GENERATION` — **DONE (`2026-06-22`, tree closed; decision
    [`0023`](docs/decisions/0023-coverage-steered-generation.md)).**
    Construction-time coverage-feedback steering (rules-first, never
@@ -2547,10 +2599,18 @@ other five remain `active` with a design-first `.1` ADR frontier:
    weighted-choice sites through `roll_knob` are open-ended follow-ups (decision
    `0023`'s Rejected alternatives) that land as optional new `.N` leaves without
    reopening the closed scope.
-7. `CAPABILITY-BREADTH-EXPANSION` — more SV-2017/2023 up-opts (enum/typedef,
-   packed multidim arrays, more 2023 constructs as proven up-opts continuing the
-   `union soft` pattern) + Mealy FSM outputs (extending the Phase-6 Moore-only
-   `Fsm`), each default-off / proven / API-selectable.
+7. `CAPABILITY-BREADTH-EXPANSION` — two strands. (`.2`) **Mealy FSM outputs**
+   (extending the Phase-6 Moore-only `Fsm`) are **delivered** (decision
+   [`0024`](docs/decisions/0024-mealy-fsm-outputs.md)): the default-off
+   `fsm_mealy_prob` knob adds a second nested `case (state)` → `case (sel)`
+   input-dependent output decode driving the opaque `Node::FsmOut`
+   (`num_mealy_fsm_modules`, introspection schema `1.13`, the `phase6_mealy_fsm`
+   `tool_matrix` scenario + `saw_mealy_fsm_design` gate); the state register stays
+   Moore-clocked. (`.1`) more SV-2017/2023 up-opts (enum/typedef, packed multidim
+   arrays, more 2023 constructs continuing the `union soft` pattern) stays a
+   **deferred-not-retired** future strand (the `.2a` probe found the named
+   candidates not version-distinctive). Each default-off / proven /
+   API-selectable; the lane stays `active`. Default-off / DUT byte-identical.
 
 Nothing is retired; the default `anvil` build and `--artifact dut` stay
 byte-identical. Recommended first lane: `BUG-HUNT-ORCHESTRATION` (with
