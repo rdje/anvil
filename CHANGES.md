@@ -1,6 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.17b.3 — eighth-surface user docs
+
+**Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17b.2b` commit).
+**DOCS-ONLY** (no `src/`, `tests/`, `examples/`, or build logic touched) ⇒ **DUT
+byte-identical** and exempt from the code-scoped doctrine checks. Tracked by
+`STRUCTURED-EMISSION-EXPANSION.17b.3` (the user-docs leaf). With this, **`.17b` and `.17`
+close — the EIGHTH structured emission surface (the procedural `always_comb` `if`/`else if`
+priority-chain projection of a dynamic-selector `CaseMux`, decision `0028`) is delivered
+end-to-end** and the lane returns to a no-frontier boundary.
+
+**What changed (why)**
+
+The eighth surface needed its user-facing documentation — the book is the user's only
+window into project behaviour, so a shipped knob with no book/USER_GUIDE/README/KM coverage
+is drift. Mirrors the seventh surface's `.15b.3` docs closeout.
+
+1. **`book/src/structured-emission.md`** — a new "## The eighth surface: a procedural
+   `if`/`else if` priority chain" section with a **byte-verified** seed-1 before/after (a
+   dynamic 1-bit-selector `CaseMux`: the parallel `always_comb case` → `if (slice_0 == 1'd0)
+   … else if (slice_0 == 1'd1) … else …`, with **no** `<wire>__cv` passthrough since a
+   `CaseMux` is already an `always_comb` var), the "what gets wrapped" boundary
+   (dynamic-selector `CaseMux` only; constant-selector + `CasezMux` + plain `Mux` excluded;
+   the body swaps in place), the "how anvil proves it" two-mechanism block (the exact metric
+   + the **metric-keyed** gate + the lib proofs), and the decision-`0028` rationale. The
+   chapter-intro surface list was extended to name the procedural `if`/`else` (seventh) and
+   the `if`/`else if` priority chain (eighth).
+2. **`book/src/knobs.md` + `USER_GUIDE.md` + `README.md` "Current CLI truth"** — the
+   `case_mux_if_emit_prob` / `--case-mux-if-emit-prob` knob entry (own knob, simpler-than-
+   seventh no-`__cv`, the dynamic-selector candidate + exclusions, schema `1.16`, the
+   metric-keyed gate).
+3. **The deferred book example-JSON refresh** (`.17b.2a` deferred this) — `schema_version`
+   `1.15 → 1.16` in `book/src/api-tools.md` (×3) + `book/src/agent-mcp.md` (×1), **and** the
+   stale seed-42 `run_id` `3f1cad578805bd04 → ee39c1e3df8192dd`. The `run_id` is an FNV-1a
+   hash over `lane + seed + knobs_json`; the `knobs_json` gained the `case_mux_if_emit_prob`
+   field at `.17b.1`, so seed 42's content address shifted. Verified live: `anvil --seed 42
+   --introspect` ⇒ `run_id ee39c1e3df8192dd`, `schema_version 1.16`, `sv.bytes 80383` — all
+   matching the refreshed example.
+4. **`docs/knowledge/case-mux-if-emit.md`** — a new KM card (16 query-shaped `answers`,
+   full `evidence` pointer list, and a runnable `reverify`) + `KNOWLEDGE_MAP.md` regenerated
+   (deterministic, in sync).
+
+**Validation**
+- `mdbook build book` clean.
+- `cargo test --test book_examples` **3/3** (`skip_sentinels_have_reasons` +
+  `harness_detects_a_broken_command` + `every_runnable_book_bash_block_succeeds`; the new
+  "Reproducing it" bash block carries a `book-test: skip` sentinel with a reason).
+- `bash knowledge-map/scripts/check_knowledge_map.sh` OK (facts valid, ids unique, map in
+  sync).
+- The KM card `reverify` runs CLEAN (seed 1 forced `case_mux_if_emit_prob=1.0` ⇒ 1 `else if
+  (` + `iverilog -g2012` compiles). The book's before/after example is the real seed-1
+  emitter output, and both OFF and ON lint identically under Verilator `-Wall` (the lone
+  DECLFILENAME warning is a stdout-filename artifact, identical ON/OFF) with Yosys + iverilog
+  clean.
+
+**Observed, NOT in this leaf's scope:** `book/src/agent-mcp.md`'s `analyze`-tool example
+JSONs sit at `schema_version 1.11`, frozen across the `.12`/`.13`/`.15`/`.17` introspect-schema
+bumps — a separate, long-standing staleness that predates this tree and was not part of the
+`.17b.2a` deferral. Flagged for a dedicated docs pass rather than expanded here.
+
+**Impact**
+- Pure documentation. No CLI/knob/IR/behaviour change. DUT byte-identical.
+
+**Files touched**
+- `book/src/structured-emission.md`, `book/src/knobs.md`, `book/src/api-tools.md`,
+  `book/src/agent-mcp.md`, `USER_GUIDE.md`, `README.md`, `docs/knowledge/case-mux-if-emit.md`,
+  `KNOWLEDGE_MAP.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`,
+  `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.17b.2b — repo-owned tool_matrix --case-mux-if-gate
 
 **Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17b.2a` commit).

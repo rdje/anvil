@@ -1012,6 +1012,32 @@ exercising adversarial axes that previously fired only by chance
   emitted-block count is surfaced as `num_emitted_mux_if_blocks` in `--introspect`
   (schema `1.15`). Set it via `--mux-if-emit-prob` or `--config` JSON. See
   `book/src/structured-emission.md`.
+- `case_mux_if_emit_prob` is a default-off knob (the `--case-mux-if-emit-prob` CLI flag,
+  or `--config` JSON, like `mux_if_emit_prob`; `STRUCTURED-EMISSION-EXPANSION.17b`,
+  decision `0028`) — ANVIL's **eighth richer-structured emission surface** and its **first
+  N-way procedural priority chain**. Per *qualifying* dynamic-selector `CaseMux` gate (a
+  `GateOp::CaseMux` whose selector operand is **not** a `Node::Constant`, with `>= 1` arm,
+  not already marked by one of the seven sibling projections), it is the probability the
+  emitter re-expresses its parallel `always_comb case (sel) … default` body as an
+  `if`/`else if` **priority chain** over the same operand refs (`if (sel == SW'd0) g =
+  arm_0; else if (sel == SW'd1) g = arm_1; … else g = W'h0;`) instead of the `case …
+  endcase`. It is the decision-`0027` single-`Mux` `mux_if` parallel, but **simpler**: a
+  `CaseMux` is already an `always_comb`-written `logic` var, so it needs **no** `<wire>__cv`
+  output var + passthrough — only the block *body* swaps `case…endcase` → `if…else if`.
+  Behaviour-preserving by construction (the `case` labels `SW'd0..SW'd{k-1}` are distinct
+  constants ⇒ priority == parallel; the trailing `else` covers exactly the `default`),
+  rules-first. A **constant-selector** `CaseMux` (statically collapsed to a continuous
+  `assign`) and a `CasezMux` (masked `casez` wildcards — the recorded follow-up) are
+  excluded (nothing retired). It has its **own** knob (reusing `mux_if_emit_prob`
+  rejected). The eight emit-projections (`function_emit` / `generate_loop` / `task_emit` /
+  `multi_output_task` / `cone_function` / `soft_union` / `mux_if` / `case_mux_if`) are
+  mutually exclusive on a gate; this pass runs **last**. Combinational only. Default `0.0`
+  ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the emitted-chain count is
+  surfaced as `num_emitted_case_mux_if_chains` in `--introspect` (schema `1.16`; exact
+  because constant-selector `CaseMux` is excluded). Proven downstream-clean by the
+  repo-owned `tool_matrix --case-mux-if-gate` (**metric-keyed** `saw_case_mux_if_emit` —
+  no new identifier token). Set it via `--case-mux-if-emit-prob` or `--config` JSON. See
+  `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first

@@ -697,6 +697,42 @@ instead of creating fresh logic.
   `tool_matrix --mux-if-gate` (Verilator + both Yosys modes + Icarus;
   `saw_mux_if_emit`). See
   [Structured Emission Surfaces](structured-emission.md) for the full walk-through.
+- `case_mux_if_emit_prob` (the `--case-mux-if-emit-prob` CLI flag, or `--config` JSON,
+  like `mux_if_emit_prob`; default `0.0` ⇒ byte-identical; validated `0.0..=1.0`) — the
+  **eighth richer-structured emission surface** (decision `0028`), and the lane's
+  **first N-way procedural priority chain**. Probability, per qualifying
+  dynamic-selector `CaseMux` gate (a `GateOp::CaseMux` whose selector operand is *not* a
+  constant, with at least one arm, not already marked by one of the seven sibling
+  projections), that anvil re-expresses its parallel `always_comb case` body as an
+  `if`/`else if` priority chain over the same operand refs:
+
+  ```systemverilog
+  always_comb begin
+      if (slice_0 == 1'd0) case_mux_0 = 4'h5;       // was: case (slice_0)
+      else if (slice_0 == 1'd1) case_mux_0 = 4'ha;  //          1'd0: …; 1'd1: …;
+      else case_mux_0 = 4'h0;                        //          default: …
+  end                                                //      endcase
+  ```
+
+  It is **simpler than the seventh surface**: a `CaseMux` is *already* an
+  `always_comb`-written `logic` var, so it needs **no** `<wire>__cv` output var +
+  passthrough — only the block *body* swaps `case … endcase` → `if … else if`. Because
+  the `case` labels are distinct constants by construction (arm `i` ⇒ label `SW'd{i}`),
+  at most one equality is true, so the priority chain selects the same arm as the
+  parallel `case` and the trailing `else` covers exactly the `default` —
+  behaviour-preserving by construction. A **constant-selector** `CaseMux` (statically
+  collapsed to a continuous `assign`) and a `CasezMux` (masked `casez` wildcards — the
+  recorded follow-up) are **not** candidates. It has its **own** knob so the shipped
+  surfaces stay byte-identical (reusing `mux_if_emit_prob` was rejected). The eight
+  emit-projections (`function_emit` / `generate_loop` / `task_emit` / `multi_output_task`
+  / `cone_function` / `soft_union` / `mux_if` / `case_mux_if`) are mutually exclusive on
+  a gate — this pass runs **last**. No new IR node / no new computed truth. Combinational
+  only. `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `num_emitted_case_mux_if_chains` metric in `--introspect` (schema `1.16`; exact because
+  constant-selector `CaseMux` is excluded). Proven downstream-clean by the repo-owned
+  `tool_matrix --case-mux-if-gate` (Verilator + both Yosys modes + Icarus, **metric-keyed**
+  `saw_case_mux_if_emit` — this surface emits no new identifier token). See
+  [Structured Emission Surfaces](structured-emission.md) for the full walk-through.
 
 ### Hierarchy knobs (Phase 4+)
 

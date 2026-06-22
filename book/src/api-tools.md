@@ -82,11 +82,11 @@ resource URIs (`sv`, `introspection`, and `manifest` for the non-DUT lanes).
 { "name": "generate", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "run_id": "3f1cad578805bd04", "lane": "dut", "kind": "module",
+{ "run_id": "ee39c1e3df8192dd", "lane": "dut", "kind": "module",
   "top": "mod_42_0000",
   "resources": {
-    "sv": "anvil://artifact/3f1cad578805bd04/sv",
-    "introspection": "anvil://artifact/3f1cad578805bd04/introspection" } }
+    "sv": "anvil://artifact/ee39c1e3df8192dd/sv",
+    "introspection": "anvil://artifact/ee39c1e3df8192dd/introspection" } }
 ```
 
 ### `introspect`
@@ -101,11 +101,11 @@ Schemas](api-introspection.md).
 { "name": "introspect", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.15", "anvil_version": "0.1.0", "lane": "dut",
+{ "schema_version": "1.16", "anvil_version": "0.1.0", "lane": "dut",
   "request": { "seed": 42, "lane": "dut", "knobs": { "…": "Config" },
-               "run_id": "3f1cad578805bd04" },
+               "run_id": "ee39c1e3df8192dd" },
   "artifact": { "kind": "module", "top": "mod_42_0000",
-                "sv": { "uri": "anvil://artifact/3f1cad578805bd04/mod_42_0000.sv",
+                "sv": { "uri": "anvil://artifact/ee39c1e3df8192dd/mod_42_0000.sv",
                         "bytes": 80383 } },
   "introspection": { "module_metrics": { "…": "Metrics" },
                      "coverage_readout": { "…": "achieved coverage readout" } },
@@ -160,7 +160,7 @@ flop D-cone); `input_reach` → a source (input name, `"flop:<id>"` Q, or
   "arguments": { "seed": 7, "query": "output_support", "target": "o_0" } }
 ```
 ```json
-{ "schema_version": "1.15", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
+{ "schema_version": "1.16", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
   "analysis": { "query": "output_support",
     "results": [ { "target": "o_0", "support_inputs": ["i_1"],
                    "support_flops": [], "support_instance_outputs": [],
@@ -190,7 +190,7 @@ byte-stable; `attempts`/`fires` are the exact integers.
 { "name": "coverage", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.15", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
+{ "schema_version": "1.16", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
   "coverage": {
     "knob_fire_rates": { "flop_prob": { "attempts": 295, "fires": 36, "fire_rate": 0.122034 } },
     "category_fire_rates": { "state": { "attempts": 331, "fires": 53, "fire_rate": 0.160121 } },

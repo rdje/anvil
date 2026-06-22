@@ -11,8 +11,9 @@ output drives. Every downstream parser, elaborator, linter, and synth
 tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
 construction in a richer SystemVerilog surface — today a single-gate
-`function`, a `generate for` loop, a `task`, a whole-cone `function`, and a
-multi-output `task`, and later nested `generate` or an `interface` — so the
+`function`, a `generate for` loop, a `task`, a whole-cone `function`, a
+multi-output `task`, a procedural `if`/`else`, and an `if`/`else if` priority
+chain, and later nested `generate` or an `interface` — so the
 tools have more legal structural variety to ingest,
 and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds
@@ -930,4 +931,133 @@ anvil --seed 1 --config base.json
 ```
 
 Flip `mux_if_emit_prob` back to `0.0` and the output is byte-identical to the default
+lane.
+
+## The eighth surface: a procedural `if`/`else if` priority chain
+
+The eighth surface is the **first N-way procedural priority chain** in the lane, and a
+direct sibling of the [seventh](#the-seventh-surface-a-procedural-ifelse). Where the
+seventh re-expresses a single 2:1 `Mux`, the eighth re-expresses the N-way structured
+selector `CaseMux`. A `CaseMux` with a **dynamic** selector renders today as a parallel
+`always_comb case (sel) … default` statement; the eighth surface re-expresses that same
+`always_comb` block's *body* as an `if`/`else if` **priority chain** of selector-equality
+tests, falling through to the same `default` value.
+
+Because the `case` labels are **distinct constants by construction** (arm `i` ⇒ label
+`SW'd{i}`), at most one equality is ever true, so the priority chain and the parallel
+`case` select the same arm for every selector value, and the trailing `else` covers exactly
+the `case` `default` — it is **behaviour-preserving by construction**.
+
+This surface is **simpler than the seventh**: a `CaseMux` is *already* declared as an
+`always_comb`-written `logic` var, so it needs **no** `<wire>__cv` output var + passthrough.
+Only the `always_comb` *body* swaps `case … endcase` → `if … else if`; the net, its width,
+and every operand reference are untouched. It uses its **own** knob,
+[`case_mux_if_emit_prob`](knobs.md#structured-emission) (default `0.0`), separate from
+`mux_if_emit_prob`, so the shipped surfaces stay byte-identical. A new
+[`num_emitted_case_mux_if_chains`](agent-mcp.md) metric counts the chains it emits, bumping
+the introspection schema to `1.16`.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the default). A 4-bit
+`CaseMux` over a one-bit dynamic selector renders as a parallel `always_comb case`:
+
+```systemverilog
+    logic [3:0] case_mux_0;
+
+    always_comb begin
+        case (slice_0)
+            1'd0: case_mux_0 = 4'h5;
+            1'd1: case_mux_0 = 4'ha;
+            default: case_mux_0 = 4'h0;
+        endcase
+    end
+```
+
+With `case_mux_if_emit_prob = 1.0`, the *same* `CaseMux` is re-expressed as an `if`/`else
+if` priority chain writing the *same* `case_mux_0` var — the parallel `case`/`endcase` is
+suppressed, the `default` becomes the trailing `else`, and there is **no** `<wire>__cv` var
+(unlike the seventh surface) because `case_mux_0` is already an `always_comb` var:
+
+```systemverilog
+    logic [3:0] case_mux_0;
+
+    always_comb begin
+        if (slice_0 == 1'd0) case_mux_0 = 4'h5;
+        else if (slice_0 == 1'd1) case_mux_0 = 4'ha;
+        else case_mux_0 = 4'h0;
+    end
+```
+
+Each arm tests its `case` label as a selector equality, in ascending arm order; the trailing
+`else` carries the former `default`. Only the block's *body* changed — the net `case_mux_0`,
+its declaration, and every downstream consumer are unchanged.
+
+### What gets wrapped (and what doesn't)
+
+- **The candidate is a dynamic-selector `CaseMux`** (a `GateOp::CaseMux` gate whose selector
+  operand is *not* a constant, with at least one arm). A **constant-selector** `CaseMux` is
+  statically collapsed by the emitter to a continuous `assign` of the selected arm — it
+  never emits an `always_comb` block, so it is **not** a candidate (and excluding it keeps
+  the chain count exact). A `CasezMux` (whose `casez ?` wildcards need a *masked* comparison,
+  not a plain equality) is **not** a candidate — that masked priority chain is the recorded
+  follow-up.
+- **Minus any gate already marked by a sibling projection.** The pass runs **last** and
+  excludes any gate already claimed by one of the seven other surfaces (vacuous in practice —
+  no other pass marks a `CaseMux` — but kept for robustness), so a gate is projected by **at
+  most one** of the eight.
+- **The body swaps in place; the net stays a net.** Unlike the seventh surface there is no
+  new declaration and no passthrough — the `CaseMux` is already an `always_comb`-written
+  `logic` var, so only its block body changes form. Minimal blast radius.
+- **Combinational only.** The chain reads only the selector + arm operand refs the `case`
+  arm already reads and writes only the gate's own var — exactly the parallel `case`'s
+  read/write set, so there is no cycle risk.
+- **No new IR node / no new computed truth.** The chain is a pure emit-time projection of an
+  existing `CaseMux`; the flat IR, validators, CSE keys, and the canonical module signature
+  are untouched.
+
+### How anvil proves it
+
+The same two-mechanism proof as the prior surfaces:
+
+- The [`num_emitted_case_mux_if_chains`](agent-mcp.md) metric (a post-hoc count of
+  `Module.case_mux_if_gates`) is surfaced in `--introspect` at schema `1.16`, so a sweep can
+  confirm the surface fired. It is **exact** — because constant-selector `CaseMux` is
+  excluded, the count never over-reports.
+- The repo-owned `tool_matrix --case-mux-if-gate` forces `case_mux_if_emit_prob = 1.0` over
+  `case_mux_prob`-biased comb-only DUTs across all three construction strategies and requires
+  the `saw_case_mux_if_emit` coverage fact. Detection here is **metric-keyed** rather than a
+  text scan: this surface emits **no new identifier token** (only the `always_comb` body
+  changes form), and an `if (… == …)` scan would also match FSM decode blocks, so the gate
+  keys on the exact `num_emitted_case_mux_if_chains` metric instead. Banked clean (3 scenarios
+  / 12 modules / 12 emitting a chain / 83 chains / `coverage_gaps = []` / `12/0` Verilator +
+  both Yosys + Icarus). Across that bank the priority chain adds **zero** new Verilator
+  `-Wall` warnings versus the knob-off parallel `case`.
+- Library tests pin the marking: a dynamic-selector `CaseMux` qualifies, a constant-selector
+  `CaseMux`, a plain `Mux`, and a `CasezMux` do not, a gate already marked by a sibling
+  projection is excluded, the prob-`0.0` path marks nothing (byte-identical), and a marked
+  `CaseMux` emits the `if`/`else if` chain while the unmarked default stays the parallel
+  `case`.
+
+The picked-eighth rationale (the first N-way procedural priority chain, the recorded
+decision-`0027` follow-up, chosen over the `CasezMux` masked chain — which needs a masked
+comparison — and nested/multi-level `generate` and `interface` / `modport`) is recorded in
+decision `0028`
+(`docs/decisions/0028-structured-emission-eighth-surface-case-mux-priority-chain.md`). The
+`CasezMux` masked priority chain is the recorded follow-up.
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 1 --dump-config > base.json
+# edit base.json: set "case_mux_if_emit_prob": 1.0 (a small comb-only case-mux shape
+# makes the chain easy to read: "flop_prob": 0.0, "constant_prob": 0.0,
+# "comb_mux_prob": 0.0, "case_mux_prob": 1.0, "casez_mux_prob": 0.0, "min_inputs": 3,
+# "max_inputs": 3, "min_outputs": 1, "max_outputs": 1, "min_width": 4, "max_width": 4,
+# "max_depth": 1, "min_mux_arms": 2, "max_mux_arms": 2)
+anvil --seed 1 --config base.json
+```
+
+Flip `case_mux_if_emit_prob` back to `0.0` and the output is byte-identical to the default
 lane.

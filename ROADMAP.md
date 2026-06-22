@@ -378,17 +378,22 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `saw_case_mux_if_emit` (metric-keyed, `ScenarioSet::CaseMuxIfSweep` +
    `case_mux_prob`-biased focus config × 3 strategies) **landed `.17b.2b`** — banked clean
    `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
-   chains / `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus). `.17b.3` (user
-   docs: book/knobs/USER_GUIDE/README/KM for the `case_mux_if_emit_prob` knob) is the
-   remaining frontier. Chosen over
+   chains / `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus). The user docs
+   **landed `.17b.3`** (the `book/src/structured-emission.md` eighth-surface section with a
+   byte-verified seed-1 before/after + the `case_mux_if_emit_prob` entries in
+   book/knobs/USER_GUIDE/README + the deferred book example-JSON `schema_version` `1.15 →
+   1.16` refresh + a `case-mux-if-emit` KM card; `mdbook build`/`book_examples`
+   3/3/`check_knowledge_map` clean) ⇒ **`.17b` / `.17` close; the EIGHTH structured surface
+   is delivered end-to-end** and the lane returns to a no-frontier boundary. Chosen over
    nested/multi-level `generate` (no
    by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the
    existing single-level loop already fires on the outer `{M{y}}`) and
    `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the modport
    port and both Yosys modes warn on the implicit interface-member decl); the `CasezMux`
    masked priority chain, nested/multi-level `generate`, and `interface`/`modport` are
-   the remaining future vetted surfaces (`.18`+), each with its own decision; the tree
-   stays `active` with `.17b.3` as the current frontier. Serves ROADMAP steering gap 1
+   the remaining future vetted surfaces (`.18`+), each with its own decision, PNT-selected
+   at the next no-frontier boundary; the tree stays `active` at a no-frontier boundary (EIGHT
+   surfaces delivered end-to-end). Serves ROADMAP steering gap 1
    (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +

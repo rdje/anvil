@@ -47,19 +47,19 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.15",
+  "schema_version": "1.16",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
     "seed": 42,
     "lane": "dut",
     "knobs": { "...": "the full effective Config" },
-    "run_id": "3f1cad578805bd04"
+    "run_id": "ee39c1e3df8192dd"
   },
   "artifact": {
     "kind": "module",
     "top": "mod_42_0000",
-    "sv": { "uri": "anvil://artifact/3f1cad578805bd04/mod_42_0000.sv", "bytes": 80383 },
+    "sv": { "uri": "anvil://artifact/ee39c1e3df8192dd/mod_42_0000.sv", "bytes": 80383 },
     "sv_sha256": null,
     "manifest": null
   },

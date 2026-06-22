@@ -561,6 +561,28 @@ with a matching `--kebab-case` CLI flag since
   `--introspect` (schema `1.15`). Set it via `--mux-if-emit-prob` or a `--config`
   JSON. The surface is proven downstream-clean by `tool_matrix --mux-if-gate` (see the
   matrix section below). Full walk-through: `book/src/structured-emission.md`.
+- `case_mux_if_emit_prob` (the `--case-mux-if-emit-prob` CLI flag, or `--config` JSON,
+  like `mux_if_emit_prob`; decision `0028`) is the **eighth richer-structured emission
+  surface** and the lane's **first N-way procedural priority chain**. Per qualifying
+  dynamic-selector `CaseMux` gate (a `GateOp::CaseMux` whose selector is not a constant,
+  with `>= 1` arm, not already marked by one of the seven sibling projections), it is the
+  probability the emitter re-expresses its parallel `always_comb case (sel) … default`
+  body as an `if`/`else if` priority chain over the same operand refs
+  (`if (sel == SW'd0) g = arm_0; else if (sel == SW'd1) g = arm_1; … else g = W'h0;`). It
+  is the single-`Mux` `mux_if` parallel, but **simpler** — a `CaseMux` is already an
+  `always_comb`-written `logic` var, so it needs **no** `<wire>__cv` output var +
+  passthrough; only the block body swaps `case…endcase` → `if…else if`. An **emit-time
+  projection** (behaviour-preserving by construction — distinct `case` labels ⇒ priority
+  == parallel; the trailing `else` covers the `default`) with its **own** knob, so the
+  shipped surfaces stay byte-identical. Constant-selector `CaseMux` (statically collapsed)
+  and `CasezMux` (masked wildcards — the follow-up) are excluded. The eight
+  emit-projections are mutually exclusive on a gate (this pass runs **last**).
+  Combinational only. `default = 0.0` is byte-identical; the emitted count is surfaced as
+  `num_emitted_case_mux_if_chains` in `--introspect` (schema `1.16`; exact because
+  constant-selector `CaseMux` is excluded). Set it via `--case-mux-if-emit-prob` or a
+  `--config` JSON. The surface is proven downstream-clean by `tool_matrix
+  --case-mux-if-gate` (**metric-keyed** detection — no new identifier token; see the
+  matrix section below). Full walk-through: `book/src/structured-emission.md`.
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
