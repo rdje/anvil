@@ -1,6 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.17a — eighth-surface (CaseMux priority chain) impl design-detail
+
+**Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.16` commit).
+**Docs-only / design-detail leaf** (no `src/` touched) ⇒ **DUT byte-identical**. Tracked
+by `STRUCTURED-EMISSION-EXPANSION.17a` (the impl design-detail of the eighth structured
+surface; `.17` pre-split `.17a` design-detail + `.17b` impl).
+
+**What changed (why)**
+
+`.16` (decision `0028`) picked the eighth surface but left the implementation
+unspecified against the real code. Following the lane's `.6a`/`.10a`/`.15a` pattern,
+this design-detail leaf grounds decision `0028` in a fresh read of HEAD and pins every
+`.17b` impl point — de-risking the live source change before it is written.
+
+1. **`DEVELOPMENT_NOTES.md`** — a "CaseMux `if`/`else if` priority-chain surface — impl
+   design-detail — `.17a`" entry. The pass mirrors `src/ir/mux_if_emit.rs` but is
+   **simpler**: a `CaseMux` is already an `always_comb`-written `logic` var, so there is
+   **no** `<g>__cv` output-var + passthrough — only the `always_comb` *body* swaps
+   `case…endcase` → `if…else if`. The seven impl points are resolved against exact line
+   refs: (0) the **dynamic-selector** `CaseMux` candidate predicate (`operands[0]` not a
+   `Node::Constant` — the local-in-`ir/` inverse of `render_static_structured_gate`'s
+   `CaseMux` static-collapse test `constant_value(operands[0]).is_some()`,
+   `src/emit/sv.rs:2077`), excluding `CasezMux` (the `casez` masked-comparison follow-up)
+   + sibling marks (vacuous — no other pass marks a `CaseMux`) + `param_env`; (1)
+   `Module.case_mux_if_gates: BTreeSet<NodeId>`; (2) the **in-place** emitter body branch
+   in the structured-case `always_comb` loop (`src/emit/sv.rs:690`), reusing the same
+   `sel`/`sel_width`/`node_ref(data)` + the `W'h0` default; (3) run
+   `annotate_case_mux_if_gates` last (eighth guarded `gen/mod.rs` call site after
+   `mux_if`); (4) the `case_mux_if_emit_prob` knob + `--case-mux-if-emit-prob` flag
+   mirroring `mux_if_emit_prob`'s six `config.rs` touch points; (5)
+   `num_emitted_case_mux_if_chains` (schema `1.15 → 1.16`) — **exact** because static
+   selectors are excluded; (6) the **metric-keyed** `--case-mux-if-gate` /
+   `saw_case_mux_if_emit` gate (no new identifier token — more robust than scanning the
+   `if (… == …)` text, which FSM decode blocks also contain) + a `case_mux_prob`-biased
+   focus config; (7) the byte-identical/RNG argument. The `.17b` proof plan, the
+   `.17b.1`/`.17b.2`/`.17b.3` pre-split, and four rejected alternatives are recorded.
+2. **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — the `.17`/`.17a`/`.17b` nodes
+   registered (`.17a` done, `.17`/`.17b` active); Current Frontier → `.17b.1`;
+   Verification Log / Commit Log / Changelog / Metadata narrative updated.
+3. **`docs/TASK_TREE.md`** index row tail — `.17a` done; frontier → `.17b.1`.
+
+**Validation**
+- All seven grounded line refs re-verified against current HEAD (the static-collapse
+  test at `sv.rs:2077`, the structured-case loop `:667`–`:753`, the roll chain, the
+  config touch points, `main.rs` flag, `types.rs` carriers).
+- `scripts/check_doctrines.sh` 4/4 PASS (code-scoped exempt — docs commit);
+  `check_knowledge_map.sh` OK (no card change — `0028` already folded);
+  `check_memory_architecture.sh` green; `mdbook build book` rc=0. `git diff --check`
+  clean.
+
+**Impact:** docs-only ⇒ DUT byte-identical; `cargo`/snapshot/`tool_matrix` suites
+unaffected (the `.15b.2` bank holds: `cargo test --lib` 616 / `--bin tool_matrix` 89 /
+snapshots 6/6). The eighth surface's impl is fully designed; the live source change
+(`.17b.1`) is the next frontier.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.16 — pick the eighth structured surface (CaseMux → if/else-if priority chain) + decision 0028
 
 **Landed as:** this commit (previous: this `LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.1`

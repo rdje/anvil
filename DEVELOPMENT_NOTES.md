@@ -5,6 +5,122 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — CaseMux `if`/`else if` priority-chain surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.17a`
+
+Grounds decision `0028` (the **eighth** structured surface: a procedural `always_comb`
+`if`/`else if` priority-chain emit-projection of a `CaseMux` gate) in a fresh read of the
+real code, pinning every `.17b` impl point. The pattern is the seventh surface's
+(`.15a`/`.15b`, `src/ir/mux_if_emit.rs`) — but **simpler**: a `CaseMux` is already an
+`always_comb`-written `logic` var, so there is no `<g>__cv` output-var + passthrough; the
+projection only swaps the `always_comb` *body* (`case … endcase` → `if … else if`).
+
+**Grounding reads (current HEAD).** `src/ir/mux_if_emit.rs` (the whole pass — the exact
+template to mirror: `gate_qualifies` + collect-then-`gen_bool`-roll `annotate_*` +
+`param_env` skip + the 10-proof block); `src/emit/sv.rs` the structured-case `always_comb`
+loop (`:667`–`:753`: the per-gate `render_static_structured_gate(...).is_some() → continue`
+static-collapse skip `:685`–`:687`, the `GateOp::CaseMux` arm `:690`–`:702` computing
+`sel = node_ref(operands[0])` / `sel_width` / per-arm `data = node_ref(operands[1+i])` with
+labels `SW'd{i}`, and the shared `default: name = W'h0; endcase` tail `:747`–`:749`) +
+`render_static_structured_gate` (`:2069`–`:2110`: for `CaseMux` it returns `Some` **iff
+`constant_value(operands[0])` is `Some`** — i.e. the selector node is a `Node::Constant`);
+`src/gen/mod.rs` the seven-pass guarded roll chain (`:89`–`:160` single, `:323`–`:409`
+design — `soft_union → function_emit → generate_loop → task_emit → multi_output_task →
+cone_function → mux_if`, each `if self.cfg.<knob> > 0.0`); `src/config.rs`
+(`default_mux_if_emit_prob` `:118`, the `#[serde(default)]` field `:1032`, the
+Default-construction entry `:1281`, the validate-probs-list entry `:1664`, the apply
+`:1893`, the `Overrides` `Option<f64>` `:2018`); `src/main.rs` (the `--mux-if-emit-prob`
+clap flag `:551` + overlay wiring `:1171`); `src/ir/types.rs` (`mux_if_gates: BTreeSet<NodeId>`
+`:537`; `GateOp::CaseMux  // [sel, data_0, data_1, …], emitted as always_comb case` `:2341`).
+
+**The seven impl points, resolved:**
+
+0. **Candidate predicate** (new `src/ir/case_mux_if_emit.rs`, mirroring `mux_if_emit.rs`):
+   a `Node::Gate` whose op is `GateOp::CaseMux` **and whose selector (`operands[0]`) is NOT
+   a `Node::Constant`** — the **dynamic-selector** test. This is the exact inverse of
+   `render_static_structured_gate`'s `CaseMux` arm (`constant_value(operands[0]).is_some()`):
+   a constant-selector `CaseMux` lowers to a continuous `assign` of the selected arm (no
+   `always_comb`, no conditional), so it is **not** a candidate — checked locally in `ir/`
+   with `matches!(m.nodes[operands[0] as usize], Node::Constant { .. })`, no `emit/`
+   dependency. Plus the robustness exclusion of every sibling mark (vacuous here — the
+   other seven passes target plain gates / `{N{x}}` `Concat` / `Slice`, never a `CaseMux` —
+   but kept for the established "later pass excludes earlier marks" convention).
+   `CasezMux` is **not** a candidate (its `casez` `?`-wildcards need a *masked* comparison,
+   `(sel & care_mask) == pattern` — a bigger construct, the recorded follow-up);
+   `ForFold` is not a selector. `param_env` modules skipped (the `mux_if` scoping).
+1. **Carrier:** `Module.case_mux_if_gates: BTreeSet<NodeId>` beside `mux_if_gates`
+   (`types.rs:537`), `#[serde(default)]`-empty. A set, not a map — a marked `CaseMux`
+   carries no payload; its operands are read straight from the node by the emitter.
+2. **Emitter integration (in place, minimal):** in the structured-case `always_comb` loop,
+   branch the `GateOp::CaseMux` arm on `m.case_mux_if_gates.contains(&idx)`. Marked ⇒ emit
+   the chain body — `if (<sel> == SW'd0) <name> = <data_0>; else if (<sel> == SW'd1) <name>
+   = <data_1>; … else <name> = W'h0;` — reusing the **same** `sel` / `sel_width` /
+   `node_ref(data)` the `case` arm already computes, and the **same** `W'h0` default
+   literal (the shared `:747` tail becomes the trailing `else` for a marked gate; the
+   `endcase` is omitted). Unmarked ⇒ today's `case … endcase` verbatim (byte-identical).
+   Because the static-collapse `continue` (`:685`) already fires *before* this arm for a
+   constant-selector `CaseMux`, and the predicate already excludes those from the candidate
+   set, the two agree: a static `CaseMux` is never marked and never reaches the chain
+   branch.
+3. **Run last:** an eighth guarded call site `if self.cfg.case_mux_if_emit_prob > 0.0 {
+   annotate_case_mux_if_gates(…) }` after `mux_if` in both `gen/mod.rs` paths (`:160` /
+   `:409`). Ordering is not load-bearing for exclusion (no other pass marks a `CaseMux`)
+   but follows the convention; minimal blast radius (no other pass changes).
+4. **Knob:** `Config::case_mux_if_emit_prob` (default `0.0`) mirroring `mux_if_emit_prob`
+   at all six `config.rs` touch points + the `--case-mux-if-emit-prob` clap flag +
+   `Overrides` wiring (`main.rs`).
+5. **Metric:** `Metrics::num_emitted_case_mux_if_chains` (`= m.case_mux_if_gates.len()`,
+   `#[serde(default)]`) ⇒ introspection schema `1.15 → 1.16` at `.17b.2`. Because the
+   predicate excludes static-selector `CaseMux`, **every** marked gate emits exactly one
+   chain ⇒ `len()` is the true emitted-chain count (no over-count).
+6. **Gate:** `tool_matrix --case-mux-if-gate` + `ScenarioSet::CaseMuxIfSweep` + a
+   `case_mux_if_focus_config` (comb-only, node-id + e-graph, `case_mux_if_emit_prob = 1.0`,
+   and **`case_mux_prob` biased high** so dynamic-selector `CaseMux` gates exist) × the
+   three strategies. **Detection is metric-keyed, not text-scanned:**
+   `ModuleReport.emitted_case_mux_if = module_metrics.num_emitted_case_mux_if_chains > 0` +
+   `saw_case_mux_if_emit`. Unlike the seventh surface (which got the new `__cv` identifier
+   token) this surface writes the gate's *existing* var, so it introduces **no** new token
+   — keying the coverage fact on the metric (which already flows per-module into the matrix
+   report, the `.15b.2` precedent — its report carried `215` `num_emitted_mux_if_blocks`)
+   is strictly more robust than scanning the `if (… == …)` text (which FSM/state-decode
+   `always_comb` blocks also contain). **Calibration note:** unlike `--mux-if-gate` (which
+   had to force `comb_mux_encoding_prob = 1.0` to avoid the one-hot no-`Mux` path), a
+   `CaseMux` is produced directly by `case_mux_prob` and its selector is a generated cone
+   (dynamic by default, not a folded constant), so biasing `case_mux_prob` high should
+   reliably yield dynamic candidates — to be confirmed empirically at `.17b.2` against the
+   `MIN_UNITS_PER_SCENARIO` floor.
+7. **Byte-identical / RNG:** default `0.0` ⇒ the guard skips the pass ⇒ zero draws ⇒
+   byte-identical stream + output (`tests/snapshots.rs` untouched); `prob = 1.0` ⇒
+   `gen_bool(1.0)` short-circuits (no extra draws); the mark is an emitter-surface
+   annotation only — the flat IR body, validators, CSE keys, and
+   `canonical_module_signature` are untouched (the `mux_if` `marking_leaves_identity_and_
+   node_count_untouched` proof, replicated).
+
+**`.17b` proof plan (pre-split `.17b.1` live / `.17b.2` metric+gate / `.17b.3` docs):**
+~8 lib proofs mirroring `mux_if_emit`'s — `prob_one_marks_a_dynamic_case_mux`;
+`constant_selector_case_mux_is_excluded` (the static one); `prob_zero_byte_identical`;
+`non_case_mux_excluded`; `casez_mux_excluded`; `param_env_skipped`;
+`marking_leaves_identity_untouched`; and the end-to-end emit proof (a marked dynamic
+`CaseMux` emits the `if`/`else if` chain + trailing `else … = W'h0;` and no `case`/`endcase`,
+the unmarked one emits `case … endcase`) — plus `snapshots` 6/6 byte-identical (default-off),
+a forced `case_mux_if_emit_prob = 1.0` ON-vs-OFF generated-RTL sweep (Verilator `-Wall`
+Δ=0 across 1800-2012/2017/2023 + both Yosys + Icarus + iverilog sim-equiv over 20000
+vectors), and the banked `--case-mux-if-gate` report.
+
+**Rejected alternatives** (design-detail level):
+- **Marking *all* `CaseMux` (incl. constant-selector) and relying on the emitter's static
+  `continue`.** Rejected: the metric `case_mux_if_gates.len()` would then over-count
+  marked-but-static gates that emit no chain. Excluding static selectors in the predicate
+  keeps `len()` == the emitted-chain count.
+- **A `<g>__pc` output var + passthrough (mirroring the seventh surface).** Rejected as
+  unnecessary: a `CaseMux` is already an `always_comb`-written `logic` var, so the body
+  swaps in place — adding a passthrough would convert `<g>` to a net + var pair for no
+  benefit.
+- **Reusing `mux_if_emit_prob`.** Rejected — separate surface (N-way `CaseMux` vs 2:1
+  `Mux`), separate knob (the `0027` / `0025` / `0016` separate-knob precedent).
+- **Emitting `unique`/`priority if` qualifiers.** Rejected for the first cut — a bare
+  `if`/`else if` chain is maximally portable (the probe proves it clean across every
+  tool/standard); qualifiers are a distinct optional variant for later.
+
 ## 2026-06-22 — `--mux-if-gate` focus-config calibration — `STRUCTURED-EMISSION-EXPANSION.15b.2`
 
 The `.15b.2` metric (`num_emitted_mux_if_blocks`, schema `1.14 → 1.15`) was a
