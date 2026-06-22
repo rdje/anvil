@@ -1,6 +1,49 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026
+
+**Landed as:** this commit (previous: `ca2ffb7`). **Opens the
+`DOCTRINE-ENFORCEMENT-ADOPTION` tree and lands the standard for ANVIL's fourth
+portable architecture — doctrine enforcement — before any check is wired.**
+Workflow/docs only / DUT byte-identical (no `src/`, no scripts wired yet, nothing can
+break). Task-tree-owned by `DOCTRINE-ENFORCEMENT-ADOPTION.1`.
+
+**What changed (why)**
+
+- **`DOCTRINE_ENFORCEMENT.md`** (new, repo root) — the portable standard (replayed
+  from the donor kit, §8): doctrine = a rule + a deterministic check that exits
+  nonzero on any breach; the three check archetypes (structural / oracle / evidence);
+  the §4 check-script contract; the registry+driver (§5); the E1→E4 defense-in-depth
+  (§7); honest limits (§9); and §10 — the live ANVIL instance registry
+  (`MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`, `TASK-TREE-OWNERSHIP`),
+  deployed across this tree's `.2`–`.4`. ANVIL is framed as already running the other
+  three portable architectures (task-trees, memory-architecture, knowledge-map).
+- **`docs/decisions/0026-doctrine-enforcement-adoption.md`** (new) — the adoption
+  rationale (Context → Decision → Consequences + rejected alternatives), with Knowledge
+  Map front-matter (12 `answers:` keys) so it is retrievable; recorded the owner steer
+  that `TOOLBOX.md` catalog **ANVIL's own** diagnostic tools. `docs/decisions/INDEX.md`
+  row added.
+- **`docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md`** (new) — the owning task tree:
+  leaves `.1`–`.6` (standard+decision / driver+wire / TOOLBOX+evidence / ownership
+  check / discovery / closeout), goal, non-goals, acceptance, frontier, decisions,
+  verification + commit logs. `docs/TASK_TREE.md` Active Task Trees row added (`active`).
+
+**Validation**
+
+- `bash scripts/check_memory_architecture.sh` OK (decisions index in sync with the new
+  `0026` record; `MEMORY.md` under the line cap). `bash
+  knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` OK (the new
+  decision's `answers:` front-matter folds into the map). No `src/` touched ⇒
+  `cargo check/clippy/fmt/test` unaffected and `tests/snapshots.rs` untouched.
+
+**Impact**
+
+- ANVIL gains the *standard* for portable architecture #4; no check is wired yet (the
+  driver lands in `.2`), so behaviour and gates are unchanged. The
+  `DOCTRINE-ENFORCEMENT-ADOPTION` tree is `active` at frontier `.1` → `.2`. No ROADMAP
+  phase label changed.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.3 — multi-output task user docs (sixth surface end-to-end)
 
 **Landed as:** this commit (previous: `92ed8d8`). **The user-facing closeout — the
