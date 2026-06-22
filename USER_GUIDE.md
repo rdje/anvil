@@ -325,6 +325,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--aggregate-array-prob` | 0.0     | Per-module probability of packed-array aggregate emission |
 | `--memory-prob`         | 0.0      | Per-module probability of an inferrable memory block (Phase 6) |
 | `--fsm-prob`            | 0.0      | Per-module probability of a generated-encoding FSM block (Phase 6) |
+| `--fsm-mealy-prob`      | 0.0      | Per-FSM probability the FSM output is Mealy (depends on the current input too), not Moore; only effective with `--fsm-prob > 0` (decision `0024`) |
 | `--multi-clock-prob`    | 0.0      | Per-module probability of multi-clock CDC promotion |
 | `--cdc-synchronizer-stages` | 2    | Destination-domain flop count in a generated CDC synchronizer chain (≥ 2) |
 | `--hierarchy-module-dedup` | off   | Enable the opt-in structural hierarchy module-dedup pass (on-only flag) |

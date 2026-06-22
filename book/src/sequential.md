@@ -168,10 +168,82 @@ feedback that is only semantically equivalent after additional rewriting.
 
 The same identity discipline now applies to deterministic generated FSM
 blocks. FSMs reset to state 0 and carry explicit transition and
-Moore-output tables, so two FSM blocks can share one state machine when
+output tables, so two FSM blocks can share one state machine when
 their selector proof, encoding, state count, transition table, output
 table, and output width match. Memories stay opaque because their
 stored contents are not reset-defined in the current template.
+
+## FSM outputs: Moore vs Mealy
+
+A generated FSM (the Phase-6 `fsm_prob` motif) is a **Moore** machine by
+default: its output is decoded from the current state alone. The opt-in
+`fsm_mealy_prob` knob turns the output **Mealy** — it then depends on the
+current *input* as well as the current state. Only the output decode
+changes; the state register stays Moore-clocked (async reset to state 0,
+next-state from the transition table). Default-off ⇒ the Moore path is
+byte-identical.
+
+```bash
+cargo run --release -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 \
+      --min-width 2 --max-width 4 --flop-prob 0.0 \
+      --constant-prob 0.0 --max-depth 1
+```
+
+```systemverilog
+    localparam logic [1:0] FSM0_S0 = 2'h1;
+    localparam logic [1:0] FSM0_S1 = 2'h2;
+
+    // Next state: input-dependent transition (case (state) -> case (sel))
+    always_comb begin
+        fsm_next_0 = fsm_state_0;
+        case (fsm_state_0)
+            FSM0_S0: case (sel)
+                2'h0: fsm_next_0 = FSM0_S1;
+                2'h1: fsm_next_0 = FSM0_S0;
+                2'h2: fsm_next_0 = FSM0_S1;
+                2'h3: fsm_next_0 = FSM0_S0;
+                default: fsm_next_0 = FSM0_S0;
+            endcase
+            FSM0_S1: /* ... */ ;
+            default: fsm_next_0 = FSM0_S0;
+        endcase
+    end
+
+    // State register: Moore-clocked (async reset to state 0)
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) fsm_state_0 <= FSM0_S0;
+        else fsm_state_0 <= fsm_next_0;
+    end
+
+    // MEALY output: decodes (state, sel) — the output reads the input
+    always_comb begin
+        case (fsm_state_0)
+            FSM0_S0: case (sel)
+                2'h0: fsm_0 = 2'h2;
+                2'h1: fsm_0 = 2'h1;
+                2'h2: fsm_0 = 2'h0;
+                2'h3: fsm_0 = 2'h3;
+                default: fsm_0 = 2'h0;
+            endcase
+            FSM0_S1: /* ... */ ;
+            default: fsm_0 = 2'h0;
+        endcase
+    end
+```
+
+The Mealy output is a per-`(state, sel)` constant table that mirrors the
+transition table — the same nested-`case` form ANVIL already proves
+synthesizable for the next-state decode, so a Mealy FSM stays inside the
+synthesizable subset (the example above is Verilator `-Wall`
+1800-2012/2017/2023 + Yosys both modes + Icarus clean). It is a
+behaviour-preserving extension of the `Fsm` block: no new IR node (the
+output is still the opaque `Node::FsmOut`), rules-first /
+valid-by-construction, and a Mealy FSM is conservatively excluded from
+FSM dedup so nothing is over-merged (nothing retired). Emission is
+counted by `num_mealy_fsm_modules` (introspection schema `1.13`,
+`<= num_fsm_modules`) and gated downstream-clean by the repo-owned
+`phase6_mealy_fsm` `tool_matrix` scenario (`saw_mealy_fsm_design`). See
+[Knobs](knobs.md) `fsm_mealy_prob` and decision `0024`.
 
 ## K=1 clock and reset shape
 

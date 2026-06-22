@@ -1,9 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.3 — Mealy user-facing docs
+
+**Landed as:** this commit (previous: `b8ee1ce`). **Docs-only — brings the book +
+USER_GUIDE + README + Knowledge Map in sync with the now-shipped Mealy FSM output
+extension (decision [`0024`](docs/decisions/0024-mealy-fsm-outputs.md)), and closes
+the deferred introspection schema-`1.12→1.13` book-example drift.** No code; DUT
+byte-identical. Task-tree-owned by `CAPABILITY-BREADTH-EXPANSION.2b.3`; **closes
+`.2b` and the whole Mealy strand `.2`.**
+
+**What changed (why)**
+
+- **`book/src/sequential.md`** — a new "FSM outputs: Moore vs Mealy" section: the
+  default FSM output is Moore; `fsm_mealy_prob` makes it Mealy (depends on the
+  current input `sel` too). Includes a **byte-verified runnable example**
+  (`cargo run --release -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 …`,
+  exercised + passing in `tests/book_examples::every_runnable_book_bash_block_succeeds`)
+  showing the state register + the nested `case (state)` → `case (sel)` next-state
+  and **Mealy output** decodes; the emitted module is Verilator `-Wall`
+  1800-2012/2017/2023 + Yosys both modes + Icarus clean.
+- **`book/src/knobs.md`** — a `fsm_mealy_prob` knob entry (and corrects the now-stale
+  "Mealy outputs … not emitted today" line under `fsm_prob`) + a knob→metric table
+  row (`num_mealy_fsm_modules`, schema `1.13`, the `saw_mealy_fsm_design` gate).
+- **`USER_GUIDE.md`** — the `--fsm-mealy-prob` flag row.
+- **`README.md`** — a `--fsm-mealy-prob` "Current CLI truth" bullet.
+- **`docs/knowledge/fsm-mealy-outputs.md`** (new KM card) — the operational how-to
+  ("how do I emit a Mealy FSM", the knob, the command, the gate), cross-linked to
+  decision `0024`, with a working `reverify`; `KNOWLEDGE_MAP.md` regenerated (60
+  facts).
+- **`book/src/{api-tools,agent-mcp,api-introspection,api-reference}.md`** — the
+  deferred introspection schema **`1.12 → 1.13`** book-example refresh: current-version
+  statements and JSON `schema_version` examples bumped to `1.13`; the `1.13` MINOR
+  entry (`design_metrics.num_mealy_fsm_modules`) added to the stability sections;
+  `coverage_readout`'s historical provenance left at `1.12`.
+
+**Validation**
+
+- `mdbook build book` clean; `tests/book_examples::every_runnable_book_bash_block_succeeds`
+  **passes** (the new Mealy example is a genuinely-run block); `KNOWLEDGE_MAP`
+  regenerate + `check_knowledge_map.sh` green (60 facts); the KM card's `reverify`
+  command re-confirmed (4 `case (sel)` decodes, `verilator --lint-only` CLEAN).
+- Docs-only ⇒ no code change; the `b8ee1ce` code state (lib 589/0, tool_matrix 79/0,
+  snapshots 6/6 byte-identical) is unchanged.
+
+**Impact**
+
+- The book — the user-facing surface — now documents the Mealy FSM output with a
+  byte-verified example, and the introspection schema docs read `1.13`. **`.2b` and
+  the Mealy strand `.2` are done.** The tree stays `active` with the only remaining
+  child `.1` (SV up-opt breadth) deferred-not-retired. No ROADMAP phase label
+  changed.
+
+**Files touched:** `book/src/sequential.md`, `book/src/knobs.md`,
+`book/src/api-tools.md`, `book/src/agent-mcp.md`, `book/src/api-introspection.md`,
+`book/src/api-reference.md`, `USER_GUIDE.md`, `README.md`,
+`docs/knowledge/fsm-mealy-outputs.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`,
+`docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.2b — Mealy FSM tool_matrix gate
 
-**Landed as:** this commit (previous: `c8b0562`). **Proves the default-off Mealy
+**Landed as:** `b8ee1ce` (previous: `c8b0562`). **Proves the default-off Mealy
 FSM output extension (decision [`0024`](docs/decisions/0024-mealy-fsm-outputs.md))
 fires by construction and is downstream-clean — the `tool_matrix` coverage gate.**
 Default-off ⇒ DUT byte-identical. Task-tree-owned by

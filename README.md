@@ -843,6 +843,20 @@ exercising adversarial axes that previously fired only by chance
   and `--bisimulation-flop-merge`. `library_prob`, `use_async_reset`, and
   `max_nodes_per_module` stay config-file-only (still `--config`/MCP
   settable). All default-off ⇒ DUT byte-identical.
+- `anvil --fsm-mealy-prob <p>` (`CAPABILITY-BREADTH-EXPANSION.2b`, decision
+  `0024`) is the default-off **Mealy FSM output** knob (also `--config` / MCP
+  settable; `fsm_mealy_prob`). When an FSM block is built (pair it with
+  `--fsm-prob > 0`), it is the probability the FSM's output is **Mealy** — it
+  depends on the current input as well as the current state — instead of
+  **Moore**. It adds a second nested `case (state)` → `case (sel)` output
+  decode driving the opaque `Node::FsmOut` (a per-`(state, sel)` constant table
+  mirroring the transition table); the state register stays Moore-clocked. A
+  behaviour-preserving extension of the `Fsm` block (no new IR node,
+  rules-first; Mealy FSMs excluded from FSM dedup — nothing retired). Counted by
+  `num_mealy_fsm_modules` (`--introspect`, schema `1.13`) and gated
+  downstream-clean by the `phase6_mealy_fsm` `tool_matrix` scenario
+  (`saw_mealy_fsm_design`). Default `0.0` ⇒ Moore, DUT byte-identical. See
+  `book/src/sequential.md` "FSM outputs: Moore vs Mealy".
 - `function_emit_prob` is a default-off knob (the `--function-emit-prob` CLI
   flag since `KNOB-ERGONOMICS-AND-PRESETS.2b.1`, or `--config` JSON;
   `STRUCTURED-EMISSION-EXPANSION.2b.1`, decision `0012`) — ANVIL's

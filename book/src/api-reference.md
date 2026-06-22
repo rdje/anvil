@@ -181,12 +181,13 @@ Two independent version numbers govern compatibility:
   Reported by `initialize`.
 - **`schema_version`** — the version of the **introspection / analysis
   documents** (`--introspect`, the `introspect`, `analyze`, and `coverage`
-  tools), currently **`1.12`**. It follows a MINOR/MAJOR policy:
-  - a **MINOR** bump (`1.11 → 1.12`) is **additive** — a new optional field or a
+  tools), currently **`1.13`**. It follows a MINOR/MAJOR policy:
+  - a **MINOR** bump (`1.12 → 1.13`) is **additive** — a new optional field or a
     new payload section, with prior replies left byte-identical (new sections use
     `skip_serializing_if`, so a query that doesn't use them is unchanged). `1.12`
     added the `coverage_readout` section (the achieved-coverage readout) + the
-    standalone `coverage` tool document;
+    standalone `coverage` tool document; `1.13` added the
+    `design_metrics.num_mealy_fsm_modules` count (the Mealy FSM extension);
   - a **MAJOR** bump would be a breaking change to an existing field.
 
 Underpinning both is the **`SCHEMA-DERIVED` invariant**: every value the API

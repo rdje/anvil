@@ -68,7 +68,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `pending`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2`
-  Status: `active` (container — split into `.2a` design + `.2b` impl)
+  Status: `done` (container — `.2a` design + `.2b` impl both done; the Mealy strand is complete)
   Goal: `Mealy FSM outputs — design/decision leaf (ADR, no code): ground the Mealy extension in the real Phase-6 Fsm block + emitter (src/ir Fsm + Node::FsmOut + the encoding-derived emitter; Moore-only today), pin the Mealy output model (an output that also depends on the current input, default-off behind its own knob, valid-by-construction + synthesizable), the num_emitted_* metric + a tool_matrix coverage fact, and the MCP selectability/queryability (decision 0017). Record as the next decision record + pre-split impl.`
   Children: `CAPABILITY-BREADTH-EXPANSION.2a`, `CAPABILITY-BREADTH-EXPANSION.2b`
 
@@ -80,7 +80,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `CAPABILITY-BREADTH-EXPANSION.2a`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2b`
-  Status: `active` (container — split into `.2b.1` mechanism + `.2b.2` metric/gate + `.2b.3` docs)
+  Status: `done` (container — `.2b.1` mechanism + `.2b.2` metric/gate + `.2b.3` docs all done)
   Goal: `Mealy FSM output impl — default-off / DUT byte-identical, snapshots untouched.`
   Children: `CAPABILITY-BREADTH-EXPANSION.2b.1`, `CAPABILITY-BREADTH-EXPANSION.2b.2`, `CAPABILITY-BREADTH-EXPANSION.2b.3`
 
@@ -111,18 +111,17 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `CAPABILITY-BREADTH-EXPANSION.2b.2b`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2b.3`
-  Status: `proposed`
+  Status: `done`
   Goal: `Mealy user-facing docs — book/src/sequential.md (Moore vs Mealy, a byte-verified example), book/src/knobs.md (fsm_mealy_prob), USER_GUIDE.md (the --fsm-mealy-prob row), README "Current CLI truth", and a KM how-to card. mdbook build clean; book back in sync with the codebase.`
   Acceptance: `mdbook build clean; the Mealy knob + behavior documented with an example; KM regenerated.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — book/src/sequential.md gains a "FSM outputs: Moore vs Mealy" section with a byte-verified runnable example (cargo run --release -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 …; exercised + passing in tests/book_examples every_runnable_book_bash_block_succeeds; the emitted module is Verilator -Wall 1800-2012/2017/2023 + Yosys both modes + Icarus clean); book/src/knobs.md documents fsm_mealy_prob (knob entry + the knob→metric table row, and corrects the stale "Mealy not emitted today" line); USER_GUIDE.md adds the --fsm-mealy-prob row; README adds the --fsm-mealy-prob "Current CLI truth" bullet; a new KM how-to card docs/knowledge/fsm-mealy-outputs.md (cross-linked to decision 0024) with a working reverify; the deferred introspection schema 1.12→1.13 book-example refresh applied across api-tools.md / agent-mcp.md / api-introspection.md / api-reference.md (current-version statements + JSON examples bumped to 1.13; coverage_readout provenance left at 1.12). mdbook build clean; KM regenerated + check green (60 facts).`
+  Commit: `CAPABILITY-BREADTH-EXPANSION.2b.3`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `proposed` | Mealy docs — book `sequential.md`/`knobs.md` + USER_GUIDE + README + KM card (incl. the deferred schema-`1.12→1.13` book-example refresh: `api-tools.md`/`agent-mcp.md`/`api-introspection.md`, the coverage-steered-lane precedent). `.2b.2b` (the `saw_mealy_fsm_design` `tool_matrix` gate) is now **done** — only the user-facing docs remain to close `.2b`. |
-| 2 | `CAPABILITY-BREADTH-EXPANSION.1` | `pending` | SV up-opt breadth — design-first ADR + fresh probe + LRM grounding before code. **Deferred (not retired):** the `.2a` probe re-confirmed (per decision `0010`) that the named candidates (enum/typedef, packed multidim arrays) are accepted at every Verilator `--language` mode + Yosys + Icarus ⇒ not version-distinctive, no down-gating teeth; the genuinely-2023 clean space with the installed tools is thin (essentially `union soft`, shipped). A future `.1` either finds a genuinely-2023 construct or rescopes to `union soft` breadth. |
+| 1 | `CAPABILITY-BREADTH-EXPANSION.1` | `pending` | SV up-opt breadth — design-first ADR + fresh probe + LRM grounding before code. The **entire Mealy strand (`.2`) is now done** (`.2a` ADR + `.2b.1` mechanism + `.2b.2a` metric/schema + `.2b.2b` gate + `.2b.3` docs); `.1` is the only remaining child. **Deferred (not retired):** the `.2a` probe re-confirmed (per decision `0010`) that the named candidates (enum/typedef, packed multidim arrays) are accepted at every Verilator `--language` mode + Yosys + Icarus ⇒ not version-distinctive, no down-gating teeth; the genuinely-2023 clean space with the installed tools is thin (essentially `union soft`, shipped). A future `.1` either finds a genuinely-2023 construct or rescopes to `union soft` breadth. |
 
 ## Decisions
 
@@ -178,6 +177,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.1` | `cargo test green (full suite); snapshots 6/6 (Moore byte-identical); clippy -D warnings + fmt --check clean; downstream probe (seed 7, --fsm-prob 1.0 --fsm-mealy-prob 1.0) → 6 nested case(sel) decodes, ACCEPT warning-clean across Verilator -Wall 1800-2012/2017/2023 + Yosys both modes + Icarus -g2012; 2 new lib tests` | `done` (Mealy mechanism; default-off DUT byte-identical) |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `num_mealy_fsm_modules DesignMetrics field + schema 1.12→1.13 (const + comment + all schema_version assertions in introspect/mod.rs + mcp/mod.rs + the schema-doc §6.3/§7); cargo test green (lib 589/0 + full); snapshots 6/6; clippy -D warnings + fmt clean; live --introspect (hierarchy, fsm_mealy_prob=1.0) → num_mealy_fsm_modules: 2 at schema 1.13` | `done` (metric queryable; default-off byte-identical) |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `saw_mealy_fsm_design coverage fact + phase6_mealy_fsm scenario (= phase6_fsm + fsm_mealy_prob=1.0) + detection/merge/Phase4Hierarchy gap + phase6_mealy_fsm_scenario_is_non_vacuous test (count 222→225, gate designs 888→900) in src/bin/tool_matrix.rs; cargo test green (tool_matrix bin 79/0, lib 589/0, snapshots 6/6 byte-identical); clippy --all-targets -D warnings + fmt clean; PRIMARY proof — focused harness-faithful downstream run (seed 7, the exact phase6_mealy_fsm shape) ACCEPT warning-clean across verilator --top-module + Yosys both modes + iverilog -g2012 -s top; the --phase4-hierarchy-gate run enforces coverage_gaps=[] incl. saw_mealy_fsm_design (gap-enforcement + non-vacuity unit-proven; 224 non-Mealy scenarios unchanged from the r87/phase6-fsm-p1 banks)` | `done` (Mealy gate; default-off DUT byte-identical) |
+| `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `book sequential.md "FSM outputs: Moore vs Mealy" + byte-verified runnable example (passing in tests/book_examples; emitted module Verilator -Wall 2012/2017/2023 + Yosys both + Icarus clean); knobs.md fsm_mealy_prob entry + metric-table row + corrected stale line; USER_GUIDE --fsm-mealy-prob row; README --fsm-mealy-prob bullet; new KM card docs/knowledge/fsm-mealy-outputs.md (working reverify, cross-linked to 0024); deferred schema 1.12→1.13 book-example refresh (api-tools/agent-mcp/api-introspection/api-reference; provenance kept at 1.12); mdbook build clean; KM regen+check green (60 facts)` | `done` (docs-only; book back in sync; DUT byte-identical) |
 
 ## Commit Log
 
@@ -188,6 +188,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 | `CAPABILITY-BREADTH-EXPANSION.2b.1` | `CAPABILITY-BREADTH-EXPANSION.2b.1 — Mealy FSM output mechanism (knob + IR + emitter + validate)` | First **code** slice of the lane. `Fsm.mealy_outputs` + `fsm_mealy_prob`/`--fsm-mealy-prob` + the emitter nested `case(state_q)→case(sel)` Mealy decode + validate + dedup-exclusion + 2 lib tests. Default-off DUT byte-identical (snapshots 6/6); all-tool-clean. `.2b` split into `.2b.1` (done) + `.2b.2` (metric/gate) + `.2b.3` (docs). |
 | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `CAPABILITY-BREADTH-EXPANSION.2b.2a — Mealy metric num_mealy_fsm_modules + introspection schema 1.13` | The `num_mealy_fsm_modules` `DesignMetrics` field (serde-projected into `--introspect`) + the additive schema bump `1.12 → 1.13` (const + comment + all `schema_version` assertions + the schema-doc contract). Queryable (decision `0017`); default-off byte-identical. `.2b.2` split into `.2b.2a` (done) + `.2b.2b` (gate). |
 | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `CAPABILITY-BREADTH-EXPANSION.2b.2b — Mealy FSM tool_matrix gate (saw_mealy_fsm_design + phase6_mealy_fsm scenario)` | The repo-owned Mealy gate in `src/bin/tool_matrix.rs`: `saw_mealy_fsm_design` coverage fact + `phase6_mealy_fsm` scenario (`fsm_mealy_prob=1.0`) + detection/merge/`Phase4Hierarchy` gap + a non-vacuity test (count 222→225, gate designs 888→900), mirroring the `phase6_fsm`/`phase6_inferrable_memory` motif gates. Banked downstream-clean; default-off DUT byte-identical. `.2b.2` done; `.2b` frontier → `.2b.3` (docs). |
+| `CAPABILITY-BREADTH-EXPANSION.2b.3` | `CAPABILITY-BREADTH-EXPANSION.2b.3 — Mealy user-facing docs (book + USER_GUIDE + README + KM card + schema 1.13 refresh)` | Docs-only: `book/src/sequential.md` "FSM outputs: Moore vs Mealy" + a byte-verified runnable example; `knobs.md` `fsm_mealy_prob` entry + table row + corrected stale line; `USER_GUIDE`/`README` `--fsm-mealy-prob`; new KM card `docs/knowledge/fsm-mealy-outputs.md`; the deferred introspection schema `1.12→1.13` book-example refresh. Closes `.2b` and the whole Mealy strand `.2`. Book back in sync; DUT byte-identical. Tree frontier → `.1` (SV up-opt, deferred). |
 
 ## Changelog
 
@@ -215,3 +216,11 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   banks); default-off DUT byte-identical. `.2b.2`
   done; `.2b` frontier → `.2b.3` (the user-facing docs); `.1` still deferred (not
   retired).
+- `2026-06-22`: `.2b.3` done — the Mealy user-facing docs: `book/src/sequential.md`
+  "FSM outputs: Moore vs Mealy" with a byte-verified runnable example (passing in
+  `tests/book_examples`), `knobs.md` `fsm_mealy_prob` (entry + metric-table row +
+  corrected stale line), `USER_GUIDE`/`README` `--fsm-mealy-prob`, the new KM card
+  `docs/knowledge/fsm-mealy-outputs.md`, and the deferred introspection schema
+  `1.12 → 1.13` book-example refresh. **`.2b` done; the whole Mealy strand `.2` is
+  done.** Book back in sync; DUT byte-identical. The tree stays `active` with the
+  only remaining child `.1` (SV up-opt) deferred-not-retired.

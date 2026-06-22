@@ -1267,8 +1267,27 @@ for cross-simulator trace agreement.
   (closing artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: 222
   scenarios / 888 designs, `coverage_gaps = []`, 888/0 Verilator +
   both Yosys, `saw_fsm_design = true`). **This closes Phase 6
-  (advanced motifs).** Mealy outputs are the recorded post-closure
-  extension and are not emitted today.
+  (advanced motifs).** The FSM output is **Moore** by default (it
+  depends only on the current state); the **Mealy** extension ships
+  separately behind `fsm_mealy_prob` (next).
+- `fsm_mealy_prob` (default `0.0`) — per-FSM probability that the FSM's
+  output is **Mealy** instead of Moore: it depends on the current input
+  as well as the current state. It only has an effect when an FSM block
+  is built (so pair it with `fsm_prob > 0`). When it fires, the emitter
+  adds a second nested decode — `case (state)` → `case (sel)` — driving
+  the opaque `Node::FsmOut` leaf, so the output is a per-`(state, sel)`
+  constant table mirroring the transition table. The state register
+  stays Moore-clocked (async reset to state 0); only the *output* reads
+  the input-dependent `sel` cone. It is a behaviour-preserving extension
+  of the existing `Fsm` block — no new IR node, rules-first /
+  valid-by-construction, and Mealy FSMs are conservatively excluded from
+  FSM dedup (nothing retired). Default-off ⇒ the Moore path is
+  byte-identical. CLI flag `--fsm-mealy-prob`; also `--config` /
+  MCP-settable. **Delivered (`CAPABILITY-BREADTH-EXPANSION.2b`, decision
+  `0024`)**, proven downstream-clean (Verilator + both Yosys + Icarus)
+  via the repo-owned `phase6_mealy_fsm` `tool_matrix` gate
+  (`saw_mealy_fsm_design`). See `book/src/sequential.md` "FSM outputs:
+  Moore vs Mealy".
 - `multi_clock_prob` (default `0.0`) — per-module probability that a
   finalized module is promoted to K=2 with a by-construction CDC
   synchronizer on one 1-bit flop-driven output. Config/library-only;
@@ -1359,6 +1378,7 @@ which are bugs worth investigating.
 | `soft_union_slice_prob`       | the emitted `union soft` overlay text (only with `sv_version = 2023`); proven by `tests/sv_version_downstream.rs` (Verilator `--language 1800-2023`); matrix `saw_sv_version_2023_soft_union_upopt` (`--sv-version-gate`, `SV-VERSION-TARGETING.3b.2b`) |
 | `memory_prob`                 | `num_memory_modules` (per-design metric); matrix `saw_inferrable_memory_design`; with `fsm_prob`, the combined `saw_memory_fsm_interplay_design` (`--signoff-knob-sweep-gate`) |
 | `fsm_prob`                    | `num_fsm_modules` (per-design metric); matrix `saw_fsm_design`; with `memory_prob`, the combined `saw_memory_fsm_interplay_design` (`--signoff-knob-sweep-gate`) |
+| `fsm_mealy_prob`              | `num_mealy_fsm_modules` (per-design metric, `<= num_fsm_modules`; introspection schema `1.13`); matrix `saw_mealy_fsm_design` (the `phase6_mealy_fsm` scenario under `--phase4-hierarchy-gate`) |
 
 All knobs now have a concrete metric (or metric ratio) that
 measures their effect. No *pending* entries remain. Future
