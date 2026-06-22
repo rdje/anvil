@@ -798,3 +798,136 @@ anvil --seed 3 --config base.json
 
 Flip `multi_output_task_emit_prob` back to `0.0` and the output is byte-identical
 to the default lane.
+
+## The seventh surface: a procedural `if`/`else`
+
+The seventh surface is the **first procedural-conditional** shape in the lane. The
+six surfaces above are `function` / `task` / `generate` projections; a 2:1 `Mux`
+gate (`[sel, a, b]`, `sel` one bit) renders today as the **continuous-assign
+ternary** `assign <wire> = (sel) ? (a) : (b);`, and the structured selectors
+`CaseMux` / `CasezMux` render as `always_comb case` / `casez`. None of them emits a
+procedural `always_comb` block with an **`if`/`else` statement** — a distinct
+frontend/elaboration path. The seventh surface re-expresses a marked `Mux` as exactly
+that: a per-gate `<wire>__cv` output var written by an `if`/`else`, the existing net
+driven from it by a passthrough `assign` (the [third surface](#the-third-surface-a-combinational-task-automatic)'s
+output-var + passthrough mechanism, but a bare `always_comb` `if`/`else` rather than
+a `task` call). Because the `if`/`else` writes the gate's exact value (`sel == 1 ⇒ a`,
+`sel == 0 ⇒ b` — the ternary's operand mapping), it is **behaviour-preserving by
+construction**.
+
+It uses its **own** knob,
+[`mux_if_emit_prob`](knobs.md#structured-emission) (default `0.0`), separate from the
+`task_emit_prob` / `function_emit_prob` family, so the shipped surfaces stay
+byte-identical. A new [`num_emitted_mux_if_blocks`](agent-mcp.md) metric counts the
+blocks it emits, bumping the introspection schema to `1.15`.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the default). Two muxes
+are emitted as continuous-assign ternaries (the second selects between a constant and
+the first mux's wire):
+
+```systemverilog
+    wire [3:0] mux_0;
+    wire [3:0] mux_1;
+
+    assign mux_0 = (slice_0) ? (4'hf) : (4'h0);
+    assign mux_1 = (eq_0) ? (4'he) : (mux_0);
+```
+
+With `mux_if_emit_prob = 1.0`, the *same* muxes are re-expressed as procedural
+`always_comb` `if`/`else` blocks writing a `<wire>__cv` output var; each mux's
+`assign` becomes a passthrough from that var:
+
+```systemverilog
+    wire [3:0] mux_0;
+    wire [3:0] mux_1;
+
+    logic [3:0] mux_0__cv;
+    always_comb begin
+        if (slice_0) mux_0__cv = 4'hf;
+        else mux_0__cv = 4'h0;
+    end
+    logic [3:0] mux_1__cv;
+    always_comb begin
+        if (eq_0) mux_1__cv = 4'he;
+        else mux_1__cv = mux_0;
+    end
+
+    assign mux_0 = mux_0__cv;
+    assign mux_1 = mux_1__cv;
+```
+
+Each block writes exactly the ternary's value (`sel ⇒ a`, else `b`). Only the muxes'
+own drives change — the `<wire>__cv` var carries the value and the net `mux_0` /
+`mux_1` is driven from it by a passthrough, so every downstream consumer of `mux_0` /
+`mux_1` is unchanged.
+
+### What gets wrapped (and what doesn't)
+
+- **The candidate is a plain 2:1 `Mux`** (a `GateOp::Mux` gate, exactly three
+  operands, a one-bit selector). The structured selectors (`CaseMux` / `CasezMux` /
+  `ForFold`) already have their own `always_comb` rendering and are **not**
+  candidates; a `Slice` (a bit-select, no conditional) is not a candidate. The first
+  cut scopes deliberately to the plain `Mux` — the simplest, highest-yield 2:1
+  conditional.
+- **Minus any gate already marked by a sibling projection.** A `Mux` is also a
+  `function_emit` / `task_emit` candidate; the pass runs **last** and excludes any
+  gate already claimed by one of the other six surfaces, so a gate is projected by
+  **at most one** of the seven.
+- **The net stays a net.** The gate's `<wire>` keeps its `wire`/`assign`; only the
+  *source* of that assign changes (from the inline ternary to the `<wire>__cv`
+  passthrough). The procedural var is the new thing, not the net — minimal blast
+  radius, no downstream consumer rewrite.
+- **Combinational only.** The `Mux` is combinational; its operand refs are leaves of
+  the block. The block reads only the gate's direct operands and writes only its own
+  `<wire>__cv` — exactly the inline ternary's read/write set, so there is no cycle
+  risk.
+- **No new IR node / no new computed truth.** The block is a pure emit-time
+  projection of an existing `Mux`; the flat IR, validators, CSE keys, and the
+  canonical module signature are untouched.
+
+### How anvil proves it
+
+The same two-mechanism proof as the prior surfaces:
+
+- The [`num_emitted_mux_if_blocks`](agent-mcp.md) metric (a post-hoc count of
+  `Module.mux_if_gates`) is surfaced in `--introspect` at schema `1.15`, so a sweep
+  can confirm the surface fired.
+- The repo-owned `tool_matrix --mux-if-gate` forces `mux_if_emit_prob = 1.0` over
+  comb-only DUTs across all three construction strategies and requires the
+  `saw_mux_if_emit` coverage fact — a genuinely-emitted procedural block (detected
+  from the SV text's `<wire>__cv` token, distinct from the `<wire>__f(` / `<wire>__t(`
+  / `<leader>__mt(` / `<root>__cf(` surfaces) accepted by Verilator **and** Yosys.
+  Banked clean (3 scenarios / 12 modules / 12 emitting a block / 215 blocks /
+  `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus). Across that bank the
+  `if`/`else` projection adds **zero** new Verilator `-Wall` warnings versus the
+  knob-off build, and an `iverilog` simulation proves it bit-identical to the inline
+  ternaries it replaces.
+- Library tests pin the marking: a plain `Mux` qualifies, a non-`Mux` and a
+  `Slice`-or-structured gate do not, a gate already marked by any of the six sibling
+  projections is excluded, the prob-`0.0` path marks nothing (byte-identical), and a
+  marked `Mux` emits the `<wire>__cv` `always_comb` `if`/`else` + passthrough while
+  the unmarked default stays the inline ternary.
+
+The picked-seventh rationale (the first procedural-conditional shape, chosen over
+nested/multi-level `generate` — which has no routine by-construction source — and
+`interface` / `modport` — empirically disqualified) is recorded in decision `0027`
+(`docs/decisions/0027-structured-emission-seventh-surface-procedural-if-else.md`). The
+N-way `CaseMux` → `if`/`else if` priority chain is the recorded follow-up.
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 1 --dump-config > base.json
+# edit base.json: set "mux_if_emit_prob": 1.0 (a small comb-only mux-heavy shape
+# makes the blocks easy to read: "flop_prob": 0.0, "constant_prob": 0.0,
+# "comb_mux_prob": 1.0, "comb_mux_encoding_prob": 1.0, "min_inputs": 3,
+# "max_inputs": 3, "min_outputs": 1, "max_outputs": 1, "min_width": 4,
+# "max_width": 4, "max_depth": 1, "min_mux_arms": 2, "max_mux_arms": 2)
+anvil --seed 1 --config base.json
+```
+
+Flip `mux_if_emit_prob` back to `0.0` and the output is byte-identical to the default
+lane.

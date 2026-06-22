@@ -662,6 +662,42 @@ instead of creating fresh logic.
   [Structured Emission Surfaces](structured-emission.md) for the full
   walk-through.
 
+- `mux_if_emit_prob` (the `--mux-if-emit-prob` CLI flag, or `--config` JSON, like
+  `task_emit_prob` / `cone_function_emit_prob`; default `0.0` ⇒ byte-identical;
+  validated `0.0..=1.0`) — the **seventh richer-structured emission surface**
+  (decision `0027`), and the lane's **first procedural-conditional** shape.
+  Probability, per qualifying 2:1 `Mux` gate (a `GateOp::Mux` with a one-bit
+  selector, not already marked by one of the six sibling projections), that anvil
+  re-expresses its continuous-assign ternary `assign <wire> = (sel) ? (a) : (b);` as a
+  procedural `always_comb` `if`/`else` block writing a `<wire>__cv` output var, the
+  net driven from it by a passthrough `assign`:
+
+  ```systemverilog
+  logic [3:0] mux_0__cv;
+  always_comb begin
+      if (slice_0) mux_0__cv = 4'hf;   // sel == 1 ⇒ a
+      else mux_0__cv = 4'h0;            // sel == 0 ⇒ b
+  end
+  assign mux_0 = mux_0__cv;            // was: assign mux_0 = (slice_0) ? (4'hf) : (4'h0);
+  ```
+
+  It is the third surface's output-var + passthrough mechanism, but a bare
+  `always_comb` `if`/`else` rather than a `task` call — a genuinely new procedural
+  shape (no surface emits one; the `Mux` is a continuous-assign ternary,
+  `CaseMux`/`CasezMux` are `case`/`casez`). It has its **own** knob so the shipped
+  surfaces stay byte-identical (reusing `task_emit_prob`/`function_emit_prob` was
+  rejected). The `if`/`else` writes the gate's exact value, so the projection is
+  behaviour-preserving; the net stays a net (only its drive changes — minimal blast
+  radius). The seven emit-projections (`function_emit` / `generate_loop` /
+  `task_emit` / `multi_output_task` / `cone_function` / `soft_union` / `mux_if`) are
+  mutually exclusive on a gate — this pass runs **last**, so it only excludes
+  already-marked gates. No new IR node / no new computed truth. Combinational only.
+  `default = 0.0` ⇒ byte-identical. Surfaced via the `num_emitted_mux_if_blocks`
+  metric in `--introspect` (schema `1.15`). Proven downstream-clean by the repo-owned
+  `tool_matrix --mux-if-gate` (Verilator + both Yosys modes + Icarus;
+  `saw_mux_if_emit`). See
+  [Structured Emission Surfaces](structured-emission.md) for the full walk-through.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`

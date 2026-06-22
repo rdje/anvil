@@ -541,6 +541,27 @@ with a matching `--kebab-case` CLI flag since
   the matrix section below). Full walk-through:
   `book/src/structured-emission.md`.
 
+- `mux_if_emit_prob` (the `--mux-if-emit-prob` CLI flag, or `--config` JSON, like
+  `task_emit_prob` / `cone_function_emit_prob`; decision `0027`) is the **seventh
+  richer-structured emission surface** and the lane's **first procedural-conditional**
+  shape. Per qualifying 2:1 `Mux` gate (a `GateOp::Mux` with a one-bit selector, not
+  already marked by one of the six sibling projections), it is the probability the
+  emitter re-expresses its continuous-assign ternary
+  `assign <wire> = (sel) ? (a) : (b);` as a procedural `always_comb` `if`/`else`
+  block writing a per-gate `<wire>__cv` output var
+  (`always_comb begin if (sel) <wire>__cv = a; else <wire>__cv = b; end`), the net
+  driven from it by a passthrough `assign`. It is the single-gate `task` surface's
+  output-var + passthrough mechanism, but a bare `always_comb` `if`/`else` rather than
+  a `task` call — a genuinely new procedural shape. An **emit-time projection**
+  (behaviour-preserving, no new IR truth) with its **own** knob, so the shipped
+  surfaces stay byte-identical. The seven emit-projections are mutually exclusive on a
+  gate (this pass runs **last**, so it only excludes already-marked gates).
+  Combinational only; the net stays a net (only its drive changes). `default = 0.0` is
+  byte-identical; the emitted count is surfaced as `num_emitted_mux_if_blocks` in
+  `--introspect` (schema `1.15`). Set it via `--mux-if-emit-prob` or a `--config`
+  JSON. The surface is proven downstream-clean by `tool_matrix --mux-if-gate` (see the
+  matrix section below). Full walk-through: `book/src/structured-emission.md`.
+
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
 before emission, so the emitted module interface matches the live logic
@@ -1064,6 +1085,22 @@ Useful options:
   Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan.
   Banked clean at `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios / 12 modules
   / 6 emitting a multi-output task / `coverage_gaps = []` / Verilator 12/0 / Yosys
+  12/0 both modes / Icarus compile 12/0).
+- `--mux-if-gate` to run the repo-owned procedural `always_comb` `if`/`else` emit
+  gate (`STRUCTURED-EMISSION-EXPANSION.15b.2`) and fail unless the report proves the
+  seventh richer-structured emission surface (the first procedural-conditional one,
+  decision `0027`) fires **by construction** and is downstream-accepted. It forces
+  `mux_if_emit_prob = 1.0` over a comb-only single-module DUT across all three
+  construction strategies (a Mux-biased focus config — `comb_mux_prob = 0.9` +
+  `comb_mux_encoding_prob = 1.0`, forcing the encoded chained-ternary path that builds
+  plain `GateOp::Mux` gates), so every qualifying 2:1 `Mux` is re-expressed as a
+  procedural `if`/`else` block writing a `<wire>__cv` output var, and requires the
+  `saw_mux_if_emit` fact (a genuinely-emitted block, detected from the emitted SV
+  text's `<wire>__cv` token, accepted by Verilator **and** Yosys). Like a single-gate
+  task, a procedural `always_comb if/else` is universally synthesizable, so the gate
+  runs the full Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is
+  set) plan. Banked clean at `/tmp/anvil-mux-if-gate-r1` (3 scenarios / 12 modules /
+  12 emitting a block / 215 blocks / `coverage_gaps = []` / Verilator 12/0 / Yosys
   12/0 both modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled

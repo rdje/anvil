@@ -1,6 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15b.3 — seventh-surface user docs (book/knobs/USER_GUIDE/README/KM)
+
+**Landed as:** this commit (previous: this `.15b.2` commit). **Docs-only** (no `src/`
+touched) ⇒ **DUT byte-identical**. Tracked by `STRUCTURED-EMISSION-EXPANSION.15b.3`
+(the owning task-tree leaf, pre-split at `.15b`). This closeout **delivers the seventh
+structured surface end-to-end** — `.15b` / `.15` close; **seven structured surfaces
+total**.
+
+**What changed (why)**
+
+`.15b.1`/`.15b.2` shipped the live procedural `always_comb` `if`/`else` projection of
+a 2:1 `Mux` (decision `0027`) + its metric (schema `1.15`) + the repo-owned
+`--mux-if-gate`. `.15b.3` makes the surface **user-facing** — the book is the only
+window a user has into anvil's behaviour, so the surface is not delivered until it is
+documented:
+
+1. **`book/src/structured-emission.md`** — a new `## The seventh surface: a procedural
+   `if`/`else`` section, mirroring the sixth-surface structure: an intro (the first
+   procedural-conditional shape; reuses the decision-`0014` output-var + passthrough;
+   its own `mux_if_emit_prob` knob; `num_emitted_mux_if_blocks` @ schema `1.15`), a
+   **byte-verified seed-1 before/after** (two muxes — `mux_0 = (slice_0)?(4'hf):(4'h0)`
+   and `mux_1 = (eq_0)?(4'he):(mux_0)` — projected to two `<wire>__cv` `always_comb`
+   `if`/`else` blocks + passthrough `assign`s, generated from a small comb-only
+   `comb_mux_encoding_prob = 1.0` shape), a "What gets wrapped" subsection, a "How anvil
+   proves it" subsection, and a `book-test: skip` "Reproducing it" block.
+
+2. **Knob/flag/gate reference** — the `mux_if_emit_prob` entry in `book/src/knobs.md`,
+   the `mux_if_emit_prob` knob entry + the `--mux-if-gate` matrix entry in
+   `USER_GUIDE.md`, and the `mux_if_emit_prob` bullet + the `--mux-if-gate` bullet in
+   README "Current CLI truth".
+
+3. **Deferred book example-JSON schema bump** — `"schema_version": "1.14" → "1.15"` in
+   `book/src/api-tools.md` (×3) and `book/src/agent-mcp.md` (×1), the example JSONs that
+   track the current introspection envelope (deferred from `.15b.2` per the
+   `.12b.2a`/`.12b.3` precedent). The `1.11` `analyze`/`coverage` sub-document examples
+   in `agent-mcp.md` are pre-existing drift (untouched by `.12b.3` too) and out of scope
+   for this leaf.
+
+4. **KM card** — a new `docs/knowledge/mux-if-emit.md` how-to card (mirroring
+   `multi-output-task-emit.md`) with query-shaped `answers:` + an `evidence:` map + a
+   `reverify:` one-liner; `KNOWLEDGE_MAP.md` regenerated in sync.
+
+5. **`ROADMAP.md`** — the structured-emission lane (steering gap 1) updated: the
+   seventh surface is delivered end-to-end (was "current frontier is `.15b.2`"); **seven
+   structured surfaces delivered**; the lane is at a no-current-frontier boundary.
+
+**Validation**
+
+- Docs-only ⇒ no `src/` touched ⇒ `cargo check`/`clippy`/`fmt`/`test --lib` + snapshots
+  unaffected (DUT byte-identical).
+- `mdbook build book` rc=0; `bash knowledge-map/scripts/check_knowledge_map.sh` OK
+  (facts valid, ids unique, map in sync — `mux-if-emit` card indexed); `bash
+  scripts/check_memory_architecture.sh` green.
+- `cargo test --test book_examples` **3/3 passed** in 82.65s — the new "Reproducing it"
+  bash block carries `<!-- book-test: skip -->`, preserving the byte-identical
+  book-runnable contract.
+- The byte-verified seed-1 example was generated from `./target/debug/anvil` and
+  confirmed: ON adds **zero** new Verilator `-Wall` warnings vs OFF (Δ=0; the only
+  warning is `DECLFILENAME`, identical ON/OFF and absent when the file is named after
+  the module, as the gate does), and `iverilog -g2012` compiles rc=0.
+
+**Impact**
+
+- The seventh richer-structured surface is now fully user-facing (book chapter +
+  knob/flag/gate reference + KM card). `STRUCTURED-EMISSION-EXPANSION` returns to a
+  no-current-frontier boundary; the next surface (`.16+`: N-way `CaseMux` → `if`/`else
+  if`, nested/multi-level `generate`, `interface`/`modport`) is PNT-selected at the
+  boundary per `feedback_pick_and_roll_at_no_frontier`. None retired.
+
+**Files touched:** `book/src/structured-emission.md`, `book/src/knobs.md`,
+`book/src/api-tools.md`, `book/src/agent-mcp.md`, `USER_GUIDE.md`, `README.md`,
+`ROADMAP.md`, `docs/knowledge/mux-if-emit.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15b.2 — seventh-surface metric (schema 1.15) + tool_matrix --mux-if-gate
 
 **Landed as:** this commit (previous: `5d2fdaa`). **Code change** (the metric +

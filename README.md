@@ -987,6 +987,31 @@ exercising adversarial axes that previously fired only by chance
   `num_emitted_multi_output_tasks` in `--introspect` (schema `1.14`). Set it via
   `--multi-output-task-emit-prob` or `--config` JSON. See
   `book/src/structured-emission.md`.
+- `mux_if_emit_prob` is a default-off knob (the `--mux-if-emit-prob` CLI flag, or
+  `--config` JSON; `STRUCTURED-EMISSION-EXPANSION.15b`, decision `0027`) — ANVIL's
+  **seventh richer-structured emission surface** and its **first
+  procedural-conditional** shape. Per *qualifying* 2:1 `Mux` gate (a `GateOp::Mux`
+  with a one-bit selector, not already marked by one of the six sibling
+  projections), it is the probability the emitter re-expresses its continuous-assign
+  ternary `assign <wire> = (sel) ? (a) : (b);` as a procedural `always_comb`
+  `if`/`else` block writing a per-gate output var (`logic [W-1:0] <wire>__cv;
+  always_comb begin if (sel) <wire>__cv = a; else <wire>__cv = b; end`), the net
+  driven from it by the passthrough `assign <wire> = <wire>__cv;`. It is the decision
+  `0014` single-gate-task **output-var + passthrough** mechanism, but a bare
+  `always_comb` `if`/`else` rather than a `task` call — a genuinely new procedural
+  shape (the six delivered surfaces are `function`/`task`/`generate` projections; the
+  `Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are `case`/`casez`). A
+  behaviour-preserving **emit-time projection** (no new IR node / no new computed
+  truth — the `task_emit`/`cone_function` precedent), rules-first; its **own** knob so
+  the shipped surfaces stay byte-identical (reusing `task_emit_prob`/`function_emit_prob`
+  rejected). The seven emit-projections (`function_emit` / `generate_loop` /
+  `task_emit` / `multi_output_task` / `cone_function` / `soft_union` / `mux_if`) are
+  mutually exclusive on a gate; this pass runs **last** (so it only excludes
+  already-marked gates). Combinational only; the net stays a net (only its drive
+  changes). Default `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the
+  emitted-block count is surfaced as `num_emitted_mux_if_blocks` in `--introspect`
+  (schema `1.15`). Set it via `--mux-if-emit-prob` or `--config` JSON. See
+  `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first
@@ -1082,6 +1107,26 @@ exercising adversarial axes that previously fired only by chance
   compile). Separate from `--task-emit-gate` (the single-gate surface); default
   `multi_output_task_emit_prob = 0.0` emission stays byte-identical; the gate is
   the opt-in proof axis.
+- `tool_matrix --mux-if-gate` runs the repo-owned procedural `always_comb`
+  `if`/`else` emit gate (`STRUCTURED-EMISSION-EXPANSION.15b.2`) and fails on coverage
+  gaps unless the report proves the seventh richer-structured emission surface (the
+  first procedural-conditional one, decision `0027`) fires by construction and is
+  downstream-accepted. It forces `mux_if_emit_prob = 1.0` over a comb-only
+  single-module DUT across all three construction strategies (a Mux-biased focus
+  config — `comb_mux_prob = 0.9` + `comb_mux_encoding_prob = 1.0`, forcing the encoded
+  chained-ternary path that builds plain `GateOp::Mux` gates), so every qualifying 2:1
+  `Mux` gate is re-expressed as a behaviour-preserving procedural `if`/`else` block
+  writing a `<wire>__cv` output var, and requires the `saw_mux_if_emit` fact (a
+  genuinely-emitted block — detected from the emitted SV text's `<wire>__cv` token,
+  distinct from the `<wire>__f(` / `<wire>__t(` / `<leader>__mt(` / `<root>__cf(`
+  surfaces — accepted by Verilator **and** Yosys). Like a single-gate task (and unlike
+  the `union soft` up-opt), a procedural `always_comb if/else` is universally
+  synthesizable, so the gate runs the full Verilator + both Yosys modes (+ Icarus when
+  `--iverilog-compile` is set) plan. Banked clean at `/tmp/anvil-mux-if-gate-r1` (3
+  scenarios, 12 modules, 12 emitting a block / 215 blocks, `coverage_gaps = []`, `12/0`
+  Verilator + both Yosys + Icarus compile). Separate from the per-gate/per-cone gates;
+  default `mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the
+  opt-in proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

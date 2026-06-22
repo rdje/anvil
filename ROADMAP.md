@@ -340,17 +340,25 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    ships behind the opt-in `mux_if_emit_prob` knob (new `src/ir/mux_if_emit.rs` +
    `Module.mux_if_gates` + the `emit/sv.rs` `always_comb if/else` block + passthrough;
    10 lib proofs; default-off / DUT byte-identical, snapshots 6/6; forced-sweep
-   downstream-clean across 5 seeds + ON-vs-OFF sim-equiv 20000 vectors). The **current
-   frontier is `.15b.2`** (the `num_emitted_mux_if_blocks` metric @ schema `1.14 → 1.15`
-   + the repo-owned `tool_matrix --mux-if-gate` + `saw_mux_if_emit`). Chosen over nested/multi-level
+   downstream-clean across 5 seeds + ON-vs-OFF sim-equiv 20000 vectors). The seventh
+   surface is now **delivered end-to-end**: `.15b.2` added the
+   `num_emitted_mux_if_blocks` metric @ introspection schema `1.14 → 1.15` + the
+   repo-owned `tool_matrix --mux-if-gate` + `saw_mux_if_emit` (banked clean
+   `/tmp/anvil-mux-if-gate-r1` — 3 scenarios / 12 modules / 12 emitting a `__cv` block /
+   215 blocks / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus), and
+   `.15b.3` landed the user docs (the `book/src/structured-emission.md` seventh-surface
+   section with a byte-verified seed-1 example, the `mux_if_emit_prob` /
+   `--mux-if-emit-prob` / `--mux-if-gate` entries in book/knobs + USER_GUIDE + README,
+   the book example-JSON `1.14 → 1.15` refresh, and the `mux-if-emit` KM card). **Seven
+   structured surfaces delivered end-to-end.** Chosen over nested/multi-level
    `generate` (no by-construction source — operand-uniqueness CSE shares the inner
    `{N{x}}` so the existing single-level loop already fires on the outer `{M{y}}`)
    and `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the
    modport port and both Yosys modes warn on the implicit interface-member decl); the
    N-way `CaseMux` → `if`/`else if` priority chain, nested/multi-level `generate`, and
    `interface`/`modport` are the remaining future vetted surfaces (`.16`+), each with
-   its own decision; the tree stays `active`. Serves ROADMAP steering gap 1 (richer
-   structured emission). Nothing retired.
+   its own decision; the tree stays `active` at a no-current-frontier boundary. Serves
+   ROADMAP steering gap 1 (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
    everything MCP-queryable via a top-notch API). A first-class, versioned,
