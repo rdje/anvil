@@ -92,7 +92,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `CAPABILITY-BREADTH-EXPANSION.2b.1`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2b.2`
-  Status: `active` (container — split into `.2b.2a` metric/schema + `.2b.2b` gate)
+  Status: `done` (container — `.2b.2a` metric/schema + `.2b.2b` gate both done)
   Goal: `Mealy introspection + gate. Default-off / DUT byte-identical.`
   Children: `CAPABILITY-BREADTH-EXPANSION.2b.2a`, `CAPABILITY-BREADTH-EXPANSION.2b.2b`
 
@@ -104,11 +104,11 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `CAPABILITY-BREADTH-EXPANSION.2b.2a`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2b.2b`
-  Status: `proposed`
+  Status: `done`
   Goal: `Mealy tool_matrix gate — a repo-owned saw_mealy_fsm_design coverage fact + a focused fsm_mealy_prob=1.0 scenario (full multi-tool plan: Verilator + both Yosys + Icarus; Mealy is universally synthesizable) + ModuleReport/DesignReport detection + gap enforcement, mirroring the FSM/memory motif gates. Banked downstream-clean.`
   Acceptance: `a tool_matrix gate lights saw_mealy_fsm_design downstream-clean (Verilator + both Yosys + Icarus); default-off byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — src/bin/tool_matrix.rs gains CoverageSummary::saw_mealy_fsm_design + phase6_mealy_fsm_focus_config (= phase6_fsm_focus_config + fsm_mealy_prob=1.0) registered as phase6_mealy_fsm in the Phase4Hierarchy set + coverage detection/merge/gap (all beside saw_fsm_design) + a phase6_mealy_fsm_scenario_is_non_vacuous test; scenario count 222→225 (one tuple ×3 strategies), gate design total 888→900. cargo test green (tool_matrix bin 79/0 incl. the new non-vacuous test, lib 589/0, snapshots 6/6 byte-identical); clippy --all-targets -D warnings + fmt --check clean. PRIMARY downstream proof — focused harness-faithful run (seed 7, the exact phase6_mealy_fsm shape) → 5 modules (1 wrapper + 4 Mealy FSM leaves with case(sel) decode) ACCEPT warning-clean across verilator --lint-only --top-module + Yosys BOTH modes (synth -noabc / abc -fast; opt -fast; check) + iverilog -g2012 -s top. The --phase4-hierarchy-gate run enforces coverage_gaps=[] incl. saw_mealy_fsm_design (gap-enforcement + non-vacuity unit-proven); the 224 non-Mealy scenarios are unchanged from the r87 / phase6-fsm-p1 banks (the focused Mealy scenario is the only new design surface), and the full 225-scenario/900-design bank is a long-running regression run separately like the prior phase banks.`
+  Commit: `CAPABILITY-BREADTH-EXPANSION.2b.2b`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.2b.3`
   Status: `proposed`
@@ -121,9 +121,8 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `proposed` | Mealy `tool_matrix` gate — `.2b.1` (mechanism) + `.2b.2a` (the `num_mealy_fsm_modules` metric + introspection schema `1.12 → 1.13`) are **done**; next add the repo-owned `saw_mealy_fsm_design` coverage fact + a focused `fsm_mealy_prob=1.0` scenario (full Verilator + both Yosys + Icarus plan) + gap enforcement, mirroring the FSM/memory motif gates. |
-| 2 | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `proposed` | Mealy docs — book `sequential.md`/`knobs.md` + USER_GUIDE + README + KM card (incl. the deferred schema-`1.12→1.13` book-example refresh: `api-tools.md`/`agent-mcp.md`/`api-introspection.md`, the coverage-steered-lane precedent). After `.2b.2b`. |
-| 3 | `CAPABILITY-BREADTH-EXPANSION.1` | `pending` | SV up-opt breadth — design-first ADR + fresh probe + LRM grounding before code. **Deferred (not retired):** the `.2a` probe re-confirmed (per decision `0010`) that the named candidates (enum/typedef, packed multidim arrays) are accepted at every Verilator `--language` mode + Yosys + Icarus ⇒ not version-distinctive, no down-gating teeth; the genuinely-2023 clean space with the installed tools is thin (essentially `union soft`, shipped). A future `.1` either finds a genuinely-2023 construct or rescopes to `union soft` breadth. |
+| 1 | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `proposed` | Mealy docs — book `sequential.md`/`knobs.md` + USER_GUIDE + README + KM card (incl. the deferred schema-`1.12→1.13` book-example refresh: `api-tools.md`/`agent-mcp.md`/`api-introspection.md`, the coverage-steered-lane precedent). `.2b.2b` (the `saw_mealy_fsm_design` `tool_matrix` gate) is now **done** — only the user-facing docs remain to close `.2b`. |
+| 2 | `CAPABILITY-BREADTH-EXPANSION.1` | `pending` | SV up-opt breadth — design-first ADR + fresh probe + LRM grounding before code. **Deferred (not retired):** the `.2a` probe re-confirmed (per decision `0010`) that the named candidates (enum/typedef, packed multidim arrays) are accepted at every Verilator `--language` mode + Yosys + Icarus ⇒ not version-distinctive, no down-gating teeth; the genuinely-2023 clean space with the installed tools is thin (essentially `union soft`, shipped). A future `.1` either finds a genuinely-2023 construct or rescopes to `union soft` breadth. |
 
 ## Decisions
 
@@ -178,6 +177,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2a` | `decision 0024 written; empirical probe — verilator -Wall 1800-2012/2017/2023 + yosys both modes + iverilog -g2012 all ACCEPT warning-clean on the (state_q, sel) Mealy decode; enum/typedef + packed multidim arrays probed NOT version-distinctive (accepted at every mode); INDEX + tree + docs/TASK_TREE.md updated; mem-arch + KM self-checks` | `done` (docs-only; no code; DUT byte-identical) |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.1` | `cargo test green (full suite); snapshots 6/6 (Moore byte-identical); clippy -D warnings + fmt --check clean; downstream probe (seed 7, --fsm-prob 1.0 --fsm-mealy-prob 1.0) → 6 nested case(sel) decodes, ACCEPT warning-clean across Verilator -Wall 1800-2012/2017/2023 + Yosys both modes + Icarus -g2012; 2 new lib tests` | `done` (Mealy mechanism; default-off DUT byte-identical) |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `num_mealy_fsm_modules DesignMetrics field + schema 1.12→1.13 (const + comment + all schema_version assertions in introspect/mod.rs + mcp/mod.rs + the schema-doc §6.3/§7); cargo test green (lib 589/0 + full); snapshots 6/6; clippy -D warnings + fmt clean; live --introspect (hierarchy, fsm_mealy_prob=1.0) → num_mealy_fsm_modules: 2 at schema 1.13` | `done` (metric queryable; default-off byte-identical) |
+| `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `saw_mealy_fsm_design coverage fact + phase6_mealy_fsm scenario (= phase6_fsm + fsm_mealy_prob=1.0) + detection/merge/Phase4Hierarchy gap + phase6_mealy_fsm_scenario_is_non_vacuous test (count 222→225, gate designs 888→900) in src/bin/tool_matrix.rs; cargo test green (tool_matrix bin 79/0, lib 589/0, snapshots 6/6 byte-identical); clippy --all-targets -D warnings + fmt clean; PRIMARY proof — focused harness-faithful downstream run (seed 7, the exact phase6_mealy_fsm shape) ACCEPT warning-clean across verilator --top-module + Yosys both modes + iverilog -g2012 -s top; the --phase4-hierarchy-gate run enforces coverage_gaps=[] incl. saw_mealy_fsm_design (gap-enforcement + non-vacuity unit-proven; 224 non-Mealy scenarios unchanged from the r87/phase6-fsm-p1 banks)` | `done` (Mealy gate; default-off DUT byte-identical) |
 
 ## Commit Log
 
@@ -187,6 +187,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 | `CAPABILITY-BREADTH-EXPANSION.2a` | `CAPABILITY-BREADTH-EXPANSION.2a — Mealy FSM output design ADR (decision 0024)` | Design ADR (docs-only). Pins the Mealy `(state_q, sel)` output model, `fsm_mealy_prob` knob, `num_mealy_fsm_modules` metric (schema `1.13`), `saw_mealy_fsm_design` gate, MCP surface. `.2` split into `.2a` (done) + `.2b` (proposed). |
 | `CAPABILITY-BREADTH-EXPANSION.2b.1` | `CAPABILITY-BREADTH-EXPANSION.2b.1 — Mealy FSM output mechanism (knob + IR + emitter + validate)` | First **code** slice of the lane. `Fsm.mealy_outputs` + `fsm_mealy_prob`/`--fsm-mealy-prob` + the emitter nested `case(state_q)→case(sel)` Mealy decode + validate + dedup-exclusion + 2 lib tests. Default-off DUT byte-identical (snapshots 6/6); all-tool-clean. `.2b` split into `.2b.1` (done) + `.2b.2` (metric/gate) + `.2b.3` (docs). |
 | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `CAPABILITY-BREADTH-EXPANSION.2b.2a — Mealy metric num_mealy_fsm_modules + introspection schema 1.13` | The `num_mealy_fsm_modules` `DesignMetrics` field (serde-projected into `--introspect`) + the additive schema bump `1.12 → 1.13` (const + comment + all `schema_version` assertions + the schema-doc contract). Queryable (decision `0017`); default-off byte-identical. `.2b.2` split into `.2b.2a` (done) + `.2b.2b` (gate). |
+| `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `CAPABILITY-BREADTH-EXPANSION.2b.2b — Mealy FSM tool_matrix gate (saw_mealy_fsm_design + phase6_mealy_fsm scenario)` | The repo-owned Mealy gate in `src/bin/tool_matrix.rs`: `saw_mealy_fsm_design` coverage fact + `phase6_mealy_fsm` scenario (`fsm_mealy_prob=1.0`) + detection/merge/`Phase4Hierarchy` gap + a non-vacuity test (count 222→225, gate designs 888→900), mirroring the `phase6_fsm`/`phase6_inferrable_memory` motif gates. Banked downstream-clean; default-off DUT byte-identical. `.2b.2` done; `.2b` frontier → `.2b.3` (docs). |
 
 ## Changelog
 
@@ -203,3 +204,14 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   + introspection schema bump `1.12 → 1.13` (queryable per decision `0017`);
   default-off byte-identical. `.2b.2` split into `.2b.2a` (done) + `.2b.2b` (the
   `tool_matrix` gate, proposed); frontier `.2b.2b`.
+- `2026-06-22`: `.2b.2b` done — the Mealy `tool_matrix` gate (`saw_mealy_fsm_design`
+  coverage fact + the focused `phase6_mealy_fsm` scenario + detection/merge/gap +
+  a non-vacuity test) in `src/bin/tool_matrix.rs`, mirroring the
+  `phase6_fsm`/`phase6_inferrable_memory` motif gates; proven downstream-clean by a
+  focused harness-faithful run of the exact gate scenario (Verilator `--top-module`
+  + Yosys both modes + Icarus), with the `--phase4-hierarchy-gate` run enforcing
+  `coverage_gaps=[]` incl. `saw_mealy_fsm_design` (gap-enforcement + non-vacuity
+  unit-proven; 224 non-Mealy scenarios unchanged from the r87 / `phase6-fsm-p1`
+  banks); default-off DUT byte-identical. `.2b.2`
+  done; `.2b` frontier → `.2b.3` (the user-facing docs); `.1` still deferred (not
+  retired).

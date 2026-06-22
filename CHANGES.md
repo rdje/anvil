@@ -1,9 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.2b — Mealy FSM tool_matrix gate
+
+**Landed as:** this commit (previous: `c8b0562`). **Proves the default-off Mealy
+FSM output extension (decision [`0024`](docs/decisions/0024-mealy-fsm-outputs.md))
+fires by construction and is downstream-clean — the `tool_matrix` coverage gate.**
+Default-off ⇒ DUT byte-identical. Task-tree-owned by
+`CAPABILITY-BREADTH-EXPANSION.2b.2b`.
+
+**What changed (why)**
+
+- **`src/bin/tool_matrix.rs`** — the repo-owned Mealy FSM coverage gate, mirroring
+  the Phase-6 `phase6_fsm` / `phase6_inferrable_memory` motif gates exactly:
+  - `CoverageSummary::saw_mealy_fsm_design` — a new coverage fact (lit iff a scenario
+    with `fsm_mealy_prob > 0` produced a design with `num_mealy_fsm_modules > 0`).
+    Distinct from `saw_fsm_design` (which the Moore-only `phase6_fsm` already lights).
+  - `phase6_mealy_fsm_focus_config` — a focused scenario shaped EXACTLY like
+    `phase6_fsm_focus_config` (depth-1 wrapper, library mode, 4 FSM leaves, all
+    hierarchy-routing probs 0.0) plus `fsm_mealy_prob = 1.0`, so each rules-first
+    FSM leaf gets the input-dependent `(state_q, sel)` Mealy output decode. Registered
+    as `phase6_mealy_fsm` in the `Phase4Hierarchy` scenario set (one tuple ⇒ ×3
+    construction strategies). Mealy is universally synthesizable ⇒ the full multi-tool
+    plan (Verilator + both Yosys + Icarus) applies; no special tool-plan gating.
+  - coverage detection (`saw_mealy_fsm_design |= fsm_mealy_prob > 0 &&
+    num_mealy_fsm_modules > 0`), the parallel-shard coverage merge, and the
+    `Phase4Hierarchy` coverage-gap requirement, all added beside their `saw_fsm_design`
+    siblings.
+  - tests: a new `phase6_mealy_fsm_scenario_is_non_vacuous` (proves the anchor builds
+    ≥1 Mealy FSM module so the coverage fact is reachable, mirroring
+    `phase6_fsm_scenario_is_non_vacuous`); `phase6_mealy_fsm` added to the
+    scenario-shape exception list; the scenario-count assertion `222 → 225` (one new
+    tuple ×3 strategies) and the gate design total `888 → 900` (225 × 4).
+
+**Validation**
+
+- `cargo check --all-targets` ✓; `cargo test`: **tool_matrix bin 79/0** (incl. the new
+  `phase6_mealy_fsm_scenario_is_non_vacuous`), **lib 589/0**, **snapshots 6/6**
+  (byte-identical); `clippy --all-targets -D warnings` ✓; `fmt --check` ✓.
+- **Primary downstream proof (harness-faithful, exact gate scenario):** generated the
+  `phase6_mealy_fsm` design shape (`--full-factorization --hierarchy-depth 1
+  --num-leaf-modules 4 --num-child-instances 4 --fsm-prob 1.0 --fsm-mealy-prob 1.0
+  --min-width 2 --max-width 8 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1`,
+  seed 7) → 5 modules (1 wrapper + 4 Mealy FSM leaves with the `case (sel)` decode),
+  ACCEPT warning-clean across `verilator --lint-only --top-module` + Yosys **both**
+  modes (`synth -top -noabc` / `abc -fast; opt -fast; check`) + `iverilog -g2012 -s
+  <top>` — the same all-tool surface `.2b.1` proved at the leaf level, now at the
+  exact gate-scenario design level.
+- **Gate wiring + non-vacuity (unit):** `phase6_mealy_fsm_scenario_is_non_vacuous`
+  proves the anchor builds ≥1 Mealy FSM module (so `saw_mealy_fsm_design` is
+  reachable); `phase4_hierarchy_coverage_requires_design_facts` proves the gap fires
+  when the fact is absent. The `--phase4-hierarchy-gate` run **enforces**
+  `coverage_gaps = []` incl. `saw_mealy_fsm_design` (the gap requirement + the
+  scenario's non-vacuity are exactly the two unit tests above); its 224 non-Mealy
+  scenarios are unchanged from the banked r87 / `phase6-fsm-p1` artifacts, so the
+  focused Mealy scenario proven clean above is the only new design surface. The full
+  225-scenario / 900-design bank is a long-running regression (deep recursive
+  scenarios under Yosys) run separately, like the prior phase banks.
+
+**Impact**
+
+- Default-off ⇒ DUT byte-identical (`tests/snapshots.rs` untouched). The Mealy FSM
+  output extension now has a repo-owned downstream-clean coverage gate, closing
+  `.2b.2b`. No mode retired (the Moore `phase6_fsm` gate is unchanged). No ROADMAP
+  phase label changed. Next: `.2b.3` (book/USER_GUIDE/README/KM user-facing docs).
+
+**Files touched:** `src/bin/tool_matrix.rs`, `README.md`, `CHANGES.md`, `MEMORY.md`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`.
+
 ## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.2a — Mealy metric + introspection schema 1.13
 
-**Landed as:** this commit (previous: `dc7df68`). **Makes the Mealy capability
+**Landed as:** `c8b0562` (previous: `dc7df68`). **Makes the Mealy capability
 queryable (decision [`0024`](docs/decisions/0024-mealy-fsm-outputs.md) +
 [`0017`](docs/decisions/0017-api-first-everything-mcp-accessible.md)).** Default-off
 ⇒ DUT byte-identical. Task-tree-owned by `CAPABILITY-BREADTH-EXPANSION.2b.2a`.

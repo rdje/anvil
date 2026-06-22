@@ -756,7 +756,18 @@ exercising adversarial axes that previously fired only by chance
   realization, explicit `library` vs `on-demand` child-sourcing
   coverage, sibling-routed, registered sibling-routed, and registered
   parent-composed child-input bindings, and clean downstream tool
-  results.
+  results. It also folds in the Phase-6 motif gates — an inferrable
+  memory design (`saw_inferrable_memory_design`), a generated-encoding
+  Moore FSM design (`saw_fsm_design`), and, since
+  `CAPABILITY-BREADTH-EXPANSION.2b.2b` (decision `0024`), a **Mealy** FSM
+  design (`saw_mealy_fsm_design`): the focused `phase6_mealy_fsm` scenario
+  (`fsm_mealy_prob = 1.0`) emits the input-dependent `(state_q, sel)`
+  output decode and must be downstream-clean. Because Mealy is universally
+  synthesizable, it takes the same acceptance columns as any FSM design
+  (Verilator + Yosys, plus the with-ABC Yosys mode under `--yosys-mode
+  both` and Icarus under `--iverilog-compile`) — no Verilator-only carve-out
+  like the `union soft` up-opt. Default-off `fsm_mealy_prob` ⇒ DUT
+  byte-identical.
 - `tool_matrix --signoff-knob-sweep-gate` runs the repo-owned focused
   richer-knob-sweep matrix (`SIGNOFF-AUTOMATION-EXPANSION.2b`) and fails
   on coverage gaps unless the report proves the four previously-unswept

@@ -619,6 +619,15 @@ struct CoverageSummary {
     saw_packed_aggregate_design: bool,
     saw_inferrable_memory_design: bool,
     saw_fsm_design: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.2b.2b` (decision `0024`) — at least one
+    /// design carried a **Mealy** FSM module
+    /// (`fsm_mealy_prob > 0` && `num_mealy_fsm_modules > 0`). Proves the
+    /// default-off Mealy output extension (an input-dependent `(state_q, sel)`
+    /// output decode over the existing Phase-6 `Fsm` block) fires by
+    /// construction and is downstream-clean — distinct from `saw_fsm_design`,
+    /// which the Moore-only `phase6_fsm` scenario already lights. Mealy is
+    /// universally synthesizable, so its gate runs the full multi-tool plan.
+    saw_mealy_fsm_design: bool,
     /// `SIGNOFF-AUTOMATION-EXPANSION.2b` — at least one module carried
     /// an `Add`/`Mul` operator gate with a duplicated operand slot
     /// (`num_operator_gates_with_duplicate_operands > 0`). Proves the
@@ -1920,6 +1929,11 @@ fn build_phase4_hierarchy_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
                 phase6_fsm_focus_config(strategy, next_seed + 73),
             ),
             (
+                "phase6_mealy_fsm",
+                "depth-1 wrapper, library mode, fsm_prob = 1.0 + fsm_mealy_prob = 1.0: the rules-first library FSM leaves carry the default-off Mealy output extension (an input-dependent (state_q, sel) output decode mirroring the transition table; the state register stays Moore-clocked). Proves Mealy FSM designs are downstream-clean (CAPABILITY-BREADTH-EXPANSION.2b.2b, decision 0024)",
+                phase6_mealy_fsm_focus_config(strategy, next_seed + 74),
+            ),
+            (
                 "phase4_recur_d2_registered_sibling_multistage_state",
                 "bounded recursive hierarchy at exact depth 2 where non-top direct registered sibling-routed child inputs chain through earlier parent-local state without helper instances",
                 phase4_recursive_registered_sibling_multistage_state_focus_config(
@@ -3067,6 +3081,47 @@ fn phase6_fsm_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config 
         num_leaf_modules: 4,
         num_child_instances: 4,
         fsm_prob: 1.0,
+        min_width: 2,
+        max_width: 8,
+        flop_prob: 0.0,
+        hierarchy_sibling_route_prob: 0.0,
+        hierarchy_registered_sibling_route_prob: 0.0,
+        hierarchy_registered_child_input_cone_prob: 0.0,
+        hierarchy_child_input_cone_prob: 0.0,
+        hierarchy_parent_cone_instance_prob: 0.0,
+        hierarchy_parent_flop_prob: 0.0,
+        max_flops_per_module: 0,
+        constant_prob: 0.0,
+        max_depth: 1,
+        ..Config::default()
+    }
+}
+
+fn phase6_mealy_fsm_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    // CAPABILITY-BREADTH-EXPANSION.2b.2b anchor scenario (decision 0024).
+    // Shaped EXACTLY like `phase6_fsm_focus_config` (depth-1 wrapper,
+    // library child-sourcing, 4 leaves / 4 instances, all hierarchy-routing
+    // probabilities 0.0, purely combinational scaffold) so the matrix's
+    // leaf/child/range/source shape-coverage sets are unperturbed — only the
+    // scenario and module counts grow. The single difference from
+    // `phase6_fsm_focus_config` is the added `fsm_mealy_prob = 1.0`: the
+    // rules-first library FSM leaves get the default-off **Mealy** output
+    // extension (the input-dependent `(state_q, sel)` output decode), so each
+    // FSM leaf is a Mealy FSM. `fsm_prob = 1.0` stays — Mealy is a sub-mode of
+    // the FSM block, so the block must be built first. Mealy is universally
+    // synthesizable, so this runs the full multi-tool plan. Suffix
+    // `phase6_mealy_fsm` is in the matrix unit-test exception list at the
+    // bottom of this file.
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        hierarchy_depth: 1,
+        num_leaf_modules: 4,
+        num_child_instances: 4,
+        fsm_prob: 1.0,
+        fsm_mealy_prob: 1.0,
         min_width: 2,
         max_width: 8,
         flop_prob: 0.0,
@@ -7370,6 +7425,8 @@ fn summarize_design_coverage(
             scenario.config.memory_prob > 0.0 && design.metrics.num_memory_modules > 0;
         coverage.saw_fsm_design |=
             scenario.config.fsm_prob > 0.0 && design.metrics.num_fsm_modules > 0;
+        coverage.saw_mealy_fsm_design |=
+            scenario.config.fsm_mealy_prob > 0.0 && design.metrics.num_mealy_fsm_modules > 0;
         coverage.saw_array_packed_aggregate_design |= scenario.config.aggregate_array_prob > 0.0
             && design.metrics.num_array_packed_aggregate_modules > 0;
         coverage.saw_memory_fsm_interplay_design |= scenario.config.memory_prob > 0.0
@@ -7696,6 +7753,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_packed_aggregate_design |= src.saw_packed_aggregate_design;
     dst.saw_inferrable_memory_design |= src.saw_inferrable_memory_design;
     dst.saw_fsm_design |= src.saw_fsm_design;
+    dst.saw_mealy_fsm_design |= src.saw_mealy_fsm_design;
     dst.saw_operand_duplication |= src.saw_operand_duplication;
     dst.saw_mux_arm_duplication |= src.saw_mux_arm_duplication;
     dst.saw_array_packed_aggregate_design |= src.saw_array_packed_aggregate_design;
@@ -8949,6 +9007,12 @@ fn compute_coverage_gaps(
                 .to_string(),
         );
     }
+    if scenario_set == ScenarioSet::Phase4Hierarchy && !coverage.saw_mealy_fsm_design {
+        gaps.push(
+            "matrix never proved a downstream-clean design with a Mealy FSM (input-dependent (state_q, sel) output decode) (CAPABILITY-BREADTH-EXPANSION.2b.2b)"
+                .to_string(),
+        );
+    }
     if scenario_set == ScenarioSet::Phase3Structured && !coverage.gate_kinds.contains("slice") {
         gaps.push("matrix never emitted a selectable slice gate".to_string());
     }
@@ -9489,7 +9553,7 @@ mod tests {
 
         let plan = derive_run_plan(&cli, scenarios.len());
         assert_eq!(plan.modules_per_scenario, 4);
-        assert_eq!(plan.total_modules, 888);
+        assert_eq!(plan.total_modules, 900);
         assert!(plan.fail_on_coverage_gap);
     }
 
@@ -10265,10 +10329,11 @@ mod tests {
                     || scenario.name.ends_with("phase5b_packed_aggregate")
                     || scenario.name.ends_with("phase6_inferrable_memory")
                     || scenario.name.ends_with("phase6_fsm")
+                    || scenario.name.ends_with("phase6_mealy_fsm")
             );
         }
-        assert_eq!(scenarios.len(), 222);
-        assert_eq!(names.len(), 222);
+        assert_eq!(scenarios.len(), 225);
+        assert_eq!(names.len(), 225);
         assert_eq!(leaf_counts, BTreeSet::from([0, 2, 4]));
         assert_eq!(
             child_counts,
@@ -10470,6 +10535,42 @@ mod tests {
             with_fsm, checked,
             "every phase6_fsm scenario must build ≥1 fsm module \
              (got {with_fsm}/{checked}); the coverage fact would be unreachable"
+        );
+    }
+
+    #[test]
+    fn phase6_mealy_fsm_scenario_is_non_vacuous() {
+        // CAPABILITY-BREADTH-EXPANSION.2b.2b (decision 0024): the
+        // `phase6_mealy_fsm` anchor must actually produce ≥1 Mealy
+        // `Fsm`-bearing module (the rules-first library FSM leaves built
+        // with `fsm_mealy_prob = 1.0`), otherwise the `saw_mealy_fsm_design`
+        // coverage fact would be unreachable and the gate would carry a
+        // permanent coverage gap. Proven here so the scenario cannot
+        // silently go vacuous.
+        let scenarios =
+            build_scenarios(0, ScenarioSet::Phase4Hierarchy).expect("build phase4 scenarios");
+        let mut checked = 0usize;
+        let mut with_mealy_fsm = 0usize;
+        for scenario in &scenarios {
+            if !scenario.name.ends_with("phase6_mealy_fsm") {
+                continue;
+            }
+            checked += 1;
+            assert_eq!(scenario.config.fsm_prob, 1.0);
+            assert_eq!(scenario.config.fsm_mealy_prob, 1.0);
+            let design = Generator::new(scenario.config.clone()).generate_design();
+            anvil::ir::validate::validate_design(&design)
+                .expect("phase6 mealy fsm anchor design must validate");
+            let m = anvil::metrics::compute_design(&design);
+            if m.num_mealy_fsm_modules > 0 {
+                with_mealy_fsm += 1;
+            }
+        }
+        assert!(checked > 0, "phase6_mealy_fsm scenario must exist");
+        assert_eq!(
+            with_mealy_fsm, checked,
+            "every phase6_mealy_fsm scenario must build ≥1 Mealy fsm module \
+             (got {with_mealy_fsm}/{checked}); the coverage fact would be unreachable"
         );
     }
 
