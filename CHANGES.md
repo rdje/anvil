@@ -1,6 +1,54 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.2b — repo-owned tool_matrix --multi-output-task-gate
+
+**Landed as:** this commit (previous: `21bc84c`). **The repo-owned downstream gate
+proving the sixth structured surface (decision `0025`) fires by construction and is
+accepted warning-clean** — `tool_matrix --multi-output-task-gate`, templated on
+`--cone-function-gate`. Default-off / DUT byte-identical (the generator is
+unchanged; this is harness-only). Task-tree-owned by
+`STRUCTURED-EMISSION-EXPANSION.12b.2b`.
+
+**What changed (why)**
+
+- **`src/bin/tool_matrix.rs`** — `--multi-output-task-gate` clap flag +
+  `ScenarioSet::MultiOutputTaskSweep` + `build_multi_output_task_sweep_scenarios`
+  / `multi_output_task_focus_config` (one comb-only `multi_output_task_emit_prob =
+  1.0` DUT × the three construction strategies; node-id + e-graph; **high
+  `terminal_reuse_prob = 0.6` + shallow `max_depth = 2` + `min_outputs ≥ 2`** so
+  co-supported, fan-in-independent sibling pairs exist) + the
+  `ModuleReport.emitted_multi_output_task` detection
+  (`prepared.sv_text.contains("__mt(")`, distinct from the single-gate `__t(` and
+  the cone `__cf(`) + `CoverageSummary.saw_multi_output_task_emit` (lit on
+  Verilator success + Yosys clean) + `MatrixReport.multi_output_task_gate` + the
+  coverage merge + the early-return gap arm + the units floor
+  (`MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO = 4`) + the mutual-exclusion
+  count/message + 5 cargo-portable proofs + the 8 `ModuleReport` + 1 `Cli` fixture
+  updates + the `test_cli` / `MatrixReport`-fixture defaults.
+- **`README.md`** / **`USER_GUIDE.md`** / **`CODEBASE_ANALYSIS.md`** — the
+  `--multi-output-task-gate` entry alongside the other repo-owned emit gates.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --bin tool_matrix -- -D
+  warnings` clean; `cargo fmt --all --check` clean; `cargo test --bin tool_matrix`
+  **84 passed** / 1 ignored (79 + 5 new gate proofs); `cargo test --test
+  snapshots` **6/6 byte-identical** (harness-only).
+- **Banked clean** `/tmp/anvil-multi-output-task-gate-r1`
+  (`--multi-output-task-gate --yosys-mode both --iverilog-compile`): 3 scenarios /
+  12 modules / **6 emitting a multi-output task** / `coverage_gaps = []` /
+  `saw_multi_output_task_emit = true` / Verilator `12/0` / Yosys without-abc
+  `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`.
+
+**Impact**
+
+- The sixth structured surface now has a repo-owned, coverage-gated proof that it
+  is emitted **and** downstream-accepted warning-clean — the "prove the new
+  surface is accepted, not just produced" bar the prior surfaces hold. Closes
+  `.12b.2b` / `.12b.2`; the user-facing docs (book/KM + the deferred book schema
+  JSONs) land at `.12b.3`. No ROADMAP phase label changed.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.2a — multi-output task metric + introspection schema 1.13 → 1.14
 
 **Landed as:** this commit (previous: `cae38ce`). **The `num_emitted_multi_output_tasks`

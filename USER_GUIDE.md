@@ -1020,6 +1020,22 @@ Useful options:
   `/tmp/anvil-cone-function-gate-r1` (3 scenarios / 12 modules / 12 emitting a
   cone function / 148 cone functions / `coverage_gaps = []` / Verilator 12/0 /
   Yosys 12/0 both modes / Icarus compile 12/0).
+- `--multi-output-task-gate` to run the repo-owned multi-output combinational
+  `task automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.12b.2b`) and fail
+  unless the report proves the sixth richer-structured emission surface (decision
+  `0025`) fires **by construction** and is downstream-accepted. It forces
+  `multi_output_task_emit_prob = 1.0` over a comb-only single-module DUT across all
+  three construction strategies, so every qualifying co-supported,
+  fan-in-independent gate pair is co-emitted as one multi-output `task automatic`
+  with deduplicated input formals, and requires the `saw_multi_output_task_emit`
+  fact (a genuinely-emitted multi-output task, detected from the emitted SV text's
+  `<leader>__mt(` token, accepted by Verilator **and** Yosys). Separate from
+  `--task-emit-gate` (the single-gate surface). Like a single-gate task, a
+  multi-output task is universally synthesizable, so the gate runs the full
+  Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan.
+  Banked clean at `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios / 12 modules
+  / 6 emitting a multi-output task / `coverage_gaps = []` / Verilator 12/0 / Yosys
+  12/0 both modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

@@ -1026,6 +1026,26 @@ exercising adversarial axes that previously fired only by chance
   both Yosys + Icarus compile). Separate from `--function-emit-gate` (the
   single-gate surface); default `cone_function_emit_prob = 0.0` emission stays
   byte-identical; the gate is the opt-in proof axis.
+- `tool_matrix --multi-output-task-gate` runs the repo-owned multi-output
+  combinational `task automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.12b.2b`)
+  and fails on coverage gaps unless the report proves the sixth richer-structured
+  emission surface (decision `0025`) fires by construction and is
+  downstream-accepted. It forces `multi_output_task_emit_prob = 1.0` over a
+  comb-only single-module DUT across all three construction strategies, so every
+  qualifying co-supported, fan-in-independent gate pair is co-emitted as one
+  multi-output `task automatic` with deduplicated input formals + per-member
+  output args, and requires the `saw_multi_output_task_emit` fact (a
+  genuinely-emitted multi-output task — detected from the emitted SV text's
+  `<leader>__mt(` token, distinct from the single-gate `<wire>__t(` and the cone
+  `<root>__cf(` — accepted by Verilator **and** Yosys). Like a single-gate task
+  (and unlike the `union soft` up-opt), a multi-output task is universally
+  synthesizable, so the gate runs the full Verilator + both Yosys modes (+ Icarus
+  when `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios, 12 modules, 6 emitting a
+  multi-output task, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
+  compile). Separate from `--task-emit-gate` (the single-gate surface); default
+  `multi_output_task_emit_prob = 0.0` emission stays byte-identical; the gate is
+  the opt-in proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

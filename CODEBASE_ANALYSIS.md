@@ -213,6 +213,24 @@ into four explicit gaps:
    modules, 12 emitting a cone function / 148 cone functions, `coverage_gaps =
    []`, `12/0` Verilator + both Yosys modes + Icarus compile). Default
    `cone_function_emit_prob = 0.0` emission stays byte-identical.
+
+   The multi-output combinational `task automatic` emit gate landed the same way
+   (`STRUCTURED-EMISSION-EXPANSION.12b.2b`): a new
+   `ScenarioSet::MultiOutputTaskSweep` + the opt-in `--multi-output-task-gate` flag
+   + `build_multi_output_task_sweep_scenarios` (one comb-only
+   `multi_output_task_focus_config` DUT × three construction strategies, all
+   forcing `Config::multi_output_task_emit_prob = 1.0`; high `terminal_reuse_prob =
+   0.6` + shallow `max_depth = 2` so co-supported, fan-in-independent sibling pairs
+   exist) + the `saw_multi_output_task_emit` coverage fact + a new
+   `ModuleReport.emitted_multi_output_task` field (set from
+   `prepared.sv_text.contains("__mt(")`, distinct from the single-gate `<wire>__t(`
+   and the cone `<root>__cf(` surfaces); `summarize_coverage` lights the fact on
+   Verilator + Yosys acceptance, and `compute_coverage_gaps` early-returns after
+   the one fact. `MatrixReport.multi_output_task_gate` records the run. Banked
+   downstream-clean at `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios, 12
+   modules, 6 emitting a multi-output task, `coverage_gaps = []`, `12/0` Verilator
+   + both Yosys modes + Icarus compile). Default
+   `multi_output_task_emit_prob = 0.0` emission stays byte-identical.
 4. **The IR is optimized for structural legitimacy more than semantic
    richness today**
    That matches the project doctrine: whole-module intended behavior is
