@@ -315,6 +315,18 @@ fn to_sv_with_modules(
     let cone_interior: std::collections::BTreeSet<NodeId> =
         m.cone_function_gates.values().flatten().copied().collect();
 
+    // `STRUCTURED-EMISSION-EXPANSION.12b` — the set of gates co-emitted as
+    // multi-output `task automatic` members (decision `0025`). Each keeps its
+    // module wire (unlike a cone interior — members are co-equal roots, not
+    // absorbed), but its inline `assign` below becomes a passthrough from its
+    // `<name>__mtv` task-output var. Default-off: `multi_output_task_groups`
+    // empty ⇒ set empty ⇒ byte-identical.
+    let mo_task_member: std::collections::BTreeSet<NodeId> = m
+        .multi_output_task_groups
+        .iter()
+        .flat_map(|(leader, partners)| std::iter::once(*leader).chain(partners.iter().copied()))
+        .collect();
+
     // Internal signal declarations for every Gate node and every
     // instance-output node. Most gates are driven by continuous assigns
     // (`wire`); structured case/casez/for-fold gates are declared as
@@ -442,6 +454,36 @@ fn to_sv_with_modules(
         writeln!(out).unwrap();
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.12b` — multi-output combinational
+    // `task automatic` declarations + `always_comb` calls for the co-supported
+    // gate groups marked by the `crate::ir::multi_output_task_emit` pass (decision
+    // `0025`). Each group renders ONE `<leader>__mt` task with one `output` per
+    // member and a deduplicated `input` list over the members' shared non-constant
+    // operands, called once from `always_comb` into per-member `<member>__mtv`
+    // vars; each member's continuous assign below becomes a passthrough
+    // `assign <member> = <member>__mtv;`. Default-off: `multi_output_task_groups`
+    // empty ⇒ nothing emitted ⇒ byte-identical. Behaviour-preserving by
+    // construction (each output is the member gate's exact operation over the
+    // shared formals). Emitted in leader-NodeId order (`BTreeMap`) for determinism.
+    let mut emitted_multi_output_task = false;
+    for (&leader, partners) in &m.multi_output_task_groups {
+        let mut members: Vec<NodeId> = std::iter::once(leader)
+            .chain(partners.iter().copied())
+            .collect();
+        members.sort_unstable();
+        let params = multi_output_task_params(m, &members);
+        out.push_str(&render_multi_output_task_decl(
+            m, leader, &members, &params, &names,
+        ));
+        out.push_str(&render_multi_output_task_call(
+            m, leader, &members, &params, &names,
+        ));
+        emitted_multi_output_task = true;
+    }
+    if emitted_multi_output_task {
+        writeln!(out).unwrap();
+    }
+
     // `STRUCTURED-EMISSION-EXPANSION.10b` — multi-gate-cone `function automatic`
     // declarations for cones marked by the `crate::ir::cone_function_emit` pass
     // (the cone-function projection, decision `0016`). Each cone root's value is
@@ -536,6 +578,17 @@ fn to_sv_with_modules(
             if task_emit_gate(m, idx).is_some() {
                 let name = names[idx].as_ref().unwrap();
                 writeln!(out, "    assign {name} = {name}__tv;").unwrap();
+                continue;
+            }
+            // `STRUCTURED-EMISSION-EXPANSION.12b` — a gate that is a multi-output
+            // task member is driven from its `<wire>__mtv` output var (written by
+            // the group's `always_comb` task call above) instead of the inline
+            // operation. Mutually exclusive with the other projections (members are
+            // never sibling-marked, and a member keeps its module wire — only its
+            // drive changes). Default-off ⇒ never taken.
+            if mo_task_member.contains(&(idx as NodeId)) {
+                let name = names[idx].as_ref().unwrap();
+                writeln!(out, "    assign {name} = {name}__mtv;").unwrap();
                 continue;
             }
             // `STRUCTURED-EMISSION-EXPANSION.10b` — a cone *root* is driven by a
@@ -1778,6 +1831,111 @@ fn render_gate_task_call(
     let mut s = String::new();
     writeln!(s, "    logic {} {};", param_width_decl_w(m, width), tv).unwrap();
     writeln!(s, "    always_comb {}({}, {});", tname, tv, args.join(", ")).unwrap();
+    s
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.12b` — the deduplicated **input parameters** of
+/// a multi-output task group: the union of the members' direct operands, ascending
+/// `NodeId`, excluding `Constant`s (which fold inline as literals). A shared
+/// non-constant operand appears once ⇒ one input formal feeding multiple outputs
+/// (the co-supported sink). `cone_function_params` adapted: a union over the group
+/// members instead of a cone root + interior, with no interior concept.
+fn multi_output_task_params(m: &Module, members: &[NodeId]) -> Vec<NodeId> {
+    let mut params: BTreeSet<NodeId> = BTreeSet::new();
+    for &g in members {
+        if let Node::Gate { operands, .. } = &m.nodes[g as usize] {
+            for &op in operands {
+                if matches!(m.nodes[op as usize], Node::Constant { .. }) {
+                    continue;
+                }
+                params.insert(op);
+            }
+        }
+    }
+    params.into_iter().collect()
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.12b` — render the multi-output `task automatic`
+/// declaration for a group (`<leader>__mt`): one `output logic` arg `o{j}` per
+/// member (member order = ascending `NodeId`) carrying the member width, then the
+/// deduplicated `input logic` params `a{i}` carrying the param widths, and one
+/// procedural statement per member assigning the behaviour-preserving re-expression
+/// of its operation over the shared params to `o{j}`. The body reuses
+/// [`render_cone_gate_expr`] with an **empty `interior_set`**, so each member
+/// operand resolves to a folded `Constant` literal or its boundary parameter
+/// `a{i}` — exactly the shared-formal semantics.
+fn render_multi_output_task_decl(
+    m: &Module,
+    leader: NodeId,
+    members: &[NodeId],
+    params: &[NodeId],
+    names: &[Option<String>],
+) -> String {
+    let leader_name = names[leader as usize]
+        .as_ref()
+        .expect("leader name assigned");
+    let tname = format!("{leader_name}__mt");
+    let empty: BTreeSet<NodeId> = BTreeSet::new();
+    let mut formals: Vec<String> = Vec::with_capacity(members.len() + params.len());
+    for (j, &g) in members.iter().enumerate() {
+        let w = m.nodes[g as usize].width();
+        formals.push(format!("output logic {} o{}", param_width_decl_w(m, w), j));
+    }
+    for (i, &p) in params.iter().enumerate() {
+        let w = m.nodes[p as usize].width();
+        formals.push(format!("input logic {} a{}", param_width_decl_w(m, w), i));
+    }
+    let mut s = String::new();
+    writeln!(s, "    task automatic {}({});", tname, formals.join(", ")).unwrap();
+    for (j, &g) in members.iter().enumerate() {
+        if let Node::Gate { op, operands, .. } = &m.nodes[g as usize] {
+            writeln!(
+                s,
+                "        o{} = {};",
+                j,
+                render_cone_gate_expr(*op, operands, m, &empty, params, names)
+            )
+            .unwrap();
+        }
+    }
+    writeln!(s, "    endtask").unwrap();
+    s
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.12b` — render the per-member task-output var
+/// declarations + the single `always_comb` call that drives them for a multi-output
+/// task group: `logic [Wj-1:0] <member>__mtv;` per member, then
+/// `always_comb <leader>__mt(<m0>__mtv, ..., <param refs>);`. The member vars come
+/// first (matching the `output` formals, ascending-member order), then the
+/// deduplicated param refs rendered with the normal module-level [`node_ref`]
+/// (constants fold to literals, inputs to port names, gates to wire names). Each
+/// member's net is then driven `assign <member> = <member>__mtv;` at the per-gate
+/// assign loop.
+fn render_multi_output_task_call(
+    m: &Module,
+    leader: NodeId,
+    members: &[NodeId],
+    params: &[NodeId],
+    names: &[Option<String>],
+) -> String {
+    let leader_name = names[leader as usize]
+        .as_ref()
+        .expect("leader name assigned");
+    let tname = format!("{leader_name}__mt");
+    let mut s = String::new();
+    for &g in members {
+        let w = m.nodes[g as usize].width();
+        let gname = names[g as usize].as_ref().expect("member name assigned");
+        writeln!(s, "    logic {} {gname}__mtv;", param_width_decl_w(m, w)).unwrap();
+    }
+    let mut args: Vec<String> = members
+        .iter()
+        .map(|&g| format!("{}__mtv", names[g as usize].as_ref().unwrap()))
+        .collect();
+    for &p in params {
+        args.push(node_ref(p, m, names));
+    }
+    writeln!(s, "    always_comb {}({});", tname, args.join(", ")).unwrap();
     s
 }
 

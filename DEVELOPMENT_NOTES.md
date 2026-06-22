@@ -5,6 +5,33 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Multi-output task surface — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.12b.1`
+
+The live surface implemented decision `0025` / the `.12a` design with **no
+deviations** — the seven pinned choices held verbatim. Two notes worth keeping:
+
+- **The cone primitives composed for free.** `render_cone_gate_expr` /
+  `cone_operand_ref` were written for the cone-function surface (root + interior
+  with an `interior_set`); passing an **empty `interior_set`** turns them into a
+  pure "operand → folded literal | `a{position in params}`" renderer, which is
+  exactly the deduplicated shared-formal body the multi-output task needs. No new
+  body renderer was required — the `feedback_full_factorization` reuse the ADR
+  predicted. Members **keep** their module wires (the per-gate assign loop emits
+  the passthrough `assign <m> = <m>__mtv;`), so — unlike a cone-function interior
+  — there is no use-count rule and DAG-shared members are fine.
+
+- **Gate-shape calibration (carried to `.12b.2`).** The surface fires only on a
+  co-supported *independent* pair (a fanout signal feeding two sibling gates that
+  don't feed each other). A comb-only config with `terminal_reuse_prob = 0.6`,
+  `max_depth = 2`, `min_outputs = 2` fires it readily: a forced
+  `multi_output_task_emit_prob = 1.0` sweep (`/tmp/anvil-mo-sweep/`) emitted
+  `__mt(` on 4/5 seeds (2–6 tasks each), all Verilator `-Wall` Δ=0 vs OFF across
+  1800-2012/2017/2023 + Yosys both modes + Icarus, and seed 7's module was proven
+  **exhaustively** sim-equivalent to the inline reference over all 128 input
+  values. Seed 100's lone `-Wall` warning is a pre-existing `UNUSEDSIGNAL` on an
+  unrelated `concat_0` wire (identical ON and OFF) — the established "residual is
+  pre-existing, Δ=0" situation, not a projection bug.
+
 ## 2026-06-22 — Multi-output task surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.12a`
 
 The design-detail leaf for the sixth structured surface (decision `0025`, the

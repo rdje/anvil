@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.1 — multi-output task automatic emit-projection (live surface)
+
+**Landed as:** this commit (previous: `46669ec`). **The first source change of the
+sixth structured surface — the live multi-output combinational `task automatic`
+emit-projection (decision `0025`).** Default-off / DUT byte-identical.
+Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.12b.1`.
+
+**What changed (why)**
+
+- **`src/config.rs`** — `Config::multi_output_task_emit_prob: f64` (default `0.0`
+  via `default_multi_output_task_emit_prob`, `#[serde(default)]`) + the Default
+  init + the `0.0..=1.0` validation list + the dump-config knob list + the
+  `Overrides.multi_output_task_emit_prob: Option<f64>` overlay field + its apply.
+- **`src/main.rs`** — the `--multi-output-task-emit-prob` clap flag + its mapping
+  into `Overrides`.
+- **`src/ir/types.rs`** — `Module.multi_output_task_groups: BTreeMap<NodeId,
+  Vec<NodeId>>` (leader → partner members; `#[derive(Default)]` ⇒ empty default;
+  an emitter-surface annotation only — flat IR / validators / CSE keys /
+  `canonical_module_signature` untouched, disjoint from the sibling gate sets).
+- **`src/ir/multi_output_task_emit.rs`** (new) — `annotate_multi_output_task_groups(m,
+  rng, prob)`: skip `param_env`; collect admissible (non-structured / non-`Slice` /
+  `≥1` operand) non-sibling-marked candidates ascending `NodeId`; **one
+  `gen_bool(prob)` roll per ungrouped leader**, paired with the next ungrouped
+  candidate that (a) shares a **non-constant** direct operand and (b) is **mutually
+  fan-in-independent** (the `in_fanin` bounded backward DFS over `Node::Gate`
+  operands — else the shared `always_comb` task call would close a combinational
+  cycle, a Verilator `UNOPTFLAT`). 11 lib proofs. `src/ir/mod.rs` registration.
+- **`src/gen/mod.rs`** — two guarded call-site rolls (single + design) **after
+  `task_emit`, before `cone_function`** (the established "later pass excludes
+  earlier marks" chain).
+- **`src/ir/cone_function_emit.rs`** — `sibling_marked` extended to exclude any
+  multi-output task member (leader or partner) as a cone root / absorbed interior.
+- **`src/emit/sv.rs`** — the `mo_task_member` set + the multi-output task
+  declaration/call section (`render_multi_output_task_decl` +
+  `render_multi_output_task_call` + `multi_output_task_params`) — the deduplicated
+  shared-formal body **reuses `render_cone_gate_expr` with an empty `interior_set`**
+  so a shared non-constant operand becomes one input formal `a{i}` feeding multiple
+  outputs `o{j}` — plus the per-gate assign-loop passthrough `assign <m> =
+  <m>__mtv;` (members **keep** their module wires — co-equal roots, no use-count
+  rule, so DAG-shared members are fine).
+- **`DEVELOPMENT_NOTES.md`** / **`CODEBASE_ANALYSIS.md`** — impl-time notes + the
+  new module/knob/field/emitter entry.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean; `cargo test --lib` **599 passed** / 2
+  ignored (incl. 10 new `multi_output_task_emit` proofs; introspect
+  `schema_version` 1.13 + `umbrella` DUT-byte-identical still green); `cargo test
+  --test snapshots` **6/6 byte-identical** (default-off).
+- **Forced `multi_output_task_emit_prob=1.0` downstream sweep**
+  (`/tmp/anvil-mo-sweep/`, comb-only `terminal_reuse_prob=0.6` `max_depth=2`
+  `min_outputs=2`, seeds 1/7/42/100): `__mt(` emitted on all four (2–6 tasks each);
+  Verilator `--lint-only` `-Wall` **delta=0 vs OFF** across **1800-2012/2017/2023**;
+  Yosys without-abc + with-abc + Icarus `iverilog -g2012` clean; the seed-7 module
+  is **exhaustively sim-equivalent** to the inline OFF reference over all 128 input
+  values (`GEN-RTL SIM-EQUIV OK`). Seed-100's lone `-Wall` warning is a pre-existing
+  `UNUSEDSIGNAL` on an unrelated `concat_0` wire (identical ON/OFF, delta=0).
+- No metric / no schema bump (the metric + schema `1.13 → 1.14` land at `.12b.2`;
+  the knob rides the version — the `.10b.1` / `.6b.1` precedent).
+
+**Impact**
+
+- ANVIL's DUT lane gains a sixth structured emit surface — a multi-output `task`
+  with a shared input formal feeding several outputs — behind the opt-in knob;
+  default `anvil` + `--artifact dut` stay byte-identical (`multi_output_task_emit_prob
+  = 0.0`). The metric, the repo-owned gate, and the user-facing docs land at
+  `.12b.2` / `.12b.3`. No ROADMAP phase label changed.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12a — multi-output task impl design-detail
 
 **Landed as:** this commit (previous: `c31fbb0`). **Design-detail leaf — grounds

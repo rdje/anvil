@@ -88,6 +88,12 @@ fn sibling_marked(m: &Module, id: NodeId) -> bool {
         || m.generate_loop_gates.contains(&id)
         || m.task_emit_gates.contains(&id)
         || m.soft_union_slice_gates.contains(&id)
+        // `STRUCTURED-EMISSION-EXPANSION.12b` — a multi-output task member (the
+        // leader or a partner) is never a cone root or absorbed interior (the
+        // multi-output pass runs before this one; decision `0025`).
+        || m.multi_output_task_groups
+            .iter()
+            .any(|(leader, partners)| *leader == id || partners.contains(&id))
 }
 
 /// Count every value-consumer reference to each node across the whole module:

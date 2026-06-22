@@ -495,6 +495,26 @@ pub struct Module {
     /// `soft_union_slice_gates` by construction (the cone pass runs last and
     /// excludes already-marked gates as both roots and interiors).
     pub cone_function_gates: BTreeMap<NodeId, Vec<NodeId>>,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.12b` — gates grouped for the multi-output
+    /// combinational `task automatic` emit-projection (decision `0025`). Keyed by
+    /// the group **leader** (lowest-`NodeId` member) → the **partner** members
+    /// (the first cut is a pair ⇒ a single-element `[partner]`); the full group is
+    /// `key` plus the partners. The emitter renders one `task automatic` per group
+    /// with one `output` per member and a deduplicated `input` list over the
+    /// members' shared non-constant operands, called once from `always_comb`; each
+    /// member's net is driven by a passthrough `assign`. Like the sibling
+    /// `*_gates` fields this is an **emitter-surface annotation only** — the flat
+    /// IR body, validators, CSE keys and `canonical_module_signature` are
+    /// untouched, and it is not hashed into identity. Disjoint from
+    /// `function_emit_gates` / `generate_loop_gates` / `task_emit_gates` /
+    /// `soft_union_slice_gates` / `cone_function_gates` by construction (the pass
+    /// runs after the first four and excludes their marks; the cone pass runs after
+    /// this one and excludes these members). Populated by the post-construction
+    /// `crate::ir::multi_output_task_emit` pass under the opt-in
+    /// `Config::multi_output_task_emit_prob` knob. Empty (the `Default`) ⇒
+    /// byte-identical emission.
+    pub multi_output_task_groups: BTreeMap<NodeId, Vec<NodeId>>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

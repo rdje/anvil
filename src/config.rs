@@ -111,6 +111,10 @@ fn default_cone_function_emit_prob() -> f64 {
     0.0
 }
 
+fn default_multi_output_task_emit_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -990,6 +994,23 @@ pub struct Config {
     #[serde(default = "default_cone_function_emit_prob")]
     pub cone_function_emit_prob: f64,
 
+    /// `STRUCTURED-EMISSION-EXPANSION.12b` (decision `0025`). Per-leader
+    /// probability that a co-supported **pair** of qualifying combinational gates
+    /// (the same admissible candidate set as `task_emit_prob`) is co-emitted as
+    /// one multi-output combinational `task automatic`: the pair shares a
+    /// non-constant operand (so the deduplicated task has a shared input formal
+    /// feeding both outputs) and is mutually fan-in-independent (so the shared
+    /// `always_comb` task call is cycle-free). A behaviour-preserving emit-time
+    /// projection — no new IR node / no new computed truth, the
+    /// `task_emit`/`cone_function` precedent — mutually exclusive with the five
+    /// other per-gate projections (the pass runs after `task_emit`, before
+    /// `cone_function`). Separate from `task_emit_prob` so the shipped single-gate
+    /// `task` surface stays byte-identical. `default = 0.0` keeps every existing
+    /// output byte-identical (rules-first; never generate-then-filter). See
+    /// decision `0025` + `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+    #[serde(default = "default_multi_output_task_emit_prob")]
+    pub multi_output_task_emit_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1235,6 +1256,7 @@ impl Default for Config {
             generate_loop_emit_prob: default_generate_loop_emit_prob(),
             task_emit_prob: default_task_emit_prob(),
             cone_function_emit_prob: default_cone_function_emit_prob(),
+            multi_output_task_emit_prob: default_multi_output_task_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             fsm_mealy_prob: default_fsm_mealy_prob(),
@@ -1613,6 +1635,10 @@ impl Config {
             ("generate_loop_emit_prob", self.generate_loop_emit_prob),
             ("task_emit_prob", self.task_emit_prob),
             ("cone_function_emit_prob", self.cone_function_emit_prob),
+            (
+                "multi_output_task_emit_prob",
+                self.multi_output_task_emit_prob,
+            ),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("fsm_mealy_prob", self.fsm_mealy_prob),
@@ -1838,6 +1864,9 @@ impl Config {
         if let Some(v) = o.cone_function_emit_prob {
             self.cone_function_emit_prob = v;
         }
+        if let Some(v) = o.multi_output_task_emit_prob {
+            self.multi_output_task_emit_prob = v;
+        }
         if let Some(v) = o.soft_union_slice_prob {
             self.soft_union_slice_prob = v;
         }
@@ -1959,6 +1988,7 @@ pub struct Overrides {
     pub generate_loop_emit_prob: Option<f64>,
     pub task_emit_prob: Option<f64>,
     pub cone_function_emit_prob: Option<f64>,
+    pub multi_output_task_emit_prob: Option<f64>,
     pub soft_union_slice_prob: Option<f64>,
     pub width_parameterization_prob: Option<f64>,
     pub aggregate_prob: Option<f64>,

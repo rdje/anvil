@@ -555,6 +555,48 @@ src/
 │                     both modes + Icarus (`/tmp/anvil-cf-sweep/`). Metric +
 │                     repo-owned gate + coverage fact = `.10b.2`.
 │
+├── ir/multi_output_task_emit.rs  STRUCTURED-EMISSION-EXPANSION.12b.1 — the
+│                     sixth richer-structured emit surface (decision 0025).
+│                     Gen-time `annotate_multi_output_task_groups(m, rng, prob)`
+│                     pass (rolled at the `gen/mod.rs` call site AFTER the four
+│                     single-gate projections, BEFORE cone_function; param-env
+│                     modules skipped) groups a co-supported **pair** of
+│                     admissible combinational gates (the same candidate set as
+│                     `task_emit`, not sibling-marked): scanning ascending
+│                     `NodeId`, one `gen_bool(prob)` roll per ungrouped leader
+│                     pairs it with the next ungrouped candidate that (a) shares
+│                     a **non-constant** direct operand and (b) is mutually
+│                     fan-in-independent (the `in_fanin` bounded backward DFS —
+│                     else the shared `always_comb` task call would close a
+│                     combinational cycle). The pair lands in the new
+│                     emitter-surface `Module.multi_output_task_groups`
+│                     (BTreeMap<NodeId, Vec<NodeId>> leader→partners, not hashed
+│                     into identity, disjoint from the sibling gate sets). The
+│                     emitter (`emit/sv.rs::render_multi_output_task_decl` +
+│                     `render_multi_output_task_call` +
+│                     `multi_output_task_params`, reusing `render_cone_gate_expr`
+│                     with an empty interior-set for a deduplicated body) renders
+│                     each group as one behaviour-preserving multi-output
+│                     `task automatic <leader>__mt(output ... o0, o1, input ...
+│                     a0, ...); o0 = ...; o1 = ...; endtask` + per-member
+│                     `logic <m>__mtv;` + one `always_comb <leader>__mt(...)`
+│                     call, and rewrites each member's assign to the passthrough
+│                     `assign <m> = <m>__mtv;` (members KEEP their module wires —
+│                     co-equal roots, not absorbed, so no use-count rule).
+│                     `cone_function_emit::sibling_marked` extended to exclude
+│                     members. Generalizes the decision 0014 single-gate task to
+│                     a co-supported pair; its OWN `multi_output_task_emit_prob`
+│                     knob + `--multi-output-task-emit-prob` flag so the
+│                     single-gate surface stays byte-identical (nothing retired).
+│                     Default-off (`multi_output_task_emit_prob == 0.0`)
+│                     byte-identical (snapshots 6/6). Forced
+│                     `multi_output_task_emit_prob=1.0` sweep: __mt fires on
+│                     4/5 seeds, clean across Verilator `--lint-only` (+`-Wall`
+│                     Δ=0 vs OFF, 2012/2017/2023) + Yosys both modes + Icarus,
+│                     and exhaustively sim-equiv to the inline reference
+│                     (`/tmp/anvil-mo-sweep/`). Metric + repo-owned gate +
+│                     coverage fact = `.12b.2`.
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded

@@ -543,6 +543,9 @@ struct Cli {
     /// Per-qualifying-cone probability of the whole-cone `function automatic` emit-projection.
     #[arg(long)]
     cone_function_emit_prob: Option<f64>,
+    /// Per-leader probability of the multi-output `task automatic` emit-projection (a co-supported gate pair).
+    #[arg(long)]
+    multi_output_task_emit_prob: Option<f64>,
     /// Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`).
     #[arg(long)]
     soft_union_slice_prob: Option<f64>,
@@ -1161,6 +1164,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         generate_loop_emit_prob: cli.generate_loop_emit_prob,
         task_emit_prob: cli.task_emit_prob,
         cone_function_emit_prob: cli.cone_function_emit_prob,
+        multi_output_task_emit_prob: cli.multi_output_task_emit_prob,
         soft_union_slice_prob: cli.soft_union_slice_prob,
         width_parameterization_prob: cli.width_parameterization_prob,
         aggregate_prob: cli.aggregate_prob,
