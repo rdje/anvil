@@ -1,6 +1,57 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.13c — wider (k>2) multi-output task user docs
+
+**Landed as:** this commit (previous: `68aeea2`). Docs-only / no source /
+DUT byte-identical. Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.13c`. **Closes
+`.13c` / `.13` — the first deepening of the sixth structured surface (wider `k>2`
+multi-output `task automatic` groups) is delivered end-to-end; the lane returns to
+no current frontier.**
+
+**What changed (why)**
+
+- **`book/src/structured-emission.md`** — the user-facing surface for the sixth
+  structured surface, updated for `k>2`:
+  - the section intro reframed (a co-supported **pair** → a co-supported **group**,
+    `k >= 2`, up to 8 members);
+  - a new **`### Wider groups (k > 2)`** subsection showing a **real seed-22
+    three-member** task (`shr_0`/`mux_0`/`mux_1`; the shared select `a0` feeds both
+    `o1` and `o2`, `a2` feeds both `o0` and `o1`), the greedy connected-co-support +
+    all-member-independence rules, the 8-member cap, and the Verilator `-Wall` Δ=0 +
+    sim-equiv note;
+  - the "What gets wrapped" bullets generalized (pair → group; every member;
+    delivered `k >= 2` + cap) and "How anvil proves it" updated (a k=3 group in the
+    gate bank + the new library proofs at every size).
+- **`book/src/knobs.md`, `USER_GUIDE.md`, `README.md`** — the
+  `multi_output_task_emit_prob` knob entry: "pairs it with the next gate" → "makes it
+  the leader of a co-supported **group** (`k >= 2`, up to 8), greedily admitting each
+  gate connected by a shared non-constant operand and fan-in-independent of every
+  member" + the cap + "checked against every member, cycle-free at any size".
+- **`docs/knowledge/multi-output-task-emit.md`** (KM card) — title + new/reworded
+  answer keys ("can a multi-output task have more than two outputs", "how many outputs
+  can a multi-output task have", "what is the multi-output task group size cap",
+  "what is connected co-support"), the `evidence` line (`.13b` widening + the helpers
+  + the cap), and the body (pair → `k >= 2` greedy extension; the bank path →
+  `/tmp/anvil-mo-k3-gate-r1` with a k=3 group). `KNOWLEDGE_MAP.md` regenerated
+  (64 facts / 589 → 593 keys).
+- No decision-`0025` mutation — the ADR already records the `.13` follow-up as a
+  recorded next step; the tree `Decisions` section cross-refs it (don't mutate ADRs).
+
+**Validation** — `mdbook build book` OK; `bash knowledge-map/scripts/gen_knowledge_map.sh`
+(64 facts / 593 keys) + `check_knowledge_map.sh` OK; `bash scripts/check_memory_architecture.sh`
+OK; `cargo test --test book_examples` **3/3 passed** (73.76s; no new bash block — the
+k=3 example is a `systemverilog` fragment, byte-identical book-runnable contract
+preserved). `bash scripts/check_doctrines.sh` green (4 doctrines; code checks exempt —
+docs-only commit). No `src/` touched ⇒ `cargo check/clippy/fmt/test --lib` unaffected.
+The k=3 fragment is a faithful transcription of `anvil --seed 22` and the ON form is
+downstream-clean (Verilator `-Wall` Δ=0 vs OFF + iverilog sim-equiv 20000 vectors, per
+`.13b`).
+
+**Impact** — the book (the user-facing surface) now accurately reflects that a
+multi-output task can carry more than two outputs. No behavioural change (docs only).
+DUT byte-identical.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.13b — widen multi-output task groups to k>2 (live)
 
 **Landed as:** this commit (previous: `8790528`). The live `k>2` widening of the

@@ -516,18 +516,22 @@ with a matching `--kebab-case` CLI flag since
   `0025`) is the **sixth richer-structured emission surface**, a **generalization
   of the single-gate `task_emit_prob` surface** from one `output` to several. Per
   ungrouped qualifying gate (the same candidate set as `task_emit_prob`), it is the
-  probability the emitter pairs it with the next qualifying gate that **shares a
-  non-constant operand** and is **fan-in-independent**, and co-emits the pair as
-  one multi-output `task automatic` with a **deduplicated** input list — a shared
-  operand becomes one input formal feeding multiple outputs (the "co-supported
-  sink") — called once from `always_comb` into per-member `<wire>__mtv` vars, each
-  member's net driven by a passthrough `assign`. It is an **emit-time projection**
-  (behaviour-preserving, no new IR truth) with its **own** knob, so the shipped
-  single-gate surface stays byte-identical. The fan-in-independence rule is the
-  soundness condition (co-emitting a fan-in-dependent member would close a
-  combinational cycle through the shared `always_comb`); members keep their module
-  wires (co-equal roots). The first cut groups a **pair** (wider groups are a
-  recorded follow-up). The six emit-projections are mutually exclusive on a gate
+  probability the emitter makes it the leader of a **co-supported group** (`k >= 2`,
+  up to 8 members) — greedily admitting each further qualifying gate that **shares a
+  non-constant operand** with some current member and is **fan-in-independent** of
+  every member — and co-emits the whole group as one multi-output `task automatic`
+  with a **deduplicated** input list — a shared operand becomes one input formal
+  feeding multiple outputs (the "co-supported sink") — called once from
+  `always_comb` into per-member `<wire>__mtv` vars, each member's net driven by a
+  passthrough `assign`. It is an **emit-time projection** (behaviour-preserving, no
+  new IR truth) with its **own** knob, so the shipped single-gate surface stays
+  byte-identical. The fan-in-independence rule is the soundness condition
+  (co-emitting a fan-in-dependent member would close a combinational cycle through
+  the shared `always_comb`; each new member is checked against every member, so the
+  group is cycle-free at any size); members keep their module wires (co-equal
+  roots). The group grows greedily from the leader up to the 8-member cap (the first
+  cut shipped a pair; `k > 2` is now delivered). The six emit-projections are
+  mutually exclusive on a gate
   (this pass runs after the single-gate `task`, before the cone `function`).
   Combinational only. `default = 0.0` is byte-identical; the emitted count is
   surfaced as `num_emitted_multi_output_tasks` in `--introspect` (schema `1.14`).

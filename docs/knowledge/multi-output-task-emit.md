@@ -1,14 +1,18 @@
 ---
 id: multi-output-task-emit
-title: How ANVIL emits a multi-output `task automatic` — the `multi_output_task_emit_prob` co-supported-pair emit-projection
+title: How ANVIL emits a multi-output `task automatic` — the `multi_output_task_emit_prob` co-supported-group emit-projection (k>=2)
 answers:
   - "how do I make ANVIL emit a multi-output task"
   - "how do I turn on multi_output_task_emit_prob"
-  - "how do I get ANVIL to co-emit two gates in one task with multiple outputs"
+  - "how do I get ANVIL to co-emit several gates in one task with multiple outputs"
   - "how is the multi-output task different from the single-gate task_emit surface"
-  - "which gate pairs get co-emitted as one task"
-  - "why must the two gates share a non-constant operand"
-  - "why must the two gates be fan-in-independent"
+  - "which gates get co-emitted as one task"
+  - "can a multi-output task have more than two outputs"
+  - "how many outputs can a multi-output task have"
+  - "what is the multi-output task group size cap"
+  - "why must the grouped gates share a non-constant operand"
+  - "why must the grouped gates be fan-in-independent"
+  - "what is connected co-support"
   - "what is the co-supported sink"
   - "what is num_emitted_multi_output_tasks"
   - "what does tool_matrix --multi-output-task-gate prove"
@@ -19,7 +23,7 @@ answers:
 date: 2026-06-22
 status: current
 tags: [structured-emission, task, multi-output, emission, knob, downstream, valid-by-construction, rules-first, matrix-gate, introspection]
-evidence: src/ir/multi_output_task_emit.rs (annotate_multi_output_task_groups, the one-roll-per-leader pairing, shares_nonconst_operand, in_fanin bounded backward DFS); src/config.rs (multi_output_task_emit_prob + the --multi-output-task-emit-prob CLI flag); src/gen/mod.rs (generate_module + generate_design rolls, run after task_emit before cone_function); src/ir/cone_function_emit.rs (sibling_marked extended to exclude members); src/emit/sv.rs (multi-output task decl/call section + multi_output_task_params/render_multi_output_task_decl/render_multi_output_task_call reusing render_cone_gate_expr with an empty interior_set + the per-gate passthrough); src/metrics.rs (num_emitted_multi_output_tasks); src/introspect/mod.rs (SCHEMA_VERSION 1.14); src/bin/tool_matrix.rs (--multi-output-task-gate, ScenarioSet::MultiOutputTaskSweep, ModuleReport.emitted_multi_output_task, saw_multi_output_task_emit); book/src/structured-emission.md; docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md; /tmp/anvil-multi-output-task-gate-r1/tool_matrix_report.json
+evidence: src/ir/multi_output_task_emit.rs (.12b.1 pair + .13b wider k>2 groups — annotate_multi_output_task_groups one-roll-per-leader + greedy partner extension, MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS=8, connected_co_support, independent_of_all, shares_nonconst_operand, in_fanin bounded backward DFS); src/config.rs (multi_output_task_emit_prob + the --multi-output-task-emit-prob CLI flag); src/gen/mod.rs (generate_module + generate_design rolls, run after task_emit before cone_function); src/ir/cone_function_emit.rs (sibling_marked extended to exclude members); src/emit/sv.rs (k-agnostic multi-output task decl/call section + multi_output_task_params/render_multi_output_task_decl/render_multi_output_task_call reusing render_cone_gate_expr with an empty interior_set + the per-gate passthrough); src/metrics.rs (num_emitted_multi_output_tasks = groups.len(), valid for any k); src/introspect/mod.rs (SCHEMA_VERSION 1.14); src/bin/tool_matrix.rs (--multi-output-task-gate, ScenarioSet::MultiOutputTaskSweep, ModuleReport.emitted_multi_output_task, saw_multi_output_task_emit); book/src/structured-emission.md; docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md; /tmp/anvil-mo-k3-gate-r1/tool_matrix_report.json (k=3 group present)
 reverify: 'cargo run --quiet -- --seed 3 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"multi_output_task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"terminal_reuse_prob\":0.9,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":2,\"max_outputs\":2,\"min_width\":4,\"max_width\":4,\"max_depth\":1});json.dump(c,open(\"/tmp/mt.json\",\"w\"))" && cargo run --quiet -- --seed 3 --config /tmp/mt.json | tee /tmp/mt.sv | grep -c "__mt(" && verilator --lint-only /tmp/mt.sv && echo CLEAN'
 ---
 
@@ -27,11 +31,12 @@ reverify: 'cargo run --quiet -- --seed 3 --dump-config > /tmp/c.json && python3 
 
 ANVIL's **sixth richer-structured emission surface**
 (decision [`0025`](../decisions/0025-structured-emission-sixth-surface-multi-output-task.md))
-co-emits a **co-supported pair** of combinational gates as **one** `task
-automatic` with several `output` arguments and a **deduplicated** `input` list,
-instead of two inline `assign`s. It is a **generalization of the
-[[combinational-task-emit]] single-gate surface** (decision `0014`, which wrapped
-one gate with one `output`) from one output to several.
+co-emits a **co-supported group** of combinational gates (`k >= 2`, bounded at 8
+members) as **one** `task automatic` with several `output` arguments and a
+**deduplicated** `input` list, instead of the inline `assign`s. It is a
+**generalization of the [[combinational-task-emit]] single-gate surface** (decision
+`0014`, which wrapped one gate with one `output`) from one output to several. The
+first cut shipped a **pair** (`k = 2`, `.12b.1`); `.13b` widened it to `k > 2`.
 
 - **Turn it on:** `Config::multi_output_task_emit_prob` (the
   `--multi-output-task-emit-prob` CLI flag, or `--config` JSON, like
@@ -44,31 +49,34 @@ one gate with one `output`) from one output to several.
   `annotate_multi_output_task_groups` scans admissible, non-sibling-marked gates
   (the single-gate `task_emit` candidate set — non-structured, non-`Slice`, `≥ 1`
   operand) in ascending `NodeId`. For each ungrouped **leader** it rolls the
-  probability **once** on the seeded RNG; on a hit it pairs the leader with the
-  next ungrouped candidate that (a) **shares a non-constant direct operand** and
-  (b) is **mutually fan-in-independent**. The pair lands in
-  `Module.multi_output_task_groups` (`BTreeMap<NodeId, Vec<NodeId>>`, leader →
-  partner members; an emitter-surface annotation — flat IR / validators / CSE /
-  `canonical_module_signature` untouched). The pass runs **after** `task_emit` and
-  **before** `cone_function` (whose `sibling_marked` excludes members), so the six
-  emit-projections are mutually exclusive on a gate; `param_env` modules are
-  skipped. The first cut groups a **pair**; wider co-supported groups are a
-  recorded follow-up.
-- **The shared-non-constant-operand rule (the co-supported sink):** the two gates
-  must share at least one non-constant operand, so the deduplicated task genuinely
-  has a **shared input formal feeding both outputs**. A shared *constant* folds
-  inline as a literal (never a formal), so it does not count — without a real
-  shared formal the task would be merely two unrelated tasks fused, with no new
-  elaboration interaction.
-- **The fan-in-independence rule (soundness):** neither member may lie in the
-  other's transitive fan-in (`in_fanin`, a bounded backward DFS over `Node::Gate`
-  operands). If it did, the member's net — driven by the shared task's `<wire>__mtv`
+  probability **once** on the seeded RNG; on a hit it **greedily** admits each
+  further ungrouped higher-`NodeId` candidate that (a) is **connected** to the group
+  by a shared non-constant operand (`connected_co_support` — shares with *at least
+  one* current member) and (b) is **mutually fan-in-independent with every** current
+  member (`independent_of_all`), up to `MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`. A
+  group forms iff `≥ 1` partner is admitted, so `k = 2` is the exact subset. The
+  group lands in `Module.multi_output_task_groups` (`BTreeMap<NodeId, Vec<NodeId>>`,
+  leader → partner members; an emitter-surface annotation — flat IR / validators /
+  CSE / `canonical_module_signature` untouched). The pass runs **after** `task_emit`
+  and **before** `cone_function` (whose `sibling_marked` excludes members), so the
+  six emit-projections are mutually exclusive on a gate; `param_env` modules are
+  skipped.
+- **The connected-co-support rule (the co-supported sink):** each member must share
+  at least one non-constant operand with some other member, so the deduplicated task
+  genuinely has **shared input formals feeding multiple outputs** and the group stays
+  connected. A shared *constant* folds inline as a literal (never a formal), so it
+  does not count — without a real shared formal the task would be merely unrelated
+  tasks fused, with no new elaboration interaction.
+- **The fan-in-independence rule (soundness):** no member may lie in another
+  member's transitive fan-in (`in_fanin`, a bounded backward DFS over `Node::Gate`
+  operands). If one did, its net — driven by the shared task's `<wire>__mtv`
   passthrough — would feed, through gates *outside* the task, into a direct operand
   the task reads, closing a combinational cycle through the single `always_comb`
-  call (a Verilator `UNOPTFLAT`). Independence makes the co-emitted task cycle-free
-  by construction. The IR's operand-topological `NodeId` invariant
-  (`Module::intern_gate` appends after its operands) makes one direction automatic,
-  but both are checked for robustness.
+  call (a Verilator `UNOPTFLAT`). Each new member is checked against **every**
+  current member, so independence is maintained inductively and the co-emitted task
+  is cycle-free by construction at any size. The IR's operand-topological `NodeId`
+  invariant (`Module::intern_gate` appends after its operands) makes one direction
+  automatic, but both are checked for robustness.
 - **Rendering (`src/emit/sv.rs`):** for a group keyed by `<leader>`,
   `render_multi_output_task_decl` emits `task automatic <leader>__mt(output logic
   […] o0, output logic […] o1, input logic […] a0, …); o0 = …; o1 = …; endtask`
@@ -92,15 +100,18 @@ one gate with one `output`) from one output to several.
   (`ScenarioSet::MultiOutputTaskSweep`) forces `multi_output_task_emit_prob = 1.0`
   over comb-only DUTs across all three construction strategies (with a high
   `terminal_reuse_prob = 0.6` + shallow `max_depth = 2` + `min_outputs ≥ 2` so
-  co-supported, fan-in-independent pairs exist), detects an emitted task via
+  co-supported, fan-in-independent groups exist), detects an emitted task via
   `ModuleReport.emitted_multi_output_task` (`sv_text.contains("__mt(")`, distinct
   from the single-gate `"__t("` and the cone `"__cf("`), and lights
   `saw_multi_output_task_emit` only when that module is accepted by Verilator
   **and** a clean Yosys (a multi-output task is universally synthesizable like a
   single-gate task, so the gate runs the full plan: Verilator + both Yosys modes +
-  Icarus). Banked clean `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios / 12
-  modules / 6 emitting a multi-output task / `coverage_gaps = []` / `12/0`
-  Verilator + both Yosys + Icarus compile).
+  Icarus). Banked clean `/tmp/anvil-mo-k3-gate-r1` (3 scenarios / 12 modules / 6
+  emitting a multi-output task / `coverage_gaps = []` / `12/0` Verilator + both
+  Yosys + Icarus compile), **with a `k = 3` group present**. A forced
+  `multi_output_task_emit_prob = 1.0` sweep (seed 22) emits a genuine 3-output task
+  that is Verilator `-Wall` Δ=0 vs OFF and `iverilog`-sim-equivalent to the inline
+  reference over 20000 vectors.
 
 See [[structured-emission-sixth-surface-multi-output-task]] for the decision (why a
 multi-output task sixth — the deferred runner-up from the fifth-surface probe,

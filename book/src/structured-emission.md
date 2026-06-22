@@ -633,13 +633,14 @@ the default lane.
 
 The sixth surface **generalizes the [third surface](#the-third-surface-a-combinational-task-automatic)**.
 The single-gate task had one `output`. The sixth surface co-emits a
-**co-supported pair** of combinational gates into **one** `task automatic` with
-several `output` arguments and a **deduplicated** `input` list: a non-constant
-operand the two gates *share* becomes **one** input formal feeding multiple
-outputs — the "co-supported sink". One `always_comb` call drives a per-member
-output var, and each member's net is driven by a passthrough `assign`. Because
-each output is the member gate's exact operation over those formals, the task
-computes exactly the two inline assigns — **behaviour-preserving by construction**.
+**co-supported group** of combinational gates (`k >= 2`, up to 8) into **one**
+`task automatic` with several `output` arguments and a **deduplicated** `input`
+list: a non-constant operand the gates *share* becomes **one** input formal feeding
+multiple outputs — the "co-supported sink". One `always_comb` call drives a
+per-member output var, and each member's net is driven by a passthrough `assign`.
+Because each output is the member gate's exact operation over those formals, the
+task computes exactly the inline assigns it replaces — **behaviour-preserving by
+construction**.
 
 It uses its **own** knob,
 [`multi_output_task_emit_prob`](knobs.md#structured-emission) (default `0.0`),
@@ -692,22 +693,61 @@ The task computes `o0 = i_1 ^ i_2` and `o1 = ~i_2` — exactly the inline pair �
 with the shared `i_2` passed once as `a1`. Only the two members' drives change;
 the output drives `assign o_0 = xor_0;` / `assign o_1 = not_0;` are byte-identical.
 
+### Wider groups (`k > 2`)
+
+A group is **not** limited to a pair. When more co-supported, mutually-independent
+gates are available, the task absorbs them too — up to a bounded **8 members** —
+so a single `task automatic` can carry three, four, or more `output`s over one
+deduplicated `input` list. Here is a real **three-member** task (a forced
+`multi_output_task_emit_prob = 1.0` run, seed 22), co-emitting `shr_0`, `mux_0`,
+and `mux_1`:
+
+```systemverilog
+    task automatic shr_0__mt(output logic [30:0] o0, output logic [30:0] o1, output logic [18:0] o2,
+                             input logic a0, input logic [18:0] a1, input logic [30:0] a2);
+        o0 = a2 >> 3'h5;
+        o1 = (a0) ? (a2) : (31'h3e5748b0);
+        o2 = (a0) ? (a1) : (19'h21d25);
+    endtask
+    logic [30:0] shr_0__mtv;
+    logic [30:0] mux_0__mtv;
+    logic [18:0] mux_1__mtv;
+    always_comb shr_0__mt(shr_0__mtv, mux_0__mtv, mux_1__mtv, i_4, slice_0, concat_0);
+
+    assign shr_0 = shr_0__mtv;
+    assign mux_0 = mux_0__mtv;
+    assign mux_1 = mux_1__mtv;
+```
+
+Three outputs, **three** deduplicated inputs: the select `a0` (the module's `i_4`)
+is shared — it feeds **both** `o1` and `o2` — and `a2` (the wire `concat_0`) feeds
+both `o0` and `o1`. The group is built greedily: starting from the lowest member,
+anvil admits each further gate that (1) shares a non-constant operand with **at
+least one** member already in the group (so the group stays connected through shared
+formals) and (2) is mutually fan-in-independent with **every** member (so no cycle
+can close through the shared `always_comb`). This `k = 3` task is accepted
+warning-clean by Verilator `-Wall` with **zero** new warnings versus the knob-off
+build, and an `iverilog` simulation proves it bit-identical to the three inline
+assigns it replaces.
+
 ### What gets wrapped (and what doesn't)
 
 - **The members** are admissible combinational gates (not a `Slice`, not a
   procedural structured selector — the same candidate rules as the single-gate
-  `task`). The first cut groups a **pair** (`k = 2`); wider co-supported groups
-  are a recorded follow-up.
-- **The pair must share a non-constant operand.** A shared *constant* folds inline
-  as a literal (so it is never a shared formal); without a shared non-constant
-  operand the task would be merely two unrelated tasks fused, with no new
-  interaction — so such gates are not grouped.
-- **The pair must be mutually fan-in-independent** — neither member may lie in the
-  other's fan-in cone. If it did, the member's net (driven by the shared task's
+  `task`). A group is a **`k >= 2`** set, bounded at **8 members** so any one task
+  stays readable and a dense module still forms several distinct groups.
+- **Each new member must be connected by a shared non-constant operand.** A
+  candidate joins only if it shares a non-constant operand with **at least one**
+  member already in the group. A shared *constant* folds inline as a literal (so it
+  is never a shared formal); without a shared non-constant operand the task would be
+  merely unrelated tasks fused, with no new interaction — so such gates are not
+  grouped.
+- **The members must be mutually fan-in-independent** — no member may lie in
+  another member's fan-in cone. If one did, its net (driven by the shared task's
   passthrough) would feed, through gates outside the task, into a direct operand
   the task reads, closing a combinational cycle through the single `always_comb`
-  call (a Verilator `UNOPTFLAT`). The independence rule makes the co-emitted task
-  cycle-free by construction.
+  call (a Verilator `UNOPTFLAT`). Each new member is checked against **every**
+  current member, so the co-emitted task is cycle-free by construction at any size.
 - **Members keep their module wires** (unlike a cone-function interior): they are
   co-equal roots, not absorbed, so there is no use-count rule and DAG-shared
   members are fine — only their drive changes.
@@ -729,12 +769,15 @@ the output drives `assign o_0 = xor_0;` / `assign o_1 = not_0;` are byte-identic
   `<leader>__mt(` token, distinct from the single-gate `<wire>__t(` and the cone
   `<root>__cf(`) accepted by Verilator **and** Yosys. Banked clean (3 scenarios /
   12 modules / 6 emitting a multi-output task / `coverage_gaps = []` / `12/0`
-  Verilator + both Yosys + Icarus).
-- Library tests pin the pairing: a co-supported independent pair groups, gates
-  without a shared non-constant operand do not, a shared *constant* alone does not,
-  fan-in-dependent gates do not, a `Slice` / structured / sibling-marked member is
-  excluded, and a grouped pair emits the multi-output task while the unmarked
-  default stays the inline pair.
+  Verilator + both Yosys + Icarus), with a **`k = 3`** group present among the
+  emitted modules.
+- Library tests pin the grouping at every size: a co-supported independent **pair**
+  groups, a co-supported independent **triple** groups, the extension stops at a
+  gate that shares no operand with the group, a fan-in-dependent gate is excluded
+  even when it co-supports, the group is capped at 8 members, gates without a shared
+  non-constant operand do not group, a shared *constant* alone does not, a `Slice` /
+  structured / sibling-marked member is excluded, and a grouped triple emits a
+  three-`output` task while the unmarked default stays the inline assigns.
 
 The picked-sixth rationale (the deferred runner-up from the fifth-surface probe,
 chosen for the genuinely-new "multiple `output` formals + a shared input formal"

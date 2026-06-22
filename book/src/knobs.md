@@ -621,11 +621,12 @@ instead of creating fresh logic.
   `--config` JSON, like `task_emit_prob` / `cone_function_emit_prob`; default
   `0.0` ⇒ byte-identical; validated `0.0..=1.0`) — the **sixth richer-structured
   emission surface** (decision `0025`). Probability, per ungrouped *qualifying*
-  combinational gate (the same candidate set as `task_emit_prob`), that anvil
-  pairs it with the next qualifying gate that **shares a non-constant operand** and
-  is **fan-in-independent**, and co-emits the pair as **one** multi-output
-  `task automatic` with a **deduplicated** input list instead of two inline
-  `assign`s:
+  combinational gate (the same candidate set as `task_emit_prob`), that anvil makes
+  it the leader of a **co-supported group** (`k >= 2`, up to 8 members) — greedily
+  admitting each further qualifying gate that **shares a non-constant operand** with
+  some current member and is **fan-in-independent** of every member — and co-emits
+  the whole group as **one** multi-output `task automatic` with a **deduplicated**
+  input list instead of the inline `assign`s:
 
   ```systemverilog
   task automatic xor_0__mt(output logic [3:0] o0, output logic [3:0] o1, input logic [3:0] a0, input logic [3:0] a1);
@@ -646,9 +647,11 @@ instead of creating fresh logic.
   sink"); a shared *constant* folds inline (never a formal). The
   **fan-in-independence** rule is the soundness condition — co-emitting a member
   that lies in another's fan-in would close a combinational cycle through the
-  shared `always_comb` call. Members keep their module wires (co-equal roots, not
-  absorbed). Selection is rules-first at construction time; the first cut is a
-  **pair** (wider groups are a recorded follow-up). The six emit-projections
+  shared `always_comb` call; each new member is checked against **every** member, so
+  the group is cycle-free at any size. Members keep their module wires (co-equal
+  roots, not absorbed). Selection is rules-first at construction time; the group
+  grows greedily from the leader up to the 8-member cap (the first cut shipped a
+  pair; `k > 2` is now delivered). The six emit-projections
   (`function_emit` / `generate_loop` / `task_emit` / `multi_output_task` /
   `cone_function` / `soft_union`) are mutually exclusive on a gate — this pass runs
   after the single-gate `task` and before the cone `function`. Combinational only.

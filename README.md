@@ -955,16 +955,19 @@ exercising adversarial axes that previously fired only by chance
   `book/src/structured-emission.md`.
 - `multi_output_task_emit_prob` is a default-off knob (the
   `--multi-output-task-emit-prob` CLI flag, or `--config` JSON;
-  `STRUCTURED-EMISSION-EXPANSION.12b.1`, decision `0025`) — ANVIL's **sixth
+  `STRUCTURED-EMISSION-EXPANSION.12b.1` (pair) + `.13b` (wider `k>2` groups),
+  decision `0025`) — ANVIL's **sixth
   richer-structured emission surface**, a **generalization of the third surface**
   (the single-gate `task_emit_prob`) from one `output` to several. Per ungrouped
   *qualifying* combinational gate (the same candidate set as `task_emit_prob`), it
-  is the probability the emitter pairs it with the next qualifying gate that
-  **shares a non-constant operand** and is **fan-in-independent**, and co-emits the
-  pair as one multi-output `task automatic` with a **deduplicated** input list
-  (`task automatic <leader>__mt(output …o0, o1, input …a0, a1); o0 = …; o1 = …;
+  is the probability the emitter makes it the leader of a **co-supported group**
+  (`k >= 2`, bounded at 8 members) — greedily admitting each further qualifying gate
+  that **shares a non-constant operand** with some current member and is
+  **fan-in-independent** of every member — and co-emits the whole group as one
+  multi-output `task automatic` with a **deduplicated** input list
+  (`task automatic <leader>__mt(output …o0, o1, o2…, input …a0, a1…); o0 = …; o1 = …;
   endtask` + per-member `logic <wire>__mtv;` + one `always_comb <leader>__mt(…)` +
-  the passthrough `assign <wire> = <wire>__mtv;`) instead of the two inline
+  the passthrough `assign <wire> = <wire>__mtv;`) instead of the inline
   `assign`s. A shared non-constant operand becomes **one** input formal feeding
   multiple outputs (the "co-supported sink"); a shared constant folds inline. It is
   a behaviour-preserving **emit-time projection** (no new IR node / no new computed
@@ -972,9 +975,11 @@ exercising adversarial axes that previously fired only by chance
   so the shipped single-gate `task` surface stays byte-identical (reusing
   `task_emit_prob` rejected). The **fan-in-independence** rule is the soundness
   condition (a fan-in-dependent member would close a combinational cycle through
-  the shared `always_comb`); members keep their module wires (co-equal roots, not
-  absorbed). The first cut groups a **pair** (`k=2`; wider groups are a recorded
-  follow-up). The six emit-projections (`function_emit` / `generate_loop` /
+  the shared `always_comb`; each new member is checked against every member, so the
+  group is cycle-free at any size); members keep their module wires (co-equal roots,
+  not absorbed). The group grows greedily from the leader up to the 8-member cap
+  (`MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS`; the first cut shipped a pair, `k > 2` now
+  delivered by `.13b`). The six emit-projections (`function_emit` / `generate_loop` /
   `task_emit` / `multi_output_task` / `cone_function` / `soft_union`) are mutually
   exclusive on a gate; this pass runs after `task_emit`, before `cone_function`.
   Combinational only. Default `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs`
