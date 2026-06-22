@@ -5,6 +5,27 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — CaseMux priority-chain surface — impl-time note — `STRUCTURED-EMISSION-EXPANSION.17b.1`
+
+Implemented exactly per the `.17a` design — **no deviations**. The one thing worth
+recording beyond the design: the in-place emitter branch is *cleaner* than the seventh
+surface because a `CaseMux` is already declared `logic` and already written from an
+`always_comb` block, so the change is a pure body swap — the `GateOp::CaseMux` match arm
+branches on `m.case_mux_if_gates.contains(&(idx as NodeId))` (chain vs `case`), and the
+shared `default`/`endcase` tail gains the same `&& !contains(...)` guard so a marked gate
+emits only its own trailing `else`. No new declaration, no passthrough, no net→var change.
+
+A subtle correctness point the sweep confirmed: when a marked `CaseMux` has an
+**exhaustive** selector (e.g. a 1-bit selector with both arms present), the trailing
+`else` is unreachable — but so is the original `case`'s `default:` arm (the emitter always
+emits one), so Verilator's view is symmetric and the `-Wall` delta is **0** (ON==OFF=3
+pre-existing warnings on seed 2 across 2012/2017/2023). Generated-RTL ON-vs-OFF sim-equiv
+held over 20000 vectors (`scratchpad/probe8/`, seed 2: 7 chains / 14 `else if` / 0 residual
+`case`; Yosys both modes + Icarus clean). 9 lib proofs (incl. `constant_selector_case_mux_is_excluded`
+and the end-to-end `marked_case_mux_emits_priority_chain_unmarked_is_case`). Default-off /
+DUT byte-identical (snapshots 6/6, lib 616→625). The metric + the repo-owned
+`--case-mux-if-gate` land at `.17b.2`.
+
 ## 2026-06-22 — CaseMux `if`/`else if` priority-chain surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.17a`
 
 Grounds decision `0028` (the **eighth** structured surface: a procedural `always_comb`

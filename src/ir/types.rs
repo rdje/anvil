@@ -535,6 +535,21 @@ pub struct Module {
     /// all of them by construction. Empty (the `Default`) ⇒ byte-identical
     /// emission.
     pub mux_if_gates: BTreeSet<NodeId>,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.17b` — the eighth structured surface
+    /// (decision `0028`): dynamic-selector `CaseMux` gates the emitter renders
+    /// as a procedural `always_comb` `if`/`else if` **priority chain** instead
+    /// of the parallel `case` statement (the N-way generalization of the
+    /// seventh surface's 2:1 `Mux` → `if`/`else`). Like the sibling `*_gates`
+    /// fields this is an **emitter-surface annotation only** — the flat IR body,
+    /// validators, CSE keys and `canonical_module_signature` are all unaffected.
+    /// Populated by the post-construction `crate::ir::case_mux_if_emit` pass
+    /// under the opt-in `Config::case_mux_if_emit_prob` knob; the pass runs
+    /// **last** (after `mux_if`). A `CaseMux` is already an
+    /// `always_comb`-written `logic` var, so this surface needs no
+    /// output-var/passthrough — only the block body swaps. Empty (the
+    /// `Default`) ⇒ byte-identical emission.
+    pub case_mux_if_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

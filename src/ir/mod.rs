@@ -1,6 +1,7 @@
 //! The circuit IR. See `book/src/ir.md` for rationale.
 
 pub mod aggregate;
+pub mod case_mux_if_emit;
 pub mod compact;
 pub mod cone_function_emit;
 pub mod dedup;

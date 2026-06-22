@@ -662,6 +662,45 @@ src/
 │                     Metric (`num_emitted_mux_if_blocks`, schema 1.14→1.15) +
 │                     repo-owned `--mux-if-gate` + coverage fact = `.15b.2`.
 │
+├── ir/case_mux_if_emit.rs  STRUCTURED-EMISSION-EXPANSION.17b.1 — the
+│                     eighth richer-structured emit surface (decision 0028).
+│                     Gen-time `annotate_case_mux_if_gates(m, rng, prob)` pass
+│                     (rolled at the `gen/mod.rs` call site LAST, after mux_if;
+│                     param-env modules skipped) marks **dynamic-selector**
+│                     `GateOp::CaseMux` gates — `gate_qualifies` requires a
+│                     `CaseMux` with `>= 1` arm whose selector (`operands[0]`)
+│                     is NOT a `Node::Constant` (a constant selector is
+│                     statically collapsed to a continuous assign by
+│                     `render_static_structured_gate`, never an `always_comb`
+│                     block) and not already marked by any sibling projection
+│                     (vacuous — no other pass marks a `CaseMux` — but kept for
+│                     robustness); one `gen_bool(prob)` roll per candidate into
+│                     the new emitter-surface `Module.case_mux_if_gates:
+│                     BTreeSet<NodeId>` (not hashed into identity). The emitter
+│                     (`emit/sv.rs`) re-expresses each marked `CaseMux`'s
+│                     `always_comb` body from the parallel `case (sel) … default`
+│                     to a procedural `if`/`else if` **priority chain** (`if (sel
+│                     == W'd0) g = arm_0; else if … else g = D'h0;`) — the labels
+│                     `W'd{i}` are distinct constants, so the chain == the
+│                     parallel match (behaviour-preserving), and the trailing
+│                     `else` carries the former `default`. Unlike the seventh
+│                     surface, a `CaseMux` is already an `always_comb`-written
+│                     `logic` var, so there is NO `<wire>__cv` output-var +
+│                     passthrough — only the block body swaps (the parallel
+│                     `case`/`endcase` is suppressed for a marked gate). Its OWN
+│                     `case_mux_if_emit_prob` knob + `--case-mux-if-emit-prob`
+│                     flag (separate from `mux_if_emit_prob`; nothing retired).
+│                     Default-off (`case_mux_if_emit_prob == 0.0`) byte-identical
+│                     (snapshots 6/6; 9 lib proofs incl. the constant-selector
+│                     exclusion + the end-to-end emit proof). Forced
+│                     `case_mux_if_emit_prob=1.0` sweep (seed 2, comb-only,
+│                     `case_mux_prob=0.9`): 7 `CaseMux` blocks → 7 priority chains
+│                     (14 `else if`, 0 residual `case`), Verilator `-Wall` Δ=0 vs
+│                     OFF (2012/2017/2023) + Yosys both modes + Icarus clean, and
+│                     ON==OFF sim-equiv over 20000 vectors (`scratchpad/probe8/`).
+│                     Metric (`num_emitted_case_mux_if_chains`, schema 1.15→1.16)
+│                     + repo-owned `--case-mux-if-gate` + coverage fact = `.17b.2`.
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded

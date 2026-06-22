@@ -119,6 +119,10 @@ fn default_mux_if_emit_prob() -> f64 {
     0.0
 }
 
+fn default_case_mux_if_emit_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -1032,6 +1036,25 @@ pub struct Config {
     #[serde(default = "default_mux_if_emit_prob")]
     pub mux_if_emit_prob: f64,
 
+    /// `STRUCTURED-EMISSION-EXPANSION.17b` (decision `0028`) — the eighth
+    /// richer-structured emit surface. Per *qualifying* dynamic-selector
+    /// `CaseMux` gate, the probability the emitter re-renders it as a procedural
+    /// `always_comb` `if`/`else if` **priority chain** (`if (sel == W'd0) g =
+    /// arm_0; else if … else g = D'h0;`) instead of the parallel `case (sel) …
+    /// default` statement. Behaviour-preserving (the `case` labels are distinct
+    /// constants, so the priority chain == the parallel match); a `CaseMux` is
+    /// already an `always_comb`-written `logic` var, so — unlike the seventh
+    /// surface's 2:1 `Mux` — no output-var/passthrough is needed, only the block
+    /// body swaps. Behaviour-preserving emit-time projection, no new computed
+    /// truth (the `mux_if`/`task_emit` precedent) — mutually exclusive with the
+    /// seven other per-gate projections (the pass runs last and excludes their
+    /// marks). Separate from `mux_if_emit_prob` so the shipped surfaces stay
+    /// byte-identical. `default = 0.0` keeps every existing output byte-identical
+    /// (rules-first; never generate-then-filter). See decision `0028` +
+    /// `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+    #[serde(default = "default_case_mux_if_emit_prob")]
+    pub case_mux_if_emit_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1279,6 +1302,7 @@ impl Default for Config {
             cone_function_emit_prob: default_cone_function_emit_prob(),
             multi_output_task_emit_prob: default_multi_output_task_emit_prob(),
             mux_if_emit_prob: default_mux_if_emit_prob(),
+            case_mux_if_emit_prob: default_case_mux_if_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             fsm_mealy_prob: default_fsm_mealy_prob(),
@@ -1662,6 +1686,7 @@ impl Config {
                 self.multi_output_task_emit_prob,
             ),
             ("mux_if_emit_prob", self.mux_if_emit_prob),
+            ("case_mux_if_emit_prob", self.case_mux_if_emit_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("fsm_mealy_prob", self.fsm_mealy_prob),
@@ -1893,6 +1918,9 @@ impl Config {
         if let Some(v) = o.mux_if_emit_prob {
             self.mux_if_emit_prob = v;
         }
+        if let Some(v) = o.case_mux_if_emit_prob {
+            self.case_mux_if_emit_prob = v;
+        }
         if let Some(v) = o.soft_union_slice_prob {
             self.soft_union_slice_prob = v;
         }
@@ -2016,6 +2044,7 @@ pub struct Overrides {
     pub cone_function_emit_prob: Option<f64>,
     pub multi_output_task_emit_prob: Option<f64>,
     pub mux_if_emit_prob: Option<f64>,
+    pub case_mux_if_emit_prob: Option<f64>,
     pub soft_union_slice_prob: Option<f64>,
     pub width_parameterization_prob: Option<f64>,
     pub aggregate_prob: Option<f64>,

@@ -158,6 +158,17 @@ impl Generator {
             let p = self.cfg.mux_if_emit_prob;
             crate::ir::mux_if_emit::annotate_mux_if_gates(&mut m, &mut self.rng, p);
         }
+
+        // `STRUCTURED-EMISSION-EXPANSION.17b` — mark dynamic-selector `CaseMux`
+        // gates for the procedural `always_comb` `if`/`else if` priority-chain
+        // projection (decision `0028`). Runs LAST (after mux_if) so every sibling
+        // mark is visible and excluded (the projections are mutually exclusive on
+        // a gate). Default `case_mux_if_emit_prob = 0.0` ⇒ no roll ⇒
+        // byte-identical stream + output. Mirrors the mux_if call-site roll.
+        if self.cfg.case_mux_if_emit_prob > 0.0 {
+            let p = self.cfg.case_mux_if_emit_prob;
+            crate::ir::case_mux_if_emit::annotate_case_mux_if_gates(&mut m, &mut self.rng, p);
+        }
         m
     }
 
@@ -405,6 +416,17 @@ impl Generator {
             let p = self.cfg.mux_if_emit_prob;
             for module in &mut design.modules {
                 crate::ir::mux_if_emit::annotate_mux_if_gates(module, &mut self.rng, p);
+            }
+        }
+
+        // `STRUCTURED-EMISSION-EXPANSION.17b` — the design-path mirror of the
+        // single-module roll in `generate_module`. Runs LAST so all sibling
+        // marks are visible and excluded. Default `case_mux_if_emit_prob = 0.0`
+        // ⇒ no roll ⇒ every module byte-identical.
+        if self.cfg.case_mux_if_emit_prob > 0.0 {
+            let p = self.cfg.case_mux_if_emit_prob;
+            for module in &mut design.modules {
+                crate::ir::case_mux_if_emit::annotate_case_mux_if_gates(module, &mut self.rng, p);
             }
         }
         design

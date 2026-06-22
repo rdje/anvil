@@ -1,6 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.17b.1 — live CaseMux if/else-if priority-chain emit-projection (eighth surface)
+
+**Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17a` commit).
+**Live emitter change** (`src/` touched) ⇒ **CODE change**, default-off ⇒ **DUT
+byte-identical**. Tracked by `STRUCTURED-EMISSION-EXPANSION.17b.1` (the live source change
+of the eighth structured surface; `.17b` pre-split `.17b.1` live / `.17b.2` metric+gate /
+`.17b.3` docs).
+
+**What changed (why)**
+
+The eighth structured surface (decision `0028`, designed in `.17a`) goes live: a marked
+**dynamic-selector `CaseMux`** gate is re-rendered from the parallel `case (sel) … default`
+statement to a procedural `always_comb` `if`/`else if` **priority chain**. Behaviour-
+preserving because the `case` labels `W'd{i}` are distinct constants (priority == parallel
+match) and the trailing `else` carries the former `default`. It is the N-way generalization
+of the seventh surface (the 2:1 `Mux` → `if`/`else`), and **simpler**: a `CaseMux` is
+already an `always_comb`-written `logic` var, so — unlike the seventh surface — there is no
+`<g>__cv` output-var + passthrough; only the `always_comb` *body* swaps.
+
+- **`src/ir/case_mux_if_emit.rs`** (new) — `annotate_case_mux_if_gates(m, rng, prob)`:
+  `gate_qualifies` requires a `GateOp::CaseMux` with `>= 1` arm whose selector
+  (`operands[0]`) is **not** a `Node::Constant` (a constant selector is statically
+  collapsed by `render_static_structured_gate` to a continuous assign, never an
+  `always_comb` block) and is not already marked by any sibling projection
+  (`function_emit`/`generate_loop`/`task_emit`/`soft_union`/`mux_if`/`multi_output_task`/
+  `cone_function` — vacuous for a `CaseMux`, kept for robustness); one `gen_bool(prob)` roll
+  per candidate into `Module.case_mux_if_gates`; `param_env` modules skipped. 9 lib proofs
+  incl. `constant_selector_case_mux_is_excluded` and the end-to-end
+  `marked_case_mux_emits_priority_chain_unmarked_is_case`.
+- **`src/ir/types.rs`** — `Module.case_mux_if_gates: BTreeSet<NodeId>` (an emitter-surface
+  annotation only — not hashed into identity; `Module` derives `Default` ⇒ empty).
+  **`src/ir/mod.rs`** — `pub mod case_mux_if_emit;` (rustfmt-sorted alphabetically).
+- **`src/config.rs`** — `case_mux_if_emit_prob: f64` knob (default `0.0`) at all six touch
+  points (default fn, `#[serde(default)]` field, `Default` construction, validate
+  probs-list, `apply`, `Overrides` `Option<f64>`). **`src/main.rs`** —
+  `--case-mux-if-emit-prob` clap flag + overlay wiring.
+- **`src/gen/mod.rs`** — two guarded rolls (`if case_mux_if_emit_prob > 0.0`) **after**
+  `mux_if`, in both `generate_module` (single) and `generate_design` (design) paths.
+- **`src/emit/sv.rs`** — in the structured-case `always_comb` loop, the `GateOp::CaseMux`
+  arm branches on `m.case_mux_if_gates.contains(&(idx as NodeId))`: marked ⇒ the
+  `if (sel == W'd0) g = arm_0; else if … else g = D'h0;` chain (reusing the same
+  `sel`/`sel_width`/`node_ref(data)` + `W'h0` default the `case` body uses); unmarked ⇒
+  today's `case … endcase` verbatim. The shared `default`/`endcase` tail gains the same
+  `&& !contains(...)` guard so a marked gate emits only its own trailing `else`.
+
+No metric/schema bump — the `num_emitted_case_mux_if_chains` metric + schema `1.15 → 1.16`
+land at `.17b.2`; the knob rides the version (the `.15b.1`/`.6b.1` precedent).
+
+**Validation**
+- `cargo check --all-targets` clean (4.67s); `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean (after rustfmt sorted the new `ir/mod.rs` decl);
+  `cargo test --lib` **625 passed** / 2 ignored (616 + 9 new proofs); `cargo test --bin
+  tool_matrix` **89 passed** / 1 ignored (unaffected — the new `Config` field defaults
+  `0.0`); `cargo test --test snapshots` **6/6 byte-identical** (default-off — the `0.0`
+  path never calls the pass).
+- **Forced `case_mux_if_emit_prob=1.0` ON-vs-OFF generated-RTL sweep**
+  (`scratchpad/probe8/`, comb-only `--case-mux-prob 0.9`, 8 seeds): every dynamic `CaseMux`
+  projects to an `if`/`else if` chain (seed 2: 7 `CaseMux` → 7 chains / 14 `else if` / **0
+  residual `case`**). Seed 2: Verilator `--lint-only -Wall` warning count **ON == OFF
+  (Δ=0)** across 1800-2012/2017/2023 (the projection adds none, incl. for exhaustive
+  selectors whose trailing `else` mirrors the `case` `default`); Yosys `synth -noabc` and
+  `abc -fast; opt -fast; check` both 0 warnings/errors; Icarus `iverilog -g2012` rc=0.
+  **Generated-RTL ON-vs-OFF sim-equiv** (both modules in one tb, OFF renamed `mod_ref`):
+  `iverilog`+`vvp` prove the ON module **bit-equal to OFF across 20000 random vectors** on
+  all 3 outputs (`GEN-RTL SIM-EQUIV OK`). The standalone construct probe (`.16`) already
+  proved the chain `===` the parallel `case` over 20000 vectors + an exhaustive sweep.
+
+**Impact:** opt-in only; the default `anvil` build and `--artifact dut` stay byte-identical
+(knob default `0.0`, `tests/snapshots.rs` untouched). The DUT lane gains a new procedural
+sequential-priority shape (an `if`/`else if` chain) distinct from the parallel `case`/`casez`
+and the seventh surface's single 2:1 conditional — a new downstream-bug surface.
+
+**Files touched:** `src/ir/case_mux_if_emit.rs` (new), `src/ir/mod.rs`, `src/ir/types.rs`,
+`src/config.rs`, `src/main.rs`, `src/gen/mod.rs`, `src/emit/sv.rs`, `CODEBASE_ANALYSIS.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`,
+`ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.17a — eighth-surface (CaseMux priority chain) impl design-detail
 
 **Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.16` commit).

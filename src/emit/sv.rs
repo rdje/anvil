@@ -690,15 +690,35 @@ fn to_sv_with_modules(
             GateOp::CaseMux => {
                 let sel = node_ref(operands[0], m, &names);
                 let sel_width = m.nodes[operands[0] as usize].width();
-                writeln!(out, "        case ({sel})").unwrap();
-                for (arm_idx, data_id) in operands[1..].iter().enumerate() {
-                    let data = node_ref(*data_id, m, &names);
-                    writeln!(
-                        out,
-                        "            {}'d{}: {} = {};",
-                        sel_width, arm_idx, name, data
-                    )
-                    .unwrap();
+                if m.case_mux_if_gates.contains(&(idx as NodeId)) {
+                    // `STRUCTURED-EMISSION-EXPANSION.17b` (decision `0028`) — the
+                    // eighth surface: re-express the parallel `case` as a
+                    // procedural `if`/`else if` **priority chain**. The labels
+                    // `SW'd{i}` are distinct constants, so the chain produces the
+                    // same result as the parallel match; the trailing `else`
+                    // carries the former `default` value. Behaviour-preserving.
+                    for (arm_idx, data_id) in operands[1..].iter().enumerate() {
+                        let data = node_ref(*data_id, m, &names);
+                        let kw = if arm_idx == 0 { "if" } else { "else if" };
+                        writeln!(
+                            out,
+                            "        {} ({} == {}'d{}) {} = {};",
+                            kw, sel, sel_width, arm_idx, name, data
+                        )
+                        .unwrap();
+                    }
+                    writeln!(out, "        else {} = {}'h0;", name, width).unwrap();
+                } else {
+                    writeln!(out, "        case ({sel})").unwrap();
+                    for (arm_idx, data_id) in operands[1..].iter().enumerate() {
+                        let data = node_ref(*data_id, m, &names);
+                        writeln!(
+                            out,
+                            "            {}'d{}: {} = {};",
+                            sel_width, arm_idx, name, data
+                        )
+                        .unwrap();
+                    }
                 }
             }
             GateOp::CasezMux => {
@@ -744,7 +764,11 @@ fn to_sv_with_modules(
             }
             _ => unreachable!("non-procedural gate filtered above"),
         }
-        if matches!(op, GateOp::CaseMux | GateOp::CasezMux) {
+        // A `CaseMux` projected to the priority chain (`.17b`) emits its own
+        // trailing `else` above and has no `case`/`endcase` to close.
+        if matches!(op, GateOp::CaseMux | GateOp::CasezMux)
+            && !m.case_mux_if_gates.contains(&(idx as NodeId))
+        {
             writeln!(out, "            default: {} = {}'h0;", name, width).unwrap();
             writeln!(out, "        endcase").unwrap();
         }
