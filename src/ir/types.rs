@@ -515,6 +515,26 @@ pub struct Module {
     /// `Config::multi_output_task_emit_prob` knob. Empty (the `Default`) ⇒
     /// byte-identical emission.
     pub multi_output_task_groups: BTreeMap<NodeId, Vec<NodeId>>,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.15b` — the set of `Node::Gate` `NodeId`s
+    /// (each a 2:1 `GateOp::Mux`) the emitter should render as a
+    /// behaviour-preserving procedural `always_comb` `if`/`else` projection (a
+    /// `<wire>__cv` output var written `if (<sel>) <wire>__cv = <a>; else
+    /// <wire>__cv = <b>;` in an `always_comb`, with the gate's net driven
+    /// `assign <wire> = <wire>__cv;`) instead of the inline ternary
+    /// `assign <wire> = (<sel>) ? (<a>) : (<b>);` (decision `0027`). The first
+    /// procedural-conditional construct in the lane. The `if`/`else` writes
+    /// exactly the mux's value (`sel == 1 ⇒ a`, `sel == 0 ⇒ b`), so the
+    /// projection is behaviour-preserving by construction; like the sibling
+    /// `*_gates` fields this is an **emitter-surface annotation only** — the
+    /// flat IR body, validators, CSE keys and `canonical_module_signature` are
+    /// all unaffected, and it is not hashed into identity. Populated by the
+    /// post-construction `crate::ir::mux_if_emit` pass under the opt-in
+    /// `Config::mux_if_emit_prob` knob; the pass runs **last** and excludes any
+    /// gate already marked by a sibling projection, so this set is disjoint from
+    /// all of them by construction. Empty (the `Default`) ⇒ byte-identical
+    /// emission.
+    pub mux_if_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

@@ -7,6 +7,7 @@ pub mod dedup;
 pub mod function_emit;
 pub mod generate_loop;
 pub mod multi_output_task_emit;
+pub mod mux_if_emit;
 pub mod param;
 pub mod soft_union;
 pub mod task_emit;

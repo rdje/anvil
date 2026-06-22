@@ -148,6 +148,16 @@ impl Generator {
             let p = self.cfg.cone_function_emit_prob;
             crate::ir::cone_function_emit::annotate_cone_function_gates(&mut m, &mut self.rng, p);
         }
+        // `STRUCTURED-EMISSION-EXPANSION.15b` — opt-in procedural `always_comb`
+        // `if`/`else` emit-projection marker for 2:1 `Mux` gates (decision
+        // `0027`). Runs LAST (after cone_function) so every sibling mark is
+        // visible and excluded (the projections are mutually exclusive on a
+        // gate). Default `mux_if_emit_prob = 0.0` ⇒ no roll ⇒ byte-identical
+        // stream + output. Mirrors the cone_function call-site roll.
+        if self.cfg.mux_if_emit_prob > 0.0 {
+            let p = self.cfg.mux_if_emit_prob;
+            crate::ir::mux_if_emit::annotate_mux_if_gates(&mut m, &mut self.rng, p);
+        }
         m
     }
 
@@ -385,6 +395,16 @@ impl Generator {
                     &mut self.rng,
                     p,
                 );
+            }
+        }
+        // `STRUCTURED-EMISSION-EXPANSION.15b` — the design-path mirror of the
+        // single-module roll in `generate_module`. Runs LAST so all sibling
+        // marks are visible and excluded. Default `mux_if_emit_prob = 0.0` ⇒ no
+        // roll ⇒ every module byte-identical.
+        if self.cfg.mux_if_emit_prob > 0.0 {
+            let p = self.cfg.mux_if_emit_prob;
+            for module in &mut design.modules {
+                crate::ir::mux_if_emit::annotate_mux_if_gates(module, &mut self.rng, p);
             }
         }
         design

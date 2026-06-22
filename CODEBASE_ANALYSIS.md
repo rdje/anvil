@@ -622,6 +622,46 @@ src/
 │                     (`/tmp/anvil-mo-sweep/`). Metric + repo-owned gate +
 │                     coverage fact = `.12b.2`.
 │
+├── ir/mux_if_emit.rs  STRUCTURED-EMISSION-EXPANSION.15b.1 — the seventh
+│                     richer-structured emit surface (decision 0027).
+│                     Gen-time `annotate_mux_if_gates(m, rng, prob)` pass
+│                     (rolled at the `gen/mod.rs` call site LAST, after
+│                     cone_function; param-env modules skipped) marks 2:1
+│                     `GateOp::Mux` gates (exactly three operands, a 1-bit
+│                     selector) NOT already marked by any sibling projection —
+│                     because it runs last, `gate_qualifies` excludes the union
+│                     of `function_emit_gates` / `generate_loop_gates` /
+│                     `task_emit_gates` / `soft_union_slice_gates`, the
+│                     multi-output-task members (`multi_output_task_groups` keys
+│                     ∪ values) and the cone-function roots ∪ interiors
+│                     (`cone_function_gates` keys ∪ flattened values); one
+│                     `gen_bool(prob)` roll per candidate into the new
+│                     emitter-surface `Module.mux_if_gates: BTreeSet<NodeId>`
+│                     (not hashed into identity, disjoint from the siblings).
+│                     The emitter (`emit/sv.rs`) renders each marked mux as a
+│                     procedural `always_comb` block writing a `<wire>__cv`
+│                     output var — `logic [W-1:0] <wire>__cv; always_comb begin
+│                     if (<sel>) <wire>__cv = <a>; else <wire>__cv = <b>; end` —
+│                     and rewrites the gate's assign to the passthrough `assign
+│                     <wire> = <wire>__cv;` (keeping `<wire>` a net; operand refs
+│                     via the existing `node_ref`). The first
+│                     procedural-conditional construct in the lane: the
+│                     `if`/`else` writes exactly the inline ternary's value
+│                     (`sel == 1 ⇒ a`, `sel == 0 ⇒ b`), so it is
+│                     behaviour-preserving by construction (the decision 0014
+│                     single-gate-task output-var + passthrough mechanism, but a
+│                     bare `always_comb if/else`). Its OWN `mux_if_emit_prob`
+│                     knob + `--mux-if-emit-prob` flag so the shipped surfaces
+│                     stay byte-identical (nothing retired). Default-off
+│                     (`mux_if_emit_prob == 0.0`) byte-identical (snapshots 6/6;
+│                     10 lib proofs). Forced `mux_if_emit_prob=1.0` sweep: every
+│                     plain mux (121–195/seed) projects to a `__cv` block, clean
+│                     across Verilator `-Wall` (Δ=0 vs OFF, 2012/2017/2023) +
+│                     Yosys both modes + Icarus, and a comb-only ON-vs-OFF run
+│                     is sim-equiv over 20000 vectors (`/tmp/anvil-muxif-genproof.*`).
+│                     Metric (`num_emitted_mux_if_blocks`, schema 1.14→1.15) +
+│                     repo-owned `--mux-if-gate` + coverage fact = `.15b.2`.
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded

@@ -336,9 +336,13 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit`
    (`__cv` detection). A fresh probe (Verilator `-Wall` 2012/2017/2023 + both Yosys
    modes + Icarus + iverilog sim-equiv 20000 vectors) is clean. The `.15a` impl
-   design-detail (`DEVELOPMENT_NOTES.md` — the seven impl points grounded in the real
-   `task_emit.rs` / `sv.rs` / `gen/mod.rs` / `config.rs` / `types.rs`) is also
-   landed; the **current frontier is `.15b.1`** (the live source change). Chosen over nested/multi-level
+   design-detail and **`.15b.1` (the live source change)** are landed: the projection
+   ships behind the opt-in `mux_if_emit_prob` knob (new `src/ir/mux_if_emit.rs` +
+   `Module.mux_if_gates` + the `emit/sv.rs` `always_comb if/else` block + passthrough;
+   10 lib proofs; default-off / DUT byte-identical, snapshots 6/6; forced-sweep
+   downstream-clean across 5 seeds + ON-vs-OFF sim-equiv 20000 vectors). The **current
+   frontier is `.15b.2`** (the `num_emitted_mux_if_blocks` metric @ schema `1.14 → 1.15`
+   + the repo-owned `tool_matrix --mux-if-gate` + `saw_mux_if_emit`). Chosen over nested/multi-level
    `generate` (no by-construction source — operand-uniqueness CSE shares the inner
    `{N{x}}` so the existing single-level loop already fires on the outer `{M{y}}`)
    and `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the

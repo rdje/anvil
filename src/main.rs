@@ -546,6 +546,9 @@ struct Cli {
     /// Per-leader probability of the multi-output `task automatic` emit-projection (a co-supported gate pair).
     #[arg(long)]
     multi_output_task_emit_prob: Option<f64>,
+    /// Per-qualifying-mux probability of the procedural `always_comb` if/else emit-projection.
+    #[arg(long)]
+    mux_if_emit_prob: Option<f64>,
     /// Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`).
     #[arg(long)]
     soft_union_slice_prob: Option<f64>,
@@ -1165,6 +1168,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         task_emit_prob: cli.task_emit_prob,
         cone_function_emit_prob: cli.cone_function_emit_prob,
         multi_output_task_emit_prob: cli.multi_output_task_emit_prob,
+        mux_if_emit_prob: cli.mux_if_emit_prob,
         soft_union_slice_prob: cli.soft_union_slice_prob,
         width_parameterization_prob: cli.width_parameterization_prob,
         aggregate_prob: cli.aggregate_prob,

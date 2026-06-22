@@ -1,6 +1,96 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15b.1 — procedural if/else mux emit-projection (live surface)
+
+**Landed as:** this commit (previous: `0084ceb`). **Code change** (the first `src/`
+change of the seventh-surface lane). Tracked by `STRUCTURED-EMISSION-EXPANSION.15b.1`
+(the owning task-tree leaf, pre-split at `.15a`). Default-off ⇒ **DUT byte-identical**;
+the opt-in `mux_if_emit_prob` knob is the only behaviour change.
+
+**What changed (why)**
+
+The live seventh richer-structured emit surface (decision `0027`): a default-off,
+valid-by-construction **procedural `always_comb` `if`/`else`** emit-projection of a
+2:1 `Mux` gate. The `Mux` (`[sel, a, b]`, `sel.width == 1`) renders today as the
+continuous-assign ternary `assign <g> = (sel) ? (a) : (b);`; under the opt-in
+`mux_if_emit_prob` knob it is re-expressed as
+
+```systemverilog
+logic [W-1:0] <g>__cv;
+always_comb begin
+    if (<sel>) <g>__cv = <a>;
+    else <g>__cv = <b>;
+end
+assign <g> = <g>__cv;   // the gate's net, unchanged downstream
+```
+
+— the decision-`0014` single-gate-`task` **output-var + passthrough** mechanism, but
+a bare `always_comb if/else` rather than a `task` call. It is the **first
+procedural-conditional construct** in the lane (the six prior surfaces are
+function/task/generate projections; the `Mux` is a continuous-assign ternary;
+`CaseMux`/`CasezMux` are `case`/`casez`). A procedural conditional resolves through a
+distinct frontend/elaboration path — a new place to surface a downstream-tool bug
+(`project_anvil_north_star`). Implemented exactly per the `.15a` design-detail (no
+deviations).
+
+**Mechanism (all per `.15a`)**
+
+- **New `src/ir/mux_if_emit.rs`** — `annotate_mux_if_gates(m, rng, prob)`: collects
+  candidates (a `GateOp::Mux` with exactly three operands, **not** already marked by
+  any sibling projection — the union of `function_emit_gates` / `generate_loop_gates`
+  / `task_emit_gates` / `soft_union_slice_gates`, the multi-output-task members, and
+  the cone-function roots ∪ interiors), then rolls one seeded `gen_bool(p)` per
+  candidate into `Module.mux_if_gates`. `param_env` modules skipped. 10 lib proofs
+  (incl. the end-to-end emit proof + every sibling-exclusion case).
+- **`Module.mux_if_gates: BTreeSet<NodeId>`** (`src/ir/types.rs`, `#[serde(default)]`,
+  emitter-surface annotation only — not hashed into identity); `src/ir/mod.rs`
+  registration.
+- **`Config::mux_if_emit_prob`** (default `0.0`) + `--mux-if-emit-prob` flag
+  (`src/config.rs` default/field/Default-construction/validate-probs-list/Overrides/apply
+  + `src/main.rs` flag + overlay wiring).
+- **Two guarded `gen/mod.rs` rolls** — run **last**, after `cone_function`, in both
+  the single-module (`generate_module`) and design (`generate_design`) paths.
+- **`src/emit/sv.rs`** — a new procedural-block section (after the cone-function decl
+  section) emits the `logic [w-1:0] <name>__cv;` decl + the `always_comb if/else` over
+  `node_ref` operand refs (width via the existing `param_width_decl_w`); the
+  gate-assign loop gains a `<name>__cv` passthrough branch (beside `task_emit`) that
+  intercepts the marked `Mux` **before** `render_gate`'s inline ternary — keeping
+  `<name>` a net.
+
+**Validation**
+
+`cargo check --all-targets` clean; `cargo fmt --all --check` clean; `cargo clippy
+--all-targets -- -D warnings` clean; `cargo test --lib` **615 passed** / 2 ignored
+(605 + 10 new `mux_if_emit` proofs; the umbrella DUT-byte-identical proofs green);
+`cargo test --test snapshots` **6/6 byte-identical** (default-off — the `0.0` path
+never calls the pass). **Forced `mux_if_emit_prob=1.0` sweep**
+(`/tmp/anvil-muxif-genproof.*`, seeds 1/2/3/7/11): every plain `Mux` (121/143/132/144/195)
+projects to a `__cv` `always_comb if/else` block (ON `__cv` count == OFF mux count
+exactly); Verilator `--lint-only -Wall` warning count **ON == OFF (Δ=0)** on all five
+(the pre-existing warnings are identical ON/OFF — the projection adds none); Yosys
+`synth -noabc` and `abc -fast; opt -fast; check` both **0 warnings/errors**; Icarus
+`iverilog -g2012` compiles. **Comb-only ON-vs-OFF sim-equiv** (seed 3, `--flop-prob 0
+--comb-mux-prob 0.9`, 128 muxes): `iverilog`+`vvp` prove the ON module **bit-equal to
+OFF across 20000 random vectors** on all 3 outputs. The standalone construct probe
+this session already proved `if/else === (sel)?(a):(b)` over 20000 vectors.
+
+**Impact**
+
+ANVIL gains its seventh richer-structured emit surface; the default build +
+`--artifact dut` stay byte-identical (`mux_if_emit_prob` default `0.0`). The metric +
+repo-owned `--mux-if-gate` + the user docs (book/knobs/USER_GUIDE/README/KM) land at
+`.15b.2`/`.15b.3` (the established lane split — the live-surface slice defers the
+metric/schema bump and the user-facing docs).
+
+**Files touched**
+
+- `src/ir/mux_if_emit.rs` (new), `src/ir/mod.rs`, `src/ir/types.rs`, `src/config.rs`,
+  `src/main.rs`, `src/gen/mod.rs`, `src/emit/sv.rs`.
+- `CODEBASE_ANALYSIS.md` (the `ir/mux_if_emit.rs` module-tree entry), `DEVELOPMENT_NOTES.md`
+  (the `.15b.1` impl-time note), `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+  `docs/TASK_TREE.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15a — procedural if/else mux impl design-detail
 
 **Landed as:** this commit (previous: `caf3d7d`). Docs-only / no source /

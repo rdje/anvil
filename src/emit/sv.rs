@@ -504,6 +504,42 @@ fn to_sv_with_modules(
         writeln!(out).unwrap();
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.15b` — procedural `always_comb` `if`/`else`
+    // blocks for the 2:1 `Mux` gates marked by the `crate::ir::mux_if_emit` pass
+    // (the procedural-conditional projection, decision `0027`). Each marked mux's
+    // value is computed by `if (<sel>) <wire>__cv = <a>; else <wire>__cv = <b>;`
+    // in an `always_comb` writing a `<wire>__cv` output var; the gate's continuous
+    // assign below becomes a passthrough `assign <wire> = <wire>__cv;`. Default-off:
+    // `mux_if_gates` empty ⇒ nothing emitted ⇒ byte-identical. Behaviour-preserving
+    // by construction — the `if`/`else` writes exactly the ternary's value
+    // (`sel == 1 ⇒ a` operand 1, `sel == 0 ⇒ b` operand 2). The `<wire>__cv` decl
+    // is emitted here (before the assign loop) like the task `<wire>__tv` var.
+    // Emitted in NodeId order (`BTreeSet`) for determinism.
+    let mut emitted_mux_if = false;
+    for &id in &m.mux_if_gates {
+        let idx = id as usize;
+        let Node::Gate {
+            operands, width, ..
+        } = &m.nodes[idx]
+        else {
+            continue;
+        };
+        let name = names[idx].as_ref().expect("gate name assigned");
+        let cv = format!("{name}__cv");
+        let sel = node_ref(operands[0], m, &names);
+        let a = node_ref(operands[1], m, &names);
+        let b = node_ref(operands[2], m, &names);
+        writeln!(out, "    logic {} {};", param_width_decl_w(m, *width), cv).unwrap();
+        writeln!(out, "    always_comb begin").unwrap();
+        writeln!(out, "        if ({sel}) {cv} = {a};").unwrap();
+        writeln!(out, "        else {cv} = {b};").unwrap();
+        writeln!(out, "    end").unwrap();
+        emitted_mux_if = true;
+    }
+    if emitted_mux_if {
+        writeln!(out).unwrap();
+    }
+
     // Combinational assigns for every gate. Fully static structured
     // gates are lowered here too; keeping them out of `always_comb`
     // avoids empty-sensitivity warnings in strict downstream tools.
@@ -578,6 +614,17 @@ fn to_sv_with_modules(
             if task_emit_gate(m, idx).is_some() {
                 let name = names[idx].as_ref().unwrap();
                 writeln!(out, "    assign {name} = {name}__tv;").unwrap();
+                continue;
+            }
+            // `STRUCTURED-EMISSION-EXPANSION.15b` — a 2:1 `Mux` marked for the
+            // procedural `if`/`else` projection is driven from its `<wire>__cv`
+            // output var (written by the `always_comb if/else` above) instead of
+            // the inline ternary. Mutually exclusive with the other projections
+            // (the mux-if pass runs last and excludes their marks). Default-off ⇒
+            // never taken.
+            if m.mux_if_gates.contains(&(idx as NodeId)) {
+                let name = names[idx].as_ref().unwrap();
+                writeln!(out, "    assign {name} = {name}__cv;").unwrap();
                 continue;
             }
             // `STRUCTURED-EMISSION-EXPANSION.12b` — a gate that is a multi-output

@@ -5,6 +5,31 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Procedural `if`/`else` mux surface — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.15b.1`
+
+The live surface implemented the `.15a` design with **no deviations**. New
+`src/ir/mux_if_emit.rs` (`annotate_mux_if_gates` + 10 lib proofs), the
+`Module.mux_if_gates: BTreeSet<NodeId>` carrier (`ir/types.rs`), the `ir/mod.rs`
+registration, the `Config::mux_if_emit_prob` knob + `--mux-if-emit-prob` flag
+(`config.rs` + `main.rs` — default `0.0`, validated `0.0..=1.0`, dump-config via
+serde + the validate `probs` list), the two guarded `gen/mod.rs` rolls (last, after
+cone_function, single + design), and the `emit/sv.rs` procedural-block section +
+gate-assign-loop `__cv` passthrough. Three notes worth keeping:
+
+- **The emitter `__cv` decl reuses `param_width_decl_w`**, exactly like the task
+  `__tv` decl — so a 1-bit mux emits `logic  mux_0__cv;` (the helper returns ""),
+  and a wide mux emits `logic [W-1:0] mux_0__cv;`. No new width-formatting code.
+- **The `Mux` is intercepted in the gate-assign loop before `render_gate`.** The
+  passthrough branch sits beside the `task_emit` one; the inline `(sel)?(a):(b)`
+  ternary is never reached for a marked gate (`continue`). `<wire>` stays a *net*
+  (driven only by the passthrough); `<wire>__cv` is the only var. No multi-driver.
+- **`comb_mux_prob` is what produces the candidate `GateOp::Mux`** (a plain 2:1
+  mux → the ternary; `CaseMux`/`CasezMux` are the multi-way `case` forms and are
+  *not* candidates). The forced-sweep proof therefore drove default knobs (which
+  emit 121–195 plain muxes/seed) for the ON/OFF Verilator-Δ comparison and a
+  `--flop-prob 0 --comb-mux-prob 0.9` comb-only module for the clean (no-clock)
+  ON-vs-OFF iverilog sim-equiv (20000 vectors, `/tmp/anvil-muxif-genproof.*`).
+
 ## 2026-06-22 — Procedural `if`/`else` mux surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.15a`
 
 Grounds decision `0027` (the seventh structured surface: a procedural `always_comb`
