@@ -6,7 +6,21 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-17` (**`.10b.3` landed — the user-facing docs closeout;
+- Last updated: `2026-06-22` (**`.11` landed — picked the SIXTH structured surface
+  (the multi-output combinational `task automatic`, decision `0025`) autonomously
+  at the no-frontier boundary per `feedback_pick_and_roll_at_no_frontier`;
+  design/decision leaf, no source change; frontier → `.12` (impl, pre-split
+  `.12a`/`.12b`). It generalizes the single-gate `task` (decision `0014`) to a
+  co-supported group: a mutually-fan-in-independent **pair** of qualifying gates
+  sharing a non-constant operand co-emitted into one `task automatic` with
+  deduplicated input formals + per-member output args, called once from
+  `always_comb`; reuses the cone-function dedup render primitives (decision `0016`).
+  Soundness rule = mutual fan-in independence (no cycle through the shared task).
+  Own `multi_output_task_emit_prob` knob + `num_emitted_multi_output_tasks` metric
+  (schema `1.13 → 1.14` at impl) + `--multi-output-task-gate` / `saw_multi_output_task_emit`.
+  Fresh probe this session: a 2-output combinational task is Verilator `-Wall`
+  2012/2017/2023 + Yosys both modes + Icarus clean and iverilog-sim-equiv (5000
+  vectors). Default-off / DUT byte-identical.** Prior: `.10b.3` landed — the user-facing docs closeout;
   the FIFTH structured surface (the multi-gate-cone `function automatic`, decision
   `0016`) is delivered end-to-end; `.10b.3` / `.10b` / `.10` all close; the lane
   returns to no current frontier (open-ended).** Docs-only / DUT byte-identical: a
@@ -342,8 +356,8 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. FOUR surfaces delivered end-to-end: combinational function automatic (.1+.2), generate for loop (.3+.4), combinational task automatic (.5+.6), and the wider-lane generate for part-select (.7 design + .8 impl, decision 0015). The FIFTH surface (the multi-gate-cone function automatic, decision 0016) is picked: .9 design done, .10 impl pending (pre-split .10a/.10b) — the current frontier. Future surfaces (multi-output tasks / nested-multi-level generate / interface-modport) are .11+, each its own decision.`
-  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`, `STRUCTURED-EMISSION-EXPANSION.9`, `STRUCTURED-EMISSION-EXPANSION.10`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. FIVE surfaces delivered end-to-end: combinational function automatic (.1+.2), generate for loop (.3+.4), combinational task automatic (.5+.6), the wider-lane generate for part-select (.7+.8, decision 0015), and the multi-gate-cone function automatic (.9+.10, decision 0016). The SIXTH surface (the multi-output combinational task automatic, decision 0025) is picked: .11 design done, .12 impl pending (pre-split .12a/.12b) — the current frontier. Future surfaces (wider k>2 task groups / nested-multi-level generate / interface-modport) are .13+, each its own decision.`
+  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`, `STRUCTURED-EMISSION-EXPANSION.9`, `STRUCTURED-EMISSION-EXPANSION.10`, `STRUCTURED-EMISSION-EXPANSION.11`, `STRUCTURED-EMISSION-EXPANSION.12`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
   Status: `done`
@@ -624,24 +638,44 @@ behaviour.
   Verification: `mdbook build book OK; bash knowledge-map/scripts/gen_knowledge_map.sh (44 facts / 364 keys) + check_knowledge_map.sh OK; bash scripts/check_memory_architecture.sh OK; cargo test --test book_examples 3/3 passed (75s; the new repro block carries the <!-- book-test: skip --> sentinel, preserving the byte-identical book-runnable contract). Docs-only ⇒ cargo check/clippy/fmt/test --lib unaffected (no src/ touched). The book before/after is byte-verified against anvil --seed 4 output and the ON form is downstream-clean (Verilator -Wall rc=0 / both Yosys rc=0 / Icarus rc=0).`
   Commit: `this STRUCTURED-EMISSION-EXPANSION.10b.3 commit`
 
+- ID: `STRUCTURED-EMISSION-EXPANSION.11`
+  Status: `done`
+  Goal: `Design/decision leaf: pick the SIXTH structured surface at the no-active-frontier boundary (feedback_pick_and_roll_at_no_frontier), define its valid-by-construction discipline + soundness rule + grouping policy + opt-in knob + downstream gate, and split the tree — before any code. Empirically grounded with the installed tools.`
+  Acceptance: `A decision record naming the sixth surface, its construction discipline, the soundness rule, and its downstream gate; an empirical probe with the installed tools; no source change; self-checks clean.`
+  Result: `Decision 0025. The sixth richer-structured surface is a default-off, opt-in, valid-by-construction multi-output combinational task automatic — a generalization of the third surface (decision 0014's single-gate task) from one output to several: a co-supported group of qualifying combinational gates (the .14 single-gate task candidate set: non-structured, non-Slice Gate, >= 1 operand, not sibling-marked) is co-emitted into ONE task automatic whose deduplicated input formals carry their shared support, called once from always_comb into per-member output vars, each member's net driven by a passthrough assign. First cut = a PAIR (k=2). Input formals = the deduplicated union of the members' non-constant direct operands (ascending NodeId); a SHARED operand becomes ONE formal feeding multiple outputs (the genuine co-supported sink); a Constant operand folds inline (the cone-function precedent). SOUNDNESS RULE: members must be mutually fan-in-independent (no member in another's transitive fan-in) — else the shared task closes a combinational cycle through the single always_comb call (Verilator UNOPTFLAT); cheap to check via a bounded backward DFS leveraging the IR's operand-topological NodeId invariant (intern_gate appends after its operands). GROUPING POLICY (rules-first): scan candidates ascending NodeId; pair the lowest ungrouped candidate with the next ungrouped candidate that (1) shares >= 1 non-constant direct operand and (2) is mutually fan-in-independent; each gate used by at most one group; rolled per leader on gen_bool(prob). Its OWN multi_output_task_emit_prob knob (default 0.0, + --multi-output-task-emit-prob CLI flag) — separate from task_emit_prob so the single-gate surface stays byte-identical (reusing task_emit_prob rejected). Mutually exclusive with the five existing per-gate projections; the pass runs after task_emit and before cone_function (which excludes multi-output members). Reuses the cone-function dedup render primitives (cone_function_params-style operand dedup + cone_operand_ref + render_cone_gate_expr with an empty interior set) + the single-gate task candidate predicate (feedback_full_factorization). New num_emitted_multi_output_tasks metric (= multi_output_task_groups.len()) ⇒ introspection schema 1.13 -> 1.14 at impl. Downstream gate: tool_matrix --multi-output-task-gate forcing multi_output_task_emit_prob=1.0 over comb-only DUTs across the three strategies, gated on saw_multi_output_task_emit (__mt( SV-text detection, distinct from __t( and __cf(), full Verilator + both Yosys + Icarus. Empirically grounded this session (/tmp/anvil-se-motask-probe/): a 2-output combinational task is Verilator -Wall 2012/2017/2023 + Yosys both modes + Icarus clean and iverilog-vvp proves it bit-equal to the inline two assigns over 5000 random vectors. Rejected: positional non-deduplicated formals (no real co-support), grouping on a shared constant operand (folds inline ⇒ no shared formal), grouping fan-in-dependent members (cycle), wider k>2 groups in the first cut (pair is minimal/reviewable; .13+), reusing task_emit_prob, a semantic IR node, generate-then-filter, changing the default. Split .11 (done) + .12 (impl, pre-split .12a/.12b) + future .13+ (wider groups, nested/multi-level generate, interface/modport). No source change.`
+  Verification: `done`
+  Commit: `done`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.12`
+  Status: `pending`
+  Goal: `Implement the sixth structured surface (the multi-output combinational task automatic emit-projection) per decision 0025: the multi_output_task_emit_prob knob + the --multi-output-task-emit-prob CLI flag + the rules-first co-supported-pair selection (gen-time annotation src/ir/multi_output_task_emit.rs + Module.multi_output_task_groups, with the mutual-fan-in-independence soundness rule) + the emitter rendering (deduplicated-formal multi-output task decl reusing the cone-function primitives + per-member always_comb call + passthrough assigns) + the cone_function sibling exclusion update + the num_emitted_multi_output_tasks metric + introspection schema 1.13 -> 1.14 + the tool_matrix --multi-output-task-gate downstream-clean gate + book/USER_GUIDE/KM closeout. Default-off / DUT byte-identical (snapshots untouched).`
+  Children: `STRUCTURED-EMISSION-EXPANSION.12a`, `STRUCTURED-EMISSION-EXPANSION.12b`
+  Result: `Pending. Pre-split into .12a (design-detail, no source: ground decision 0025 in the real src/ir/task_emit.rs + src/ir/cone_function_emit.rs + src/emit/sv.rs to_sv_with_modules + the cone-function render primitives + src/gen/mod.rs roll chain + src/config.rs; pin the exact independence-check mechanism, the Module carrier shape, the always_comb-per-group choice, the knob name + gate shape) + .12b (impl, itself pre-split .12b.1 live / .12b.2 metric+gate / .12b.3 docs when picked).`
+
 ## Current Frontier
 
-**No current frontier.** The tree stays `active` as an open-ended lane. **FIVE**
-structured surfaces are now delivered end-to-end — the combinational `function
-automatic` (`.1`+`.2`), the `generate for` loop (`.3`+`.4`), the combinational
-`task automatic` (`.5`+`.6`), the wider-lane `generate for` part-select
-(`.7`+`.8`, decision `0015`), and the **multi-gate-cone `function automatic`**
-(`.9`+`.10`, decision `0016`: `.9` design + `.10a` design-detail + `.10b.1` live
-surface + `.10b.2` metric + repo-owned `--cone-function-gate` + `.10b.3` user
-docs; banked clean `/tmp/anvil-cone-function-gate-r1`, introspection schema
-`1.11`). Future surfaces — multi-output tasks, nested/multi-level `generate`,
-`interface` / `modport` — are `.11+`, each its own decision when picked at a
-no-frontier boundary per `feedback_pick_and_roll_at_no_frontier` (none retired).
+**Frontier: `STRUCTURED-EMISSION-EXPANSION.12`** (impl of the **sixth** structured
+surface — the multi-output combinational `task automatic`, decision `0025`;
+pre-split `.12a` design-detail / `.12b` impl). **FIVE** structured surfaces are
+delivered end-to-end — the combinational `function automatic` (`.1`+`.2`), the
+`generate for` loop (`.3`+`.4`), the combinational `task automatic` (`.5`+`.6`),
+the wider-lane `generate for` part-select (`.7`+`.8`, decision `0015`), and the
+**multi-gate-cone `function automatic`** (`.9`+`.10`, decision `0016`; banked clean
+`/tmp/anvil-cone-function-gate-r1`, introspection schema `1.11`). The **sixth**
+surface (the multi-output combinational `task automatic`, decision `0025`) is now
+**picked** (`.11` design done) — a co-supported pair of mutually-fan-in-independent
+gates co-emitted into one `task automatic` with deduplicated input formals + per-member
+output args, reusing the cone-function dedup render primitives. Next: `.12a`
+design-detail, then `.12b` impl. Future surfaces — wider (`k > 2`) task groups,
+nested/multi-level `generate`, `interface` / `modport` — are `.13+`, each its own
+decision when picked at a no-frontier boundary per
+`feedback_pick_and_roll_at_no_frontier` (none retired).
 
 _Most recent completions:_
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| — | `STRUCTURED-EMISSION-EXPANSION.11` | `done` | Decision `0025`: picked the SIXTH structured surface — a default-off, valid-by-construction **multi-output combinational `task automatic`** (generalize the single-gate task from one `output` to several: a co-supported group of qualifying gates co-emitted into ONE task with deduplicated input formals + per-member output args, called once from `always_comb`). First cut = a **pair** (`k=2`) sharing a non-constant operand; **soundness rule** = mutual fan-in independence (no cycle through the shared task). Reuses the cone-function dedup render primitives (`cone_function_params`/`cone_operand_ref`/`render_cone_gate_expr`) + the single-gate task candidate predicate. Own `multi_output_task_emit_prob` knob (single-gate surface stays byte-identical; reusing `task_emit_prob` rejected) + `num_emitted_multi_output_tasks` metric (schema `1.13 → 1.14` at impl) + `--multi-output-task-gate` / `saw_multi_output_task_emit` (`__mt(` detection). Fresh probe (`/tmp/anvil-se-motask-probe/`): a 2-output combinational task is Verilator `-Wall` 2012/2017/2023 + Yosys both modes + Icarus clean and iverilog-sim-equiv (5000 vectors). The recorded deferred runner-up (decision `0016` `.9` probe). Split `.11` (design) + `.12` (impl, pre-split `.12a`/`.12b`) + future `.13+`. No source change. |
 | — | `STRUCTURED-EMISSION-EXPANSION.10b.3` | `done` | User-facing docs closeout — the fifth surface delivered end-to-end. `book/src/structured-emission.md` gains a `## The fifth surface: a multi-gate-cone function automatic` section (byte-verified seed-4 before/after — `xor_0 = i_1 ^ i_3; sub_0 = i_2 - xor_0;` → `function automatic sub_0__cf(a0,a1,a2)` with a local `xor_0 = a0 ^ a2;` + return + the call, interior wire+assign suppressed; the single-use-interior rule; the separate `cone_function_emit_prob` knob; the five-way mutual exclusion; metric @ schema `1.11` + the gate; skip-sentinelled repro) + the `cone_function_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" + the KM how-to card `multi-gate-cone-function-emit` (KM 43→44 facts / 351→364 keys). `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `book_examples` 3/3 green; book before/after byte-verified + downstream-clean. Docs-only / DUT byte-identical. Closes `.10b.3` / `.10b` / `.10` — the fifth structured surface delivered end-to-end; lane returns to no current frontier. |
 | — | `STRUCTURED-EMISSION-EXPANSION.10b.2` | `done` | Metric + repo-owned gate for the fifth surface. `Metrics::num_emitted_cone_functions` (= `m.cone_function_gates.len()`, `#[serde(default)]`) surfaced in introspection `module_metrics` ⇒ `SCHEMA_VERSION` `1.10 → 1.11` (the new derived metric bumps; the `.10b.1` knob rode the version). Bumped all current-output schema refs (9 assertions + schema doc + README + USER_GUIDE + 5 book example JSONs + CODEBASE envelope/changelog); historical attributions intact. Lib proof `metrics_count_emitted_cone_functions`. `tool_matrix --cone-function-gate` + `ScenarioSet::ConeFunctionSweep` + `build_cone_function_sweep_scenarios`/`cone_function_focus_config` (comb-only `cone_function_emit_prob=1.0` × 3 strategies; `terminal_reuse_prob=0.3` keeps single-use cone interiors plentiful) + `ModuleReport.emitted_cone_function` (`__cf(` detection, distinct from the single-gate `__f(`) + `saw_cone_function_emit` + `MatrixReport.cone_function_gate` + early-return gap arm + 5 proofs + 6 fixture updates + `test_cli` default + README/USER_GUIDE/CODEBASE gate entries. Banked clean `/tmp/anvil-cone-function-gate-r1` (3 scenarios / 12 modules / 12 emitting a cone function / 148 cone functions / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). `cargo test --lib` 502 / `--bin tool_matrix` 73 / snapshots 6/6 byte-identical. Default-off / DUT byte-identical. Closes `.10b.2`; frontier → `.10b.3`. |
 | — | `STRUCTURED-EMISSION-EXPANSION.10b.1` | `done` | The live cone-function emit surface: `Config::cone_function_emit_prob` (separate from `function_emit_prob`) + `Module.cone_function_gates: BTreeMap<NodeId, Vec<NodeId>>` + new `src/ir/cone_function_emit.rs` (`annotate_cone_function_gates` — `compute_use_counts` over all consumer sites, the post-order **single-use** cone-walk, greedy node-order selection with interior reservation, run last) + two guarded `gen/mod.rs` rolls (after `task_emit`, single + design) + the `src/emit/sv.rs` cone-decl section + interior-suppression (net-decl **and** gate-assign loops) + 4 render helpers + 8 lib proofs. Two impl wrinkles handled: `node_ref` resolves inputs/constants/flops intrinsically (⇒ a dedicated `render_cone_gate_expr`, not a `render_gate` override), and an absorbed interior suppresses its module **wire** decl + inline assign (`use_count==1` makes it safe). No metric / no schema bump (those at `.10b.2`). Default-off / DUT byte-identical (`cargo test --lib` 493→501, snapshots 6/6). Forced sweep (`/tmp/anvil-cf-sweep/`, 8 seeds): 18 cone functions, Verilator `-Wall` Δ=0 vs OFF + both Yosys + Icarus clean. |
@@ -670,6 +704,55 @@ _Most recent completions:_
 | — | `STRUCTURED-EMISSION-EXPANSION.1` | `done` | Decision `0012`: picked the combinational `function automatic` emit-projection as the first surface (over interface/modport + nested generate), with its valid-by-construction discipline, opt-in `function_emit_prob`, and downstream gate. Split `.1`/`.2`/future. No source change. |
 
 ## Decisions
+
+- `2026-06-22` (`.11`, decision [`0025`](../decisions/0025-structured-emission-sixth-surface-multi-output-task.md)):
+  picked the **sixth** richer-structured surface autonomously at a
+  no-active-frontier boundary (`feedback_pick_and_roll_at_no_frontier`). It is a
+  default-off, opt-in, **valid-by-construction multi-output combinational `task
+  automatic`** — a generalization of the third surface (decision `0014`'s
+  single-gate task) from one `output` to several: a **co-supported group** of
+  qualifying combinational gates (the single-gate task candidate set) is co-emitted
+  into **one** `task automatic` whose **deduplicated input formals** carry their
+  shared support, called once from `always_comb` into per-member output vars; each
+  member's net is driven by a passthrough `assign`. First cut = a **pair** (`k=2`)
+  sharing a **non-constant** operand (so the deduplicated task genuinely has a
+  shared formal feeding multiple outputs — the co-supported sink). **Soundness
+  rule:** the members must be **mutually fan-in-independent** (no member in
+  another's transitive fan-in), else the shared task closes a combinational cycle
+  through the single `always_comb` call (Verilator `UNOPTFLAT`) — cheaply checked
+  via a bounded backward DFS leveraging the IR's operand-topological `NodeId`
+  invariant (`intern_gate` appends after its operands). Grouping is **rules-first**
+  (mark co-supported pairs at construction time; never generate-then-filter); its
+  **own** opt-in `multi_output_task_emit_prob` knob (default `0.0` ⇒ byte-identical
+  / snapshots untouched) + the `--multi-output-task-emit-prob` CLI flag, **separate
+  from `task_emit_prob`** so the shipped single-gate surface stays byte-identical
+  (reusing `task_emit_prob` **rejected**). Mutually exclusive with the five existing
+  per-gate projections; the pass runs after `task_emit` and before `cone_function`
+  (extended to exclude multi-output members). **Reuses the cone-function dedup
+  render primitives** (`cone_function_params`-style operand dedup + `cone_operand_ref`
+  + `render_cone_gate_expr` with an empty interior set) + the single-gate task
+  candidate predicate — one body-render family, one selection predicate, no parallel
+  machinery (`feedback_full_factorization`). Combinational only; no new IR node / no
+  new computed truth. A new `num_emitted_multi_output_tasks` metric (=
+  `multi_output_task_groups.len()`) MINOR-bumps the introspection schema `1.13 →
+  1.14` at impl. Downstream gate: `tool_matrix --multi-output-task-gate` (templated
+  on `--task-emit-gate` / `--cone-function-gate`) forces
+  `multi_output_task_emit_prob = 1.0` over comb-only DUTs across the three
+  strategies, gated on `saw_multi_output_task_emit` (`__mt(` SV-text detection,
+  distinct from the single-gate `__t(` and the cone `__cf(`), full Verilator + both
+  Yosys + Icarus. Empirically grounded this session (`/tmp/anvil-se-motask-probe/`):
+  a 2-output combinational task with a shared input formal is accepted with **zero
+  `%Warning`** by Verilator 5.046 `-Wall` under `--language 1800-2012/2017/2023` +
+  both repo Yosys modes + Icarus `iverilog -g2012`, and `iverilog`+`vvp` prove it
+  **bit-equal to the inline two `assign`s** over 5000 random vectors. The recorded
+  deferred runner-up (decision `0016`'s `.9` probe). Rejected: positional
+  non-deduplicated formals (no real co-support), grouping on a shared constant
+  operand (folds inline ⇒ no shared formal), grouping fan-in-dependent members
+  (cycle), wider `k > 2` groups in the first cut (pair is minimal/reviewable; `.13+`),
+  reusing `task_emit_prob`, a semantic IR node, generate-then-filter, and changing
+  the default. Split `.11` (done) + `.12` (impl, pre-split `.12a`/`.12b`) + future
+  `.13+` (wider task groups, nested/multi-level generate, interface/modport). No
+  source change.
 
 - `2026-06-17` (`.9`, decision [`0016`](../decisions/0016-structured-emission-fifth-surface-cone-function.md)):
   picked the **fifth** richer-structured surface autonomously at a
@@ -826,6 +909,7 @@ _Most recent completions:_
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-22` | `STRUCTURED-EMISSION-EXPANSION.11` | **Design/decision leaf, no source change.** Decision `0025` (`docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md`) + `INDEX.md` row + tree split (`.11` done + `.12` impl pending, pre-split `.12a`/`.12b`; frontier → `.12`). **Fresh empirical tool-acceptance + simulation-equivalence probe** (this session, `/tmp/anvil-se-motask-probe/`): a **2-output combinational `task automatic`** with a deduplicated input list (one formal shared by both outputs), called once from `always_comb`, accepted with **zero `%Warning`** by **Verilator 5.046 `-Wall --lint-only`** under `--language 1800-2012`, `1800-2017`, **and** `1800-2023` (the lone transient warning was a `DECLFILENAME` filename≠module-name probe artifact, gone once the file matched the module name), **Yosys 0.64 both modes** (`synth -noabc` and `abc -fast; opt -fast; check`), and **Icarus `iverilog -g2012`**, and **`iverilog`+`vvp` prove it bit-equal to the inline two `assign`s** over 5000 random vectors (`SIM-EQUIV OK`). `bash scripts/check_memory_architecture.sh` ✅ (`0025` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (decision `0025` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt` unaffected (`cargo check --all-targets` was clean at session start; `cargo test --lib` 589 + snapshots 6/6 per the prior bank still hold). | `done` |
 | `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.10b.3` | **User-facing docs closeout (docs-only / DUT byte-identical)** (`book/src/structured-emission.md` fifth-surface section + intro; `book/src/knobs.md` + `USER_GUIDE.md` + README `cone_function_emit_prob` knob entries; new KM card `docs/knowledge/multi-gate-cone-function-emit.md`; `KNOWLEDGE_MAP.md` regenerated). `mdbook build book` OK; `bash knowledge-map/scripts/gen_knowledge_map.sh` (44 facts / 364 keys) + `check_knowledge_map.sh` OK; `bash scripts/check_memory_architecture.sh` OK; `cargo test --test book_examples` **3/3 passed** (75s; the new repro block carries the `<!-- book-test: skip -->` sentinel — byte-identical book-runnable contract preserved). The book seed-4 before/after is byte-verified against `anvil --seed 4` output and the ON form is downstream-clean (Verilator `-Wall` rc=0 + both Yosys rc=0 + Icarus rc=0). No `src/` touched ⇒ `cargo check/clippy/fmt/test --lib` unaffected. Closes `.10b.3` / `.10b` / `.10` — the fifth structured surface delivered end-to-end; lane returns to no current frontier. | `done` |
 | `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.10b.2` | **Metric + repo-owned gate** (`src/metrics.rs` `num_emitted_cone_functions` field + `compute()` + lib proof `metrics_count_emitted_cone_functions`; `src/introspect/mod.rs` `SCHEMA_VERSION` `1.10→1.11` + doc comment + 2 assertions; `src/mcp/mod.rs` 7 assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` new `1.10→1.11` changelog + current refs + checklist; README/USER_GUIDE current introspect-schema refs + 5 `book/src/agent-mcp.md` example JSONs + `CODEBASE_ANALYSIS.md` envelope/changelog; `src/bin/tool_matrix.rs` `--cone-function-gate` + `ScenarioSet::ConeFunctionSweep` + `build_cone_function_sweep_scenarios`/`cone_function_focus_config` + `ModuleReport.emitted_cone_function` + `saw_cone_function_emit` + `MatrixReport.cone_function_gate` + early-return gap arm + 5 proofs + 6 fixtures + `test_cli` default + README/USER_GUIDE/CODEBASE gate entries; `DEVELOPMENT_NOTES.md` updated). `cargo check --lib --bin tool_matrix` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **502 passed** / 2 ignored (501 + the new metric proof; all `schema_version` assertions green at `1.11`); `cargo test --bin tool_matrix` **73 passed** / 1 ignored (68 + 5 new cone-function gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (default-off). End-to-end `--introspect`: default (seed 42) ⇒ `schema_version "1.11"` + `num_emitted_cone_functions 0`; forced `cone_function_emit_prob=1.0` (seed 42) ⇒ `1.11` + `14`. **Banked clean** `/tmp/anvil-cone-function-gate-r1` (`--cone-function-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **12 emitting a cone function** / **148 cone functions** / `coverage_gaps=[]` / `12/0` Verilator + `12/0` Yosys without-abc + `12/0` Yosys with-abc + `12/0` Icarus compile; `saw_cone_function_emit=true`. `mdbook build book` OK; `check_memory_architecture` + `check_knowledge_map` OK. Default-off / DUT byte-identical. Frontier → `.10b.3`. | `done` |
 | `2026-06-17` | `STRUCTURED-EMISSION-EXPANSION.10b.1` | **Live emitter change** (`src/config.rs` `cone_function_emit_prob` knob + default + `0.0..=1.0` validation + dump-config; `src/ir/types.rs` `Module.cone_function_gates: BTreeMap<NodeId, Vec<NodeId>>`; new `src/ir/cone_function_emit.rs` `annotate_cone_function_gates` (use-count + single-use post-order cone-walk + greedy node-order selection + interior reservation) + `src/ir/mod.rs` registration; `src/gen/mod.rs` two call-site rolls after task_emit (single + design); `src/emit/sv.rs` `cone_interior` set + net-decl + gate-assign interior-suppression + cone-decl section + root call + the four `render_cone_*` / `cone_function_params` / `cone_operand_ref` helpers; `DEVELOPMENT_NOTES.md` + `CODEBASE_ANALYSIS.md` updated). `cargo check --lib` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo test --lib` **501 passed** / 2 ignored (incl. 8 new `cone_function_emit` proofs: `prob_one_marks_a_cone_with_its_interior`, `prob_zero_marks_nothing_byte_identical`, `a_zero_interior_root_is_not_marked`, `a_multi_use_interior_gate_is_not_absorbed`, `a_sibling_marked_gate_is_excluded`, `param_env_module_is_skipped`, `marking_leaves_identity_and_node_count_untouched`, `marked_cone_emits_multi_statement_function_unmarked_is_inline`; the umbrella DUT-byte-identical proofs still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). **Forced `cone_function_emit_prob=1.0` downstream sweep** (`/tmp/anvil-cf-sweep/`, 8 seeds 1/2/7/12/42/100/2024/9999): **18 cone functions emitted**, Verilator `--lint-only` `-Wall` **delta = 0 vs OFF** on every seed (seed 2024's lone warning is pre-existing, identical ON/OFF), Yosys without-abc + with-abc **0 warn/err**, Icarus `iverilog -g2012` **0 lines** — all clean; sample (seed 1) `xor_0__cf(a0)` with a function-local `shl_0 = a0 << 2'h2;`, return `a0 ^ shl_0 ^ 8'h38` (constant folded inline), call `assign xor_0 = xor_0__cf(i_2);`, the interior `shl_0` wire + assign suppressed. No metric / no schema bump (the metric + schema `1.10 → 1.11` land at `.10b.2`; the knob rides the version — the `.6b.1`/`.4b.1` precedent). | `done` |
@@ -858,6 +942,7 @@ _Most recent completions:_
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.11` | `STRUCTURED-EMISSION-EXPANSION.11 — pick multi-output task surface + decision 0025` | Design/decision leaf (no source): decision `0025` picks the sixth structured surface — a default-off, valid-by-construction **multi-output combinational `task automatic`** (generalize the single-gate task from one `output` to several: a co-supported group of qualifying gates co-emitted into ONE task with deduplicated input formals + per-member output args, called once from `always_comb`). First cut = a **pair** (`k=2`) sharing a **non-constant** operand; **soundness rule** = mutual fan-in independence (no cycle through the shared task; cheap bounded backward DFS over the operand-topological `NodeId` invariant). Reuses the cone-function dedup render primitives + the single-gate task candidate predicate (`feedback_full_factorization`). Own `multi_output_task_emit_prob` knob + `--multi-output-task-emit-prob` flag (single-gate surface stays byte-identical; reusing `task_emit_prob` rejected) + `num_emitted_multi_output_tasks` metric (schema `1.13 → 1.14` at impl) + `--multi-output-task-gate` / `saw_multi_output_task_emit` (`__mt(` detection). Fresh probe (`/tmp/anvil-se-motask-probe/`): 2-output task Verilator `-Wall` 2012/2017/2023 + Yosys both + Icarus clean + iverilog-sim-equiv (5000 vec). The recorded deferred runner-up (decision `0016` `.9` probe). `INDEX.md` row; KM picks up `0025` (carries `answers:`); tree split `.11`/`.12` (pre-split `.12a`/`.12b`)/`.13+`; frontier → `.12`. No source change; self-checks clean. |
 | `STRUCTURED-EMISSION-EXPANSION.10b.3` | `STRUCTURED-EMISSION-EXPANSION.10b.3 — multi-gate-cone function automatic user docs (fifth surface end-to-end)` | Docs-only closeout: a `## The fifth surface: a multi-gate-cone function automatic` section in `book/src/structured-emission.md` (byte-verified seed-4 before/after; the single-use-interior rule; the separate `cone_function_emit_prob` knob; the five-way mutual exclusion; metric @ schema `1.11` + the gate) + the `cone_function_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth" (config-file-only knob) + KM how-to card `multi-gate-cone-function-emit` (44 facts / 364 keys). `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. Closes `.10b.3` / `.10b` / `.10` — the fifth structured surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.10b.2` | `STRUCTURED-EMISSION-EXPANSION.10b.2 — cone-function metric (schema 1.10→1.11) + repo-owned --cone-function-gate` | Metric: `Metrics::num_emitted_cone_functions` (= `m.cone_function_gates.len()`, `#[serde(default)]`) in introspection `module_metrics` ⇒ `SCHEMA_VERSION` `1.10→1.11` (the new derived metric bumps; the `.10b.1` knob rode the version) + lib proof; all current-output schema refs bumped (9 assertions + schema doc + README + USER_GUIDE + 5 book JSONs + CODEBASE envelope/changelog), historical attributions intact. Gate: `tool_matrix --cone-function-gate` + `ScenarioSet::ConeFunctionSweep` + `build_cone_function_sweep_scenarios`/`cone_function_focus_config` (comb-only `cone_function_emit_prob=1.0` × 3 strategies; `terminal_reuse_prob=0.3`) + `ModuleReport.emitted_cone_function` (`__cf(` detection) + `saw_cone_function_emit` + `MatrixReport.cone_function_gate` + early-return gap arm + 5 proofs + 6 fixtures + `test_cli` default + README/USER_GUIDE/CODEBASE gate entries. Banked clean `/tmp/anvil-cone-function-gate-r1` (3 scenarios / 12 modules / 12 emitting a cone function / 148 cone functions / `coverage_gaps=[]` / `12/0` Verilator + both Yosys + Icarus). `cargo test --lib` 502 / `--bin tool_matrix` 73 / snapshots 6/6. Default-off / DUT byte-identical. Closes `.10b.2`; frontier → `.10b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.10b.1` | `STRUCTURED-EMISSION-EXPANSION.10b.1 — multi-gate-cone function automatic emit-projection (live surface)` | Live emitter change: `cone_function_emit_prob` knob (separate from `function_emit_prob`) + `Module.cone_function_gates` + new `src/ir/cone_function_emit.rs` (use-count + single-use post-order cone-walk + greedy selection + interior reservation, run last) + two `gen/mod.rs` rolls (after task_emit) + `src/emit/sv.rs` cone-decl section + interior-suppression (net-decl + gate-assign) + 4 render helpers + 8 lib proofs. Two impl wrinkles: `node_ref` intrinsic names ⇒ dedicated `render_cone_gate_expr`; absorbed interior suppresses module wire + assign (`use_count==1` safe). No metric / no schema bump (the metric + schema `1.10→1.11` at `.10b.2`; the knob rides the version). Default-off / DUT byte-identical (snapshots 6/6, lib 493→501). Forced sweep `/tmp/anvil-cf-sweep/` (8 seeds, 18 cone functions): Verilator `-Wall` Δ=0 vs OFF + both Yosys + Icarus clean. Pre-split `.10b` → `.10b.1`/`.10b.2`/`.10b.3`; frontier → `.10b.2`. |
@@ -887,6 +972,33 @@ _Most recent completions:_
 | `STRUCTURED-EMISSION-EXPANSION` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Registered `proposed` alongside the activated `SV-VERSION-TARGETING` lane. |
 
 ## Changelog
+
+- `2026-06-22`: **`.11` landed — picked the SIXTH structured surface (the
+  multi-output combinational `task automatic`, decision `0025`); design/decision
+  leaf, no source change; frontier → `.12` (impl, pre-split `.12a`/`.12b`).**
+  Autonomous PNT selection at the no-active-frontier boundary
+  (`feedback_pick_and_roll_at_no_frontier`) — the recorded deferred runner-up from
+  the `.9` probe (decision `0016`). The surface generalizes the third surface
+  (decision `0014`'s single-gate `task`) from one `output` to several: a
+  **co-supported group** of qualifying combinational gates (the single-gate task
+  candidate set) is co-emitted into **one** `task automatic` whose **deduplicated
+  input formals** carry their shared support, called once from `always_comb` into
+  per-member output vars; each member's net is driven by a passthrough `assign`.
+  First cut = a **pair** (`k=2`) sharing a **non-constant** operand. **Soundness
+  rule:** members must be **mutually fan-in-independent** (no cycle through the
+  shared task; cheap bounded backward DFS over the operand-topological `NodeId`
+  invariant). Rules-first; own `multi_output_task_emit_prob` knob +
+  `--multi-output-task-emit-prob` flag (single-gate surface byte-identical; reusing
+  `task_emit_prob` rejected); mutually exclusive with the five existing per-gate
+  projections (runs after `task_emit`, before `cone_function`). **Reuses the
+  cone-function dedup render primitives** + the single-gate task predicate
+  (`feedback_full_factorization`). New `num_emitted_multi_output_tasks` metric
+  (schema `1.13 → 1.14` at impl) + `tool_matrix --multi-output-task-gate` /
+  `saw_multi_output_task_emit` (`__mt(` detection). Empirically grounded
+  (`/tmp/anvil-se-motask-probe/`): a 2-output combinational task is Verilator
+  `-Wall` 2012/2017/2023 + Yosys both modes + Icarus clean and iverilog-sim-equiv
+  over 5000 vectors. Decision `0025` + `INDEX.md` row + tree split. No source
+  change; default-off / DUT byte-identical.
 
 - `2026-06-17`: **`.10b.1` landed — the multi-gate-cone `function automatic` live
   surface (the FIRST source change of the fifth surface); `.10b` split into

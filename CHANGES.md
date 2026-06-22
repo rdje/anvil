@@ -1,6 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.11 — pick the sixth structured surface (multi-output task) + decision 0025
+
+**Landed as:** this commit (previous: `df21b5c`). **Design/decision leaf — picks
+the SIXTH richer-structured emission surface autonomously at the no-active-frontier
+boundary (`feedback_pick_and_roll_at_no_frontier`), grounds it in a fresh
+installed-tool probe, and splits the tree before any code.** No source change; DUT
+byte-identical. Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.11`; registers the
+`.12` impl leaf (pre-split `.12a`/`.12b`) that will own the code.
+
+**What changed (why)**
+
+- **`docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md`**
+  (new ADR) — the sixth surface is a default-off, valid-by-construction
+  **multi-output combinational `task automatic`**: a generalization of the third
+  surface (decision [`0014`](docs/decisions/0014-structured-emission-third-surface-combinational-task.md)'s
+  single-gate `task`) from one `output` to several. A **co-supported group** of
+  qualifying combinational gates (the single-gate task candidate set) is co-emitted
+  into **one** `task automatic` whose **deduplicated input formals** carry their
+  shared support, called once from `always_comb` into per-member output vars; each
+  member's net is driven by a passthrough `assign`. First cut = a **pair** (`k=2`)
+  sharing a **non-constant** operand (so the deduplicated task genuinely has a shared
+  formal feeding multiple outputs — the co-supported sink). **Soundness rule:**
+  members must be **mutually fan-in-independent** (no member in another's transitive
+  fan-in), else the shared task closes a combinational cycle through the single
+  `always_comb` call (Verilator `UNOPTFLAT`) — cheaply checked via a bounded backward
+  DFS over the IR's operand-topological `NodeId` invariant (`Module::intern_gate`
+  appends after its operands). Rules-first grouping; its **own**
+  `multi_output_task_emit_prob` knob + `--multi-output-task-emit-prob` flag (separate
+  from `task_emit_prob` so the single-gate surface stays byte-identical); mutually
+  exclusive with the five existing per-gate projections (runs after `task_emit`,
+  before `cone_function`). **Reuses the cone-function dedup render primitives**
+  (`cone_function_params` / `cone_operand_ref` / `render_cone_gate_expr`) + the
+  single-gate task candidate predicate (`feedback_full_factorization`). New
+  `num_emitted_multi_output_tasks` metric ⇒ introspection schema `1.13 → 1.14` at
+  impl. Downstream gate: `tool_matrix --multi-output-task-gate` /
+  `saw_multi_output_task_emit` (`__mt(` SV-text detection), full Verilator + both
+  Yosys + Icarus. Rejected alternatives recorded (positional non-deduplicated
+  formals, shared-constant grouping, fan-in-dependent members, wider `k>2` first cut,
+  reusing `task_emit_prob`, a semantic IR node, generate-then-filter, changing the
+  default).
+- **`docs/decisions/INDEX.md`** — the `0025` row.
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — registered the `.11` design
+  leaf (done) + the `.12` impl leaf (pending, pre-split `.12a`/`.12b`); root node
+  Goal/Children, Current Frontier (→ `.12`), Decisions, Verification Log, Commit Log,
+  and Changelog all updated.
+- **`docs/TASK_TREE.md`** — the `STRUCTURED-EMISSION-EXPANSION` row frontier column
+  updated (`.11` done → frontier `.12`).
+- **`KNOWLEDGE_MAP.md`** — regenerated; decision `0025` carries `answers:`
+  front-matter and is folded into the map.
+
+**Empirical grounding (this session, `/tmp/anvil-se-motask-probe/`)**
+
+- A 2-output combinational `task automatic` with a deduplicated input list (one
+  formal shared by both outputs), called once from `always_comb`, is accepted with
+  **zero `%Warning`** by Verilator 5.046 `-Wall --lint-only` under `--language
+  1800-2012`, `1800-2017`, **and** `1800-2023`; by **both** repo Yosys modes
+  (`synth -noabc` and `abc -fast; opt -fast; check`); and by Icarus
+  `iverilog -g2012`. `iverilog`+`vvp` prove it **bit-equal to the inline two
+  `assign`s** over 5000 random vectors. (The lone transient Verilator warning was a
+  `DECLFILENAME` filename≠module-name probe artifact — ANVIL names each module's file
+  after the module, so it never arises.)
+
+**Validation**
+
+- `bash scripts/check_memory_architecture.sh` ✅; `bash
+  knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (`0025`
+  indexed); `mdbook build book` ✅. No `src/` touched ⇒ `cargo
+  check/clippy/fmt/test` unaffected (`cargo check --all-targets` was clean at session
+  start).
+
+**Impact**
+
+- Picks and fully specifies the sixth structured-emission surface; no behaviour
+  change yet (design leaf). The `.12` impl leaf owns the subsequent code.
+  Default-off / DUT byte-identical. No ROADMAP phase label changed (the lane stays
+  `active`, open-ended).
+
 ## 2026-06-22 — CAPABILITY-BREADTH-EXPANSION.2b.3 — Mealy user-facing docs
 
 **Landed as:** this commit (previous: `b8ee1ce`). **Docs-only — brings the book +
