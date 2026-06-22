@@ -335,8 +335,10 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    passthrough mechanism; own `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks`
    metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit`
    (`__cv` detection). A fresh probe (Verilator `-Wall` 2012/2017/2023 + both Yosys
-   modes + Icarus + iverilog sim-equiv 20000 vectors) is clean. The **current
-   frontier is `.15`** (impl, pre-split `.15a`/`.15b`). Chosen over nested/multi-level
+   modes + Icarus + iverilog sim-equiv 20000 vectors) is clean. The `.15a` impl
+   design-detail (`DEVELOPMENT_NOTES.md` — the seven impl points grounded in the real
+   `task_emit.rs` / `sv.rs` / `gen/mod.rs` / `config.rs` / `types.rs`) is also
+   landed; the **current frontier is `.15b.1`** (the live source change). Chosen over nested/multi-level
    `generate` (no by-construction source — operand-uniqueness CSE shares the inner
    `{N{x}}` so the existing single-level loop already fires on the outer `{M{y}}`)
    and `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the

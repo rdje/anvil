@@ -1,6 +1,82 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15a — procedural if/else mux impl design-detail
+
+**Landed as:** this commit (previous: `caf3d7d`). Docs-only / no source /
+**DUT byte-identical**. Tracked by `STRUCTURED-EMISSION-EXPANSION.15a` (an impl
+design-detail leaf — no source change, exempt from the code-only doctrine boxes but
+recorded under the owning task tree). **`.15a` is `done`; the lane's frontier moves
+to `.15b.1` (the live source change).**
+
+**What changed (why)**
+
+The next PNT step on the seventh structured surface (decision `0027`, the procedural
+`always_comb` `if`/`else` emit-projection of a `Mux` gate): the impl design-detail
+leaf that grounds the decision in the real code so `.15b.1` is a mechanical
+transcription (the lane's established design-detail-before-impl discipline —
+`.12a`/`.10a`/`.8a`/`.6a`/`.2a`). A new `DEVELOPMENT_NOTES.md` entry resolves all
+seven impl points against a fresh read of `src/ir/task_emit.rs` (the closest
+precedent — `gate_qualifies` + `annotate_task_emit_gates`'s collect-then-roll
+shape), `src/emit/sv.rs` (the `node_ref` operand resolver `:1242` used by the
+`CaseMux` `always_comb` block `:644`; the task decl/call section `:444`; the
+gate-assign-loop projection passthroughs `:566-605`; the `CaseMux`/`CasezMux`/`ForFold`
+procedural-block loop `:620`), `src/gen/mod.rs` (the six-pass roll chain `:91-150`
+single + `:330-383` design), `src/config.rs` (`*_emit_prob` knobs `:106-114` /
+`:962-1011`), and `src/ir/types.rs` (the `*_gates`/`*_groups` carriers `:417-466`).
+
+The seventh surface is the closest yet to an existing one: it is the decision-`0014`
+single-gate-`task` **output-var + passthrough** mechanism with the `task automatic`
+body replaced by a bare `always_comb if/else`. The pinned plan:
+
+- **Candidate (new `src/ir/mux_if_emit.rs`):** a `GateOp::Mux` gate (3 operands,
+  1-bit selector) not already marked by any sibling projection. Because the pass
+  runs **last**, the exclusion set is the union of all six sibling marks
+  (`function_emit` / `generate_loop` / `task_emit` / `soft_union` / `multi_output_task`
+  members / `cone_function` roots+interiors). One `gen_bool(p)` roll per candidate
+  into `Module.mux_if_gates: BTreeSet<NodeId>`; `param_env` modules skipped.
+- **Emitter:** a new procedural-block section emits `logic [w-1:0] <name>__cv;` +
+  `always_comb begin if (<sel>) <name>__cv = <a>; else <name>__cv = <b>; end` (operand
+  refs via the existing `node_ref`, mapping exactly the ternary's `sel==1⇒a` /
+  `sel==0⇒b`); the gate-assign loop adds a `<name>__cv` passthrough branch (beside
+  `task_emit` `:578`) before `render_gate`'s inline ternary — keeping `<name>` a net.
+- **Ordering:** run `annotate_mux_if_gates` **last** so it only excludes already-marked
+  gates ⇒ **no other pass changes** (minimal blast radius). Rejected: run it among
+  the single-gate projections + teach `multi_output_task`/`cone_function` to exclude
+  it (more edits, no benefit).
+- **Knob/metric/gate:** `mux_if_emit_prob` (default `0.0`) + `--mux-if-emit-prob`;
+  `num_emitted_mux_if_blocks` (schema `1.14 → 1.15` at `.15b.2`); `--mux-if-gate` +
+  `saw_mux_if_emit` (`__cv` detection) with a Mux-biased focus config.
+- **Byte-identical/RNG:** default `0.0` ⇒ the guarded call sites are skipped ⇒ zero
+  RNG draws ⇒ byte-identical; the mark leaves the flat IR / validators / CSE keys /
+  `canonical_module_signature` untouched (the `task_emit` precedent).
+
+**Validation**
+
+Docs-only ⇒ no source touched, so `cargo` is unaffected (`cargo check --all-targets`
+clean at session start; `cargo test --lib` 605 + snapshots 6/6 per the `.13b` bank
+still hold) and **DUT output is byte-identical**. `bash scripts/check_doctrines.sh`
+green (4 doctrines — `CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` exempt, no code
+staged); `check_knowledge_map.sh` green (no card change — `0027` already carries
+`answers:`); `check_memory_architecture.sh` green; `mdbook build book` clean. The
+grounded `src/…:line` references were verified against current HEAD.
+
+**Impact**
+
+Roadmap-aligned PNT increment (ROADMAP steering gap 1). No user-visible behaviour
+change (design-detail leaf only — the live knob lands at `.15b.1`). DUT
+byte-identical.
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md` (new `.15a` design-detail entry).
+- `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` (metadata header + `.15`/`.15a`
+  leaf nodes + Current Frontier → `.15b.1` + most-recent-completions row + Verification
+  Log + Commit Log + Changelog).
+- `docs/TASK_TREE.md` (the index row → `.15a` / frontier `.15b.1`).
+- `ROADMAP.md` (owner-directed capability lane #2 → `.15a` landed, frontier `.15b.1`).
+- `CHANGES.md` + `MEMORY.md` (this entry + the resume pointer).
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.14 — pick procedural if/else mux surface + decision 0027
 
 **Landed as:** this commit (previous: `d3eb968`). Docs-only / no source /

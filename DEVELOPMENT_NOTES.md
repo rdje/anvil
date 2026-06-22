@@ -5,6 +5,148 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Procedural `if`/`else` mux surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.15a`
+
+Grounds decision `0027` (the seventh structured surface: a procedural `always_comb`
+`if`/`else` emit-projection of a `Mux` gate) in a fresh read of the real
+`src/ir/task_emit.rs`, `src/emit/sv.rs`, `src/gen/mod.rs`, `src/config.rs`,
+`src/ir/types.rs`, and resolves the `.15a` open questions so `.15b.1` is a
+mechanical transcription. The seventh surface is the closest yet to an existing one
+— it is the decision-`0014` single-gate-`task` **output-var + passthrough**
+mechanism with the `task automatic` body replaced by a bare `always_comb`
+`if`/`else`. Pins below.
+
+**(0) The candidate predicate (`src/ir/mux_if_emit.rs`, new — mirror
+`task_emit.rs`).** `gate_qualifies(m, id, node)` returns true iff `node` is a
+`Node::Gate { op: GateOp::Mux, operands, .. }` (a 2:1 mux — exactly three operands,
+a 1-bit selector by IR invariant) that is **not already marked** by any sibling
+projection. Because the pass runs **last** (see (3)), the exclusion set is the union
+of every sibling mark: `m.function_emit_gates`, `m.generate_loop_gates`,
+`m.task_emit_gates`, `m.soft_union_slice_gates`, the multi-output task members
+(`m.multi_output_task_groups` keys ∪ values), and the cone-function roots **and**
+interiors (`m.cone_function_gates` keys ∪ flattened values). In practice only
+`function_emit` / `task_emit` / `multi_output_task` / `cone_function` can ever mark a
+`Mux` (generate_loop targets `Concat` `{N{x}}`, soft_union targets `Slice`), but the
+predicate excludes all six for robustness — the established "later pass excludes
+earlier marks" convention (`task_emit.rs` `gate_qualifies` is the exact template; it
+already excludes `function_emit`/`generate_loop`/`soft_union`). `annotate_mux_if_gates(m, rng, prob)`
+collects candidates first (immutable scan), then rolls **one `rng.gen_bool(p)` per
+candidate** and inserts into `m.mux_if_gates` — byte-identical to the `task_emit`
+pass shape. `param_env.is_some()` modules are skipped (the parameterized-width
+out-of-scope rule, same as `task_emit`).
+
+**(1) The `Module` carrier.** `pub mux_if_gates: BTreeSet<NodeId>` on `Module`
+(beside `task_emit_gates` at `src/ir/types.rs:~452`), `#[serde(default)]`,
+default-empty ⇒ byte-identical. A `BTreeSet` (not a map) because — unlike the
+cone-function / multi-output-task carriers — a marked `Mux` carries no extra payload
+(its operands are read straight from the node). Registered in `src/ir/mod.rs` like
+the others.
+
+**(2) The emitter integration (`src/emit/sv.rs`).** Two edits, both mirroring the
+`task_emit` integration:
+
+  - **A new procedural-block emit section**, placed beside the existing task
+    decl/call section (`~444`) — for each `id` in `m.mux_if_gates` (ascending, the
+    `BTreeSet` order ⇒ deterministic), with `name = names[id]`, `w = node.width()`,
+    and the three operand refs `sel = node_ref(operands[0], m, &names)`,
+    `a = node_ref(operands[1], m, &names)`, `b = node_ref(operands[2], m, &names)`
+    (the **same `node_ref` resolver** the CaseMux `always_comb` block already uses at
+    `sv.rs:644`/`648`), emit:
+
+    ```systemverilog
+    logic [w-1:0] <name>__cv;
+    always_comb begin
+        if (<sel>) <name>__cv = <a>;
+        else <name>__cv = <b>;
+    end
+    ```
+
+    The operand mapping is exactly the ternary's (`render_gate` `Mux =>
+    "({}) ? ({}) : ({})", r(0), r(1), r(2)`): `sel == 1 ⇒ a` (operand 1),
+    `sel == 0 ⇒ b` (operand 2) — behaviour-preserving by construction. A 1-bit-wide
+    mux emits `logic <name>__cv;` (drop the `[w-1:0]` when `w == 1`, matching the
+    project's existing width-formatting helper).
+
+  - **The gate-assign-loop passthrough** — add a branch in the per-gate assign loop
+    (beside the `task_emit_gate` branch at `sv.rs:578`), **before** `render_gate`
+    renders the inline ternary: `if m.mux_if_gates.contains(&(idx as NodeId)) {
+    writeln!(out, "    assign {name} = {name}__cv;"); continue; }`. This keeps
+    `<name>` a **net** driven by a passthrough from the `__cv` var — only the gate's
+    own drive changes; every downstream consumer of `<name>` is untouched (the
+    decision-`0014` minimal-blast-radius discipline; `<name>`-as-var rejected, same as
+    `.6a`).
+
+  The `Mux` is **not** in the existing "Procedural combinational blocks" loop
+  (`sv.rs:620`, which matches only `CaseMux`/`CasezMux`/`ForFold`), so no change
+  there; the new section is dedicated to marked `Mux` gates.
+
+**(3) Pass ordering (`src/gen/mod.rs`).** Run `annotate_mux_if_gates` **last** — a
+seventh guarded call site after the cone-function roll, in **both** the
+single-module path (`~150`) and the design path (`~383`), each guarded by
+`if self.cfg.mux_if_emit_prob > 0.0`. Running last means the pass only needs to
+*exclude* already-marked gates (per (0)); **no other pass changes** (cone_function's
+`sibling_marked` does not need to learn about `mux_if`) — the minimal-blast-radius
+ordering. *Rejected alternative:* run `mux_if` among the single-gate projections
+(after `task_emit`) and extend `multi_output_task` + `cone_function` to exclude
+`mux_if` marks — more edits, no benefit, since a `Mux` claimed by `mux_if` first
+would just shrink the (already pervasive) cone/mo candidate pools.
+
+**(4) The knob (`src/config.rs` + `src/main.rs`).** `pub mux_if_emit_prob: f64`
+with `default_mux_if_emit_prob() -> 0.0` + `#[serde(default = ...)]` (beside
+`task_emit_prob` `~963`), `0.0..=1.0` validation, dump-config surfacing, and a
+`--mux-if-emit-prob` clap flag + `Option<f64>` overlay + apply (the
+`--task-emit-prob` / `--cone-function-emit-prob` pattern). Default `0.0` ⇒ the
+guarded call sites in (3) never fire ⇒ no RNG draw ⇒ byte-identical stream + output.
+
+**(5) Metric + schema (`.15b.2`).** `Metrics::num_emitted_mux_if_blocks`
+(`= m.mux_if_gates.len()`, `#[serde(default)]`) in `metrics::compute()` + a lib
+proof, surfaced in introspection `module_metrics` ⇒ `SCHEMA_VERSION` `1.14 → 1.15`
+(the new derived metric bumps; the `.15b.1` knob rides the version — the
+`.12b.1`/`.12b.2a` precedent). Bump every current-output schema ref (introspect +
+mcp assertions + `docs/AGENT_INTROSPECTION_SCHEMA.md` + README + USER_GUIDE +
+CODEBASE envelope); leave historical attributions intact.
+
+**(6) The downstream gate (`.15b.2`, `src/bin/tool_matrix.rs`).** `--mux-if-gate` +
+`ScenarioSet::MuxIfSweep` + `build_mux_if_sweep_scenarios` /
+`mux_if_focus_config` (comb-only `mux_if_emit_prob = 1.0` × the three construction
+strategies) + `ModuleReport.emitted_mux_if` (SV-text `__cv` detection, distinct from
+`__f`/`__tv`/`__mtv`/`__cf`/`__mt`) + `saw_mux_if_emit` coverage fact +
+`MatrixReport.mux_if_gate` + the early-return gap arm + a units floor + the
+mutual-exclusion fixtures — templated on `--task-emit-gate`. **Gate-shape
+calibration risk:** the focus config must make `Mux` gates plentiful so the surface
+fires (raise the mux/selector selection knobs); record the calibration like
+`multi_output_task_focus_config`'s `terminal_reuse_prob`/`max_depth`/`min_outputs`
+tuning. Bank a clean report `coverage_gaps = []` / `saw_mux_if_emit = true` /
+`N/0` Verilator + both Yosys + Icarus.
+
+**(7) The byte-identical / RNG argument.** Default `0.0` ⇒ both guarded call sites
+in (3) are skipped ⇒ the pass is never entered ⇒ zero RNG draws ⇒ no downstream
+stream shift ⇒ byte-identical (`tests/snapshots.rs` untouched). At `prob = 1.0`,
+`gen_bool(1.0)` short-circuits in `rand` (Bernoulli `ALWAYS_TRUE`, no draw), so the
+forced-sweep proof also takes no RNG draws beyond the mark — the only change is the
+projected `Mux` gates (intended; the `--mux-if-gate` bank verifies it). The mark is
+an emitter-surface annotation only: the flat IR body, validators, CSE keys, and
+`canonical_module_signature` are all untouched (the `task_emit` precedent — a
+`marking_leaves_identity_and_node_count_untouched` proof carries over).
+
+**`.15b` proof plan:** lib proofs (a candidate `Mux` qualifies; a sibling-marked
+`Mux` is excluded; a non-`Mux` gate does not qualify; `param_env` skipped; the mark
+leaves identity/node-count untouched; a marked `Mux` emits the `always_comb if/else`
++ `<name>__cv` decl + passthrough and the unmarked one is the inline ternary) +
+snapshots 6/6 (default-off) + a forced `mux_if_emit_prob = 1.0` downstream sweep
+(Verilator `-Wall` Δ=0 vs OFF across 2012/2017/2023 + both Yosys + Icarus + iverilog
+sim-equiv to the inline ternary). Pre-split `.15b` → `.15b.1` (live) / `.15b.2`
+(metric + gate) / `.15b.3` (user docs). No source change at `.15a`.
+
+**Rejected alternatives** (beyond (2)/(3) above): making `<name>` itself the
+`always_comb` var (drops the passthrough but turns `<name>` from a net to a var,
+rewriting every consumer's view — rejected for blast radius); rendering a 2-arm
+`case (sel)` instead of `if`/`else` (clean but duplicates the `CaseMux` construct —
+the whole point is a *new* procedural-conditional shape); the N-way `CaseMux` →
+`if`/`else if` priority chain in this cut (a bigger construct with out-of-range
+default-matching subtleties — the recorded `.16+` follow-up). All per decision
+`0027`.
+
 ## 2026-06-22 — Wider (k>2) multi-output task groups — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.13b`
 
 The live widening implemented the `.13a` design with **no deviations**. The whole
