@@ -350,15 +350,32 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    section with a byte-verified seed-1 example, the `mux_if_emit_prob` /
    `--mux-if-emit-prob` / `--mux-if-gate` entries in book/knobs + USER_GUIDE + README,
    the book example-JSON `1.14 → 1.15` refresh, and the `mux-if-emit` KM card). **Seven
-   structured surfaces delivered end-to-end.** Chosen over nested/multi-level
-   `generate` (no by-construction source — operand-uniqueness CSE shares the inner
-   `{N{x}}` so the existing single-level loop already fires on the outer `{M{y}}`)
-   and `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the
-   modport port and both Yosys modes warn on the implicit interface-member decl); the
-   N-way `CaseMux` → `if`/`else if` priority chain, nested/multi-level `generate`, and
-   `interface`/`modport` are the remaining future vetted surfaces (`.16`+), each with
-   its own decision; the tree stays `active` at a no-current-frontier boundary. Serves
-   ROADMAP steering gap 1 (richer structured emission). Nothing retired.
+   structured surfaces delivered end-to-end.** The **eighth surface** (decision
+   [`0028`](docs/decisions/0028-structured-emission-eighth-surface-case-mux-priority-chain.md),
+   leaf `.16` design landed `2026-06-22`) — a default-off, valid-by-construction
+   procedural `always_comb` `if`/`else if` **priority chain** emit-projection of a
+   `CaseMux` gate (the N-way selection it renders today as the parallel `case (sel) …
+   default` statement) — is now **picked and designed**; it is the recorded
+   decision-`0027` follow-up, genuinely distinct from the seventh surface (the N-way
+   `CaseMux` chain vs the single 2:1 `Mux` conditional) and from the existing `case`
+   render (sequential-priority `if`/`else if` vs parallel-match `case`). Unlike the
+   seventh surface it needs **no** `__cv` output-var + passthrough — a `CaseMux` is
+   already an `always_comb`-written `logic` var, so only the block body swaps
+   `case…endcase` → `if…else`. Own `case_mux_if_emit_prob` knob +
+   `num_emitted_case_mux_if_chains` metric (schema `1.15 → 1.16` at impl) +
+   `--case-mux-if-gate` / `saw_case_mux_if_emit` (metric-keyed detection, no new text
+   token). A fresh probe (Verilator `-Wall` 2012/2017/2023 + both Yosys modes [32 cells,
+   no warnings] + Icarus + iverilog sim-equiv to the parallel `case` over 20000 vectors +
+   an exhaustive selector sweep) is clean. `.17` (impl, pre-split `.17a` design-detail +
+   `.17b`) is the next frontier. Chosen over nested/multi-level `generate` (no
+   by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the
+   existing single-level loop already fires on the outer `{M{y}}`) and
+   `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the modport
+   port and both Yosys modes warn on the implicit interface-member decl); the `CasezMux`
+   masked priority chain, nested/multi-level `generate`, and `interface`/`modport` are
+   the remaining future vetted surfaces (`.18`+), each with its own decision; the tree
+   stays `active` with `.17` as the current frontier. Serves ROADMAP steering gap 1
+   (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
    everything MCP-queryable via a top-notch API). A first-class, versioned,

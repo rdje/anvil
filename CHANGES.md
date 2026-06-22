@@ -1,6 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.16 — pick the eighth structured surface (CaseMux → if/else-if priority chain) + decision 0028
+
+**Landed as:** this commit (previous: this `LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.1`
+commit). **Docs-only / design leaf** (no `src/` touched) ⇒ **DUT byte-identical**.
+Tracked by `STRUCTURED-EMISSION-EXPANSION.16` (the owning task-tree leaf; the eighth
+structured surface's pick/design leaf, split `.16` design + `.17` impl + future `.18+`).
+
+**What changed (why)**
+
+`STRUCTURED-EMISSION-EXPANSION` was at a no-frontier boundary after the seventh surface
+(`.15`, decision `0027`) closed end-to-end. Per `feedback_pick_and_roll_at_no_frontier`
+(autonomous PNT at the no-frontier boundary), this leaf picks and designs the **eighth**
+structured surface — the explicitly recorded decision-`0027` follow-up.
+
+1. **Decision `0028`** (`docs/decisions/0028-…-case-mux-priority-chain.md`, with
+   `answers:` front-matter): the eighth surface is a **default-off, valid-by-construction
+   procedural `always_comb` `if`/`else if` priority-chain emit-projection of a `CaseMux`
+   gate** — a behaviour-preserving re-expression of the N-way selection the `CaseMux`
+   renders today (verified in `src/emit/sv.rs`) as a parallel `case (sel) SW'dk: g =
+   arm_k; default: g = W'h0; endcase`. The projection re-expresses the `case` body as
+   `if (sel == SW'd0) g = arm_0; else if … else g = W'h0;`. It is behaviour-preserving
+   because the `case` labels `SW'd0..SW'd{k-1}` are **distinct constants by construction**
+   (so the priority chain == the parallel `case`) and the trailing `else` covers exactly
+   the `case` `default`. **Genuinely distinct** from the seventh surface (the N-way
+   `CaseMux` chain vs the single 2:1 `Mux` conditional; `GateOp::CaseMux` vs
+   `GateOp::Mux`) and from the existing `case` render (sequential-priority vs
+   parallel-match — a different frontend/synthesis code path). **Simpler** than the
+   seventh surface: a `CaseMux` is already an `always_comb`-written `logic` var, so **no**
+   `<g>__cv` output-var + passthrough is needed (only the block body swaps). Candidate =
+   a dynamic-selector `CaseMux` (`render_static_structured_gate` returns `None`);
+   `CasezMux` (its `casez` wildcards need a masked comparison) is the recorded follow-up.
+   Own `case_mux_if_emit_prob` knob + `num_emitted_case_mux_if_chains` metric (schema
+   `1.15 → 1.16` at impl) + `--case-mux-if-gate` / `saw_case_mux_if_emit` (keyed on the
+   metric `> 0`, since the surface introduces no new identifier token — strictly more
+   robust than a text scan). The full candidate set, construction discipline, downstream
+   gate, decisive test, and seven rejected alternatives are recorded.
+2. **`docs/decisions/INDEX.md`** — the `0028` row. **`KNOWLEDGE_MAP.md`** regenerated
+   (`0028` folded in via its `answers:`; 67 facts / 628 keys).
+3. **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — the `.16` leaf (done) with the
+   probe evidence; the Current Frontier / Verification Log / Commit Log / Changelog /
+   Metadata narrative updated; **the stale parent nodes `.15`/`.15b` flipped
+   `active`→`done`** (all their children were done; the closed-parent convention used by
+   `.5`/`.6`/`.6b`/`.13`); tree split `.16`/`.17`/`.18+`; frontier → `.17`.
+4. **`docs/TASK_TREE.md`** index row tail + **`ROADMAP.md`** owner-directed-lane #2
+   updated to record the eighth surface picked+designed; frontier → `.17`.
+
+**Validation (fresh empirical probe this session, `scratchpad/probe8/`)**
+- A standalone priority chain (selector width 3, 5 arms + `default`, 4-bit data):
+  Verilator 5.046 `-Wall --lint-only` accepts it **warning-clean** under `--language
+  1800-2012`, `1800-2017`, **and** `1800-2023`; Yosys 0.64 `synth -noabc` is clean (32
+  cells: 20 `$_MUX_`, 3 `$_NOT_`, 9 `$_OR_`, no warnings) and `abc -fast; opt -fast;
+  check` is clean (no warnings/errors); Icarus `iverilog -g2012` compiles (rc=0).
+- **Sim-equivalence:** `iverilog`+`vvp` prove the chain bit-equal to the parallel `case
+  (sel) … default` form over **20000 random vectors + an exhaustive 8-value selector
+  sweep** (`EQUIV OK`).
+- `scripts/check_doctrines.sh` 4/4 PASS (code-scoped exempt — docs commit);
+  `check_knowledge_map.sh` OK (map in sync, `0028` folded); `check_memory_architecture.sh`
+  green (`0028` indexed); `mdbook build book` rc=0. `git diff --check` clean.
+
+**Impact:** docs-only ⇒ DUT byte-identical; `cargo`/snapshot/`tool_matrix` suites
+unaffected (`cargo test --lib` 616 / `--bin tool_matrix` 89 / snapshots 6/6 from the
+`.15b.2` bank still hold). The eighth surface is **picked and designed**; implementation
+is the next frontier (`.17`).
+
+**Files touched:** `docs/decisions/0028-structured-emission-eighth-surface-case-mux-priority-chain.md`
+(new), `docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.1 — align task-tree index status with tree files
 
 **Landed as:** this commit (previous: `470699e` `STRUCTURED-EMISSION-EXPANSION.15b.3`).
