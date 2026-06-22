@@ -1,6 +1,50 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.3 — TOOLBOX.md (ANVIL's own diagnostic tools) + CODE-CHANGE-EVIDENCE check
+
+**Landed as:** this commit (previous: `fbe6849`). **Adds ANVIL's diagnostic toolbox +
+acceptance-checklist, and the first new scope-aware doctrine check.** Workflow/docs only
+/ DUT byte-identical (no `src/`). Task-tree-owned by `DOCTRINE-ENFORCEMENT-ADOPTION.3`.
+
+**What changed (why)**
+
+- **`TOOLBOX.md`** (new, repo root; per owner steer) — **ANVIL's own diagnostic
+  instruments** for pinpointing issues ANVIL may have, grouped by what you are
+  diagnosing: (1) construction introspection (`--trace` / `--dump-config` /
+  `--metrics`); (2) structural/semantic introspection (`--introspect` schema `1.14`,
+  MCP `analyze` support-cone / input-reach / flop-reset-provenance /
+  module-reachability, `coverage` / `coverage_gaps`); (3) downstream acceptance
+  (`validate`, `tool_matrix` gates, `--diff-sim`, `divergence`); (4) reproducer
+  reduction (`minimize`, `anvil hunt`, `manifest.json`, artifact resources); (5)
+  reproducibility & resource safety (`tests/snapshots.rs`, `--max-rss-mb` /
+  `--ram-abort-pct`, `scripts/ram_guard.sh`). Part 2 is the **acceptance-checklist
+  template** a code change must satisfy, each box citing a named re-runnable oracle
+  (the `DOCTRINE_ENFORCEMENT.md` §6.1 earned-not-ticked rule).
+- **`scripts/check_diagnosis_evidence.sh`** (new, executable) — the
+  `CODE-CHANGE-EVIDENCE` doctrine: scope-aware (code staged ⇒ `CHANGES.md` +
+  `MEMORY.md` co-staged; pure non-code commits exempt). A structural co-staging proxy
+  at pre-commit; the un-fakeable leg is the cargo + `tool_matrix` re-run (§6.1/§9).
+  bash-3.2-compatible (no `mapfile`); a `DOCTRINE_STAGED_OVERRIDE` env seam for the
+  self-test only.
+- **`scripts/check_doctrines.sh`** — register `CODE-CHANGE-EVIDENCE` (one registry
+  line; the driver now runs three doctrines).
+
+**Validation**
+
+- Evidence check proven across four staged-set cases: non-code → exempt (exit 0); code
+  + `CHANGES.md` + `MEMORY.md` → pass (exit 0); code-only → FAIL (exit 1); `Cargo.lock`
+  only → FAIL (exit 1, correctly treated as code). `bash scripts/check_doctrines.sh` →
+  `PASS MEMORY-ARCH` + `PASS KNOWLEDGE-MAP` + `PASS CODE-CHANGE-EVIDENCE`, exit `0`. No
+  `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected; `tests/snapshots.rs`
+  untouched.
+
+**Impact**
+
+- ANVIL gains a single, accurate catalog of its own bug-pinpointing instruments (the
+  agent/contributor's first stop), and the mandatory live-doc evidence is now
+  mechanically gated for code commits. Frontier `.3` → `.4`. No ROADMAP phase changed.
+
 ## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI
 
 **Landed as:** this commit (previous: `1b433d9`). **Deploys the core of portable

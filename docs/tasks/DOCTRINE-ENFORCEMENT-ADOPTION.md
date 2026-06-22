@@ -87,11 +87,11 @@ the donor project's portable kit). Reference: decision `0026`.
   Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Add TOOLBOX.md (ANVIL's own diagnostic toolbox + acceptance-checklist) and scripts/check_diagnosis_evidence.sh; register CODE-CHANGE-EVIDENCE.`
   Acceptance: `TOOLBOX.md catalogs ANVIL's diagnostic instruments + the acceptance checklist (each box cites a named re-runnable oracle). The evidence check is scope-aware (code staged ⇒ CHANGES.md + MEMORY.md co-staged; pure non-code commits exempt) and is registered + green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `evidence check proven on 4 staged-set cases (non-code → exempt exit 0; code+CHANGES+MEMORY → pass; code-only → FAIL exit 1; Cargo.lock-only → FAIL exit 1); bash scripts/check_doctrines.sh → PASS x3 (MEMORY-ARCH, KNOWLEDGE-MAP, CODE-CHANGE-EVIDENCE), exit 0.`
+  Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.3 — TOOLBOX.md (ANVIL's own diagnostic tools) + CODE-CHANGE-EVIDENCE check`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.4`
   Status: `pending`
@@ -120,8 +120,8 @@ the donor project's portable kit). Reference: decision `0026`.
 | --- | --- | --- | --- |
 | 1 | `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `done` | Registered ownership; landed the standard + decision 0026. |
 | 2 | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `done` | Driver + hook/CI rewired over MEMORY-ARCH + KNOWLEDGE-MAP. |
-| 3 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `in_progress` | TOOLBOX + evidence check; the toolbox is ANVIL's own diagnostic surface. |
-| 4 | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `pending` | Mechanize the flagship code-ownership doctrine. |
+| 3 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `done` | TOOLBOX (ANVIL's diagnostic tools) + `CODE-CHANGE-EVIDENCE` registered. |
+| 4 | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `in_progress` | Mechanize the flagship code-ownership doctrine. |
 | 5 | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `pending` | Discovery layer so a fresh agent in any harness is routed to the doctrine kit. |
 | 6 | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `pending` | Closeout + live-doc/book/KM alignment; verify and close. |
 
@@ -165,13 +165,15 @@ the donor project's portable kit). Reference: decision `0026`.
 | --- | --- | --- | --- |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh`; `wc -l MEMORY.md` (21 <= 50) | passed; full `cargo test` not run because no source code changed (`0003-resource-safe-validation`) |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `bash scripts/check_doctrines.sh` (PASS MEMORY-ARCH + PASS KNOWLEDGE-MAP, exit 0); meta-check on a dangling-entry copy (META-FAIL → REGISTRY ERROR, exit 1); rewired pre-commit ran on the commit | passed; no source code changed (`0003-resource-safe-validation`) |
+| `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | evidence check on 4 staged-set cases (exempt / pass / code-only FAIL / Cargo.lock FAIL); `bash scripts/check_doctrines.sh` (PASS x3, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026` | `1b433d9`; standard + decision + tree, no check wired yet. |
-| `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI` | `pending hash`; driver + hook/CI; the existing checks are registered, not rewritten. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI` | `fbe6849`; driver + hook/CI; the existing checks are registered, not rewritten. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `DOCTRINE-ENFORCEMENT-ADOPTION.3 — TOOLBOX.md (ANVIL's own diagnostic tools) + CODE-CHANGE-EVIDENCE check` | `pending hash`; TOOLBOX + scope-aware evidence check; driver now 3 doctrines. |
 
 ## Changelog
 
@@ -181,3 +183,7 @@ the donor project's portable kit). Reference: decision `0026`.
 - `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.2` (registry+driver
   `scripts/check_doctrines.sh` over `MEMORY-ARCH` + `KNOWLEDGE-MAP`; rewired
   `.githooks/pre-commit` + CI); frontier advanced to `.3`.
+- `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.3` (`TOOLBOX.md` cataloguing
+  ANVIL's own diagnostic instruments + the acceptance-checklist; scope-aware
+  `scripts/check_diagnosis_evidence.sh` registered as `CODE-CHANGE-EVIDENCE`); frontier
+  advanced to `.4`.

@@ -29,6 +29,7 @@ cd "${ROOT}"
 DOCTRINES=(
   "MEMORY-ARCH|durable 4-layer memory-architecture invariants (MEMORY_ARCHITECTURE.md §9)|scripts/check_memory_architecture.sh"
   "KNOWLEDGE-MAP|the derived KNOWLEDGE_MAP.md is in sync with its fact sources|knowledge-map/scripts/check_knowledge_map.sh"
+  "CODE-CHANGE-EVIDENCE|a staged code change co-stages the mandatory CHANGES.md + MEMORY.md live-doc evidence (COMMIT.md); non-code commits exempt|scripts/check_diagnosis_evidence.sh"
 )
 
 fail=0
