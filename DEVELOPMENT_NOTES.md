@@ -5,6 +5,34 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — CaseMux priority-chain gate — focus-config calibration — `STRUCTURED-EMISSION-EXPANSION.17b.2b`
+
+The repo-owned `tool_matrix --case-mux-if-gate` is templated 1:1 on `--mux-if-gate`, but
+the focus config diverges in one load-bearing, non-obvious way worth recording.
+
+`--mux-if-gate` is **Mux-biased** (`comb_mux_prob = 0.9` + `comb_mux_encoding_prob = 1.0`)
+because the seventh surface fires only on a plain `GateOp::Mux`, which the comb-mux block
+builds **only** down its encoded chained-ternary path. The eighth surface instead fires on
+a `GateOp::CaseMux`, built by the **`case`-mux block** (`case_mux_prob`). The trap: in
+`cone.rs` the structured-block rolls are a short-circuit chain — `comb_mux_prob` rolls
+**before** `case_mux_prob`, so a high `comb_mux_prob` would *starve* the `case`-mux roll. So
+`case_mux_if_focus_config` sets `comb_mux_prob = 0.0` (not the default 0.1) and
+`case_mux_prob = 0.9`, guaranteeing the `case`-mux block always gets its draw. No
+`comb_mux_encoding_prob` steering is needed — a `CaseMux` selector is a generated dynamic
+cone by construction, so there is no encoding-path trap (the inverse of the seventh
+surface's situation). The banked run confirms it: all 12/12 modules emit a chain (83 total),
+`coverage_gaps = []`, 12/0 Verilator + both Yosys + Icarus (`/tmp/anvil-case-mux-if-gate-r1`).
+
+Second non-obvious point: detection is **metric-keyed**, not text-keyed. Every sibling
+emit-surface left a unique token (`__cv`, `__t(`, `__mt(`, `__cf(`, `__f(`), so the matrix
+detected them with `sv_text.contains(...)`. This surface has **no** such token — a marked
+`CaseMux` is already an `always_comb`-written `logic` var, so only its body swaps
+`case…endcase` → `if…else if`. Scanning for `if (… == …)` would false-positive on FSM
+decode blocks. So `emitted_case_mux_if` reads the exact `num_emitted_case_mux_if_chains`
+metric (`> 0`), which is exact because `annotate_case_mux_if_gates` excludes
+constant-selector (statically-collapsed) `CaseMux`. This is the first matrix surface keyed
+off a `Metrics` field rather than the emitted SV text.
+
 ## 2026-06-22 — CaseMux priority-chain surface — impl-time note — `STRUCTURED-EMISSION-EXPANSION.17b.1`
 
 Implemented exactly per the `.17a` design — **no deviations**. The one thing worth

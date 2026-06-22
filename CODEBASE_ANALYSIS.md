@@ -699,7 +699,14 @@ src/
 │                     OFF (2012/2017/2023) + Yosys both modes + Icarus clean, and
 │                     ON==OFF sim-equiv over 20000 vectors (`scratchpad/probe8/`).
 │                     Metric (`num_emitted_case_mux_if_chains`, schema 1.15→1.16)
-│                     + repo-owned `--case-mux-if-gate` + coverage fact = `.17b.2`.
+│                     = `.17b.2a`; repo-owned `tool_matrix --case-mux-if-gate`
+│                     (`ScenarioSet::CaseMuxIfSweep` + `case_mux_prob`-biased
+│                     `case_mux_if_focus_config` × 3 strategies + METRIC-KEYED
+│                     `emitted_case_mux_if` [`num_emitted_case_mux_if_chains > 0`,
+│                     no new text token] + `saw_case_mux_if_emit`) = `.17b.2b`,
+│                     banked clean `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios /
+│                     12 modules / 12 emitting a chain / 83 chains /
+│                     `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus).
 │
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate

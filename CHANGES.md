@@ -1,6 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.17b.2b — repo-owned tool_matrix --case-mux-if-gate
+
+**Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17b.2a` commit).
+**Code change** (`src/bin/tool_matrix.rs` only — a test/CI harness binary; the DUT generator
+is untouched), default-off ⇒ **DUT byte-identical**. Tracked by
+`STRUCTURED-EMISSION-EXPANSION.17b.2b` (the downstream-gate half of the eighth surface's
+`.17b.2`, pre-split `.17b.2a` metric+schema + `.17b.2b` gate per the `.6b.2a`/`.6b.2b` /
+`.12b.2a`/`.12b.2b` convention). With this, the eighth surface (the procedural `always_comb`
+`if`/`else if` priority-chain projection of a dynamic-selector `CaseMux`, decision `0028`) is
+**picked + designed + live + metered + gated**; only `.17b.3` (user docs) remains.
+
+**What changed (why)**
+
+The eighth surface needs a repo-owned downstream gate that proves it fires by construction
+**and** is accepted warning-clean by the downstream tools — the same `oracle (re-run)`
+doctrine every prior surface earned. Templated 1:1 on `--mux-if-gate` across ~30 touch points
+in `src/bin/tool_matrix.rs`:
+
+1. **`CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO = 4`** + the `--case-mux-if-gate` CLI flag +
+   `ScenarioSet::CaseMuxIfSweep` + `MatrixReport.case_mux_if_gate` + the run-plan
+   units-floor / `fail_on_coverage_gap` wiring + the `select_scenario_set` mutual-exclusion
+   count & message + the `build_scenarios` dispatch.
+2. **`build_case_mux_if_sweep_scenarios` + `case_mux_if_focus_config`** — one comb-only
+   (`flop_prob = 0.0`), node-id + e-graph DUT per construction strategy with
+   `case_mux_if_emit_prob = 1.0`. The focus config diverges from `--mux-if-gate`'s
+   Mux-biasing in ONE load-bearing way: it sets `comb_mux_prob = 0.0` (not the default 0.1)
+   and `case_mux_prob = 0.9`, because in `cone.rs` the comb-mux roll fires **before** the
+   case-mux roll and short-circuits it — a non-zero `comb_mux_prob` would starve the
+   `case`-mux block. No `comb_mux_encoding_prob` steering is needed: a `CaseMux` selector is
+   a generated dynamic cone by construction, so there is no encoding-path trap (the inverse
+   of the seventh surface's situation).
+3. **`ModuleReport.emitted_case_mux_if` — METRIC-KEYED**, the one structural novelty.
+   Every sibling emit-surface left a unique SV token (`__cv`, `__t(`, `__mt(`, `__cf(`,
+   `__f(`) so the matrix detected it with `sv_text.contains(...)`. This surface emits **no**
+   new token — a marked `CaseMux` is already an `always_comb`-written `logic` var, so only
+   its body swaps `case…endcase` → `if…else if`. A text scan for `if (… == …)` would
+   false-positive on FSM decode blocks. So detection reads the exact
+   `prepared.metrics.num_emitted_case_mux_if_chains > 0` (exact because the annotation pass
+   excludes constant-selector `CaseMux`). This is the first matrix surface keyed off a
+   `Metrics` field rather than the emitted SV text.
+4. **`CoverageSummary.saw_case_mux_if_emit`** (set in the summarize-module-coverage block
+   when an `emitted_case_mux_if` module is also Verilator-accepted + Yosys-clean) + the
+   merge `|=` + the early-return gap arm (the gate's sole contract: the one fact) + the
+   three exhaustive `ScenarioSet` match arms (no-op / `required_categories` /
+   `required_knobs`) + `scenario_set_slug "case-mux-if-sweep"` + `artifact_kind_slug`.
+5. **Tests** — the `test_cli` default + 5 cargo-portable proofs
+   (`case_mux_if_gate_flag_defaults_false_and_parses`,
+   `case_mux_if_gate_selects_set_and_raises_units`,
+   `case_mux_if_gate_is_mutually_exclusive_with_other_gates`,
+   `case_mux_if_sweep_scenarios_force_the_knob`, `case_mux_if_sweep_gaps_require_the_fact`)
+   + 8 `ModuleReport` fixture extensions (`emitted_case_mux_if: false`).
+
+**Validation**
+- `cargo check --all-targets` clean; `cargo fmt --all --check` clean; `cargo clippy
+  --all-targets -- -D warnings` clean (one `doc_lazy_continuation` lint fixed — a wrapped doc
+  line began with `+`, which clippy parses as a markdown list bullet; reworded to `plus`).
+- `cargo test --bin tool_matrix` **94 passed** / 1 ignored (89 + the 5 new gate proofs);
+  `cargo test --test snapshots` **6/6 byte-identical** (default-off).
+- **Banked clean** `./target/release/tool_matrix --case-mux-if-gate --yosys-mode both
+  --iverilog-compile --out /tmp/anvil-case-mux-if-gate-r1`: 3 scenarios / 12 modules / **12
+  emitting a chain / 83 chains**, `coverage_gaps = []`, `saw_case_mux_if_emit = true`,
+  `case_mux_if_gate = true`, Verilator **12/0** + Yosys without-abc **12/0** + Yosys with-abc
+  **12/0** + Icarus compile **12/0**, exit 0. Spot-checked emitted SV
+  (`int_nodeid_egraph_case_mux_if/mod_2_0000.sv`): `always_comb begin if (slice_0 == 1'd0) …
+  else if (slice_0 == 1'd1) … end` — exactly the designed priority chain.
+
+**Impact**
+- New opt-in CI gate `tool_matrix --case-mux-if-gate`. Default (no flag) ⇒ DUT
+  byte-identical; the DUT generator and all other gates are unchanged. No knob/IR/schema
+  change (those landed at `.17b.1`/`.17b.2a`).
+
+**Files touched**
+- `src/bin/tool_matrix.rs` (the gate wiring + 5 proofs + 8 fixtures).
+- Live docs: `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `ROADMAP.md`,
+  `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`,
+  `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.17b.2a — case-mux-if metric + introspection schema 1.16
 
 **Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17b.1` commit).

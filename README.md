@@ -1127,6 +1127,33 @@ exercising adversarial axes that previously fired only by chance
   Verilator + both Yosys + Icarus compile). Separate from the per-gate/per-cone gates;
   default `mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the
   opt-in proof axis.
+- `tool_matrix --case-mux-if-gate` runs the repo-owned procedural `always_comb`
+  `if`/`else if` **priority-chain** emit gate (`STRUCTURED-EMISSION-EXPANSION.17b.2b`)
+  and fails on coverage gaps unless the report proves the eighth richer-structured
+  emission surface (the first N-way procedural priority chain, decision `0028`) fires
+  by construction and is downstream-accepted. It forces `case_mux_if_emit_prob = 1.0`
+  over a comb-only single-module DUT across all three construction strategies (a
+  `case_mux_prob`-biased focus config — `case_mux_prob = 0.9` with `comb_mux_prob = 0.0`
+  so the earlier-rolling comb-mux block never short-circuits the `case`-mux roll; no
+  `comb_mux_encoding_prob` steering is needed because a `CaseMux` selector is a
+  generated dynamic cone by construction, so there is no encoding-path trap like
+  `--mux-if-gate` has), so every qualifying dynamic-selector `CaseMux` gate is
+  re-expressed as a behaviour-preserving `if`/`else if` priority chain over the same
+  operand refs (instead of the parallel `case` statement), and requires the
+  `saw_case_mux_if_emit` fact. Unlike the sibling gates the detection is
+  **metric-keyed** — this surface emits **no new identifier token** (a marked `CaseMux`
+  is already an `always_comb`-written `logic` var, so only the body swaps
+  `case…endcase` → `if…else if`), and a text scan for `if (… == …)` would also match
+  FSM decode blocks, so the report keys `emitted_case_mux_if` off the exact
+  `num_emitted_case_mux_if_chains` metric (`> 0`) rather than a substring. Like a
+  single-gate task (and unlike the `union soft` up-opt), a procedural `always_comb
+  if/else if` chain is universally synthesizable, so the gate runs the full Verilator +
+  both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 83
+  chains, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile).
+  Separate from the per-gate/per-cone gates and `--mux-if-gate`; default
+  `case_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in
+  proof axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

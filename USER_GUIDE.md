@@ -1102,6 +1102,25 @@ Useful options:
   set) plan. Banked clean at `/tmp/anvil-mux-if-gate-r1` (3 scenarios / 12 modules /
   12 emitting a block / 215 blocks / `coverage_gaps = []` / Verilator 12/0 / Yosys
   12/0 both modes / Icarus compile 12/0).
+- `--case-mux-if-gate` to run the repo-owned procedural `always_comb` `if`/`else if`
+  **priority-chain** emit gate (`STRUCTURED-EMISSION-EXPANSION.17b.2b`) and fail unless
+  the report proves the eighth richer-structured emission surface (the first N-way
+  procedural priority chain, decision `0028`) fires **by construction** and is
+  downstream-accepted. It forces `case_mux_if_emit_prob = 1.0` over a comb-only
+  single-module DUT across all three construction strategies (a `case_mux_prob`-biased
+  focus config — `case_mux_prob = 0.9` with `comb_mux_prob = 0.0`; no encoding-path
+  steering is needed because a `CaseMux` selector is a generated dynamic cone), so
+  every qualifying dynamic-selector `CaseMux` is re-expressed as an `if`/`else if`
+  priority chain over the same operand refs, and requires the `saw_case_mux_if_emit`
+  fact. Detection is **metric-keyed** (`num_emitted_case_mux_if_chains > 0`) because
+  this surface emits no new identifier token — a marked `CaseMux` is already an
+  `always_comb`-written `logic` var, so only its body swaps `case…endcase` →
+  `if…else if`. Like a single-gate task, a procedural `always_comb if/else if` chain is
+  universally synthesizable, so the gate runs the full Verilator + both Yosys modes
+  (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
+  `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
+  chains / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both modes / Icarus
+  compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

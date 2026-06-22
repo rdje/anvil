@@ -374,9 +374,13 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    no warnings] + Icarus + iverilog sim-equiv to the parallel `case` over 20000 vectors +
    an exhaustive selector sweep) is clean. The `num_emitted_case_mux_if_chains` metric is
    now surfaced at introspection schema **`1.16`** (`.17b.2a`; live `--introspect` confirms
-   `0` default / `53` forced). `.17b.2b` (the repo-owned `tool_matrix --case-mux-if-gate` /
-   `saw_case_mux_if_emit`, metric-keyed) and `.17b.3` (user docs) are the remaining
-   frontier. Chosen over
+   `0` default / `53` forced). The repo-owned `tool_matrix --case-mux-if-gate` /
+   `saw_case_mux_if_emit` (metric-keyed, `ScenarioSet::CaseMuxIfSweep` +
+   `case_mux_prob`-biased focus config × 3 strategies) **landed `.17b.2b`** — banked clean
+   `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
+   chains / `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus). `.17b.3` (user
+   docs: book/knobs/USER_GUIDE/README/KM for the `case_mux_if_emit_prob` knob) is the
+   remaining frontier. Chosen over
    nested/multi-level `generate` (no
    by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the
    existing single-level loop already fires on the outer `{M{y}}`) and
@@ -384,7 +388,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    port and both Yosys modes warn on the implicit interface-member decl); the `CasezMux`
    masked priority chain, nested/multi-level `generate`, and `interface`/`modport` are
    the remaining future vetted surfaces (`.18`+), each with its own decision; the tree
-   stays `active` with `.17b.2` as the current frontier. Serves ROADMAP steering gap 1
+   stays `active` with `.17b.3` as the current frontier. Serves ROADMAP steering gap 1
    (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
