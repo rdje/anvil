@@ -708,6 +708,53 @@ src/
 │                     12 modules / 12 emitting a chain / 83 chains /
 │                     `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus).
 │
+├── ir/casez_mux_if_emit.rs  STRUCTURED-EMISSION-EXPANSION.19b.1 — the
+│                     ninth richer-structured emit surface (decision 0029),
+│                     the wildcard generalization of the eighth. Gen-time
+│                     `annotate_casez_mux_if_gates(m, rng, prob)` pass (rolled
+│                     at the `gen/mod.rs` call site LAST, after case_mux_if;
+│                     param-env modules skipped) marks **dynamic-selector**
+│                     `GateOp::CasezMux` gates — `gate_qualifies` requires a
+│                     `CasezMux` with `>= 1` `(value, mask, data)` arm
+│                     (`operands.len() >= 4`) whose selector (`operands[0]`) is
+│                     NOT a `Node::Constant` and not already marked by any
+│                     sibling projection (incl. `case_mux_if_gates`; vacuous but
+│                     kept for robustness); one `gen_bool(prob)` roll per
+│                     candidate into the new emitter-surface
+│                     `Module.casez_mux_if_gates: BTreeSet<NodeId>` (not hashed
+│                     into identity). The emitter (`emit/sv.rs`) re-expresses
+│                     each marked `CasezMux`'s `always_comb` body from the
+│                     parallel `casez (sel) … default` to a procedural
+│                     `if`/`else if` **masked** priority chain (`if ((sel &
+│                     care_mask) == value_masked) g = arm_0; else if … else g =
+│                     D'h0;`), where per arm `care_mask = ~wildcard_mask &
+│                     sel_mask` and `value_masked = pattern_value & care_mask`
+│                     (the existing `constant_value`/`bitmask`/`casez_pattern_matches`
+│                     idiom) — exactly the `casez` match predicate, first-match
+│                     like `casez`, so behaviour-preserving; the trailing `else`
+│                     carries the former `default`. The masked-AND form ships
+│                     because the concise `sel ==? pattern` operator is rejected
+│                     by Yosys 0.64 (decision 0029 probe). Like the eighth
+│                     surface a `CasezMux` is already an `always_comb`-written
+│                     `logic` var, so NO `<wire>__cv` passthrough — only the body
+│                     swaps (the parallel `casez`/`endcase` suppressed for a
+│                     marked gate; the shared trailing-default `:769` also
+│                     excludes marked casez gates). Its OWN
+│                     `casez_mux_if_emit_prob` knob + `--casez-mux-if-emit-prob`
+│                     flag (separate from `case_mux_if_emit_prob`; nothing
+│                     retired). Default-off (`casez_mux_if_emit_prob == 0.0`)
+│                     byte-identical (snapshots 6/6; 9 lib proofs incl. the
+│                     constant-selector exclusion + the end-to-end masked-chain
+│                     emit proof). Forced `casez_mux_if_emit_prob=1.0` sweep
+│                     (6 seeds, comb-only, `casez_mux_prob=1.0`): every `casez`
+│                     block → a masked chain (0 residual `casez`), Verilator
+│                     `-Wall` Δ=0 vs OFF (2012/2017/2023) + Yosys both modes +
+│                     Icarus clean, and ON==OFF sim-equiv (seed 1 8/8 + seed 4
+│                     128/128, `scratchpad/sweep19/`). Metric
+│                     (`num_emitted_casez_mux_if_chains`, schema 1.16→1.17) =
+│                     `.19b.2a` (pending); repo-owned `tool_matrix
+│                     --casez-mux-if-gate` (metric-keyed) = `.19b.2b` (pending).
+│
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
 │                     generator path** from the DUT lane, NOT threaded

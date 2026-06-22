@@ -123,6 +123,10 @@ fn default_case_mux_if_emit_prob() -> f64 {
     0.0
 }
 
+fn default_casez_mux_if_emit_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -1055,6 +1059,31 @@ pub struct Config {
     #[serde(default = "default_case_mux_if_emit_prob")]
     pub case_mux_if_emit_prob: f64,
 
+    /// `STRUCTURED-EMISSION-EXPANSION.19b` (decision `0029`) — the ninth
+    /// richer-structured emit surface. Per *qualifying* dynamic-selector
+    /// `CasezMux` gate, the probability the emitter re-renders it as a procedural
+    /// `always_comb` `if`/`else if` **masked** priority chain (`if ((sel &
+    /// care_mask) == value_masked) g = arm_0; else if … else g = D'h0;`) instead
+    /// of the parallel `casez (sel) … default` statement. The wildcard
+    /// generalization of `case_mux_if_emit_prob`: a `casez` arm carries a
+    /// `?`-wildcard pattern, so each arm becomes a **masked** equality `(sel &
+    /// care_mask) == value_masked` (`care_mask = ~wildcard_mask & sel_mask`) —
+    /// exactly the `casez_pattern_matches` predicate, so it is
+    /// behaviour-preserving (the chain is first-match, like `casez`). The
+    /// masked-AND form (not the `sel ==? pattern` wildcard-equality operator,
+    /// which Yosys rejects) is the shipped form. A `CasezMux` is already an
+    /// `always_comb`-written `logic` var, so — like the eighth surface — no
+    /// output-var/passthrough is needed, only the block body swaps.
+    /// Behaviour-preserving emit-time projection, no new computed truth (the
+    /// `case_mux_if`/`mux_if` precedent) — mutually exclusive with the eight other
+    /// per-gate projections (the pass runs last and excludes their marks).
+    /// Separate from `case_mux_if_emit_prob` so the shipped surfaces stay
+    /// byte-identical. `default = 0.0` keeps every existing output byte-identical
+    /// (rules-first; never generate-then-filter). See decision `0029` +
+    /// `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`.
+    #[serde(default = "default_casez_mux_if_emit_prob")]
+    pub casez_mux_if_emit_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1303,6 +1332,7 @@ impl Default for Config {
             multi_output_task_emit_prob: default_multi_output_task_emit_prob(),
             mux_if_emit_prob: default_mux_if_emit_prob(),
             case_mux_if_emit_prob: default_case_mux_if_emit_prob(),
+            casez_mux_if_emit_prob: default_casez_mux_if_emit_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             fsm_mealy_prob: default_fsm_mealy_prob(),
@@ -1687,6 +1717,7 @@ impl Config {
             ),
             ("mux_if_emit_prob", self.mux_if_emit_prob),
             ("case_mux_if_emit_prob", self.case_mux_if_emit_prob),
+            ("casez_mux_if_emit_prob", self.casez_mux_if_emit_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("fsm_mealy_prob", self.fsm_mealy_prob),
@@ -1921,6 +1952,9 @@ impl Config {
         if let Some(v) = o.case_mux_if_emit_prob {
             self.case_mux_if_emit_prob = v;
         }
+        if let Some(v) = o.casez_mux_if_emit_prob {
+            self.casez_mux_if_emit_prob = v;
+        }
         if let Some(v) = o.soft_union_slice_prob {
             self.soft_union_slice_prob = v;
         }
@@ -2045,6 +2079,7 @@ pub struct Overrides {
     pub multi_output_task_emit_prob: Option<f64>,
     pub mux_if_emit_prob: Option<f64>,
     pub case_mux_if_emit_prob: Option<f64>,
+    pub casez_mux_if_emit_prob: Option<f64>,
     pub soft_union_slice_prob: Option<f64>,
     pub width_parameterization_prob: Option<f64>,
     pub aggregate_prob: Option<f64>,

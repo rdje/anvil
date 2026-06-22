@@ -552,6 +552,9 @@ struct Cli {
     /// Per-qualifying-CaseMux probability of the procedural `always_comb` if/else-if priority-chain emit-projection.
     #[arg(long)]
     case_mux_if_emit_prob: Option<f64>,
+    /// Per-qualifying-CasezMux probability of the procedural `always_comb` if/else-if MASKED priority-chain emit-projection.
+    #[arg(long)]
+    casez_mux_if_emit_prob: Option<f64>,
     /// Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`).
     #[arg(long)]
     soft_union_slice_prob: Option<f64>,
@@ -1173,6 +1176,7 @@ fn cli_overrides(cli: &Cli) -> anvil::config::Overrides {
         multi_output_task_emit_prob: cli.multi_output_task_emit_prob,
         mux_if_emit_prob: cli.mux_if_emit_prob,
         case_mux_if_emit_prob: cli.case_mux_if_emit_prob,
+        casez_mux_if_emit_prob: cli.casez_mux_if_emit_prob,
         soft_union_slice_prob: cli.soft_union_slice_prob,
         width_parameterization_prob: cli.width_parameterization_prob,
         aggregate_prob: cli.aggregate_prob,

@@ -550,6 +550,22 @@ pub struct Module {
     /// output-var/passthrough — only the block body swaps. Empty (the
     /// `Default`) ⇒ byte-identical emission.
     pub case_mux_if_gates: BTreeSet<NodeId>,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.19b` (decision `0029`) — the set of
+    /// **dynamic-selector** `CasezMux` gates marked for the procedural
+    /// `always_comb` `if`/`else if` **masked** priority-chain emit-projection
+    /// (the ninth richer-structured surface). A marked gate renders its body as
+    /// a chain of masked equality tests `(sel & care_mask) == value_masked`
+    /// instead of the parallel `casez` statement — the wildcard generalization
+    /// of `case_mux_if_gates`'s bare-equality chain. An emitter-surface
+    /// annotation only: the flat IR body, validators, CSE keys and
+    /// `canonical_module_signature` are all unaffected. Populated by the
+    /// post-construction `crate::ir::casez_mux_if_emit` pass under the opt-in
+    /// `Config::casez_mux_if_emit_prob` knob; the pass runs **last** (after
+    /// `case_mux_if`). A `CasezMux` is already an `always_comb`-written `logic`
+    /// var, so this surface needs no output-var/passthrough — only the block
+    /// body swaps. Empty (the `Default`) ⇒ byte-identical emission.
+    pub casez_mux_if_gates: BTreeSet<NodeId>,
 }
 
 /// Identifier for each probability-roll knob. One variant per

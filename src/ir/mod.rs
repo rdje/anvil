@@ -2,6 +2,7 @@
 
 pub mod aggregate;
 pub mod case_mux_if_emit;
+pub mod casez_mux_if_emit;
 pub mod compact;
 pub mod cone_function_emit;
 pub mod dedup;

@@ -1,9 +1,96 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.1 — CasezMux masked priority-chain emit-projection (live surface)
+
+**Landed as:** this commit (previous: `f266d54`, `STRUCTURED-EMISSION-EXPANSION.19a`).
+This is a **code change** (touches `src/`), task-tree-owned by the `.19b` leaf (the `.19b.1`
+sub-slice); the code-scoped doctrine checks (`CODE-CHANGE-EVIDENCE` + `TASK-TREE-OWNERSHIP`)
+are satisfied by co-staging `CHANGES.md` + `MEMORY.md` + the owning
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` with the leaf id in the subject. **Default-off
+(`casez_mux_if_emit_prob = 0.0`) ⇒ DUT byte-identical** (`tests/snapshots.rs` untouched).
+
+**What changed (why)**
+
+The ninth structured surface (decision `0029`, the wildcard `CasezMux` → masked `if`/`else
+if` priority chain) goes live, implemented exactly per the `.19a` design-detail. It is the
+masked generalization of the eighth surface's bare-equality `CaseMux` chain: a `casez` arm
+carries a `?`-wildcard pattern, so each arm becomes a **masked** equality test.
+
+1. **`src/ir/casez_mux_if_emit.rs`** (new) — `annotate_casez_mux_if_gates(m, rng, prob)`, the
+   gen-time annotation mirroring `case_mux_if_emit.rs`. `gate_qualifies` marks a
+   `GateOp::CasezMux` gate whose selector (`operands[0]`) is **not** a `Node::Constant` (a
+   constant selector statically collapses to a continuous `assign` and never emits an
+   `always_comb` block — excluding it keeps the metric exact) with at least one full `(value,
+   mask, data)` arm (`operands.len() >= 4`), and not already marked by any sibling projection
+   (including the eighth surface's `case_mux_if_gates` — this pass runs after it; vacuous in
+   practice but kept for robustness). One seeded `gen_bool(prob)` roll per candidate into
+   `Module.casez_mux_if_gates`; `param_env` modules skipped. 9 lib proofs (the dynamic mark,
+   the constant-selector exclusion, prob-0 byte-identical, `CaseMux`/`Mux` non-qualification,
+   the sibling exclusion, `param_env` skip, identity-untouched, and the end-to-end masked-chain
+   emit proof).
+
+2. **`src/ir/types.rs`** — `Module.casez_mux_if_gates: BTreeSet<NodeId>` (`#[serde(default)]`,
+   beside `case_mux_if_gates`); **`src/ir/mod.rs`** — `pub mod casez_mux_if_emit;`.
+
+3. **`src/emit/sv.rs`** — the `GateOp::CasezMux` arm in the structured-case `always_comb` loop
+   now branches on `m.casez_mux_if_gates.contains(&idx)`. A **marked** gate emits the masked
+   chain: per arm `care_mask = !wildcard_mask & sel_mask`, `value_masked = pattern_value &
+   care_mask` (computed from the arm's `(value, mask)` constants via the **existing**
+   `constant_value` + `bitmask` helpers — no new helper), rendered `{kw} ((sel & SW'h{care}) ==
+   SW'h{val}) <g> = <data>;` (`if` then `else if`), then a trailing `else <g> = W'h0;`. An
+   **unmarked** gate emits the verbatim `casez … endcase`. The shared trailing-`default`/
+   `endcase` tail (`:769`) now also excludes marked casez gates (they emit their own trailing
+   `else` and have no `casez` to close). The masked-AND form ships because the concise `sel
+   ==? pattern` wildcard-equality operator is rejected by Yosys `0.64` (the `.18` probe). It is
+   behaviour-preserving by construction: `(sel & care_mask) == value_masked` is exactly the
+   `casez_pattern_matches` predicate, and an `if`/`else if` chain is first-match like `casez`.
+   **No `__cv` passthrough** — a `CasezMux` is already an `always_comb`-written `logic` var.
+
+4. **`src/config.rs`** — `casez_mux_if_emit_prob: f64` (default `0.0`) at all six touch points
+   (default fn, `#[serde(default)]` field, `Default` impl, the `0.0..=1.0` validate list, the
+   `apply_overrides`, the `Overrides` `Option<f64>`); **`src/main.rs`** — the
+   `--casez-mux-if-emit-prob` clap flag + overlay.
+
+5. **`src/gen/mod.rs`** — two guarded call-site rolls (`generate_module` + `generate_design`),
+   each `if self.cfg.casez_mux_if_emit_prob > 0.0`, running **last** (after `case_mux_if`) so
+   all sibling marks are visible and excluded.
+
+No metric/schema bump here — the metric (`num_emitted_casez_mux_if_chains`, introspection
+schema `1.16 → 1.17`) lands at `.19b.2`; the knob rides the existing schema (the default-off
+prob-knob precedent). The book chapter section lands at `.19b.3` (the established cadence).
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean.
+- `cargo test --lib` 626 → 635 (9 new `casez_mux_if_emit` proofs); `cargo test --test
+  snapshots` 6/6 byte-identical (default-off ⇒ DUT byte-identical).
+- Forced `casez_mux_if_emit_prob=1.0` sweep (`scratchpad/sweep19`, 6 seeds, comb-only
+  `casez_mux_prob=1.0`): every `casez` block → a masked `if`/`else if` chain (3 masked arms
+  each, 0 residual `casez`); Verilator `5.046` `-Wall` ON-vs-OFF Δ=0 across `1800-2012`,
+  `1800-2017`, `1800-2023` (18 comparisons); Yosys `0.64` `synth -noabc` + the repo
+  `abc -fast` path 0 issues; Icarus `iverilog -g2012` 0 message lines; ON-vs-OFF `iverilog`
+  sim-equiv seed 1 (8/8) + seed 4 (128/128, with a real `i_1` data arm), 0 mismatches.
+- `bash scripts/check_doctrines.sh` green (4 doctrines).
+
+**Impact**
+
+`anvil` and `--artifact dut` stay byte-identical (knob default `0.0`). When enabled, the DUT
+lane gains a procedural `always_comb` `if`/`else if` **masked** priority chain — a new legal
+sequential-priority masked-compare shape distinct from the parallel `casez` and the eighth
+surface's bare-equality chain. Nothing retired.
+
+**Files touched**
+
+`src/ir/casez_mux_if_emit.rs` (new), `src/ir/mod.rs`, `src/ir/types.rs`, `src/emit/sv.rs`,
+`src/config.rs`, `src/main.rs`, `src/gen/mod.rs`, `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19a — CasezMux masked priority-chain impl design-detail
 
-**Landed as:** this commit (previous: `6aeecf6`, `STRUCTURED-EMISSION-EXPANSION.18`).
+**Landed as:** `f266d54` (previous: `6aeecf6`, `STRUCTURED-EMISSION-EXPANSION.18`).
 **DOCS-ONLY** (no `src/`, `tests/`, `examples/`, or build logic touched) ⇒ **DUT
 byte-identical** and exempt from the code-scoped doctrine checks. Tracked by the
 `STRUCTURED-EMISSION-EXPANSION.19a` impl design-detail leaf (the prerequisite for the live

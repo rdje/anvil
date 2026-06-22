@@ -723,11 +723,41 @@ fn to_sv_with_modules(
             }
             GateOp::CasezMux => {
                 let sel = node_ref(operands[0], m, &names);
-                writeln!(out, "        casez ({sel})").unwrap();
-                for arm in operands[1..].chunks_exact(3) {
-                    let pattern = render_casez_pattern(arm[0], arm[1], m);
-                    let data = node_ref(arm[2], m, &names);
-                    writeln!(out, "            {pattern}: {name} = {data};").unwrap();
+                let sel_width = m.nodes[operands[0] as usize].width();
+                if m.casez_mux_if_gates.contains(&(idx as NodeId)) {
+                    // `STRUCTURED-EMISSION-EXPANSION.19b` (decision `0029`) — the
+                    // ninth surface: re-express the parallel `casez` as a
+                    // procedural `if`/`else if` **masked** priority chain. Each
+                    // wildcard arm becomes `(sel & care_mask) == value_masked`
+                    // where `care_mask = ~wildcard_mask & sel_mask` and
+                    // `value_masked = pattern_value & care_mask` — exactly the
+                    // `casez_pattern_matches` predicate. The chain is first-match
+                    // (like `casez`), the trailing `else` carries the former
+                    // `default`. Behaviour-preserving by construction.
+                    let sel_mask = bitmask(sel_width);
+                    for (arm_idx, arm) in operands[1..].chunks_exact(3).enumerate() {
+                        let pattern_value =
+                            constant_value(m, arm[0]).expect("casez pattern is a constant");
+                        let wildcard_mask =
+                            constant_value(m, arm[1]).expect("casez wildcard mask is a constant");
+                        let care_mask = !wildcard_mask & sel_mask;
+                        let value_masked = pattern_value & care_mask;
+                        let data = node_ref(arm[2], m, &names);
+                        let kw = if arm_idx == 0 { "if" } else { "else if" };
+                        writeln!(
+                            out,
+                            "        {kw} (({sel} & {sel_width}'h{care_mask:x}) == {sel_width}'h{value_masked:x}) {name} = {data};"
+                        )
+                        .unwrap();
+                    }
+                    writeln!(out, "        else {} = {}'h0;", name, width).unwrap();
+                } else {
+                    writeln!(out, "        casez ({sel})").unwrap();
+                    for arm in operands[1..].chunks_exact(3) {
+                        let pattern = render_casez_pattern(arm[0], arm[1], m);
+                        let data = node_ref(arm[2], m, &names);
+                        writeln!(out, "            {pattern}: {name} = {data};").unwrap();
+                    }
                 }
             }
             GateOp::ForFold {
@@ -764,10 +794,12 @@ fn to_sv_with_modules(
             }
             _ => unreachable!("non-procedural gate filtered above"),
         }
-        // A `CaseMux` projected to the priority chain (`.17b`) emits its own
-        // trailing `else` above and has no `case`/`endcase` to close.
+        // A `CaseMux` projected to the priority chain (`.17b`) or a `CasezMux`
+        // projected to the masked priority chain (`.19b`) emits its own trailing
+        // `else` above and has no `case`/`casez`/`endcase` to close.
         if matches!(op, GateOp::CaseMux | GateOp::CasezMux)
             && !m.case_mux_if_gates.contains(&(idx as NodeId))
+            && !m.casez_mux_if_gates.contains(&(idx as NodeId))
         {
             writeln!(out, "            default: {} = {}'h0;", name, width).unwrap();
             writeln!(out, "        endcase").unwrap();

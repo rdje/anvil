@@ -5,6 +5,37 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — CasezMux masked priority-chain surface — impl-time note — `STRUCTURED-EMISSION-EXPANSION.19b.1`
+
+Implemented exactly per the `.19a` design — **no deviations**. The two things worth
+recording:
+
+1. **The masked-comparison rendering reuses the existing emit helpers.** The new `CasezMux`
+   marked branch in `src/emit/sv.rs` computes, per arm, `pattern_value = constant_value(m,
+   arm[0])`, `wildcard_mask = constant_value(m, arm[1])`, `sel_mask = bitmask(sel_width)`,
+   `care_mask = !wildcard_mask & sel_mask`, `value_masked = pattern_value & care_mask`, and
+   emits `(<sel> & <SW>'h<care_mask>) == <SW>'h<value_masked>` (lowercase `{:x}` hex). Both
+   `constant_value` and `bitmask` already existed in `sv.rs` (used by
+   `render_static_structured_gate` / `casez_pattern_matches`), so the masked chain adds **no**
+   new helper — `feedback_full_factorization`. The `.expect(...)` on `constant_value` is safe:
+   `render_casez_pattern` already `unreachable!`s on non-constant pattern/mask operands, so a
+   `CasezMux` arm's `(value, mask)` are constants by construction.
+
+2. **The trailing-default suppression now excludes both chain marks.** The shared
+   `default: g = W'h0; endcase` tail (`sv.rs`) was gated on `!case_mux_if_gates.contains(idx)`;
+   it now also requires `!casez_mux_if_gates.contains(idx)`, since a marked `CasezMux` emits
+   its own trailing `else` and has no `casez`/`endcase` to close. A marked `CasezMux`'s
+   parallel `casez` is suppressed exactly the way a marked `CaseMux`'s `case` is.
+
+Validation: `cargo test --lib` 626→635 (9 new `casez_mux_if_emit` proofs incl. the
+end-to-end masked-chain emit proof); snapshots 6/6 byte-identical (default-off); clippy
+`-D warnings` + fmt clean. Forced `casez_mux_if_emit_prob=1.0` sweep (`scratchpad/sweep19/`,
+6 seeds, comb-only `casez_mux_prob=1.0`): every `casez` block → a masked chain (0 residual
+`casez`), Verilator `-Wall` Δ=0 vs OFF across 2012/2017/2023 (18 comparisons), Yosys both
+modes + Icarus clean, ON==OFF sim-equiv (seed 1 8/8 + seed 4 128/128 with a real signal data
+arm). No metric/schema bump here (the `.19b.2` metric bumps `1.16 → 1.17`; the knob rides
+the version). Default-off / DUT byte-identical.
+
 ## 2026-06-23 — CasezMux masked `if`/`else if` priority-chain surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.19a`
 
 Grounds decision `0029` (the **ninth** structured surface: a procedural `always_comb`
