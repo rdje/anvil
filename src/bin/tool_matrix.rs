@@ -47,6 +47,7 @@ const GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const CONE_FUNCTION_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
+const MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -154,6 +155,16 @@ struct Cli {
     /// `--iverilog-compile` is also set).
     #[arg(long)]
     multi_output_task_gate: bool,
+
+    /// Elevate the run to the repo-owned procedural `always_comb` `if`/`else`
+    /// emit gate (`STRUCTURED-EMISSION-EXPANSION.15b.2`): force
+    /// `mux_if_emit_prob = 1.0` over comb-only DUTs across the three
+    /// construction strategies and require the `saw_mux_if_emit` coverage fact,
+    /// proving the emitted procedural conditionals are accepted warning-clean by
+    /// Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is also
+    /// set).
+    #[arg(long)]
+    mux_if_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -388,6 +399,19 @@ struct ModuleReport {
     /// (+ Icarus) plan.
     #[serde(default)]
     emitted_multi_output_task: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.15b.2` — `true` iff this module's emitted SV
+    /// carries at least one procedural `always_comb` `if`/`else` emit-projection
+    /// of a 2:1 `Mux` gate (the `mux_if_emit_prob` rendering; decision `0027`).
+    /// Detected from the emitted SV text (the `<wire>__cv` output-var token,
+    /// distinct from the single-gate `function_emit` `<wire>__f(` / `task_emit`
+    /// `<wire>__t(` / `<wire>__tv`, the multi-output `<leader>__mt(` / `<wire>__mtv`,
+    /// and the cone `<root>__cf(` surfaces). Lights the `saw_mux_if_emit` coverage
+    /// fact when the module is also accepted by the downstream tools. Like a
+    /// single-gate task, a procedural `always_comb if/else` is universally
+    /// synthesizable, so such a module runs the full Verilator + Yosys (+ Icarus)
+    /// plan.
+    #[serde(default)]
+    emitted_mux_if: bool,
 }
 
 // `DiffSimReport` (the per-module diff-sim outcome) now lives in
@@ -740,6 +764,14 @@ struct CoverageSummary {
     /// richer-structured surface fires by construction and is downstream-clean,
     /// not just that the knob was requested.
     saw_multi_output_task_emit: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.15b.2` — at least one module emitted a
+    /// procedural `always_comb` `if`/`else` emit-projection of a 2:1 `Mux`
+    /// (`mux_if_emit_prob`; decision `0027`) **and** that module was accepted by
+    /// the downstream tools (Verilator success + Yosys clean; Icarus when enabled
+    /// is enforced via the tool-summary bail). Proves the seventh richer-structured
+    /// surface (the first procedural-conditional one) fires by construction and is
+    /// downstream-clean, not just that the knob was requested.
+    saw_mux_if_emit: bool,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -878,6 +910,18 @@ enum ScenarioSet {
     /// `multi_output_task_emit_prob = 0.0` emission stays byte-identical; the gate
     /// is the opt-in proof axis for the non-default surface.
     MultiOutputTaskSweep,
+    /// `STRUCTURED-EMISSION-EXPANSION.15b.2` — the repo-owned procedural
+    /// `always_comb` `if`/`else` emit gate. Forces `mux_if_emit_prob = 1.0` over a
+    /// comb-only single-module DUT across all three construction strategies, so
+    /// every qualifying 2:1 `Mux` gate is rendered as a behaviour-preserving
+    /// procedural `if`/`else` block writing a `<wire>__cv` output var (decision
+    /// `0027`). Proves the seventh richer-structured emission surface (the first
+    /// procedural-conditional one) is accepted warning-clean by Verilator + both
+    /// Yosys modes (+ Icarus when `--iverilog-compile` is set), gated on the
+    /// `saw_mux_if_emit` coverage fact. Default `mux_if_emit_prob = 0.0` emission
+    /// stays byte-identical; the gate is the opt-in proof axis for the non-default
+    /// surface.
+    MuxIfSweep,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -961,6 +1005,12 @@ struct MatrixReport {
     /// `saw_multi_output_task_emit` fact is enforced under `coverage_gaps`.
     #[serde(default)]
     multi_output_task_gate: bool,
+    /// `STRUCTURED-EMISSION-EXPANSION.15b.2` — whether `--mux-if-gate`
+    /// drove this run. When `true`, every scenario forced
+    /// `mux_if_emit_prob = 1.0` over comb-only DUTs and the
+    /// `saw_mux_if_emit` fact is enforced under `coverage_gaps`.
+    #[serde(default)]
+    mux_if_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -1162,6 +1212,7 @@ fn main() -> Result<()> {
         task_emit_gate: cli.task_emit_gate,
         cone_function_gate: cli.cone_function_gate,
         multi_output_task_gate: cli.multi_output_task_gate,
+        mux_if_gate: cli.mux_if_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -1291,6 +1342,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         CONE_FUNCTION_SWEEP_MIN_UNITS_PER_SCENARIO
     } else if cli.multi_output_task_gate {
         MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO
+    } else if cli.mux_if_gate {
+        MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
     } else {
         1
     };
@@ -1309,7 +1362,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
             || cli.generate_loop_gate
             || cli.task_emit_gate
             || cli.cone_function_gate
-            || cli.multi_output_task_gate,
+            || cli.multi_output_task_gate
+            || cli.mux_if_gate,
         total_modules,
     }
 }
@@ -1325,10 +1379,11 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         + usize::from(cli.generate_loop_gate)
         + usize::from(cli.task_emit_gate)
         + usize::from(cli.cone_function_gate)
-        + usize::from(cli.multi_output_task_gate);
+        + usize::from(cli.multi_output_task_gate)
+        + usize::from(cli.mux_if_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, --generate-loop-gate, --task-emit-gate, --cone-function-gate, and --multi-output-task-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, --generate-loop-gate, --task-emit-gate, --cone-function-gate, --multi-output-task-gate, and --mux-if-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
@@ -1351,6 +1406,8 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         Ok(ScenarioSet::ConeFunctionSweep)
     } else if cli.multi_output_task_gate {
         Ok(ScenarioSet::MultiOutputTaskSweep)
+    } else if cli.mux_if_gate {
+        Ok(ScenarioSet::MuxIfSweep)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -1369,6 +1426,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::TaskEmitSweep => build_task_emit_sweep_scenarios(base_seed)?,
         ScenarioSet::ConeFunctionSweep => build_cone_function_sweep_scenarios(base_seed)?,
         ScenarioSet::MultiOutputTaskSweep => build_multi_output_task_sweep_scenarios(base_seed)?,
+        ScenarioSet::MuxIfSweep => build_mux_if_sweep_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -3760,6 +3818,74 @@ fn multi_output_task_focus_config(strategy: ConstructionStrategy, seed: u64) -> 
     }
 }
 
+/// `STRUCTURED-EMISSION-EXPANSION.15b.2` scenario builder for the procedural
+/// `always_comb` `if`/`else` emit-projection of a 2:1 `Mux` (decision `0027`).
+/// One comb-only `mux_if_emit_prob = 1.0` DUT per construction strategy; the caller
+/// (`--mux-if-gate`) runs the full Verilator + both Yosys modes (+ Icarus when
+/// `--iverilog-compile` is set) plan and requires the `saw_mux_if_emit` coverage
+/// fact, proving the seventh richer-structured emission surface (the first
+/// procedural-conditional one) is accepted warning-clean.
+///
+/// Default `mux_if_emit_prob = 0.0` emission is byte-identical to today; the gate
+/// forces the non-default knob, exactly like the `--multi-output-task-gate`
+/// template.
+fn build_mux_if_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+
+    for (index, strategy) in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let seed = base_seed + index as u64;
+        let strategy_slug = strategy_slug(strategy);
+        let strategy_label = construction_strategy_name(strategy);
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_nodeid_egraph_mux_if"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, comb-only DUT with mux_if_emit_prob = 1.0 — re-expresses every qualifying 2:1 `Mux` gate as a behaviour-preserving procedural `always_comb` `if`/`else` block writing a `<wire>__cv` output var (decision 0027; lights saw_mux_if_emit)."
+            ),
+            mux_if_focus_config(strategy, seed),
+        )?);
+    }
+
+    Ok(scenarios)
+}
+
+/// `STRUCTURED-EMISSION-EXPANSION.15b.2` anchor config for the procedural
+/// `always_comb` `if`/`else` emit-projection. A comb-only (`flop_prob = 0.0`),
+/// node-id + e-graph DUT with `mux_if_emit_prob = 1.0`, so the gen-time
+/// `annotate_mux_if_gates` pass marks every qualifying 2:1 `Mux` and the emitter
+/// renders each as a procedural `if`/`else` block. The surface fires only on a
+/// plain `GateOp::Mux` (3-operand ternary), so this is **Mux-biased**: it forces
+/// the comb-mux block (`comb_mux_prob = 0.9`) down its **encoded chained-ternary**
+/// path (`comb_mux_encoding_prob = 1.0`), which builds plain `Mux` gates — the
+/// one-hot path instead emits `AND`/`OR` and would yield no `Mux`. Downstream-clean
+/// across Verilator + both Yosys modes + Icarus (the live surface was banked clean
+/// at `/tmp/anvil-muxif-genproof.*`).
+fn mux_if_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        mux_if_emit_prob: 1.0,
+        flop_prob: 0.0,
+        comb_mux_prob: 0.9,
+        comb_mux_encoding_prob: 1.0,
+        constant_prob: 0.1,
+        max_depth: 3,
+        min_inputs: 4,
+        max_inputs: 6,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    }
+}
+
 /// `SV-VERSION-TARGETING.2b.2b` — bare-year slug for an `SvVersion`,
 /// used in scenario names (`sv2017_comb_egraph`).
 fn sv_version_year_slug(version: SvVersion) -> &'static str {
@@ -5388,6 +5514,16 @@ fn materialize_prepared_module(
     let emitted_cone_function = prepared.sv_text.contains("__cf(");
     let emitted_multi_output_task = prepared.sv_text.contains("__mt(");
 
+    // `STRUCTURED-EMISSION-EXPANSION.15b.2` — real evidence the procedural
+    // `always_comb` `if`/`else` emit-projection was actually emitted (not just
+    // requested by `mux_if_emit_prob`): the emitted SV text carries a `<wire>__cv`
+    // output-var token (the `logic [W-1:0] <wire>__cv;` decl + the `always_comb
+    // if/else` writing it + the passthrough `assign <wire> = <wire>__cv;`). This is
+    // distinct from the `__f(` / `__t(` / `__tv` / `__mt(` / `__mtv` / `__cf(`
+    // surfaces, so it stays honest even when the knob is off or a seed produced no
+    // qualifying `Mux`.
+    let emitted_mux_if = prepared.sv_text.contains("__cv");
+
     let (verilator, yosys, iverilog_compile, sv2v, slang, slang_facts) = run_module_tools(
         cli,
         scenario_dir,
@@ -5451,6 +5587,7 @@ fn materialize_prepared_module(
         emitted_combinational_task,
         emitted_cone_function,
         emitted_multi_output_task,
+        emitted_mux_if,
     };
     write_module_checkpoint(
         cli,
@@ -6425,6 +6562,26 @@ fn summarize_coverage(
             && all_yosys_invocations_ok(&module.yosys)
         {
             coverage.saw_multi_output_task_emit = true;
+        }
+
+        // `STRUCTURED-EMISSION-EXPANSION.15b.2` — a genuinely-emitted procedural
+        // `always_comb` `if`/`else` projection of a 2:1 `Mux` (proven from the SV
+        // text) accepted by the downstream tools. Like a single-gate task, a
+        // procedural conditional is universally synthesizable, so this fact
+        // requires Verilator success **and** Yosys clean (`!yosys.is_empty()`
+        // guards the vacuous empty-vec case). Icarus acceptance, when
+        // `--iverilog-compile` is set, is enforced separately via the tool-summary
+        // `any_failed` bail.
+        if module.emitted_mux_if
+            && module
+                .verilator
+                .as_ref()
+                .map(|t| t.success)
+                .unwrap_or(false)
+            && !module.yosys.is_empty()
+            && all_yosys_invocations_ok(&module.yosys)
+        {
+            coverage.saw_mux_if_emit = true;
         }
     }
 
@@ -7915,6 +8072,7 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_combinational_task_emit |= src.saw_combinational_task_emit;
     dst.saw_cone_function_emit |= src.saw_cone_function_emit;
     dst.saw_multi_output_task_emit |= src.saw_multi_output_task_emit;
+    dst.saw_mux_if_emit |= src.saw_mux_if_emit;
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_acceptance_divergence |= src.saw_acceptance_divergence;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
@@ -8309,6 +8467,22 @@ fn compute_coverage_gaps(
         return gaps;
     }
 
+    // `STRUCTURED-EMISSION-EXPANSION.15b.2` — the procedural `always_comb`
+    // `if`/`else` emit gate's sole contract is to prove the seventh
+    // richer-structured emission surface (the first procedural-conditional one)
+    // fires by construction and is downstream-accepted. Like the cone-function and
+    // multi-output-task gates above, the broad motif/identity/category richness the
+    // other sets enforce below is intentionally out of scope, so check exactly the
+    // one fact (plus the universal construction-strategy coverage above) and return.
+    if scenario_set == ScenarioSet::MuxIfSweep {
+        if !coverage.saw_mux_if_emit {
+            gaps.push(
+                "matrix never proved mux_if_emit_prob (a procedural `always_comb` `if`/`else` emit-projection accepted by Verilator + Yosys)".to_string(),
+            );
+        }
+        return gaps;
+    }
+
     match scenario_set {
         ScenarioSet::Default => {
             for mode in ["relaxed", "node-id"] {
@@ -8403,7 +8577,8 @@ fn compute_coverage_gaps(
         | ScenarioSet::GenerateLoopSweep
         | ScenarioSet::TaskEmitSweep
         | ScenarioSet::ConeFunctionSweep
-        | ScenarioSet::MultiOutputTaskSweep => {}
+        | ScenarioSet::MultiOutputTaskSweep
+        | ScenarioSet::MuxIfSweep => {}
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -8432,7 +8607,8 @@ fn compute_coverage_gaps(
         | ScenarioSet::GenerateLoopSweep
         | ScenarioSet::TaskEmitSweep
         | ScenarioSet::ConeFunctionSweep
-        | ScenarioSet::MultiOutputTaskSweep => &[],
+        | ScenarioSet::MultiOutputTaskSweep
+        | ScenarioSet::MuxIfSweep => &[],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -9246,7 +9422,8 @@ fn compute_coverage_gaps(
         | ScenarioSet::GenerateLoopSweep
         | ScenarioSet::TaskEmitSweep
         | ScenarioSet::ConeFunctionSweep
-        | ScenarioSet::MultiOutputTaskSweep => &[],
+        | ScenarioSet::MultiOutputTaskSweep
+        | ScenarioSet::MuxIfSweep => &[],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -9386,6 +9563,7 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::TaskEmitSweep => "task-emit-sweep",
         ScenarioSet::ConeFunctionSweep => "cone-function-sweep",
         ScenarioSet::MultiOutputTaskSweep => "multi-output-task-sweep",
+        ScenarioSet::MuxIfSweep => "mux-if-sweep",
     }
 }
 
@@ -9405,7 +9583,8 @@ fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
         | ScenarioSet::GenerateLoopSweep
         | ScenarioSet::TaskEmitSweep
         | ScenarioSet::ConeFunctionSweep
-        | ScenarioSet::MultiOutputTaskSweep => "module",
+        | ScenarioSet::MultiOutputTaskSweep
+        | ScenarioSet::MuxIfSweep => "module",
     }
 }
 
@@ -9451,6 +9630,7 @@ mod tests {
             task_emit_gate: false,
             cone_function_gate: false,
             multi_output_task_gate: false,
+            mux_if_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -10317,6 +10497,102 @@ mod tests {
         // Fact lit → no gaps.
         coverage.saw_multi_output_task_emit = true;
         let gaps = compute_coverage_gaps(ScenarioSet::MultiOutputTaskSweep, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    // ===============================================================
+    // STRUCTURED-EMISSION-EXPANSION.15b.2 — cargo-portable proofs of the
+    // repo-owned procedural `always_comb` `if`/`else` emit gate wiring
+    // (CLI flag, scenario set, run-plan, knob forcing, gap requirement).
+    // The downstream-clean bank is the repo-owned report, run separately
+    // with real Verilator + Yosys.
+    // ===============================================================
+    #[test]
+    fn mux_if_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        assert!(!no_flag.mux_if_gate);
+        let with_flag = Cli::try_parse_from(["tool_matrix", "--mux-if-gate", "--out", "/tmp/x"])
+            .expect("parse");
+        assert!(with_flag.mux_if_gate);
+    }
+
+    #[test]
+    fn mux_if_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.mux_if_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::MuxIfSweep
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::MuxIfSweep).expect("build");
+        // one comb-only focus config x three construction strategies.
+        assert_eq!(scenarios.len(), 3);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(
+            plan.modules_per_scenario,
+            MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert_eq!(plan.total_modules, 3 * MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO);
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn mux_if_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.mux_if_gate = true;
+        cli.multi_output_task_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    #[test]
+    fn mux_if_sweep_scenarios_force_the_knob() {
+        let scenarios = build_scenarios(0, ScenarioSet::MuxIfSweep).expect("build");
+        let mut strategies = BTreeSet::new();
+        for scenario in &scenarios {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            let cfg = &scenario.config;
+            assert!(
+                scenario.name.ends_with("mux_if"),
+                "unexpected mux-if scenario {}",
+                scenario.name
+            );
+            // mux_if_emit_prob forced to 1.0 so every qualifying 2:1 `Mux` is
+            // re-expressed as a procedural `always_comb` `if`/`else` block.
+            assert_eq!(cfg.mux_if_emit_prob, 1.0);
+            // Mux-biased: the comb-mux block is forced (comb_mux_prob high) down
+            // its encoded chained-ternary path (comb_mux_encoding_prob = 1.0),
+            // which is what builds plain `GateOp::Mux` (3-operand) gates.
+            assert_eq!(cfg.comb_mux_encoding_prob, 1.0);
+            // Comb-only single-module DUT (no flops, no hierarchy): the surface
+            // projects combinational `Mux` gates only.
+            assert_eq!(cfg.flop_prob, 0.0);
+            assert!(cfg.effective_hierarchy_depth_range().is_none());
+        }
+        assert_eq!(scenarios.len(), 3);
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["sequential", "shuffled", "interleaved"])
+        );
+    }
+
+    #[test]
+    fn mux_if_sweep_gaps_require_the_fact() {
+        // All three strategies present, but the fact not lit → exactly the one
+        // mux-if gap (no broad-motif gaps leak in).
+        let mut coverage = CoverageSummary::default();
+        for s in ["sequential", "shuffled", "interleaved"] {
+            coverage.construction_strategies.insert(s.to_string());
+        }
+        let gaps = compute_coverage_gaps(ScenarioSet::MuxIfSweep, &coverage, None);
+        assert_eq!(gaps.len(), 1, "unexpected gaps: {gaps:?}");
+        assert!(gaps[0].contains("mux_if_emit_prob"));
+
+        // Fact lit → no gaps.
+        coverage.saw_mux_if_emit = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::MuxIfSweep, &coverage, None);
         assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
     }
 
@@ -11460,6 +11736,7 @@ mod tests {
             emitted_combinational_task: false,
             emitted_cone_function: false,
             emitted_multi_output_task: false,
+            emitted_mux_if: false,
         }];
 
         let summary = summarize_tools(&modules);
@@ -11510,6 +11787,7 @@ mod tests {
             emitted_combinational_task: false,
             emitted_cone_function: false,
             emitted_multi_output_task: false,
+            emitted_mux_if: false,
             yosys: vec![],
         };
         let checkpoint0 = baseline.checkpoint();
@@ -11579,6 +11857,7 @@ mod tests {
             emitted_combinational_task: false,
             emitted_cone_function: false,
             emitted_multi_output_task: false,
+            emitted_mux_if: false,
             yosys: vec![],
         };
         let checkpoint = generator.checkpoint();
@@ -11645,6 +11924,7 @@ mod tests {
                 emitted_combinational_task: false,
                 emitted_cone_function: false,
                 emitted_multi_output_task: false,
+                emitted_mux_if: false,
             };
             let legacy_checkpoint = serde_json::json!({
                 "skip_verilator": true,
@@ -12119,6 +12399,7 @@ mod tests {
                 emitted_combinational_task: false,
                 emitted_cone_function: false,
                 emitted_multi_output_task: false,
+                emitted_mux_if: false,
             })
             .collect();
         // No DUTs ran diff-sim ⇒ fact stays false.
@@ -12280,6 +12561,7 @@ mod tests {
                 emitted_combinational_task: false,
                 emitted_cone_function: false,
                 emitted_multi_output_task: false,
+                emitted_mux_if: false,
             })
             .collect();
         // No unit carries a divergence report ⇒ the opportunistic fact stays
@@ -12344,6 +12626,7 @@ mod tests {
             emitted_combinational_task: false,
             emitted_cone_function: false,
             emitted_multi_output_task: false,
+            emitted_mux_if: false,
         };
         // None ⇒ the key is absent from the serialized report (byte-identical).
         let json = serde_json::to_value(&module).unwrap();
@@ -12509,6 +12792,7 @@ mod tests {
             emitted_combinational_task: false,
             emitted_cone_function: false,
             emitted_multi_output_task: false,
+            emitted_mux_if: false,
         }];
         let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_multi_clock_design);

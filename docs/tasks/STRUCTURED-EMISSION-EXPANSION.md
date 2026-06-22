@@ -6,7 +6,27 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-22` (**`.15b.1` landed — the LIVE seventh structured surface
+- Last updated: `2026-06-22` (**`.15b.2` landed — the metric + repo-owned gate for the
+  seventh structured surface. `Metrics::num_emitted_mux_if_blocks`
+  (`= m.mux_if_gates.len()`, `#[serde(default)]`) in `metrics::compute()` + 1 lib proof
+  ⇒ introspection `SCHEMA_VERSION` `1.14 → 1.15` (bumped all current-output refs:
+  `introspect/mod.rs` const + 3 lib assertions, 8 `mcp/mod.rs` assertions,
+  `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 current-version + a `1.14 → 1.15` changelog
+  entry, README + USER_GUIDE envelope refs, `CODEBASE_ANALYSIS.md` envelope changelog;
+  historical attributions [`num_emitted_multi_output_tasks` @ `1.14`] intact; book
+  example JSONs deferred to `.15b.3` per the `.12b.2a`/`.12b.3` precedent) + the
+  repo-owned `tool_matrix --mux-if-gate` (`ScenarioSet::MuxIfSweep` + a Mux-biased
+  `mux_if_focus_config` [comb-only, `comb_mux_prob = 0.9` + `comb_mux_encoding_prob = 1.0`
+  forcing the encoded chained-ternary path that builds plain `GateOp::Mux` gates] × the
+  three strategies + `ModuleReport.emitted_mux_if` [`__cv` detection] + `saw_mux_if_emit`
+  + `MatrixReport.mux_if_gate` + the gap arm + `MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO` units
+  floor + 5 cargo-portable proofs + 8 fixture extensions), banked clean at
+  `/tmp/anvil-mux-if-gate-r1` (3 scenarios / 12 modules, `coverage_gaps = []`,
+  `saw_mux_if_emit = true`, 12/12 modules emit `__cv` / 215 blocks, Verilator 12/0 +
+  both Yosys 12/0 + Icarus 12/0). Templated on `--multi-output-task-gate`. Default-off /
+  DUT byte-identical (`cargo test --lib` 615→616, snapshots 6/6, the `0.0` path never
+  marks). Frontier → `.15b.3` (user docs: book/knobs/USER_GUIDE/README/KM). The lane
+  stays `active`.**) Prior: **`.15b.1` landed — the LIVE seventh structured surface
   (the first source change). The procedural `always_comb` `if`/`else` emit-projection
   of a 2:1 `Mux` gate (decision `0027`) goes live: new `src/ir/mux_if_emit.rs`
   (`annotate_mux_if_gates` — the `GateOp::Mux` candidate predicate excluding all six
@@ -900,31 +920,46 @@ behaviour.
   Verification: `cargo check --all-targets clean; cargo fmt --all --check clean; cargo clippy --all-targets -- -D warnings clean; cargo test --lib 615 passed / 2 ignored (605 + 10 new mux_if proofs; umbrella DUT-byte-identical proofs green); cargo test --test snapshots 6/6 byte-identical (default-off — the 0.0 path never calls the pass). Forced mux_if_emit_prob=1.0 sweep /tmp/anvil-muxif-genproof.*: across seeds 1/2/3/7/11 every plain Mux (121/143/132/144/195) projects to a __cv always_comb if/else block (ON __cv == OFF mux count exactly); Verilator --lint-only -Wall warning count ON == OFF (Δ=0) on all five (the pre-existing UNUSEDSIGNAL/etc warnings are identical ON/OFF — the projection adds none); Yosys synth -noabc and abc -fast; opt -fast; check both report 0 warnings/errors; iverilog -g2012 compiles (rc=0). Comb-only ON-vs-OFF sim-equiv (seed 3, --flop-prob 0 --comb-mux-prob 0.9, 128 muxes): iverilog+vvp prove the ON module bit-equal to OFF across 20000 random vectors on all 3 outputs (GEN-RTL SIM-EQUIV OK). The standalone construct probe (this session) already proved the if/else === (sel)?(a):(b) ternary over 20000 vectors. dump-config surfaces mux_if_emit_prob.`
   Commit: `this STRUCTURED-EMISSION-EXPANSION.15b.1 commit`
 
+- ID: `STRUCTURED-EMISSION-EXPANSION.15b.2`
+  Status: `done`
+  Goal: `The seventh-surface metric + repo-owned downstream gate. Add Metrics::num_emitted_mux_if_blocks (= m.mux_if_gates.len(), #[serde(default)]) in metrics::compute() + a lib proof ⇒ bump introspection SCHEMA_VERSION 1.14 → 1.15 across all current-output refs (introspect const + assertions, mcp assertions, docs/AGENT_INTROSPECTION_SCHEMA.md current-version + a 1.14→1.15 changelog entry, README + USER_GUIDE + CODEBASE envelope; historical attributions intact; book example JSONs deferred to .15b.3) + the repo-owned tool_matrix --mux-if-gate (ScenarioSet::MuxIfSweep + a Mux-biased focus config × the three strategies + ModuleReport.emitted_mux_if [__cv detection] + saw_mux_if_emit + MatrixReport.mux_if_gate + the gap arm + units floor + 5 proofs + fixtures), banked clean. Templated on --multi-output-task-gate. Default-off / DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. the new metric proof; cargo test --bin tool_matrix green incl. 5 new mux-if-gate proofs; cargo test --test snapshots 6/6 byte-identical (default-off); a banked clean --mux-if-gate report (coverage_gaps=[], saw_mux_if_emit=true, N/0 Verilator + both Yosys + Icarus); schema-version assertions (introspect + mcp) updated to 1.15; live docs (CHANGES/MEMORY/CODEBASE/README/USER_GUIDE/schema-doc) amended. Committed through COMMIT.md with the leaf id.`
+  Result: `Done. Metric: Metrics::num_emitted_mux_if_blocks (= m.mux_if_gates.len(), #[serde(default)]) added beside num_emitted_multi_output_tasks + assigned in metrics::compute() + the metrics_count_emitted_mux_if_blocks lib proof (unmarked ⇒ 0, marked ⇒ 1). Schema: introspect/mod.rs SCHEMA_VERSION "1.14" → "1.15" + the const doc-comment rewritten to attribute 1.15 to num_emitted_mux_if_blocks (decision 0027) and demote 1.14 to the prior num_emitted_multi_output_tasks; 3 introspect lib assertions + 8 mcp lib assertions bumped to "1.15"; docs/AGENT_INTROSPECTION_SCHEMA.md §7 current-version statements (×3) → 1.15 + a new 1.14→1.15 changelog entry; README (×2 envelope refs) + USER_GUIDE (×1 envelope ref) + CODEBASE_ANALYSIS.md (envelope schema_version + a 1.14→1.15 list entry) bumped; the num_emitted_multi_output_tasks @ 1.14 historical attributions (metrics.rs comment, README/USER_GUIDE metric lines) left intact. Gate: tool_matrix gains const MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO = 4, the --mux-if-gate CLI flag, ScenarioSet::MuxIfSweep, ModuleReport.emitted_mux_if (sv_text.contains("__cv")), CoverageSummary.saw_mux_if_emit + merge, MatrixReport.mux_if_gate, the run-plan units+fail-on-gap branches, the mutual-exclusion count+message, select_scenario_set + build_scenarios dispatch, build_mux_if_sweep_scenarios + mux_if_focus_config (comb-only node-id+egraph, mux_if_emit_prob=1.0, comb_mux_prob=0.9, comb_mux_encoding_prob=1.0 forcing the encoded chained-ternary path that yields plain GateOp::Mux gates), the summarize-coverage block, the early-return gap arm, the slug arms, test_cli default, 5 cargo-portable proofs, and 8 ModuleReport fixture extensions. Banked clean /tmp/anvil-mux-if-gate-r1 (3 scenarios, 12 modules, coverage_gaps=[], saw_mux_if_emit=true, 12/12 emitting __cv / 215 blocks, Verilator 12/0 + Yosys both 12/0 + Icarus 12/0, exit 0). Book example JSONs + knob user docs deferred to .15b.3. Default-off / DUT byte-identical. Frontier → .15b.3.`
+  Verification: `cargo check --all-targets clean; cargo fmt --all --check clean; cargo clippy --all-targets -- -D warnings clean; cargo test --lib 616 passed / 2 ignored (615 + 1 new metrics_count_emitted_mux_if_blocks proof; umbrella DUT-byte-identical proofs green); cargo test --bin tool_matrix 89 passed / 1 ignored (84 + 5 new mux-if-gate proofs); cargo test --test snapshots 6/6 byte-identical (default-off — the 0.0 path never marks). Banked --mux-if-gate (--yosys-mode both --iverilog-compile) at /tmp/anvil-mux-if-gate-r1: 3 scenarios, 12 modules, mux_if_gate=true, scenario_set=mux-if-sweep, coverage_gaps=[], saw_mux_if_emit=true, 12/12 modules emit a __cv block (215 total num_emitted_mux_if_blocks across the report — the metric flows through the per-module Metrics into the report), Verilator pass/fail 12/0, Yosys without-abc 12/0, with-abc 12/0, Icarus compile 12/0; gate exit code 0 (coverage-gap gate satisfied). All schema-version assertions read "1.15".`
+  Commit: `this STRUCTURED-EMISSION-EXPANSION.15b.2 commit`
+
 ## Current Frontier
 
-**Active frontier: `.15b.2` — the metric + repo-owned gate for the seventh surface**
+**Active frontier: `.15b.3` — the user docs for the seventh surface**
 (the procedural `always_comb` `if`/`else` emit-projection of a `Mux` gate, decision
 [`0027`](../decisions/0027-structured-emission-seventh-surface-procedural-if-else.md)).
-`.14` (design / decision `0027`), `.15a` (impl design-detail), and `.15b.1` (the
-**live source change**) are all `done`. The 2:1 `Mux` (rendered today as the
-`(sel)?(a):(b)` ternary) is now projected — under the opt-in `mux_if_emit_prob` knob
-— into a procedural conditional that writes a per-gate `<wire>__cv` output var, the
-existing net driven by a passthrough `assign`: the **first procedural-`if`/`else`
-construct** in the lane (none of the six prior surfaces emits a procedural
-conditional). `.15b.1` shipped `src/ir/mux_if_emit.rs` + the `Module.mux_if_gates`
-carrier + the `mux_if_emit_prob` knob/flag + the two `gen/mod.rs` rolls + the
-`emit/sv.rs` procedural-block section + passthrough + 10 lib proofs; default-off /
-DUT byte-identical (`cargo test --lib` 605→615, snapshots 6/6); the forced
-`mux_if_emit_prob=1.0` sweep is downstream-clean (5 seeds: every plain mux →
-`__cv`, Verilator `-Wall` Δ=0, both Yosys + Icarus) and ON-vs-OFF sim-equiv over
-20000 vectors (`/tmp/anvil-muxif-genproof.*`).
+`.14` (design / decision `0027`), `.15a` (impl design-detail), `.15b.1` (the
+**live source change**), and `.15b.2` (the **metric + repo-owned gate**) are all
+`done`. The 2:1 `Mux` (rendered today as the `(sel)?(a):(b)` ternary) is now
+projected — under the opt-in `mux_if_emit_prob` knob — into a procedural conditional
+that writes a per-gate `<wire>__cv` output var, the existing net driven by a
+passthrough `assign`: the **first procedural-`if`/`else` construct** in the lane
+(none of the six prior surfaces emits a procedural conditional). `.15b.1` shipped
+`src/ir/mux_if_emit.rs` + the `Module.mux_if_gates` carrier + the `mux_if_emit_prob`
+knob/flag + the two `gen/mod.rs` rolls + the `emit/sv.rs` procedural-block section +
+passthrough + 10 lib proofs.
 
-`.15b.2` (next) adds `Metrics::num_emitted_mux_if_blocks` (`= m.mux_if_gates.len()`)
+`.15b.2` (done) added `Metrics::num_emitted_mux_if_blocks` (`= m.mux_if_gates.len()`)
 ⇒ introspection `SCHEMA_VERSION` `1.14 → 1.15` (the metric bumps; the `.15b.1` knob
 rode the version) + the repo-owned `tool_matrix --mux-if-gate` (`ScenarioSet::MuxIfSweep`
-+ a Mux-biased focus config × the three strategies + `ModuleReport.emitted_mux_if`
-(`__cv` detection) + `saw_mux_if_emit` + the gap arm), banked clean. Then `.15b.3`
-(user docs: book/knobs/USER_GUIDE/README/KM). The N-way `CaseMux` → `if`/`else if`
++ a Mux-biased focus config — comb-only, `comb_mux_prob = 0.9` + `comb_mux_encoding_prob
+= 1.0` forcing the encoded chained-ternary path that builds plain `GateOp::Mux` gates —
+× the three strategies + `ModuleReport.emitted_mux_if` (`__cv` detection) +
+`saw_mux_if_emit` + the gap arm). Banked clean `/tmp/anvil-mux-if-gate-r1`
+(3 scenarios / 12 modules, `coverage_gaps = []`, `saw_mux_if_emit = true`, 12/12
+emitting `__cv` / 215 blocks, Verilator 12/0 + both Yosys 12/0 + Icarus 12/0).
+Default-off / DUT byte-identical (`cargo test --lib` 615→616, snapshots 6/6).
+
+`.15b.3` (next) is the user docs: the `book/src/structured-emission.md` seventh-surface
+section + a byte-verified example, the `book/src/knobs.md` + `USER_GUIDE.md` +
+`README.md` `mux_if_emit_prob` / `--mux-if-emit-prob` / `--mux-if-gate` knob+flag+gate
+entries, the deferred book example-JSON schema-version bumps (`1.14 → 1.15`), and the
+KM card (`0027` already carries `answers:`). The N-way `CaseMux` → `if`/`else if`
 priority chain, nested/multi-level `generate`, and `interface`/`modport` remain
 `.16+`, each its own decision when picked (none retired).
 
@@ -962,6 +997,7 @@ _Most recent completions:_
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| — | `STRUCTURED-EMISSION-EXPANSION.15b.2` | `done` | The **metric + repo-owned gate** for the seventh surface. `Metrics::num_emitted_mux_if_blocks` (`= m.mux_if_gates.len()`, `#[serde(default)]`) + the `metrics_count_emitted_mux_if_blocks` lib proof ⇒ introspection `SCHEMA_VERSION` `1.14 → 1.15` across all current-output refs (`introspect/mod.rs` const + doc-comment + 3 assertions, 8 `mcp/mod.rs` assertions, `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 current-version + a `1.14→1.15` changelog entry, README ×2 + USER_GUIDE ×1 envelope refs, `CODEBASE_ANALYSIS.md` envelope + a list entry; historical `num_emitted_multi_output_tasks @ 1.14` attributions intact; book example JSONs deferred to `.15b.3`). Repo-owned `tool_matrix --mux-if-gate`: `MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO = 4` + the CLI flag + `ScenarioSet::MuxIfSweep` + `build_mux_if_sweep_scenarios`/`mux_if_focus_config` (comb-only node-id+egraph, `mux_if_emit_prob=1.0`, `comb_mux_prob=0.9` + `comb_mux_encoding_prob=1.0` forcing the encoded chained-ternary path that builds plain `GateOp::Mux` gates) × 3 strategies + `ModuleReport.emitted_mux_if` (`__cv` detection) + `CoverageSummary.saw_mux_if_emit` + merge + `MatrixReport.mux_if_gate` + run-plan units/fail-on-gap + mutual-exclusion + select/build dispatch + summarize block + early-return gap arm + slug arms + `test_cli` default + 5 cargo-portable proofs + 8 fixture extensions. Banked clean `/tmp/anvil-mux-if-gate-r1` (3 scenarios / 12 modules, `coverage_gaps = []`, `saw_mux_if_emit = true`, 12/12 emit `__cv` / 215 blocks, Verilator 12/0 + both Yosys 12/0 + Icarus 12/0, exit 0). Templated on `--multi-output-task-gate`. Default-off / DUT byte-identical (`cargo test --lib` 615→616, `--bin tool_matrix` 84→89, snapshots 6/6). Frontier → `.15b.3` (user docs). |
 | — | `STRUCTURED-EMISSION-EXPANSION.15b.1` | `done` | The **live seventh structured surface** (first source change). New `src/ir/mux_if_emit.rs` (`annotate_mux_if_gates`: a `GateOp::Mux` candidate predicate excluding the union of all six sibling marks, run **last**; collect-then-roll one `gen_bool(p)` per candidate into `m.mux_if_gates`; param_env skipped) + 10 lib proofs + `Module.mux_if_gates: BTreeSet<NodeId>` (`ir/types.rs`) + `ir/mod.rs` registration + `Config::mux_if_emit_prob` knob + `--mux-if-emit-prob` flag (`config.rs` + `main.rs`: default `0.0`, validated `0.0..=1.0`, dump-config + the validate probs-list + the Overrides apply) + two guarded `gen/mod.rs` rolls (after `cone_function`, single + design) + the `emit/sv.rs` procedural-block section (`logic [w-1:0] <name>__cv;` + `always_comb begin if (sel) <name>__cv = a; else <name>__cv = b; end`, operand refs via `node_ref`, width via `param_width_decl_w`) + the gate-assign-loop `<name>__cv` passthrough (intercepts the marked Mux before `render_gate`'s inline ternary; `<name>` stays a net). Implemented exactly per `.15a` (no deviations). No metric/schema bump (the `.15b.2` metric bumps `1.14→1.15`; the knob rides the version). `CODEBASE_ANALYSIS.md` + `DEVELOPMENT_NOTES.md` updated. Default-off / DUT byte-identical (`cargo test --lib` 605→615, snapshots 6/6). Forced `mux_if_emit_prob=1.0` sweep (5 seeds): every plain mux (121–195/seed) → `__cv`, Verilator `-Wall` Δ=0 vs OFF (2012/2017/2023) + both Yosys + Icarus clean; comb-only ON-vs-OFF iverilog sim-equiv over 20000 vectors (`/tmp/anvil-muxif-genproof.*`). Frontier → `.15b.2`. |
 | — | `STRUCTURED-EMISSION-EXPANSION.15a` | `done` | Impl design-detail (no source) for the seventh surface. A `DEVELOPMENT_NOTES.md` entry grounds decision `0027` in a fresh read of `src/ir/task_emit.rs` (the candidate-predicate + one-roll-per-candidate template), `src/emit/sv.rs` (`node_ref` operand resolver `sv.rs:1242`/used `:644`; the task decl/call section `~444`; the gate-assign-loop passthrough `:578`; the `CaseMux`/`CasezMux`/`ForFold` procedural-block loop `:620`), `src/gen/mod.rs` (the six-pass roll chain `~95`/`~330`), `src/config.rs` (`*_emit_prob` defaults `:106-114`), `src/ir/types.rs` (`*_gates` carriers `:417-466`). Pinned all seven impl points: (0) the `GateOp::Mux` candidate predicate excluding the union of all six sibling marks (pass runs **last**); (1) `Module.mux_if_gates: BTreeSet<NodeId>`; (2) a new emitter procedural-block section (`logic [w-1:0] <name>__cv;` + `always_comb begin if (sel) <name>__cv = a; else <name>__cv = b; end`, operand refs via the existing `node_ref`) + the gate-assign-loop `<name>__cv` passthrough branch (keeps `<name>` a net — decision-`0014` minimal-blast-radius); (3) run `annotate_mux_if_gates` last so **no other pass changes**; (4) `mux_if_emit_prob` knob + `--mux-if-emit-prob` flag; (5) `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15` at `.15b.2`); (6) `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection) + Mux-biased gate calibration; (7) the byte-identical/RNG argument. `.15b` proof plan + pre-split `.15b.1`/`.15b.2`/`.15b.3` + rejected alternatives recorded. No source change; self-checks clean. Frontier → `.15b.1`. |
 | — | `STRUCTURED-EMISSION-EXPANSION.14` | `done` | Decision `0027`: picked the **SEVENTH** structured surface — a default-off, valid-by-construction **procedural `always_comb` `if`/`else`** emit-projection of a `Mux` gate. The 2:1 `Mux` (rendered today as the `(sel)?(a):(b)` ternary) is re-expressed as `logic [W-1:0] <g>__cv; always_comb begin if (sel) <g>__cv = a; else <g>__cv = b; end assign <g> = <g>__cv;` — the decision-`0014` single-gate-task **output-var + passthrough** mechanism, but a bare `always_comb if/else` rather than a task call. The **first procedural-conditional construct** in the lane (the six delivered surfaces are function/task/generate projections; the `Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are `case`/`casez`). Chosen over nested/multi-level `generate` (no by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the existing single-level loop already fires on `{M{y}}`) and `interface`/`modport` (empirically disqualified since `.7`). Own `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection). Fresh probe: Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings) + Icarus clean + iverilog sim-equiv to the inline ternary over 20000 vectors. The N-way `CaseMux` → `if`/`else if` chain recorded `.16+`. Split `.14` (design) + `.15` (impl, pre-split `.15a`/`.15b`) + future `.16+`. No source change. Frontier → `.15`. |
@@ -1289,6 +1325,7 @@ _Most recent completions:_
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.15b.2` | `STRUCTURED-EMISSION-EXPANSION.15b.2 — seventh-surface metric (schema 1.15) + tool_matrix --mux-if-gate` | Metric + repo-owned gate: `Metrics::num_emitted_mux_if_blocks` (`= m.mux_if_gates.len()`, `#[serde(default)]`) in `src/metrics.rs` + the `metrics_count_emitted_mux_if_blocks` lib proof ⇒ introspection `SCHEMA_VERSION` `"1.14"→"1.15"` in `src/introspect/mod.rs` (const + doc-comment) with the 3 introspect + 8 mcp lib assertions bumped, `docs/AGENT_INTROSPECTION_SCHEMA.md` (§7 current-version ×3 + a `1.14→1.15` changelog entry), README ×2 + USER_GUIDE ×1 + `CODEBASE_ANALYSIS.md` envelope refs bumped (historical `num_emitted_multi_output_tasks @ 1.14` attributions intact). Repo-owned `tool_matrix --mux-if-gate` in `src/bin/tool_matrix.rs`: `MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO = 4` + the `--mux-if-gate` flag + `ScenarioSet::MuxIfSweep` + `build_mux_if_sweep_scenarios`/`mux_if_focus_config` (comb-only node-id+egraph, `mux_if_emit_prob=1.0`, `comb_mux_prob=0.9` + `comb_mux_encoding_prob=1.0`) × 3 strategies + `ModuleReport.emitted_mux_if` (`__cv` detection) + `CoverageSummary.saw_mux_if_emit` + merge + `MatrixReport.mux_if_gate` + run-plan units/fail-on-gap + mutual-exclusion + select/build dispatch + summarize block + early-return gap arm + slug arms + `test_cli` default + 5 cargo-portable proofs + 8 fixture extensions. `cargo check --all-targets`/`clippy -D warnings`/`fmt --check` clean; `cargo test --lib` **616** (615 + 1 metric proof) / 2 ignored; `cargo test --bin tool_matrix` **89** (84 + 5 gate proofs) / 1 ignored; `cargo test --test snapshots` **6/6 byte-identical** (default-off). Banked clean `/tmp/anvil-mux-if-gate-r1` (`--yosys-mode both --iverilog-compile`): 3 scenarios, 12 modules, `mux_if_gate=true`, `scenario_set=mux-if-sweep`, `coverage_gaps=[]`, `saw_mux_if_emit=true`, 12/12 emit a `__cv` block / 215 total `num_emitted_mux_if_blocks`, Verilator 12/0 + Yosys without-abc 12/0 + with-abc 12/0 + Icarus 12/0, gate exit code 0. Templated on `--multi-output-task-gate`. Book example JSONs + knob user docs deferred to `.15b.3`. Default-off / DUT byte-identical. Frontier → `.15b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.15b.1` | `STRUCTURED-EMISSION-EXPANSION.15b.1 — procedural if/else mux emit-projection (live surface)` | Live emitter change: `mux_if_emit_prob` knob + `--mux-if-emit-prob` flag + `Module.mux_if_gates: BTreeSet<NodeId>` + new `src/ir/mux_if_emit.rs` (`annotate_mux_if_gates`, the `GateOp::Mux` candidate predicate excluding all six sibling marks, run **last**) + `src/ir/mod.rs` registration + two guarded `gen/mod.rs` rolls (after `cone_function`, single + design) + the `src/emit/sv.rs` procedural-block section (`logic [w-1:0] <name>__cv;` + `always_comb if/else`, operand refs via `node_ref`) + the gate-assign-loop `<name>__cv` passthrough + 10 lib proofs. Implemented exactly per `.15a` (no deviations). No metric/schema bump (the `.15b.2` metric bumps `1.14→1.15`; the knob rides the version). `CODEBASE_ANALYSIS.md` + `DEVELOPMENT_NOTES.md` updated. Default-off / DUT byte-identical (`cargo test --lib` 605→615, snapshots 6/6). Forced `mux_if_emit_prob=1.0` sweep (`/tmp/anvil-muxif-genproof.*`, 5 seeds): every plain mux (121–195/seed) → `__cv`, Verilator `-Wall` Δ=0 vs OFF (2012/2017/2023) + Yosys both modes + Icarus clean; comb-only ON-vs-OFF iverilog sim-equiv 20000 vectors. Pre-split `.15b` → `.15b.1`/`.15b.2`/`.15b.3`; frontier → `.15b.2`. |
 | `STRUCTURED-EMISSION-EXPANSION.15a` | `STRUCTURED-EMISSION-EXPANSION.15a — procedural if/else mux impl design-detail` | Design-detail (no source): a `DEVELOPMENT_NOTES.md` entry grounding decision `0027`'s seventh surface in the real `task_emit.rs` (candidate predicate + one-roll-per-candidate template) / `sv.rs` (the `node_ref` operand resolver, the task decl/call section, the gate-assign-loop passthrough, the `CaseMux`/`CasezMux`/`ForFold` procedural-block loop) / `gen/mod.rs` (the six-pass roll chain) / `config.rs` (the `*_emit_prob` knobs) / `types.rs` (the `*_gates` carriers). Pinned all seven impl points: the `GateOp::Mux` candidate predicate excluding the union of all six sibling marks (pass runs **last**); `Module.mux_if_gates: BTreeSet<NodeId>`; the emitter `always_comb if/else` `<name>__cv` block + the gate-assign-loop passthrough (keeps `<name>` a net); run `annotate_mux_if_gates` last so **no other pass changes**; `mux_if_emit_prob` knob + `--mux-if-emit-prob` flag; `num_emitted_mux_if_blocks` metric (schema `1.14→1.15`); `--mux-if-gate`/`saw_mux_if_emit` (`__cv` detection) + Mux-biased calibration; the byte-identical/RNG argument. Split `.15` into `.15a` (done) + `.15b` (impl pending, pre-split `.15b.1`/`.15b.2`/`.15b.3`); frontier → `.15b.1`. No source change; self-checks clean. DUT byte-identical. |
 | `STRUCTURED-EMISSION-EXPANSION.14` | `STRUCTURED-EMISSION-EXPANSION.14 — pick procedural if/else mux surface + decision 0027` | Design/decision leaf (no source): decision `0027` picks the **seventh** structured surface — a default-off, valid-by-construction **procedural `always_comb` `if`/`else`** emit-projection of a `Mux` gate. The 2:1 `Mux` (rendered today as `assign <g> = (sel)?(a):(b);`) is re-expressed as `logic [W-1:0] <g>__cv; always_comb begin if (sel) <g>__cv = a; else <g>__cv = b; end assign <g> = <g>__cv;` — the decision-`0014` single-gate-task **output-var + passthrough** mechanism, but a bare `always_comb if/else` rather than a task call. The **first procedural-conditional construct** in the lane (the six delivered surfaces are function/task/generate projections; the `Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are `case`/`casez`). Autonomously selected at a no-frontier boundary (`feedback_pick_and_roll_at_no_frontier`); chosen over nested/multi-level `generate` (no by-construction source — CSE shares the inner `{N{x}}` so the single-level loop already fires on `{M{y}}`) and `interface`/`modport` (empirically disqualified since `.7`). **Fresh probe** (`/tmp/anvil-ifelse-probe.*`): the projection is Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings) + Icarus clean and iverilog-sim-equiv to the inline ternary over 20000 vectors. Own `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection). N-way `CaseMux` → `if`/`else if` chain recorded `.16+`. `INDEX.md` row; KM picks up `0027` (carries `answers:`); tree split `.14`/`.15` (pre-split `.15a`/`.15b`)/`.16+`; frontier → `.15`. No source change; self-checks clean. DUT byte-identical. Nothing retired. |
@@ -1331,6 +1368,30 @@ _Most recent completions:_
 
 ## Changelog
 
+- `2026-06-22`: **`.15b.2` landed — the seventh-surface metric + repo-owned gate.**
+  `Metrics::num_emitted_mux_if_blocks` (`= m.mux_if_gates.len()`, `#[serde(default)]`)
+  in `metrics::compute()` + the `metrics_count_emitted_mux_if_blocks` lib proof ⇒
+  introspection `SCHEMA_VERSION` `1.14 → 1.15` (bumped across all current-output refs:
+  `introspect/mod.rs` const + doc-comment + 3 lib assertions, 8 `mcp/mod.rs`
+  assertions, `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 current-version statements + a new
+  `1.14 → 1.15` changelog entry, README ×2 + USER_GUIDE ×1 + `CODEBASE_ANALYSIS.md`
+  envelope refs; the `num_emitted_multi_output_tasks @ 1.14` historical attributions
+  left intact; book example JSONs deferred to `.15b.3` per the `.12b.2a`/`.12b.3`
+  precedent). Repo-owned `tool_matrix --mux-if-gate` (`ScenarioSet::MuxIfSweep` + a
+  Mux-biased `mux_if_focus_config` [comb-only, `mux_if_emit_prob=1.0`,
+  `comb_mux_prob=0.9` + `comb_mux_encoding_prob=1.0` forcing the encoded
+  chained-ternary path that builds plain `GateOp::Mux` gates] × the three strategies
+  + `ModuleReport.emitted_mux_if` [`__cv` detection] + `CoverageSummary.saw_mux_if_emit`
+  + merge + `MatrixReport.mux_if_gate` + run-plan units/fail-on-gap + mutual-exclusion +
+  select/build dispatch + summarize block + early-return gap arm + slug arms + 5
+  cargo-portable proofs + 8 fixture extensions), templated on `--multi-output-task-gate`.
+  `cargo check/clippy(-D warnings)/fmt` clean; `cargo test --lib` **616** (615 + 1) / 2
+  ignored; `cargo test --bin tool_matrix` **89** (84 + 5) / 1 ignored; snapshots **6/6
+  byte-identical** (default-off). Banked clean `/tmp/anvil-mux-if-gate-r1`
+  (`--yosys-mode both --iverilog-compile`): 3 scenarios, 12 modules, `coverage_gaps=[]`,
+  `saw_mux_if_emit=true`, 12/12 emit a `__cv` block / 215 total
+  `num_emitted_mux_if_blocks`, Verilator 12/0 + both Yosys 12/0 + Icarus 12/0, gate exit
+  0. Default-off / DUT byte-identical. Frontier → `.15b.3` (user docs).
 - `2026-06-22`: **`.15b.1` landed — the LIVE seventh structured surface (the first
   source change). The procedural `always_comb` `if`/`else` emit-projection of a 2:1
   `Mux` gate (decision `0027`) goes live** behind the opt-in `mux_if_emit_prob` knob:

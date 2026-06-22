@@ -1003,7 +1003,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.14"`
+│                     only the envelope metadata (`schema_version` `"1.15"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -1023,7 +1023,9 @@ src/
 │                     1.12→1.13 the `DesignMetrics::num_mealy_fsm_modules`
 │                     count (`CAPABILITY-BREADTH-EXPANSION.2b.2a`), and
 │                     1.13→1.14 the `Metrics::num_emitted_multi_output_tasks`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.12b.2a`);
+│                     count (`STRUCTURED-EMISSION-EXPANSION.12b.2a`), and
+│                     1.14→1.15 the `Metrics::num_emitted_mux_if_blocks`
+│                     count (`STRUCTURED-EMISSION-EXPANSION.15b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +

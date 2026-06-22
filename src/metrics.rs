@@ -363,6 +363,21 @@ pub struct Metrics {
     /// `1.14`).
     #[serde(default)]
     pub num_emitted_multi_output_tasks: usize,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.15b.2` — count of 2:1 `Mux` gates the
+    /// emitter projects as a procedural `always_comb` `if`/`else` block
+    /// (decision `0027`); `= m.mux_if_gates.len()`. Each counted `Mux` is
+    /// re-expressed from its continuous-assign ternary `(sel)?(a):(b)` into a
+    /// `logic [W-1:0] <g>__cv; always_comb if (sel) <g>__cv = a; else <g>__cv =
+    /// b;` block + a passthrough `assign <g> = <g>__cv;`. Zero unless
+    /// `mux_if_emit_prob > 0.0` selected qualifying `Mux` gates. The first
+    /// procedural-conditional surface (distinct from the
+    /// `function`/`task`/`generate` projections counted above). A post-hoc
+    /// structural count of an emitter-surface annotation — adding it changes no
+    /// emitted RTL (default-off byte-identical). `#[serde(default)]` keeps the
+    /// introspection projection additive (schema `1.15`).
+    #[serde(default)]
+    pub num_emitted_mux_if_blocks: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -965,6 +980,11 @@ pub fn compute(m: &Module) -> Metrics {
     // emitter projects as one multi-output `task automatic` (an emitter-surface
     // annotation; structural, post-hoc, RTL-invisible).
     out.num_emitted_multi_output_tasks = m.multi_output_task_groups.len();
+
+    // `STRUCTURED-EMISSION-EXPANSION.15b.2` — count of 2:1 `Mux` gates the emitter
+    // projects as a procedural `always_comb` `if`/`else` block (an emitter-surface
+    // annotation; structural, post-hoc, RTL-invisible).
+    out.num_emitted_mux_if_blocks = m.mux_if_gates.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3367,6 +3387,44 @@ mod tests {
         // Marked ⇒ counted (one group: leader g0 → partner g1).
         m.multi_output_task_groups.insert(g0, vec![g1]);
         assert_eq!(compute(&m).num_emitted_multi_output_tasks, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_mux_if_blocks() {
+        // `STRUCTURED-EMISSION-EXPANSION.15b.2` — the metric is the count of 2:1
+        // `Mux` gates marked for the procedural `always_comb` `if`/`else`
+        // emit-projection (decision `0027`; `= m.mux_if_gates.len()`).
+        let mut m = Module {
+            name: "mi".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "sel".into(),
+            width: 1,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 2,
+            name: "b".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // id 0 (sel)
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 }); // id 1 (a)
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 }); // id 2 (b)
+        let (g, _) = m.intern_gate(GateOp::Mux, vec![0, 1, 2], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_mux_if_blocks, 0);
+        // Marked ⇒ counted (one procedural `if`/`else` block).
+        m.mux_if_gates.insert(g);
+        assert_eq!(compute(&m).num_emitted_mux_if_blocks, 1);
     }
 
     #[test]

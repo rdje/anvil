@@ -5,6 +5,36 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — `--mux-if-gate` focus-config calibration — `STRUCTURED-EMISSION-EXPANSION.15b.2`
+
+The `.15b.2` metric (`num_emitted_mux_if_blocks`, schema `1.14 → 1.15`) was a
+mechanical mirror of the `.12b.2a` multi-output-task metric; the **non-obvious** part
+was calibrating the `--mux-if-gate` focus config so the gate reliably fires on only
+4 units/scenario.
+
+- **`annotate_mux_if_gates` marks only a plain `GateOp::Mux`** (a 3-operand 2:1
+  ternary). The gate's surface fires iff such gates *exist* — so the focus config has
+  to bias generation toward them. The naïve move (just raise `comb_mux_prob`) is
+  **insufficient and can even backfire**: `build_comb_mux` (`src/gen/cone/motifs.rs`)
+  rolls `comb_mux_encoding_prob` and takes one of two paths — the **encoded**
+  chained-ternary (each level *is* a plain `GateOp::Mux`, what we want) or the
+  **one-hot** path (`OR_i({W{sel_i}} & data_i)` — `AND`/`OR` gates, **zero** `Mux`).
+  At the default `comb_mux_encoding_prob = 0.5`, roughly half the comb-mux blocks emit
+  no `Mux` at all, and on a small (`max_inputs = 6`, `max_depth = 3`) DUT a scenario
+  can land with no qualifying `Mux`.
+- **Fix:** `mux_if_focus_config` forces **both** `comb_mux_prob = 0.9` *and*
+  `comb_mux_encoding_prob = 1.0`, so every comb-mux block takes the chained-ternary
+  path and yields plain `Mux` gates. Comb-only (`flop_prob = 0.0`), node-id + e-graph,
+  across the three strategies — matching the other structured-emission gate focus
+  configs. Banked clean `/tmp/anvil-mux-if-gate-r1`: 12/12 modules emit a `__cv` block
+  (215 total), `coverage_gaps = []`, Verilator + both Yosys + Icarus 12/0.
+- **Detection token = `"__cv"`** (not `"__cv("` — the mux_if projection emits a
+  `logic [W-1:0] <wire>__cv;` *decl* + an `always_comb` block, not a call). Distinct
+  from the call tokens `__f(` / `__t(` / `__mt(` / `__cf(` and the var tokens
+  `__tv` / `__mtv`.
+
+---
+
 ## 2026-06-22 — Procedural `if`/`else` mux surface — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.15b.1`
 
 The live surface implemented the `.15a` design with **no deviations**. New

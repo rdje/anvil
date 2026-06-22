@@ -1,6 +1,90 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15b.2 — seventh-surface metric (schema 1.15) + tool_matrix --mux-if-gate
+
+**Landed as:** this commit (previous: `5d2fdaa`). **Code change** (the metric +
+repo-owned downstream gate for the seventh structured surface). Tracked by
+`STRUCTURED-EMISSION-EXPANSION.15b.2` (the owning task-tree leaf, pre-split at `.15a` /
+`.15b`). Default-off ⇒ **DUT byte-identical**; this slice adds only an emitter-surface
+*count* (RTL-invisible) + an opt-in `tool_matrix` proof gate.
+
+**What changed (why)**
+
+`.15b.1` shipped the live procedural `always_comb` `if`/`else` projection of a 2:1
+`Mux` behind the opt-in `mux_if_emit_prob` knob, but rode the introspection schema
+version (no metric). `.15b.2` makes the surface **observable** and **provable**:
+
+1. **Metric — `Metrics::num_emitted_mux_if_blocks`** (`src/metrics.rs`). A
+   `#[serde(default)]` `usize` beside `num_emitted_multi_output_tasks`, assigned
+   `= m.mux_if_gates.len()` in `metrics::compute()` — a post-hoc structural count of an
+   emitter-surface annotation (RTL-invisible; the
+   `function_emit`/`task_emit`/`cone_function`/`multi_output_task` precedent). New lib
+   proof `metrics_count_emitted_mux_if_blocks` (unmarked ⇒ 0, marked ⇒ 1).
+
+2. **Schema bump — `1.14 → 1.15`.** Adding the metric to the SCHEMA-DERIVED
+   introspection projection is an additive MINOR bump. `SCHEMA_VERSION` in
+   `src/introspect/mod.rs` → `"1.15"` (+ the const doc-comment rewritten to attribute
+   `1.15` to `num_emitted_mux_if_blocks` / decision `0027` and demote `1.14` to the
+   prior `num_emitted_multi_output_tasks`). All **current-output** schema refs bumped:
+   3 `introspect/mod.rs` lib assertions, 8 `mcp/mod.rs` lib assertions,
+   `docs/AGENT_INTROSPECTION_SCHEMA.md` (the §7 current-version statements ×3 + a new
+   `1.14 → 1.15` changelog entry), README (×2 envelope refs), USER_GUIDE (×1 envelope
+   ref), and the `CODEBASE_ANALYSIS.md` envelope `schema_version` + the changelog list
+   (+ a `1.14→1.15` entry). The `num_emitted_multi_output_tasks @ 1.14` **historical
+   attributions** (the `metrics.rs` field comment, the README/USER_GUIDE metric lines)
+   are left intact. Book example JSONs (and the `mux_if` knob user docs) are deferred to
+   `.15b.3` per the `.12b.2a`/`.12b.3` precedent.
+
+3. **Repo-owned gate — `tool_matrix --mux-if-gate`** (`src/bin/tool_matrix.rs`),
+   templated on `--multi-output-task-gate`: a new `MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
+   = 4` const, the `--mux-if-gate` CLI flag, `ScenarioSet::MuxIfSweep`,
+   `build_mux_if_sweep_scenarios` + `mux_if_focus_config`, `ModuleReport.emitted_mux_if`
+   (detected from the emitted SV text via the `__cv` output-var token, distinct from
+   `__f(`/`__t(`/`__tv`/`__mt(`/`__mtv`/`__cf(`), `CoverageSummary.saw_mux_if_emit` +
+   merge, `MatrixReport.mux_if_gate`, the run-plan units + fail-on-coverage-gap branches,
+   the mutual-exclusion count + message, the `select_scenario_set` + `build_scenarios`
+   dispatch, the per-module summarize-coverage block, the early-return gap arm, the
+   `scenario_set_slug`/`artifact_kind_slug` arms, the `test_cli` default, 5
+   cargo-portable proofs, and 8 `ModuleReport` fixture extensions.
+
+   The focus config is **Mux-biased** by construction: a 2:1 `Mux` (the
+   `annotate_mux_if` candidate) is built by the comb-mux block's **encoded
+   chained-ternary** path, so the config forces `comb_mux_prob = 0.9` **and**
+   `comb_mux_encoding_prob = 1.0` (the one-hot path emits `AND`/`OR` and would yield no
+   `Mux`), comb-only (`flop_prob = 0.0`), node-id + e-graph, across the three
+   construction strategies.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo fmt --all --check` clean; `cargo clippy
+  --all-targets -- -D warnings` clean.
+- `cargo test --lib` **616 passed** / 2 ignored (615 + the new metric proof; umbrella
+  DUT-byte-identical proofs green). `cargo test --bin tool_matrix` **89 passed** / 1
+  ignored (84 + 5 new mux-if-gate proofs). `cargo test --test snapshots` **6/6
+  byte-identical** (default-off — the `0.0` path never marks ⇒ DUT byte-identical).
+- All schema-version assertions (introspect + mcp) now read `"1.15"`.
+- **Banked downstream-clean** `--mux-if-gate --yosys-mode both --iverilog-compile` at
+  `/tmp/anvil-mux-if-gate-r1`: 3 scenarios, 12 modules, `mux_if_gate=true`,
+  `scenario_set=mux-if-sweep`, `coverage_gaps=[]`, `saw_mux_if_emit=true`, **12/12
+  modules emit a `__cv` block** / **215 total `num_emitted_mux_if_blocks`** (the metric
+  flows through the per-module `Metrics` into the report), Verilator pass/fail **12/0**,
+  Yosys without-abc **12/0**, with-abc **12/0**, Icarus compile **12/0**; gate exit
+  code **0** (coverage-gap gate satisfied).
+
+**Impact**
+
+- ANVIL's seventh richer-structured surface is now observable (`num_emitted_mux_if_blocks`
+  in `--introspect` / MCP `coverage`) and provable (the repo-owned `--mux-if-gate`).
+- The default `anvil` build and `--artifact dut` stay byte-identical (knob default
+  `0.0`; the metric is RTL-invisible).
+
+**Files touched:** `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`src/bin/tool_matrix.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`,
+`USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15b.1 — procedural if/else mux emit-projection (live surface)
 
 **Landed as:** this commit (previous: `0084ceb`). **Code change** (the first `src/`
