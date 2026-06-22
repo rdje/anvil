@@ -1,9 +1,112 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.18 — pick CasezMux masked if/else-if priority-chain surface (decision 0029)
+
+**Landed as:** this commit (previous: `ee34e4c`, `STRUCTURED-EMISSION-EXPANSION.17b.3`).
+**DOCS-ONLY** (no `src/`, `tests/`, `examples/`, or build logic touched) ⇒ **DUT
+byte-identical** and exempt from the code-scoped doctrine checks. Tracked by the
+`STRUCTURED-EMISSION-EXPANSION.18` design/decision leaf, picked **autonomously** at the
+no-frontier boundary per `feedback_pick_and_roll_at_no_frontier`.
+
+**What changed (why)**
+
+With the eighth structured surface delivered end-to-end (`.17b`/`.17` closed) the lane was at
+a no-frontier boundary. Per the PNT doctrine, the next surface is self-selected and designed
+before any source change. The **ninth** structured surface is the explicitly recorded
+decision-`0028` follow-up: the **wildcard `CasezMux` → masked `if`/`else if` priority chain**.
+This leaf picks it, grounds it in the real emitter + generator, runs a fresh empirical
+tool-acceptance + sim-equivalence probe that settles the rendering form, and splits the tree —
+no source change.
+
+1. **`docs/decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md`**
+   — the decision record (with Knowledge Map front-matter): the ninth surface is a default-off,
+   valid-by-construction procedural `always_comb` `if`/`else if` **masked** priority-chain
+   emit-projection of a dynamic-selector `CasezMux` gate. The wildcard N-way selection the
+   `CasezMux` renders today as a parallel `casez (sel) … default` statement (`src/emit/sv.rs`
+   `:724`; `render_casez_pattern` `:2171` builds the `SW'b<bits>` `?`-pattern) is re-expressed
+   as a priority chain of **masked** equality tests `(sel & care_mask) == value_masked` writing
+   the gate's existing `always_comb`-written `logic` var — **no `__cv` passthrough** (the
+   eighth-surface precedent). `care_mask = (~wildcard_mask) & sel_mask`, `value_masked =
+   pattern_value & care_mask` — the existing match idiom already used by `src/metrics.rs:2940`
+   and `src/ir/compact.rs:603`. It generalizes the eighth surface's bare-equality `CaseMux`
+   chain (decision `0028`) to the wildcard `CasezMux`: a different IR candidate, a masked
+   compare vs a bare equality, a wildcard `casez` source vs an equality `case`.
+
+2. **The empirical probe (this session, `scratchpad/probe`, grounded in a real ANVIL-emitted
+   `casez_mux_0` block — seed 4 of a `casez_mux_prob=1.0` comb-only shape).** Two faithful
+   candidate forms were probed:
+   - **Form A — the SystemVerilog wildcard-equality operator `sel ==? SW'b<bits>`** (reusing
+     the `?`-pattern verbatim): **DISQUALIFIED.** Yosys `0.64` `read_verilog -sv` **rejects
+     `==?`** (`syntax error, unexpected '?'`) in **both** repo modes (`synth -noabc` and the
+     `abc -fast` path) — failing the lane's "clean across every repo tool" bar (the same bar
+     that disqualified `interface`/`modport`). (Verilator `5.046` `-Wall` and Icarus `-g2012`
+     accept it, but one rejecting tool is fatal.)
+   - **Form B — the lowered masked-AND `(sel & care_mask) == value_masked`**: **CLEAN across
+     every repo tool** — Verilator `5.046` `-Wall --lint-only` under `--language 1800-2012`,
+     `1800-2017`, **and** `1800-2023`; **both** repo Yosys modes (0 warnings, `check` passes);
+     and Icarus `iverilog -g2012` compile. And **exhaustively sim-equivalent** to the `casez`
+     it replaces: `iverilog`+`vvp` proved it bit-identical over the full selector × data space
+     (128/128, 0 mismatches), plus a separate hand-constructed **overlapping-pattern** probe
+     (`00?`/`0??`/`1??`) confirmed the `if`/`else if` chain preserves `casez` **first-match
+     priority** in general (128/128, 0 mismatches).
+   So the surface ships Form B (exactly the "masked comparison" decision `0028` recorded as the
+   deferred bigger construct), and records `==?` as a rejected alternative.
+
+3. **Generator facts pinned** (`src/gen/cone/motifs.rs:832`, `build_casez_patterns`):
+   `wildcard_bits = 1` is fixed, so each arm is `(idx << 1, width_mask(1))` — the low bit is the
+   lone wildcard and the upper bits hold a distinct `idx`. Consequences: arms are
+   **non-overlapping by construction**, and an **all-wildcard arm can never occur** (the care
+   mask always retains ≥ 1 care bit) ⇒ the masked comparison never degenerates to a
+   constant-true condition.
+
+4. **Tree + index + map updates** — `docs/decisions/INDEX.md` row `0029`; the regenerated
+   `KNOWLEDGE_MAP.md` (68→69 facts / 655 keys, decision `0029` indexed via its `answers:`);
+   `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` (header narrative, the parent node's stale
+   `SIX surfaces`/children-to-`.13` summary brought current to EIGHT delivered + the ninth
+   picked + children `.1`–`.19`, the `.18`/`.19` leaf entries, Current Frontier → `.19`,
+   Decisions/Verification-Log/Commit-Log/Changelog entries, and the `.17b.3` commit hash
+   backfilled to `ee34e4c`); `docs/TASK_TREE.md` active-tree row; `ROADMAP.md`
+   structured-emission lane (ninth surface picked, frontier → `.19`).
+
+**The shipped surface (to be implemented at `.19`)**
+
+Own `casez_mux_if_emit_prob` knob (default `0.0`) + its `--casez-mux-if-emit-prob` flag
+(separate from `case_mux_if_emit_prob`/`mux_if_emit_prob`; reusing one rejected) +
+`Module.casez_mux_if_gates: BTreeSet<NodeId>` + a new `src/ir/casez_mux_if_emit.rs` gen-time
+annotation pass (the dynamic-selector `CasezMux` predicate, run last) + the `emit/sv.rs`
+structured-case body branch (`casez … endcase` → masked `if`/`else if`) + a
+`num_emitted_casez_mux_if_chains` metric (introspection schema `1.16 → 1.17`) + a metric-keyed
+`tool_matrix --casez-mux-if-gate` / `saw_casez_mux_if_emit` downstream gate
+(`casez_mux_prob`-biased focus config). Pre-split `.19` → `.19a` (design-detail) + `.19b`
+(impl, itself `.19b.1` live / `.19b.2` metric+gate / `.19b.3` docs).
+
+**Validation**
+
+- `bash knowledge-map/scripts/check_knowledge_map.sh` → OK (facts valid, ids unique, map in
+  sync; `0029` indexed).
+- `bash scripts/check_doctrines.sh` → green (4 doctrines: `MEMORY-ARCH`, `KNOWLEDGE-MAP`,
+  `CODE-CHANGE-EVIDENCE`, `TASK-TREE-OWNERSHIP`); DOCS-ONLY ⇒ exempt from the code-scoped
+  evidence/ownership checks.
+- Empirical probe results above (Verilator + both Yosys modes + Icarus + exhaustive iverilog
+  sim-equivalence) are the design-leaf evidence; no generator output changed (DOCS-ONLY ⇒ DUT
+  byte-identical; `tests/snapshots.rs` untouched).
+
+**Impact**
+
+No behaviour change. `anvil` and `--artifact dut` stay byte-identical. The lane now has a
+designed ninth surface with a frontier at `.19`. Nothing retired.
+
+**Files touched**
+
+`docs/decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md`
+(new), `docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `ROADMAP.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.17b.3 — eighth-surface user docs
 
-**Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17b.2b` commit).
+**Landed as:** `ee34e4c` (previous: `348b6e2`, `STRUCTURED-EMISSION-EXPANSION.17b.2b`).
 **DOCS-ONLY** (no `src/`, `tests/`, `examples/`, or build logic touched) ⇒ **DUT
 byte-identical** and exempt from the code-scoped doctrine checks. Tracked by
 `STRUCTURED-EMISSION-EXPANSION.17b.3` (the user-docs leaf). With this, **`.17b` and `.17`

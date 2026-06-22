@@ -6,7 +6,34 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-23` (**`.17b.3` landed — the eighth-surface USER DOCS; `.17b` /
+- Last updated: `2026-06-23` (**`.18` landed — picked the NINTH structured surface (a
+  procedural `always_comb` `if`/`else if` **masked** priority-chain emit-projection of a
+  `CasezMux` gate, decision
+  [`0029`](../decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md))
+  autonomously at the no-frontier boundary per `feedback_pick_and_roll_at_no_frontier`;
+  design/decision leaf, no source change (DOCS-ONLY ⇒ DUT byte-identical); frontier →
+  `.19` (impl, pre-split `.19a`/`.19b`). The wildcard N-way `CasezMux` — rendered today as
+  the parallel `casez (sel) … default` statement — is projected into an `if`/`else if`
+  priority chain of **masked** equality tests `(sel & care_mask) == value_masked` writing
+  the gate's existing `always_comb`-written `logic` var, **no `__cv` passthrough** (the
+  eighth-surface precedent: a `CasezMux` is already an `always_comb` var). It generalizes
+  the eighth surface's bare-equality `CaseMux` chain (decision `0028`) to the wildcard
+  `CasezMux`, reusing the established `care_mask = (~wildcard_mask) & sel_mask` idiom from
+  `metrics.rs` / `compact.rs`. **Fresh empirical probe this session (`scratchpad/probe`,
+  grounded in a real ANVIL-emitted `casez_mux_0` block): the concise `sel ==? pattern`
+  wildcard-equality form is DISQUALIFIED — Yosys `0.64` rejects `==?` (`syntax error,
+  unexpected '?'`) in BOTH repo modes — so the lowered masked-AND form ships; it is
+  Verilator `-Wall` 2012/2017/2023 + both Yosys modes (0 warnings, `check` passes) +
+  Icarus `-g2012` clean, and iverilog `vvp` exhaustively sim-equivalent to the parallel
+  `casez` (128/128 disjoint + 128/128 a hand-built overlapping-priority probe, 0
+  mismatches).** Generator facts pinned: `build_casez_patterns` uses `wildcard_bits = 1`
+  ⇒ arms non-overlapping, all-wildcard arm impossible ⇒ no constant-true condition. Own
+  `casez_mux_if_emit_prob` knob + `num_emitted_casez_mux_if_chains` metric (schema `1.16 →
+  1.17` at impl) + `--casez-mux-if-gate` / `saw_casez_mux_if_emit` (metric-keyed, no new
+  text token). Decision `0029` + `INDEX.md` row + regenerated `KNOWLEDGE_MAP.md`; the
+  parent node's stale `SIX surfaces`/children-to-`.13` summary brought current (EIGHT
+  delivered, ninth picked; children now `.1`–`.19`); `docs/TASK_TREE.md` row updated.
+  Default-off / DUT byte-identical. The lane stays `active`.**) Prior: **`.17b.3` landed — the eighth-surface USER DOCS; `.17b` /
   `.17` close ⇒ the EIGHTH structured surface is delivered end-to-end (DOCS-ONLY ⇒ DUT
   byte-identical, no `src/` touched). A `book/src/structured-emission.md` "## The eighth
   surface: a procedural `if`/`else if` priority chain" section (byte-verified seed-1
@@ -631,8 +658,8 @@ behaviour.
 
 - ID: `STRUCTURED-EMISSION-EXPANSION`
   Status: `active`
-  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. SIX surfaces delivered end-to-end: combinational function automatic (.1+.2), generate for loop (.3+.4), combinational task automatic (.5+.6), the wider-lane generate for part-select (.7+.8, decision 0015), the multi-gate-cone function automatic (.9+.10, decision 0016), and the multi-output combinational task automatic (.11+.12, decision 0025). The first DEEPENING of the sixth surface (wider k>2 co-supported task groups, the recorded .13 follow-up of decision 0025) is the current frontier: .13a design-detail done, .13b impl pending, .13c docs pending. Further future surfaces (nested-multi-level generate / interface-modport) remain .14+, each its own decision.`
-  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`, `STRUCTURED-EMISSION-EXPANSION.9`, `STRUCTURED-EMISSION-EXPANSION.10`, `STRUCTURED-EMISSION-EXPANSION.11`, `STRUCTURED-EMISSION-EXPANSION.12`, `STRUCTURED-EMISSION-EXPANSION.13`
+  Goal: `Richer structured synthesizable SV surfaces (functions / generate / tasks / interfaces), valid-by-construction. EIGHT surfaces delivered end-to-end: combinational function automatic (.1+.2), generate for loop (.3+.4), combinational task automatic (.5+.6), the wider-lane generate for part-select (.7+.8, decision 0015), the multi-gate-cone function automatic (.9+.10, decision 0016), the multi-output combinational task automatic (.11+.12 incl. the wider k>2 deepening .13, decision 0025), the procedural always_comb if/else projection of a 2:1 Mux (.14+.15, decision 0027), and the procedural always_comb if/else if priority chain of a plain CaseMux (.16+.17, decision 0028). The NINTH surface — the procedural always_comb if/else if MASKED priority chain of a wildcard CasezMux (decision 0029) — is now picked: .18 design done, .19 impl pending (pre-split .19a/.19b). Further future surfaces (nested-multi-level generate / interface-modport) remain .20+, each its own decision.`
+  Children: `STRUCTURED-EMISSION-EXPANSION.1`, `STRUCTURED-EMISSION-EXPANSION.2`, `STRUCTURED-EMISSION-EXPANSION.3`, `STRUCTURED-EMISSION-EXPANSION.4`, `STRUCTURED-EMISSION-EXPANSION.5`, `STRUCTURED-EMISSION-EXPANSION.6`, `STRUCTURED-EMISSION-EXPANSION.7`, `STRUCTURED-EMISSION-EXPANSION.8`, `STRUCTURED-EMISSION-EXPANSION.9`, `STRUCTURED-EMISSION-EXPANSION.10`, `STRUCTURED-EMISSION-EXPANSION.11`, `STRUCTURED-EMISSION-EXPANSION.12`, `STRUCTURED-EMISSION-EXPANSION.13`, `STRUCTURED-EMISSION-EXPANSION.14`, `STRUCTURED-EMISSION-EXPANSION.15`, `STRUCTURED-EMISSION-EXPANSION.16`, `STRUCTURED-EMISSION-EXPANSION.17`, `STRUCTURED-EMISSION-EXPANSION.18`, `STRUCTURED-EMISSION-EXPANSION.19`
 
 - ID: `STRUCTURED-EMISSION-EXPANSION.1`
   Status: `done`
@@ -1115,12 +1142,50 @@ behaviour.
   Acceptance: `mdbook build book clean; cargo test --test book_examples green (the new Reproducing-it bash block is book-test: skip with a reason); bash knowledge-map/scripts/check_knowledge_map.sh OK (card valid, ids unique, map in sync); the byte-verified before/after example matches real emitter output; no src/ touched ⇒ DUT byte-identical. Committed through COMMIT.md with the leaf id.`
   Result: `Done. (1) book/src/structured-emission.md: a new "## The eighth surface: a procedural if/else if priority chain" section — the byte-verified seed-1 before/after (a dynamic 1-bit-selector CaseMux: parallel always_comb case -> if (slice_0 == 1'd0) ... else if (slice_0 == 1'd1) ... else ...; NO __cv passthrough since a CaseMux is already an always_comb var), the "what gets wrapped" boundary (dynamic-selector CaseMux only; constant-selector + CasezMux + plain Mux excluded; body swaps in place), the "how anvil proves it" two-mechanism block (the exact metric + the metric-keyed gate + lib proofs), the decision-0028 rationale + CasezMux follow-up, and the "Reproducing it" book-test: skip bash block; plus the chapter-intro surface list extended to name the procedural if/else and the if/else if priority chain. (2) book/src/knobs.md: the case_mux_if_emit_prob entry after mux_if_emit_prob (own knob, simpler-than-seventh no-__cv, exclusions, schema 1.16, metric-keyed gate). (3) USER_GUIDE.md + README.md "Current CLI truth": the case_mux_if_emit_prob knob bullet. (4) The deferred book example-JSON schema_version 1.15 -> 1.16 refresh (api-tools.md ×3 + agent-mcp.md ×1) + the stale seed-42 run_id 3f1cad578805bd04 -> ee39c1e3df8192dd (the run_id is an FNV hash over lane+seed+knobs_json, which gained case_mux_if_emit_prob at .17b.1; verified live: seed 42 -> ee39c1e3df8192dd, schema 1.16, 80383 bytes — all match the example). (5) docs/knowledge/case-mux-if-emit.md KM card (16 answers + evidence + a runnable reverify) + KNOWLEDGE_MAP.md regenerated. Observed pre-existing drift NOT in this leaf's scope: agent-mcp.md's analyze-tool examples sit at schema 1.11 (frozen across .12/.13/.15/.17 — a separate long-standing state, flagged for a dedicated docs pass, not expanded here). DOCS-ONLY ⇒ no src/ touched ⇒ DUT byte-identical. .17b / .17 close ⇒ EIGHTH surface delivered end-to-end; lane returns to a no-frontier boundary.`
   Acceptance-evidence: `mdbook build book clean; cargo test --test book_examples 3/3 (skip_sentinels_have_reasons + harness_detects_a_broken_command + every_runnable_book_bash_block_succeeds); check_knowledge_map.sh OK (facts valid, ids unique, map in sync); the card reverify runs CLEAN (seed 1 forced case_mux_if_emit_prob=1.0 -> 1 "else if (" + iverilog compiles); the before/after example is the real seed-1 emitter output (Verilator -Wall identical ON/OFF, Yosys + iverilog clean).`
-  Commit: `this STRUCTURED-EMISSION-EXPANSION.17b.3 commit`
+  Commit: `ee34e4c`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.18`
+  Status: `done`
+  Goal: `Design/decision leaf: pick the NINTH structured surface autonomously at the no-frontier boundary, define its valid-by-construction discipline + opt-in knob + downstream gate, run a fresh empirical probe, and split the tree — before any code.`
+  Acceptance: `A decision record naming the ninth surface, its construction discipline, its candidate set, its opt-in knob, and its downstream gate, backed by a fresh empirical tool-acceptance + sim-equivalence probe; no source change; self-checks clean.`
+  Result: `Decision 0029. The ninth richer-structured surface is a default-off, opt-in, valid-by-construction procedural always_comb if/else if MASKED priority-chain emit-projection of a wildcard CasezMux gate — a behaviour-preserving re-expression of the N-way wildcard selection the CasezMux renders today as a parallel casez statement (src/emit/sv.rs :724; render_casez_pattern :2171 builds the SW'b<bits> ?-pattern), projected into a chain of MASKED equality tests (sel & care_mask) == value_masked writing the gate's existing always_comb-written logic var. It generalizes the eighth surface's bare-equality CaseMux chain (decision 0028) to the wildcard CasezMux, reusing the established care_mask = (~wildcard_mask) & sel_mask idiom from metrics.rs:2940 / compact.rs:603 (match = (sel & care_mask) == (pattern & care_mask)). Candidate = a dynamic-selector CasezMux (selector operand not a Node::Constant; a constant-selector CasezMux statically collapses to a continuous assign and is excluded, keeping the chain count exact); CaseMux owned by the eighth surface, ForFold + all sibling marks excluded; the pass runs LAST. Simpler than the seventh surface — a CasezMux is already an always_comb-written logic var, so NO __cv output var + passthrough; only the always_comb body swaps casez...endcase -> if...else if (the eighth-surface precedent). FRESH EMPIRICAL PROBE this session (scratchpad/probe, grounded in a real ANVIL-emitted casez_mux_0 block): the concise sel ==? pattern wildcard-equality form is DISQUALIFIED — Yosys 0.64 read_verilog -sv rejects ==? with "syntax error, unexpected '?'" in BOTH repo modes — so the lowered masked-AND form ships; it is Verilator 5.046 -Wall --lint-only 1800-2012/2017/2023 + both Yosys modes (0 warnings, check passes) + Icarus iverilog -g2012 clean, and iverilog vvp EXHAUSTIVELY sim-equivalent to the parallel casez (128/128 disjoint vectors + 128/128 a hand-built overlapping-priority probe proving the chain preserves casez first-match priority in general, 0 mismatches). Generator facts pinned: build_casez_patterns (cone/motifs.rs:832) uses wildcard_bits=1 ⇒ arms NON-OVERLAPPING by construction + all-wildcard arm impossible ⇒ no constant-true condition. Own casez_mux_if_emit_prob knob + --casez-mux-if-emit-prob flag + num_emitted_casez_mux_if_chains metric (schema 1.16 -> 1.17 at impl) + --casez-mux-if-gate / saw_casez_mux_if_emit gate (metric-keyed, no new text token; casez_mux_prob-biased focus config with the correct earlier-selector-knob zeroing pinned at .19). Behaviour-preserving by construction; no new IR node / no new computed truth (the case_mux_if/mux_if precedent); default-off / DUT byte-identical. Rejected: the ==? operator (Yosys-rejected), reusing case_mux_if_emit_prob/mux_if_emit_prob, a __cv passthrough, unique/priority if qualifiers, a new IR node, generate-then-filter, changing the default. Split into .18 (done) + .19 (impl, pre-split .19a design-detail + .19b impl [.19b.1 live / .19b.2 metric+gate / .19b.3 docs]) + future (.20+: nested-multi-level generate / interface-modport). Decision 0029 + INDEX.md row + regenerated KNOWLEDGE_MAP.md; the stale parent-node SIX-surfaces/children-to-.13 summary brought current (EIGHT delivered, ninth picked, children .1-.19); docs/TASK_TREE.md row updated. No source change ⇒ DUT byte-identical.`
+  Verification: `done`
+  Commit: `this STRUCTURED-EMISSION-EXPANSION.18 commit`
+
+- ID: `STRUCTURED-EMISSION-EXPANSION.19`
+  Status: `pending`
+  Goal: `Implement the ninth structured surface (the procedural always_comb if/else if MASKED priority-chain projection of a wildcard CasezMux) per decision 0029: the casez_mux_if_emit_prob knob + the gen-time annotation (a new src/ir/casez_mux_if_emit.rs beside case_mux_if_emit.rs) + Module.casez_mux_if_gates: BTreeSet<NodeId> + the emit/sv.rs structured-case body branch (casez...endcase -> masked if/else if over the same operand refs + per-arm care_mask/value_masked from the pattern/mask constants + W'h0 default; no __cv) + the num_emitted_casez_mux_if_chains metric (introspection schema 1.16 -> 1.17) + the metric-keyed tool_matrix --casez-mux-if-gate / saw_casez_mux_if_emit downstream-clean gate (casez_mux_prob-biased focus config) + book/USER_GUIDE/KM. Default-off / DUT byte-identical. Pre-split into .19a (design-detail, grounded in the real CasezMux emitter section + render_casez_pattern + the case_mux_if_emit.rs annotation precedent) + .19b (impl, itself .19b.1 live / .19b.2 metric+gate / .19b.3 docs) when picked.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test green incl. new casez_mux_if proofs + the schema 1.17 assertions; cargo test --test snapshots byte-identical (default-off); a repo-owned tool_matrix --casez-mux-if-gate banked clean (coverage_gaps = [] / saw_casez_mux_if_emit / Verilator + both Yosys + Icarus). Default-off / DUT byte-identical. Committed through COMMIT.md per slice with the leaf id.`
 
 ## Current Frontier
 
-**Current frontier → none — the lane is at a no-frontier boundary.** **EIGHT structured
-surfaces are now delivered end-to-end.** The eighth surface — the procedural `always_comb`
+**Current frontier → `STRUCTURED-EMISSION-EXPANSION.19` (impl, pre-split `.19a`/`.19b`).**
+**The NINTH structured surface is picked (design done).** `.18` (done) — autonomously at
+the prior no-frontier boundary (`feedback_pick_and_roll_at_no_frontier`) — picked the ninth
+surface: a procedural `always_comb` `if`/`else if` **masked** priority-chain emit-projection
+of a wildcard `CasezMux` gate (decision
+[`0029`](../decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md)).
+The wildcard N-way `CasezMux` (rendered today as the parallel `casez (sel) … default`
+statement) is projected — under the opt-in `casez_mux_if_emit_prob` knob — into an
+`if`/`else if` priority chain of **masked** equality tests `(sel & care_mask) ==
+value_masked` writing the gate's existing `always_comb`-written `logic` var, **no `__cv`
+passthrough** (the eighth-surface precedent). It generalizes the eighth surface's
+bare-equality `CaseMux` chain (decision `0028`) to the wildcard `CasezMux`, reusing the
+established `care_mask = (~wildcard_mask) & sel_mask` idiom from `metrics.rs` / `compact.rs`.
+A fresh empirical probe this session (`scratchpad/probe`) DISQUALIFIED the concise `sel ==?
+pattern` form (Yosys `0.64` rejects `==?` in both repo modes) and proved the lowered
+masked-AND form clean across Verilator `-Wall` 2012/2017/2023 + both Yosys modes (0
+warnings) + Icarus, exhaustively sim-equivalent to the `casez` (128/128 disjoint + 128/128
+overlapping-priority, 0 mismatches). It will ship its own `casez_mux_if_emit_prob` knob +
+`num_emitted_casez_mux_if_chains` metric (schema `1.16 → 1.17`) + the metric-keyed
+`tool_matrix --casez-mux-if-gate` / `saw_casez_mux_if_emit` gate at `.19`. Design/decision
+leaf only — no source change ⇒ DUT byte-identical. The lane stays `active`. The `.18` leaf
+is `done`; the impl frontier is `.19` (`.19a` design-detail next). (Observed, NOT owned by
+this leaf: the `agent-mcp.md` `analyze`-tool example JSONs sit at schema `1.11`, frozen
+across the introspect-schema bumps — a separate long-standing staleness flagged for a
+dedicated docs pass.)
+
+**EIGHT structured surfaces were delivered end-to-end before this pick.** The eighth surface — the procedural `always_comb`
 `if`/`else if` **priority chain** projection of a dynamic-selector `CaseMux` gate (decision
 `0028`) — is complete: `.16` (design), `.17a` (impl design-detail), `.17b.1` (live source
 change), `.17b.2a` (metric @ schema `1.16`), `.17b.2b` (the repo-owned `tool_matrix
@@ -1252,6 +1317,36 @@ _Most recent completions:_
 | — | `STRUCTURED-EMISSION-EXPANSION.1` | `done` | Decision `0012`: picked the combinational `function automatic` emit-projection as the first surface (over interface/modport + nested generate), with its valid-by-construction discipline, opt-in `function_emit_prob`, and downstream gate. Split `.1`/`.2`/future. No source change. |
 
 ## Decisions
+
+- `2026-06-23` (`.18`, decision
+  [`0029`](../decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md)):
+  the **ninth** structured surface is a default-off, valid-by-construction procedural
+  `always_comb` `if`/`else if` **masked** priority chain emit-projection of a wildcard
+  `CasezMux` gate. The `CasezMux` (rendered today as a parallel `casez (sel) … default`
+  statement; `src/emit/sv.rs` `:724` + `render_casez_pattern` `:2171`) is re-expressed as
+  a chain of **masked** equality tests `(sel & care_mask) == value_masked` — the existing
+  `care_mask = (~wildcard_mask) & sel_mask` match idiom from `metrics.rs:2940` /
+  `compact.rs:603` — writing the gate's existing `always_comb`-written `logic` var, **no
+  `__cv` passthrough** (the eighth-surface precedent). It generalizes the eighth surface's
+  bare-equality `CaseMux` chain (decision `0028`) to the wildcard `CasezMux`: a different IR
+  candidate (`CasezMux` vs `CaseMux`), a masked compare vs a bare equality, and a wildcard
+  `casez` source vs an equality `case`. Candidate = a **dynamic-selector** `CasezMux`
+  (selector operand not a `Node::Constant`; a constant-selector `CasezMux` statically
+  collapses to a continuous `assign` and is excluded, keeping the chain count exact);
+  `CaseMux` owned by the eighth surface; `ForFold` + all sibling marks excluded; pass runs
+  last. **Empirical probe this session DISQUALIFIED the concise `sel ==? pattern`
+  wildcard-equality form** — Yosys `0.64` rejects `==?` (`syntax error`) in both repo modes
+  — so the lowered masked-AND form ships; it is Verilator `-Wall` 2012/2017/2023 + both
+  Yosys modes (0 warnings) + Icarus clean and exhaustively iverilog `vvp` sim-equivalent to
+  the `casez` (128/128 disjoint + 128/128 overlapping-priority, 0 mismatches). Generator
+  facts: `build_casez_patterns` (`cone/motifs.rs:832`) uses `wildcard_bits = 1` ⇒ arms
+  non-overlapping, all-wildcard arm impossible ⇒ no constant-true condition. Own
+  `casez_mux_if_emit_prob` knob (separate from `case_mux_if_emit_prob`/`mux_if_emit_prob`;
+  reusing one rejected) + `num_emitted_casez_mux_if_chains` metric (schema `1.16 → 1.17` at
+  impl) + `--casez-mux-if-gate` / `saw_casez_mux_if_emit` (metric-keyed, no new text token;
+  `casez_mux_prob`-biased focus config). First cut = the wildcard `CasezMux`; nested /
+  multi-level `generate` (no by-construction source) and `interface`/`modport` (empirically
+  disqualified since `.7`/decision `0015`) remain `.20+`, each its own decision.
 
 - `2026-06-22` (`.14`, decision
   [`0027`](../decisions/0027-structured-emission-seventh-surface-procedural-if-else.md)):
@@ -1495,6 +1590,7 @@ _Most recent completions:_
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-23` | `STRUCTURED-EMISSION-EXPANSION.18` | **Ninth-surface design/decision leaf — picked the wildcard `CasezMux` → masked `if`/`else if` priority chain** (DOCS-ONLY ⇒ no `src/` touched ⇒ DUT byte-identical). Decision `0029` (with KM front-matter) + `docs/decisions/INDEX.md` row + `KNOWLEDGE_MAP.md` regenerated + the task-tree updates (header, parent-node `Goal`/`Children` brought current `.1`–`.19`, `.18`/`.19` leaf entries, Current Frontier → `.19`, Decisions/Commit-Log/Changelog) + `docs/TASK_TREE.md` row + `CHANGES.md` + `MEMORY.md`. **Fresh empirical probe (`scratchpad/probe`, grounded in a real ANVIL-emitted `casez_mux_0` block — seed 4, `casez_mux_prob=1.0` comb-only): the `sel ==? pattern` form DISQUALIFIED — Yosys `0.64` `read_verilog -sv` rejects `==?` (`syntax error, unexpected '?'`) in BOTH modes (`synth -noabc` and `abc -fast`); the lowered masked-AND `(sel & care_mask) == value_masked` form CLEAN — Verilator `5.046` `-Wall --lint-only` 1800-2012/2017/2023 + both Yosys modes (0 warnings, `check` passes) + Icarus `iverilog -g2012`; iverilog `vvp` EXHAUSTIVELY sim-equivalent to the parallel `casez` (128/128 disjoint + 128/128 a hand-built overlapping-priority probe, 0 mismatches).** `bash knowledge-map/scripts/check_knowledge_map.sh` OK; `bash scripts/check_doctrines.sh` green (4 doctrines; DOCS-ONLY exempt from the code-scoped checks). DOCS-ONLY ⇒ DUT byte-identical. Frontier → `.19`. | `done` |
 | `2026-06-23` | `STRUCTURED-EMISSION-EXPANSION.17b.3` | **Eighth-surface user docs — `.17b` / `.17` close ⇒ EIGHTH surface delivered end-to-end** (DOCS-ONLY ⇒ no `src/` touched ⇒ DUT byte-identical). `book/src/structured-emission.md` (the "## The eighth surface: a procedural `if`/`else if` priority chain" section with a byte-verified seed-1 before/after + the chapter-intro surface list) + `book/src/knobs.md` + `USER_GUIDE.md` + `README.md` "Current CLI truth" (the `case_mux_if_emit_prob` knob entry) + the deferred book example-JSON `schema_version` `1.15 → 1.16` refresh (`api-tools.md` ×3 + `agent-mcp.md` ×1) + the stale seed-42 `run_id` `3f1cad578805bd04 → ee39c1e3df8192dd` (the `run_id` is an FNV hash over `lane+seed+knobs_json`, which gained `case_mux_if_emit_prob` at `.17b.1`) + `docs/knowledge/case-mux-if-emit.md` (a 16-answer KM card + a runnable reverify) + `KNOWLEDGE_MAP.md` regenerated. `mdbook build book` clean; `cargo test --test book_examples` **3/3** (the new "Reproducing it" bash block is `book-test: skip` with a reason); `bash knowledge-map/scripts/check_knowledge_map.sh` OK (facts valid, ids unique, map in sync); the card reverify runs CLEAN (seed 1 forced `case_mux_if_emit_prob=1.0` ⇒ 1 `else if (` + iverilog compiles); live re-verification confirmed the example JSON values (seed 42 → `run_id ee39c1e3df8192dd` / `schema_version 1.16` / 80383 bytes). Observed pre-existing drift NOT in scope: `agent-mcp.md`'s `analyze` examples at schema `1.11` (flagged for a dedicated pass). DOCS-ONLY ⇒ DUT byte-identical. Lane returns to a no-frontier boundary. | `done` |
 | `2026-06-23` | `STRUCTURED-EMISSION-EXPANSION.17b.2b` | **Repo-owned downstream gate** (`src/bin/tool_matrix.rs` only — `CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO` + the `--case-mux-if-gate` flag + `ScenarioSet::CaseMuxIfSweep` + `build_case_mux_if_sweep_scenarios`/`case_mux_if_focus_config` + **METRIC-KEYED** `ModuleReport.emitted_case_mux_if` [`= prepared.metrics.num_emitted_case_mux_if_chains > 0`, no new text token] + `CoverageSummary.saw_case_mux_if_emit` + merge + `MatrixReport.case_mux_if_gate` + run-plan units/fail-on-gap + select/build dispatch + mutual-exclusion count/msg + summarize-coverage block + the early-return gap arm + the three exhaustive match arms + `scenario_set_slug "case-mux-if-sweep"` + `artifact_kind_slug` + `test_cli` default + 5 cargo-portable proofs + 8 fixtures; templated 1:1 on `--mux-if-gate`. Focus config diverges in ONE way: `comb_mux_prob = 0.0` + `case_mux_prob = 0.9` because `comb_mux` rolls before `case_mux` in `cone.rs` and would otherwise starve the `case`-mux roll; no `comb_mux_encoding_prob` steering since a `CaseMux` selector is a dynamic cone by construction). `cargo check --all-targets` clean; `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean (one `doc_lazy_continuation` fixed — a wrapped doc line began with `+`); `cargo test --bin tool_matrix` **94 passed** / 1 ignored (89 + 5 new gate proofs); `cargo test --test snapshots` **6/6 byte-identical** (default-off). **Banked clean** `./target/release/tool_matrix --case-mux-if-gate --yosys-mode both --iverilog-compile --out /tmp/anvil-case-mux-if-gate-r1`: 3 scenarios / 12 modules / **12 emitting a chain / 83 chains**, `coverage_gaps = []`, `saw_case_mux_if_emit = true`, `case_mux_if_gate = true`, Verilator **12/0** + Yosys without-abc **12/0** + Yosys with-abc **12/0** + Icarus compile **12/0**, exit 0. Spot-checked emitted SV: `always_comb begin if (slice_0 == 1'd0) … else if (slice_0 == 1'd1) … end` — exactly the designed priority chain. Default-off / DUT byte-identical. Frontier → `.17b.3`. | `done` |
 | `2026-06-23` | `STRUCTURED-EMISSION-EXPANSION.17b.2a` | **Metric + introspection schema bump** (`src/metrics.rs` `num_emitted_case_mux_if_chains` field + `compute()` assignment + the `metrics_count_emitted_case_mux_if_chains` lib proof; `src/introspect/mod.rs` `SCHEMA_VERSION` `"1.15"→"1.16"` + the const doc-comment + 3 assertions; `src/mcp/mod.rs` 8 assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` "today both are early" + "This document defines" + §8 checklist + a new `1.15→1.16` changelog entry; README ×2 [`--introspect` envelope + `analyze` schema] + USER_GUIDE ×1 [`--sv-version` row] + `CODEBASE_ANALYSIS.md` [envelope `schema_version` + a `1.15→1.16` bump-list entry] bumped; historical `num_emitted_mux_if_blocks @ 1.15` landing attributions intact; book example JSONs deferred to `.17b.3`). `cargo check --all-targets` clean; `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` **626 passed** / 2 ignored (625 + 1 new metric proof; all introspect + mcp `schema_version` assertions green at `"1.16"`); `cargo test --test snapshots` **6/6 byte-identical** (default-off — the metric is a post-hoc RTL-invisible count). **Live `--introspect`**: default (seed 42) ⇒ `schema_version "1.16"` + `module_metrics.num_emitted_case_mux_if_chains 0`; forced (seed 2, `--flop-prob 0 --case-mux-prob 0.9 --case-mux-if-emit-prob 1.0`) ⇒ `"1.16"` + `53`. Default-off / DUT byte-identical. Pre-split `.17b.2` → `.17b.2a` (this) + `.17b.2b` (gate); frontier → `.17b.2b`. | `done` |
@@ -1545,6 +1641,7 @@ _Most recent completions:_
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.18` | `STRUCTURED-EMISSION-EXPANSION.18 — pick CasezMux masked if/else-if priority-chain surface` | Design/decision leaf, no source change — picks the **NINTH** structured surface. Decision `0029`: a procedural `always_comb` `if`/`else if` **masked** priority chain `(sel & care_mask) == value_masked` projecting a wildcard `CasezMux`, generalizing the eighth surface's bare-equality `CaseMux` chain. Fresh probe disqualified the `==?` form (Yosys-rejected) and proved the masked-AND form clean across all repo tools + exhaustively sim-equivalent. Own `casez_mux_if_emit_prob` knob + `num_emitted_casez_mux_if_chains` metric (schema `1.16→1.17`) + metric-keyed `--casez-mux-if-gate`. DOCS-ONLY ⇒ DUT byte-identical. Frontier → `.19` (impl, pre-split `.19a`/`.19b`). |
 | `STRUCTURED-EMISSION-EXPANSION.17b.3` | `STRUCTURED-EMISSION-EXPANSION.17b.3 — eighth-surface user docs` | Eighth-surface user docs; **`.17b` / `.17` close ⇒ EIGHT structured surfaces delivered end-to-end**. DOCS-ONLY ⇒ DUT byte-identical (no `src/`). `book/src/structured-emission.md` (the eighth-surface section + byte-verified seed-1 example + chapter-intro list) + `book/src/knobs.md` + USER_GUIDE + README (the `case_mux_if_emit_prob` entry) + the deferred book example-JSON `schema_version` `1.15 → 1.16` + the stale seed-42 `run_id` refresh + a `case-mux-if-emit` KM card (`KNOWLEDGE_MAP.md` regenerated). `mdbook build` clean; `book_examples` 3/3; `check_knowledge_map` OK. Lane returns to a no-frontier boundary. |
 | `STRUCTURED-EMISSION-EXPANSION.17b.2b` | `STRUCTURED-EMISSION-EXPANSION.17b.2b — repo-owned tool_matrix --case-mux-if-gate` | Repo-owned downstream gate for the EIGHTH surface, templated 1:1 on `--mux-if-gate` (~30 touch points, `src/bin/tool_matrix.rs` only). `CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO` + `--case-mux-if-gate` flag + `ScenarioSet::CaseMuxIfSweep` + `build_case_mux_if_sweep_scenarios`/`case_mux_if_focus_config` (`comb_mux_prob = 0.0` + `case_mux_prob = 0.9`; no encoding-path steering) + **METRIC-KEYED** `ModuleReport.emitted_case_mux_if` (`num_emitted_case_mux_if_chains > 0` — no new text token, unlike every sibling surface's `__cv`/`__t(`/`__mt(`/`__cf(`/`__f(`) + `CoverageSummary.saw_case_mux_if_emit` + merge + `MatrixReport.case_mux_if_gate` + gap arm + 5 cargo-portable proofs + 8 fixtures. `cargo check`/`clippy -D warnings`/`fmt` clean (one `doc_lazy_continuation` reworded); `cargo test --bin tool_matrix` 89→**94**; snapshots **6/6 byte-identical**. Banked clean `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83 chains / `coverage_gaps = []` / `saw_case_mux_if_emit = true` / 12/0 Verilator + both Yosys + Icarus). Default-off / DUT byte-identical. Frontier → `.17b.3`. |
 | `STRUCTURED-EMISSION-EXPANSION.17b.2a` | `STRUCTURED-EMISSION-EXPANSION.17b.2a — case-mux-if metric + introspection schema 1.16` | Metric + schema bump. `Metrics::num_emitted_case_mux_if_chains` (`= m.case_mux_if_gates.len()`, `#[serde(default)]`) in `src/metrics.rs` + a lib proof ⇒ introspection `SCHEMA_VERSION` `"1.15"→"1.16"` (`introspect/mod.rs` const + doc-comment + 3 assertions; 8 `mcp/mod.rs` assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` current-version ×3 + a `1.15→1.16` changelog entry; README ×2 + USER_GUIDE ×1 + `CODEBASE_ANALYSIS.md` envelope refs; historical `num_emitted_mux_if_blocks @ 1.15` landing attributions intact; book example JSONs deferred to `.17b.3`). Exact metric (static-selector `CaseMux` excluded ⇒ every counted gate emits one chain). `cargo check`/`clippy -D warnings`/`fmt` clean; `cargo test --lib` 625→**626** (1 new proof; all schema assertions at `1.16`); snapshots **6/6 byte-identical**. Live `--introspect`: schema `1.16` + metric `0` default (seed 42) / `53` forced (seed 2). Default-off / DUT byte-identical. Pre-split `.17b.2` → `.17b.2a`/`.17b.2b`; frontier → `.17b.2b`. |
@@ -1594,6 +1691,23 @@ _Most recent completions:_
 | `STRUCTURED-EMISSION-EXPANSION` | `SV-VERSION-TARGETING.1 — open SV-version lane + decision 0009` | Registered `proposed` alongside the activated `SV-VERSION-TARGETING` lane. |
 
 ## Changelog
+
+- `2026-06-23`: **`.18` landed — picked the NINTH structured surface (decision `0029`).**
+  A procedural `always_comb` `if`/`else if` **masked** priority-chain emit-projection of a
+  wildcard `CasezMux` gate: the parallel `casez (sel) … default` is re-expressed as a chain
+  of masked equality tests `(sel & care_mask) == value_masked` (the existing
+  `metrics.rs`/`compact.rs` `care_mask = (~wildcard_mask) & sel_mask` idiom) writing the
+  gate's existing `always_comb`-written `logic` var, **no `__cv` passthrough**. Generalizes
+  the eighth surface's bare-equality `CaseMux` chain (decision `0028`). A fresh empirical
+  probe DISQUALIFIED the concise `sel ==? pattern` form (Yosys `0.64` rejects `==?` in both
+  repo modes) and proved the lowered masked-AND form clean across Verilator `-Wall`
+  2012/2017/2023 + both Yosys modes + Icarus, exhaustively sim-equivalent to the `casez`
+  (128/128 disjoint + 128/128 overlapping-priority, 0 mismatches). Own
+  `casez_mux_if_emit_prob` knob + `num_emitted_casez_mux_if_chains` metric (schema `1.16 →
+  1.17` at impl) + metric-keyed `--casez-mux-if-gate` / `saw_casez_mux_if_emit`. Decision
+  `0029` + `INDEX.md` row + regenerated `KNOWLEDGE_MAP.md`; parent-node summary brought
+  current; `docs/TASK_TREE.md` row updated. DOCS-ONLY ⇒ DUT byte-identical. Frontier →
+  `.19` (impl, pre-split `.19a`/`.19b`).
 
 - `2026-06-23`: **`.17b.2a` landed — the eighth-surface metric + introspection schema
   bump (`1.15 → 1.16`).** `Metrics::num_emitted_case_mux_if_chains` (`=

@@ -389,11 +389,26 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the
    existing single-level loop already fires on the outer `{M{y}}`) and
    `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the modport
-   port and both Yosys modes warn on the implicit interface-member decl); the `CasezMux`
-   masked priority chain, nested/multi-level `generate`, and `interface`/`modport` are
-   the remaining future vetted surfaces (`.18`+), each with its own decision, PNT-selected
-   at the next no-frontier boundary; the tree stays `active` at a no-frontier boundary (EIGHT
-   surfaces delivered end-to-end). Serves ROADMAP steering gap 1
+   port and both Yosys modes warn on the implicit interface-member decl). The **ninth
+   surface** (decision
+   [`0029`](docs/decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md),
+   leaf `.18` design landed `2026-06-23`) — a default-off, valid-by-construction procedural
+   `always_comb` `if`/`else if` **masked** priority chain `(sel & care_mask) == value_masked`
+   emit-projection of a wildcard `CasezMux` gate (the N-way wildcard selection it renders
+   today as the parallel `casez (sel) … default` statement), writing the gate's existing
+   `always_comb`-written `logic` var (no `__cv` passthrough, the eighth-surface precedent) —
+   is **picked and designed**. It generalizes the eighth surface's bare-equality `CaseMux`
+   chain to the wildcard `CasezMux`, reusing the established `care_mask = (~wildcard_mask) &
+   sel_mask` idiom from `metrics.rs`/`compact.rs`. A fresh probe **disqualified** the concise
+   `sel ==? pattern` wildcard-equality form (Yosys `0.64` rejects `==?` in both repo modes)
+   and proved the lowered masked-AND form clean across Verilator `-Wall` 2012/2017/2023 +
+   both Yosys modes + Icarus, exhaustively iverilog `vvp` sim-equivalent to the `casez`
+   (128/128 disjoint + 128/128 a hand-built overlapping-priority probe). Own
+   `casez_mux_if_emit_prob` knob + `num_emitted_casez_mux_if_chains` metric (schema
+   `1.16 → 1.17` at impl) + metric-keyed `--casez-mux-if-gate` / `saw_casez_mux_if_emit`.
+   Frontier → `.19` (impl, pre-split `.19a` design-detail / `.19b` impl); nested/multi-level
+   `generate` and `interface`/`modport` remain the future vetted surfaces (`.20`+), each with
+   its own decision; the tree stays `active`. Serves ROADMAP steering gap 1
    (richer structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
