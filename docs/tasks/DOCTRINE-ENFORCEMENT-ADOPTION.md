@@ -80,11 +80,11 @@ the donor project's portable kit). Reference: decision `0026`.
   Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Add scripts/check_doctrines.sh (registry+driver) over the two existing structural checks; rewire .githooks/pre-commit and CI through the driver.`
   Acceptance: `The driver runs MEMORY-ARCH + KNOWLEDGE-MAP, meta-checks each check exists/executable, reports per-doctrine PASS/FAIL, exits nonzero on any fail. Pre-commit preserves the KM derive-and-stage step then runs the driver. CI runs the driver. All green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `bash scripts/check_doctrines.sh → PASS MEMORY-ARCH + PASS KNOWLEDGE-MAP, exit 0; meta-check proven on an in-repo copy with a dangling registry line (BOGUS-DOCTRINE META-FAIL → REGISTRY ERROR, exit 1, temp removed); rewired pre-commit ran on the commit itself.`
+  Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.3`
   Status: `pending`
@@ -119,8 +119,8 @@ the donor project's portable kit). Reference: decision `0026`.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `done` | Registered ownership; landed the standard + decision 0026. |
-| 2 | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `in_progress` | The driver is the core of the architecture; deploy it over the existing checks first. |
-| 3 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `pending` | TOOLBOX + evidence check; the toolbox is ANVIL's own diagnostic surface. |
+| 2 | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `done` | Driver + hook/CI rewired over MEMORY-ARCH + KNOWLEDGE-MAP. |
+| 3 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `in_progress` | TOOLBOX + evidence check; the toolbox is ANVIL's own diagnostic surface. |
 | 4 | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `pending` | Mechanize the flagship code-ownership doctrine. |
 | 5 | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `pending` | Discovery layer so a fresh agent in any harness is routed to the doctrine kit. |
 | 6 | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `pending` | Closeout + live-doc/book/KM alignment; verify and close. |
@@ -164,15 +164,20 @@ the donor project's portable kit). Reference: decision `0026`.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `scripts/check_memory_architecture.sh`; `knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh`; `wc -l MEMORY.md` (21 <= 50) | passed; full `cargo test` not run because no source code changed (`0003-resource-safe-validation`) |
+| `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `bash scripts/check_doctrines.sh` (PASS MEMORY-ARCH + PASS KNOWLEDGE-MAP, exit 0); meta-check on a dangling-entry copy (META-FAIL → REGISTRY ERROR, exit 1); rewired pre-commit ran on the commit | passed; no source code changed (`0003-resource-safe-validation`) |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026` | `pending hash`; standard + decision + tree, no check wired yet. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026` | `1b433d9`; standard + decision + tree, no check wired yet. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI` | `pending hash`; driver + hook/CI; the existing checks are registered, not rewritten. |
 
 ## Changelog
 
 - `2026-06-22`: Created task tree; completed `DOCTRINE-ENFORCEMENT-ADOPTION.1`
   (standard `DOCTRINE_ENFORCEMENT.md` + decision `0026` + tree registration);
   frontier advanced to `.2`.
+- `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.2` (registry+driver
+  `scripts/check_doctrines.sh` over `MEMORY-ARCH` + `KNOWLEDGE-MAP`; rewired
+  `.githooks/pre-commit` + CI); frontier advanced to `.3`.

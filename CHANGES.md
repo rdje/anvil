@@ -1,6 +1,45 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI
+
+**Landed as:** this commit (previous: `1b433d9`). **Deploys the core of portable
+architecture #4 — the registry+driver — over the two existing structural checks, and
+rewires the local hook (E3) + CI (E4) to run it.** Workflow only / DUT byte-identical
+(no `src/`). Task-tree-owned by `DOCTRINE-ENFORCEMENT-ADOPTION.2`.
+
+**What changed (why)**
+
+- **`scripts/check_doctrines.sh`** (new, executable) — the registry+driver. The
+  `DOCTRINES=(…)` array is the single source of truth (`MEMORY-ARCH` →
+  `scripts/check_memory_architecture.sh`; `KNOWLEDGE-MAP` →
+  `knowledge-map/scripts/check_knowledge_map.sh`). It **collects all results** (no
+  `set -e`; never stops at the first failure), **meta-checks** each registered check
+  exists + is executable (rejecting a dangling registry entry with `REGISTRY ERROR`),
+  prints a per-doctrine PASS/FAIL report, and exits nonzero iff any check failed.
+- **`.githooks/pre-commit`** — rewired: keeps the Knowledge Map derive-and-stage step
+  (idempotent, before the sync check) then runs the driver instead of the two checks
+  directly. Same coverage, one entry point.
+- **`.github/workflows/ci.yml`** — the two separate `memory architecture check` +
+  `knowledge map check` steps collapse into one `doctrine enforcement
+  (check_doctrines.sh)` step (E4 runs the same driver as E3).
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` → `PASS MEMORY-ARCH`, `PASS KNOWLEDGE-MAP`, exit
+  `0`. Meta-check proven: an in-repo copy with a deliberately dangling registry line
+  reported `MEMORY-ARCH` PASS + `KNOWLEDGE-MAP` PASS + `BOGUS-DOCTRINE` META-FAIL →
+  `REGISTRY ERROR`, exit `1` (temp removed). The rewired `.githooks/pre-commit` runs
+  the driver on this very commit. No `src/` touched ⇒ `cargo check/clippy/fmt/test`
+  unaffected; `tests/snapshots.rs` untouched.
+
+**Impact**
+
+- ANVIL's two existing doctrines now run behind one uniform driver with a
+  dangling-entry meta-check, gated at E3 + E4. Adding the code-scoped doctrines is now
+  one registry line each (`.3` `CODE-CHANGE-EVIDENCE`, `.4` `TASK-TREE-OWNERSHIP`).
+  Frontier `.2` → `.3`. No ROADMAP phase label changed.
+
 ## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026
 
 **Landed as:** this commit (previous: `ca2ffb7`). **Opens the

@@ -3,8 +3,12 @@ set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 
-"${ROOT}/scripts/check_memory_architecture.sh"
-
+# Derive-and-stage the Knowledge Map (idempotent) BEFORE the driver checks sync,
+# so a forgotten regen never blocks the commit. (DOCTRINE_ENFORCEMENT.md §4(4).)
 "${ROOT}/knowledge-map/scripts/gen_knowledge_map.sh" >/dev/null
 git add "$("${ROOT}/knowledge-map/scripts/gen_knowledge_map.sh" --print-map-path)" 2>/dev/null || true
-"${ROOT}/knowledge-map/scripts/check_knowledge_map.sh"
+
+# Run the doctrine-enforcement driver (E3): MEMORY-ARCH + KNOWLEDGE-MAP today, plus
+# the code-scoped checks (CODE-CHANGE-EVIDENCE, TASK-TREE-OWNERSHIP) once registered.
+# CI runs the same driver (E4). See DOCTRINE_ENFORCEMENT.md.
+"${ROOT}/scripts/check_doctrines.sh"

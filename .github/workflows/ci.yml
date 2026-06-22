@@ -27,11 +27,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: memory architecture check
-        run: bash scripts/check_memory_architecture.sh
-
-      - name: knowledge map check
-        run: bash knowledge-map/scripts/check_knowledge_map.sh
+      # Doctrine-enforcement driver (E4): runs every registered doctrine check
+      # (MEMORY-ARCH + KNOWLEDGE-MAP + the code-scoped CODE-CHANGE-EVIDENCE /
+      # TASK-TREE-OWNERSHIP), meta-checks each check exists/executable, and fails
+      # the build on any breach. The same driver runs locally via .githooks/pre-commit
+      # (E3). See DOCTRINE_ENFORCEMENT.md.
+      - name: doctrine enforcement (check_doctrines.sh)
+        run: bash scripts/check_doctrines.sh
 
       - name: Install Rust (stable) + components
         uses: dtolnay/rust-toolchain@stable
