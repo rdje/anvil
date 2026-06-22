@@ -1,9 +1,86 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19a — CasezMux masked priority-chain impl design-detail
+
+**Landed as:** this commit (previous: `6aeecf6`, `STRUCTURED-EMISSION-EXPANSION.18`).
+**DOCS-ONLY** (no `src/`, `tests/`, `examples/`, or build logic touched) ⇒ **DUT
+byte-identical** and exempt from the code-scoped doctrine checks. Tracked by the
+`STRUCTURED-EMISSION-EXPANSION.19a` impl design-detail leaf (the prerequisite for the live
+`.19b` source change), mirroring the eighth surface's `.17a`.
+
+**What changed (why)**
+
+The ninth surface's design (decision `0029`) needs to be pinned to the *real* code — exact
+files, symbols, and line numbers — before the live source change, so `.19b` is a mechanical
+transcription with no fresh code archaeology and a cold session can resume deterministically.
+
+1. **`DEVELOPMENT_NOTES.md`** — a new "## 2026-06-23 — CasezMux masked `if`/`else if`
+   priority-chain surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.19a`" entry,
+   mirroring the eighth surface's `.17a`. It grounds decision `0029` in a fresh read of:
+   `src/ir/case_mux_if_emit.rs` (the annotation-pass template to mirror —
+   `gate_qualifies` + collect-then-`gen_bool`-roll + `param_env` skip + the proof block);
+   `src/emit/sv.rs` the structured-case `always_comb` loop (the `GateOp::CasezMux` arm `:724`
+   iterating `operands[1..].chunks_exact(3)` with `render_casez_pattern(arm[0], arm[1], m)` +
+   `data = node_ref(arm[2])`; the `constant_value` `:2116` / `bitmask` / `casez_pattern_matches`
+   `:2143` helpers; the trailing-`default`/`endcase` tail `:769`); `render_casez_pattern`
+   `:2171`; `src/gen/cone/motifs.rs:832` (`build_casez_patterns` — `wildcard_bits = 1` fixed
+   ⇒ arms non-overlapping + all-wildcard arm impossible); `src/metrics.rs:2940` /
+   `src/ir/compact.rs:603` (the `care_mask = (~wildcard_mask) & sel_mask` idiom, match =
+   `(sel & care_mask) == (pattern & care_mask)`); the `src/gen/mod.rs` roll chain; and the
+   `config.rs` / `main.rs` / `types.rs` / `ir/mod.rs` / `introspect/mod.rs` touch points.
+
+2. **Impl points 0–7 resolved** (the entry pins each): (0) candidate = a dynamic-selector
+   `GateOp::CasezMux` (`operands[0]` not a `Node::Constant`, `operands.len() >= 4`), excluding
+   `CaseMux` + `case_mux_if` + sibling marks + `param_env`; (1) `Module.casez_mux_if_gates:
+   BTreeSet<NodeId>` + `ir/mod.rs` registration; (2) the **in-place** `emit/sv.rs` `CasezMux`
+   body branch computing per-arm `care_mask = !wildcard_mask & sel_mask` and `value_masked =
+   pattern_value & care_mask` from the arm's `(value, mask)` constants (reusing the existing
+   `constant_value`/`bitmask` helpers) and emitting `(sel & SW'h{care}) == SW'h{val}` chained
+   + a trailing `else <g> = W'h0;` — **no `__cv`** (a `CasezMux` is already an `always_comb`
+   var) — plus the `:769` trailing-default suppression tweak to also exclude marked casez
+   gates; (3) run `annotate_casez_mux_if_gates` **last** (after `case_mux_if`) in both
+   `gen/mod.rs` paths; (4) `Config::casez_mux_if_emit_prob` + `--casez-mux-if-emit-prob` flag
+   at all six `config.rs` touch points + `Overrides`; (5)
+   `Metrics::num_emitted_casez_mux_if_chains = m.casez_mux_if_gates.len()` ⇒ introspection
+   schema `1.16 → 1.17`, exact (static selectors excluded); (6) the metric-keyed
+   `tool_matrix --casez-mux-if-gate` / `saw_casez_mux_if_emit` + a `casez_mux_prob`-biased
+   focus config that must **zero both `comb_mux_prob` and `case_mux_prob`** (both roll before
+   `casez_mux` in `cone.rs` — the eighth surface's short-circuit-chain trap, generalized); (7)
+   the byte-identical/RNG argument.
+
+3. **The empirical form selection is recorded** (from the `.18` probe): the concise `sel ==?
+   pattern` wildcard-equality form is DISQUALIFIED (Yosys `0.64` rejects `==?` in both repo
+   modes); the lowered masked-AND `(sel & care_mask) == value_masked` form ships (clean across
+   Verilator `-Wall` 2012/2017/2023 + both Yosys modes + Icarus + exhaustive iverilog
+   sim-equivalence). The `.19b` proof plan (~9 lib proofs mirroring `case_mux_if_emit`'s + the
+   live source-change shape) is pinned.
+
+4. **Task-tree updates** — `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` (header narrative;
+   the `.19` parent split into `.19a` done + `.19b` pending; the `.19a`/`.19b` leaf entries;
+   Current Frontier → `.19b.1`; Verification-Log / Commit-Log / Changelog entries; the `.18`
+   commit hash backfilled to `6aeecf6`) + `docs/TASK_TREE.md` row.
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` → green (4 doctrines); DOCS-ONLY ⇒ exempt from the
+  code-scoped evidence/ownership checks.
+- No generator output changed (DOCS-ONLY ⇒ DUT byte-identical; `tests/snapshots.rs`
+  untouched). The live source change is `.19b.1`.
+
+**Impact**
+
+No behaviour change. The ninth surface is now fully design-detailed against the real code; the
+frontier is the live source change at `.19b.1`. Nothing retired.
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.18 — pick CasezMux masked if/else-if priority-chain surface (decision 0029)
 
-**Landed as:** this commit (previous: `ee34e4c`, `STRUCTURED-EMISSION-EXPANSION.17b.3`).
+**Landed as:** `6aeecf6` (previous: `ee34e4c`, `STRUCTURED-EMISSION-EXPANSION.17b.3`).
 **DOCS-ONLY** (no `src/`, `tests/`, `examples/`, or build logic touched) ⇒ **DUT
 byte-identical** and exempt from the code-scoped doctrine checks. Tracked by the
 `STRUCTURED-EMISSION-EXPANSION.18` design/decision leaf, picked **autonomously** at the

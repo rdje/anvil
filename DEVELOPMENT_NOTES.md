@@ -5,6 +5,134 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — CasezMux masked `if`/`else if` priority-chain surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.19a`
+
+Grounds decision `0029` (the **ninth** structured surface: a procedural `always_comb`
+`if`/`else if` **masked** priority-chain emit-projection of a wildcard `CasezMux` gate) in a
+fresh read of the real code, pinning every `.19b` impl point. The pattern is the eighth
+surface's (`.17a`/`.17b`, `src/ir/case_mux_if_emit.rs`) almost exactly — same shape, same
+"no `<g>__cv` passthrough" (a `CasezMux` is already an `always_comb`-written `logic` var), so
+the projection only swaps the `always_comb` *body* (`casez … endcase` → masked `if … else
+if`). The **one** substantive difference vs the eighth surface is the **comparison form**:
+the eighth surface tests a bare equality `sel == SW'd{i}` (the `case` labels are distinct
+constants); this surface must test a **masked** equality `(sel & care_mask) == value_masked`
+because a `casez` arm carries a `?`-wildcard pattern.
+
+**Empirical form selection (decision `0029` probe, this session, `scratchpad/probe`).** Two
+faithful candidate forms were probed against a real ANVIL-emitted `casez_mux_0` block:
+(A) the SystemVerilog wildcard-equality operator `sel ==? SW'b<bits>` reusing the `?`-pattern
+verbatim, and (B) the lowered masked-AND `(sel & care_mask) == value_masked`. **Form A is
+DISQUALIFIED** — Yosys `0.64` `read_verilog -sv` rejects `==?` (`syntax error, unexpected
+'?'`) in both repo modes — so it fails the lane's "clean across every repo tool" bar. **Form
+B is CLEAN** across Verilator `5.046` `-Wall` (1800-2012/2017/2023) + both Yosys modes (0
+warnings, `check` passes) + Icarus `-g2012`, and exhaustively iverilog-`vvp` sim-equivalent
+to the `casez` (128/128 disjoint vectors + 128/128 a hand-built overlapping-priority probe).
+**So the surface ships Form B.**
+
+**Grounding reads (current HEAD).** `src/ir/case_mux_if_emit.rs` (the whole pass — the exact
+template to mirror: `gate_qualifies` + collect-then-`gen_bool`-roll `annotate_*` +
+`param_env` skip + the 9-proof block); `src/emit/sv.rs` the structured-case `always_comb`
+loop (`:667`–`:776`: the `render_static_structured_gate(...).is_some() → continue` static
+collapse `:685`, the `GateOp::CasezMux` arm `:724`–`:732` — `sel = node_ref(operands[0])`,
+then `for arm in operands[1..].chunks_exact(3)` with `pattern = render_casez_pattern(arm[0],
+arm[1], m)` and `data = node_ref(arm[2], …)` — and the shared trailing-`default`/`endcase`
+tail `:769`–`:774` gated on `!m.case_mux_if_gates.contains(&idx)`); `render_casez_pattern`
+(`:2171`: `arm[0]` = the pattern-value `Node::Constant`, `arm[1]` = the wildcard-mask
+`Node::Constant`, builds `SW'b<bits>` with `?` at mask-set positions); the existing
+care-mask idiom (`src/metrics.rs:2940` + `src/ir/compact.rs:603` + `src/emit/sv.rs`'s
+`casez_pattern_matches` `:2143`: `care_mask = bitmask(width) & !wildcard_mask`, match =
+`(sel & care_mask) == (pattern & care_mask)`); the emit helpers `constant_value(m, id)`
+(`:2116` — extracts a `Node::Constant` value) + `bitmask(width)` already in `sv.rs`;
+`src/gen/cone/motifs.rs:832` (`build_casez_patterns`: `wildcard_bits = 1` fixed, `sel_width
+= ceil_log2(n_arms) + 1`, arm `idx → (idx << 1, width_mask(1))` ⇒ arms non-overlapping +
+all-wildcard arm impossible); `src/gen/mod.rs` the eighth-pass guarded roll chain
+(`:157`/`:168` single, `:415`/`:426` design — `… → mux_if → case_mux_if`, each `if
+self.cfg.<knob> > 0.0`); `src/config.rs` (`default_case_mux_if_emit_prob` `:122`, the
+`#[serde(default)]` field `:1055`, the Default-construction entry `:1305`, the
+validate-probs list `:1689`, the apply `:1921`, the `Overrides` `Option<f64>` `:2047`);
+`src/main.rs` (the `--case-mux-if-emit-prob` clap flag `:554` + overlay `:1175`);
+`src/ir/types.rs` (`case_mux_if_gates: BTreeSet<NodeId>` `:552`; `GateOp::CasezMux`);
+`src/ir/mod.rs` (`pub mod case_mux_if_emit;` `:4`); `src/introspect/mod.rs` (`SCHEMA_VERSION
+= "1.16"` `:67`).
+
+**The impl points, resolved:**
+
+0. **Candidate predicate** (new `src/ir/casez_mux_if_emit.rs`, mirroring
+   `case_mux_if_emit.rs`): a `Node::Gate` whose op is `GateOp::CasezMux` **and whose selector
+   (`operands[0]`) is NOT a `Node::Constant`** — the dynamic-selector test (the inverse of
+   `render_static_structured_gate`'s `CasezMux` static collapse). A constant-selector
+   `CasezMux` lowers to a continuous `assign` (no `always_comb`), so it is not a candidate —
+   checked locally with `matches!(m.nodes[operands[0] as usize], Node::Constant { .. })`.
+   Require `operands.len() >= 4` (a selector + at least one full `(value, mask, data)` arm).
+   Plus the robustness exclusion of every sibling mark — **including
+   `m.case_mux_if_gates`** (the eighth surface's set; the new pass runs after it) — vacuous
+   in practice (no other pass marks a `CasezMux`) but kept for the "later pass excludes
+   earlier marks" convention. `CaseMux` is the eighth surface's candidate, `ForFold` is not a
+   selector. `param_env` modules skipped.
+1. **Carrier:** `Module.casez_mux_if_gates: BTreeSet<NodeId>` beside `case_mux_if_gates`
+   (`types.rs:552`), `#[serde(default)]`-empty. A set, not a map — a marked `CasezMux`
+   carries no payload; its operands (and the pattern/mask constants) are read straight from
+   the node by the emitter. Register `pub mod casez_mux_if_emit;` in `ir/mod.rs`.
+2. **Emitter integration (in place, minimal):** in the structured-case `always_comb` loop,
+   branch the `GateOp::CasezMux` arm `:724` on `m.casez_mux_if_gates.contains(&idx)`. Marked
+   ⇒ emit the masked chain body — for each `arm in operands[1..].chunks_exact(3)`, compute
+   `pattern_value = constant_value(m, arm[0])`, `wildcard_mask = constant_value(m, arm[1])`,
+   `sel_mask = bitmask(sel_width)`, `care_mask = !wildcard_mask & sel_mask`, `value_masked =
+   pattern_value & care_mask`, and emit `{kw} (({sel} & {SW}'h{care_mask:x}) ==
+   {SW}'h{value_masked:x}) {name} = {data};` (`kw` = `if` for the first arm, `else if`
+   after), then a trailing `else {name} = {W}'h0;`. Reuse the **same** `sel` / `sel_width` /
+   `node_ref(arm[2])` the `casez` arm already computes, the same `W'h0` default literal, and
+   the existing `constant_value`/`bitmask` helpers (one extra reuse, no new machinery —
+   `feedback_full_factorization`). Unmarked ⇒ today's `casez … endcase` verbatim
+   (byte-identical). The trailing-default suppression condition (`:769`) must also exclude
+   marked casez gates: change `&& !m.case_mux_if_gates.contains(&idx)` to also `&&
+   !m.casez_mux_if_gates.contains(&idx)`. The static-collapse `continue` (`:685`) fires
+   before this arm for a constant-selector `CasezMux`, and the predicate excludes those, so
+   the two agree.
+3. **Run last:** a ninth guarded call site `if self.cfg.casez_mux_if_emit_prob > 0.0 {
+   annotate_casez_mux_if_gates(…) }` after `case_mux_if` in both `gen/mod.rs` paths. Ordering
+   is not load-bearing for exclusion (no other pass marks a `CasezMux`) but follows the
+   convention; minimal blast radius.
+4. **Knob:** `Config::casez_mux_if_emit_prob` (default `0.0`) mirroring `case_mux_if_emit_prob`
+   at all six `config.rs` touch points + the `--casez-mux-if-emit-prob` clap flag +
+   `Overrides` wiring (`main.rs`).
+5. **Metric:** `Metrics::num_emitted_casez_mux_if_chains` (`= m.casez_mux_if_gates.len()`,
+   `#[serde(default)]`) ⇒ introspection schema `1.16 → 1.17` at `.19b.2`. Because the
+   predicate excludes static-selector `CasezMux`, **every** marked gate emits exactly one
+   chain ⇒ `len()` is the exact emitted-chain count.
+6. **Gate:** `tool_matrix --casez-mux-if-gate` + `ScenarioSet::CasezMuxIfSweep` + a
+   `casez_mux_if_focus_config` (comb-only, node-id + e-graph, `casez_mux_if_emit_prob = 1.0`,
+   and **`casez_mux_prob` biased high** so dynamic-selector `CasezMux` gates exist) × the
+   three strategies. **Detection is metric-keyed** (like the eighth surface — this surface
+   writes the gate's existing var, no new token; an `if (… == …)` text scan would also match
+   FSM decode blocks): `ModuleReport.emitted_casez_mux_if =
+   module_metrics.num_emitted_casez_mux_if_chains > 0` + `saw_casez_mux_if_emit`.
+   **Calibration note (to confirm at `.19b.2`):** check the structured-block roll order in
+   `cone.rs` — `comb_mux_prob` / `case_mux_prob` roll **before** `casez_mux_prob` (the same
+   short-circuit-chain trap the eighth surface's `--case-mux-if-gate` hit, which had to zero
+   `comb_mux_prob`); the focus config must zero the earlier-rolling selector knobs
+   (`comb_mux_prob = 0.0`, `case_mux_prob = 0.0`) so the `casez`-mux block always gets its
+   draw. No encoding-path steering needed (a `CasezMux` selector is a dynamic cone by
+   construction).
+7. **Byte-identical / RNG:** default `0.0` ⇒ the guard skips the pass ⇒ zero draws ⇒
+   byte-identical stream + output (`tests/snapshots.rs` untouched); `prob = 1.0` ⇒
+   `gen_bool(1.0)` short-circuits; the mark is an emitter-surface annotation only — the flat
+   IR body, validators, CSE keys, and `canonical_module_signature` are untouched (the
+   `case_mux_if` `marking_leaves_identity_and_node_count_untouched` proof, replicated).
+
+**`.19b` proof plan (pre-split `.19b.1` live / `.19b.2` metric+gate / `.19b.3` docs):**
+~9 lib proofs mirroring `case_mux_if_emit`'s — `prob_one_marks_a_dynamic_casez_mux`;
+`constant_selector_casez_mux_is_excluded`; `prob_zero_byte_identical`;
+`non_casez_mux_excluded` (a plain `Mux` and a `CaseMux`); `param_env_skipped`;
+`sibling_marked_casez_mux_excluded`; `marking_leaves_identity_untouched`; and the end-to-end
+emit proof (a marked dynamic `CasezMux` emits the masked `(sel & care) == val` `if`/`else
+if` chain; the unmarked default stays the `casez … endcase`). The `.19b.1` live source change
+is then: the new `src/ir/casez_mux_if_emit.rs` + `Module.casez_mux_if_gates` + `ir/mod.rs`
+registration + the `casez_mux_if_emit_prob` knob/flag + the two `gen/mod.rs` rolls (after
+`case_mux_if`) + the `emit/sv.rs` `CasezMux` body branch + the trailing-default suppression
+tweak. No metric/schema bump at `.19b.1` (the `.19b.2` metric bumps `1.16 → 1.17`; the knob
+rides the version). Default-off / DUT byte-identical (snapshots untouched).
+
 ## 2026-06-23 — CaseMux priority-chain gate — focus-config calibration — `STRUCTURED-EMISSION-EXPANSION.17b.2b`
 
 The repo-owned `tool_matrix --case-mux-if-gate` is templated 1:1 on `--mux-if-gate`, but
