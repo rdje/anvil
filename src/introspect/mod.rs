@@ -51,20 +51,19 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.13` is the
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.14` is the
 /// additive (backward-compatible) MINOR bump that adds the
-/// `DesignMetrics::num_mealy_fsm_modules` field — the count of design modules
-/// carrying a **Mealy** FSM (an output decoded over the current state *and*
-/// input; `CAPABILITY-BREADTH-EXPANSION.2b`, decision `0024`). It is a
-/// SCHEMA-DERIVED projection of existing facts (a filter over `Module::fsms`),
-/// not new computed truth; default-off designs report `0` and the default-`dut`
-/// **artifact** (`.sv`) stays byte-identical. The prior `1.12` added the
-/// achieved-coverage **readout** ([`coverage::CoverageReadout`] /
-/// `coverage_readout`, decision `0023`); a `1.12` consumer simply ignores the new
-/// integer key. MINOR is an integer, so `1.12 → 1.13` (thirteen), not a decimal
-/// fraction. See the schema-doc §7 changelog for the full `1.0 → … → 1.12 → 1.13`
-/// history.
-pub const SCHEMA_VERSION: &str = "1.13";
+/// `Metrics::num_emitted_multi_output_tasks` field — the count of co-supported
+/// gate groups the emitter projects as one multi-output combinational `task
+/// automatic` (`STRUCTURED-EMISSION-EXPANSION.12b`, decision `0025`). It is a
+/// SCHEMA-DERIVED projection of an existing emitter-surface annotation (a count of
+/// `Module::multi_output_task_groups`), not new computed truth; default-off modules
+/// report `0` and the default-`dut` **artifact** (`.sv`) stays byte-identical. The
+/// prior `1.13` added `DesignMetrics::num_mealy_fsm_modules` (decision `0024`); a
+/// `1.13` consumer simply ignores the new integer key. MINOR is an integer, so
+/// `1.13 → 1.14` (fourteen), not a decimal fraction. See the schema-doc §7
+/// changelog for the full `1.0 → … → 1.13 → 1.14` history.
+pub const SCHEMA_VERSION: &str = "1.14";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -507,7 +506,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.13");
+        assert_eq!(doc.schema_version, "1.14");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -648,7 +647,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.13");
+        assert_eq!(doc.schema_version, "1.14");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -691,7 +690,7 @@ mod tests {
         let readout = coverage::module_coverage(&compute(&m));
         let doc = coverage_document(&base, readout.clone());
 
-        assert_eq!(doc.schema_version, "1.13");
+        assert_eq!(doc.schema_version, "1.14");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
                                                              // The payload IS the embedded readout, byte-for-byte.

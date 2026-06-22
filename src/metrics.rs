@@ -351,6 +351,18 @@ pub struct Metrics {
     /// introspection projection additive (schema `1.11`).
     #[serde(default)]
     pub num_emitted_cone_functions: usize,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.12b.2` — count of co-supported gate groups
+    /// the emitter projects as one multi-output combinational `task automatic`
+    /// (decision `0025`); `= m.multi_output_task_groups.len()`. Zero unless
+    /// `multi_output_task_emit_prob > 0.0` grouped qualifying co-supported pairs.
+    /// Separate from `num_emitted_combinational_tasks` (the single-gate
+    /// `task_emit_prob` surface). A post-hoc structural count of an emitter-surface
+    /// annotation — adding it changes no emitted RTL (default-off byte-identical).
+    /// `#[serde(default)]` keeps the introspection projection additive (schema
+    /// `1.14`).
+    #[serde(default)]
+    pub num_emitted_multi_output_tasks: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -948,6 +960,11 @@ pub fn compute(m: &Module) -> Metrics {
     // emitter projects as a multi-gate `function automatic` (an emitter-surface
     // annotation; structural, post-hoc, RTL-invisible).
     out.num_emitted_cone_functions = m.cone_function_gates.len();
+
+    // `STRUCTURED-EMISSION-EXPANSION.12b.2` — count of co-supported gate groups the
+    // emitter projects as one multi-output `task automatic` (an emitter-surface
+    // annotation; structural, post-hoc, RTL-invisible).
+    out.num_emitted_multi_output_tasks = m.multi_output_task_groups.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3318,6 +3335,38 @@ mod tests {
         // Marked ⇒ counted (one cone: root absorbs the single-use interior).
         m.cone_function_gates.insert(root, vec![interior]);
         assert_eq!(compute(&m).num_emitted_cone_functions, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_multi_output_tasks() {
+        // `STRUCTURED-EMISSION-EXPANSION.12b.2` — the metric is the count of
+        // co-supported gate groups marked for the multi-output `task automatic`
+        // emit-projection (one entry per group leader → its partner members).
+        let mut m = Module {
+            name: "mt".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "b".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // id 0
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 }); // id 1
+        let (g0, _) = m.intern_gate(GateOp::And, vec![0, 1], 4, DepSet::from_port(0));
+        let (g1, _) = m.intern_gate(GateOp::Or, vec![0, 1], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_multi_output_tasks, 0);
+        // Marked ⇒ counted (one group: leader g0 → partner g1).
+        m.multi_output_task_groups.insert(g0, vec![g1]);
+        assert_eq!(compute(&m).num_emitted_multi_output_tasks, 1);
     }
 
     #[test]

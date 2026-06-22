@@ -451,7 +451,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.13"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.14"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -461,7 +461,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.13"`**.
+This document defines **`schema_version = "1.14"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -618,6 +618,17 @@ This document defines **`schema_version = "1.13"`**.
   the new integer key; no field was removed/renamed/retyped; the default-`dut`
   **artifact** (`.sv`) stays byte-identical and determinism is preserved. MINOR is
   an integer, so this is `1.12 → 1.13` (thirteen), not a decimal.
+- **`1.13` → `1.14` (`STRUCTURED-EMISSION-EXPANSION.12b.2`).** Additive MINOR bump:
+  surfaced the new `Metrics::num_emitted_multi_output_tasks` field — the count of
+  co-supported gate groups the emitter projects as one multi-output combinational
+  `task automatic` (decision `0025`). SCHEMA-DERIVED (a count of
+  `Module::multi_output_task_groups`, an emitter-surface annotation — the
+  `1.7 → 1.8` `num_emitted_combinational_functions` additive-growth precedent), `0`
+  for every default-off module (`multi_output_task_emit_prob == 0.0`). Backward
+  compatible — a `1.13` consumer ignores the new integer key; no field was
+  removed/renamed/retyped; the default-`dut` **artifact** (`.sv`) stays
+  byte-identical and determinism is preserved. MINOR is an integer, so this is
+  `1.13 → 1.14` (fourteen), not a decimal.
 
 ---
 
@@ -656,5 +667,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.13"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.14"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

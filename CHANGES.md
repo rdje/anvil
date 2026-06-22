@@ -1,6 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.2a — multi-output task metric + introspection schema 1.13 → 1.14
+
+**Landed as:** this commit (previous: `cae38ce`). **The `num_emitted_multi_output_tasks`
+metric + the additive introspection schema MINOR bump `1.13 → 1.14`** for the sixth
+structured surface (decision `0025`). Default-off / DUT byte-identical (a post-hoc
+`Metrics` field changes no emitted RTL). Task-tree-owned by
+`STRUCTURED-EMISSION-EXPANSION.12b.2a`.
+
+**What changed (why)**
+
+- **`src/metrics.rs`** — `Metrics::num_emitted_multi_output_tasks: usize`
+  (`#[serde(default)]`), computed in `metrics::compute()` as
+  `m.multi_output_task_groups.len()` (a post-hoc structural count of an
+  emitter-surface annotation; `0` by default, the group count when the knob fired).
+  Separate from `num_emitted_combinational_tasks` (the single-gate surface). Lib
+  proof `metrics_count_emitted_multi_output_tasks`.
+- **`src/introspect/mod.rs`** — `SCHEMA_VERSION` `1.13 → 1.14` + the doc comment +
+  the 3 `schema_version` assertions. The new derived `Metrics` field **bumps** the
+  schema (the `.2b.2a`/`.4b.2a`/`.6b.2a`/`.10b.2` precedent); the `.12b.1` knob rode
+  the version via `#[serde(default)]`.
+- **`src/mcp/mod.rs`** — the 8 `schema_version` assertions → `1.14`.
+- **`docs/AGENT_INTROSPECTION_SCHEMA.md`** — a new `1.13 → 1.14` changelog entry +
+  the "defines" / early-example / checklist current refs.
+- **`README.md`** / **`USER_GUIDE.md`** — the current `--introspect` / `analyze` /
+  `--sv-version` schema refs `1.13 → 1.14` (the historical `num_mealy_fsm_modules
+  @ 1.13` attribution left intact).
+- **`CODEBASE_ANALYSIS.md`** — the introspection-envelope line brought current from
+  a drifted `"1.12"` to `"1.14"`, with the missing `1.12→1.13` (Mealy) and
+  `1.13→1.14` (this) MINOR-bump list entries added.
+- **Deferred:** the `book/src/*` example JSON `schema_version` refresh lands at
+  `.12b.3` (the user-facing docs leaf — the Mealy `.2b.2a`/`.2b.3` precedent).
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings`
+  clean; `cargo fmt --all --check` clean; `cargo test --lib` **600 passed** / 2
+  ignored (599 + the new metric proof; all `schema_version` assertions green at
+  `1.14`); `cargo test --test snapshots` **6/6 byte-identical** (default-off; a
+  `Metrics` field changes no RTL).
+- End-to-end `--introspect`: default (seed 42) ⇒ `schema_version "1.14"` +
+  `introspection.module_metrics.num_emitted_multi_output_tasks 0`; forced
+  `multi_output_task_emit_prob=1.0` (seed 42) ⇒ `"1.14"` + `1`.
+
+**Impact**
+
+- The sixth surface's metric is now queryable over `--introspect` / the MCP
+  surface at schema `1.14`; default-off designs report `0` and the default-`dut`
+  artifact stays byte-identical. The repo-owned gate lands at `.12b.2b`, the
+  user-facing docs at `.12b.3`. No ROADMAP phase label changed.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12b.1 — multi-output task automatic emit-projection (live surface)
 
 **Landed as:** this commit (previous: `46669ec`). **The first source change of the
