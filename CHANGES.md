@@ -1,6 +1,109 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.14 — pick procedural if/else mux surface + decision 0027
+
+**Landed as:** this commit (previous: `d3eb968`). Docs-only / no source /
+**DUT byte-identical**. Tracked by `STRUCTURED-EMISSION-EXPANSION.14` (a
+design/decision leaf — picks the seventh structured surface; no source change, so
+exempt from the code-only doctrine boxes but recorded under the owning task tree).
+**The `.14` design leaf is `done`; the lane's frontier moves to `.15` (impl).**
+
+**What changed (why)**
+
+A PNT step at the structured-emission lane's no-frontier boundary
+(`feedback_pick_and_roll_at_no_frontier`): pick and design the **seventh**
+richer-structured SystemVerilog surface. After six emit-projection surfaces
+(`function automatic` / `generate for` loop / single-gate + multi-output `task
+automatic` / cone `function automatic`), all delivered end-to-end, the lane had no
+active frontier; the owner directive is to self-select the next surface and roll.
+
+The seventh surface = a default-off, valid-by-construction **procedural
+`always_comb` `if`/`else`** emit-projection of a `Mux` gate. The 2:1 `Mux`
+(`[sel, a, b]`, `sel.width == 1`) renders today as the continuous-assign ternary
+`assign <g> = (sel) ? (a) : (b);`; the projection re-expresses it as
+
+```systemverilog
+logic [W-1:0] <g>__cv;
+always_comb begin
+    if (<sel>) <g>__cv = <a>;
+    else <g>__cv = <b>;
+end
+assign <g> = <g>__cv;   // the gate's net, unchanged downstream
+```
+
+— the decision-`0014` single-gate-task **output-var + passthrough** mechanism, but a
+bare `always_comb if/else` rather than a `task` call. It is the **first
+procedural-conditional construct** in the lane: none of the six delivered surfaces
+emits a procedural `if`/`else` (the six are function/task/generate projections; the
+`Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are `case`/`casez`). A
+procedural conditional resolves through a distinct frontend/elaboration code path —
+a new place to surface a downstream-tool bug (`project_anvil_north_star`).
+
+**Why this surface (the by-construction-source + cleanliness axes)**
+
+- **Universally downstream-clean (verified this session).** A fresh empirical probe
+  (`/tmp/anvil-ifelse-probe.*`) hand-wrote the exact projected construct and ran it
+  through the installed tools: Verilator 5.046 `--lint-only -Wall` accepts it under
+  `--language 1800-2012`, `1800-2017`, and `1800-2023`; both repo Yosys modes
+  (`synth -noabc` and `synth -noabc; abc -fast; opt -fast; check`) accept it with an
+  explicit `grep -iE 'warning|error'` scan returning **NO warnings/errors**; Icarus
+  `iverilog -g2012` compiles it; and `iverilog`+`vvp` prove the `if`/`else` block
+  **bit-equal to the inline `(sel)?(a):(b)` ternary over 20000 random vectors**
+  (`SIM-EQUIV OK`).
+- **Chosen over the other vetted candidates.** Nested/multi-level `generate` has no
+  routine by-construction source — operand-uniqueness CSE shares the inner `{N{x}}`
+  replication into one wire, so the existing single-level `generate for` (surfaces 2
+  & 4) already fires on the resulting outer `{M{y}}`; a doubly-nested `{M{{N{x}}}}`
+  essentially never survives factorization as a distinct shape. `interface` /
+  `modport` is **empirically disqualified** (since `.7`/decision `0015`: Icarus
+  syntax-fails the modport port and both Yosys modes warn on the implicit
+  interface-member decl).
+- **High yield, minimal blast radius / maximal reuse.** `Mux` gates are pervasive in
+  generated cones; the mechanism is the existing single-gate-task output-var +
+  passthrough projection, reusing the operand-ref rendering the ternary already uses
+  (`feedback_full_factorization`).
+
+**Discipline (the lane invariants).** Rules-first (re-express an already-valid `Mux`
+at construction time — never generate-then-filter); default-off `mux_if_emit_prob`
+(its own knob; reusing `task_emit_prob`/`function_emit_prob` rejected) ⇒
+byte-identical; mutually exclusive with the other six emit-projections on a gate; no
+new IR node / no new computed truth (the flat IR body, validators, CSE keys, and
+`canonical_module_signature` are untouched). First cut = the 2:1 `Mux`; the N-way
+`CaseMux` → `if`/`else if` priority chain is the recorded `.16+` follow-up.
+
+**Validation**
+
+Docs-only ⇒ no source touched, so `cargo` is unaffected (`cargo check --all-targets`
+was clean at session start; `cargo test --lib` 605 + snapshots 6/6 per the `.13b`
+bank still hold) and **DUT output is byte-identical**. The empirical probe above is
+the downstream-clean + sim-equivalence evidence the lane's discipline requires
+before a surface decision is authored. `bash scripts/check_doctrines.sh` green (4
+doctrines — `MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE` [exempt, no code
+staged], `TASK-TREE-OWNERSHIP` [exempt]); `check_knowledge_map.sh` green (decision
+`0027` carries `answers:` front-matter — the KM picks it up); `check_memory_architecture.sh`
+green; `mdbook build book` clean.
+
+**Impact**
+
+Roadmap-aligned PNT increment (ROADMAP steering gap 1 — richer structured
+emission). No user-visible behaviour change yet (design leaf only — the
+`mux_if_emit_prob` knob lands at `.15`). DUT byte-identical.
+
+**Files touched**
+
+- `docs/decisions/0027-structured-emission-seventh-surface-procedural-if-else.md`
+  (new — the decision record with `answers:` KM front-matter).
+- `docs/decisions/INDEX.md` (new `0027` row).
+- `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md` (metadata header + `.14` leaf node
+  + Current Frontier → `.15` + most-recent-completions row + Decisions + Verification
+  Log + Commit Log + Changelog).
+- `docs/TASK_TREE.md` (the `STRUCTURED-EMISSION-EXPANSION` index row → `.14` /
+  frontier `.15`).
+- `ROADMAP.md` (owner-directed capability lane #2 → seventh surface designed,
+  frontier `.15`).
+- `CHANGES.md` + `MEMORY.md` (this entry + the resume pointer).
+
 ## 2026-06-22 — LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT.1 — align roadmap owner-directed-lane status
 
 **Landed as:** this commit (previous: `f6c9c1a`). Docs-only / no source /

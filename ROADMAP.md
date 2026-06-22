@@ -323,13 +323,28 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    **delivered end-to-end** (`src/ir/multi_output_task_emit.rs` + the emitter
    render + `tool_matrix --multi-output-task-gate`, banked clean
    `/tmp/anvil-mo-k3-gate-r1` with a genuine `k=3` group). **Six structured
-   surfaces now delivered end-to-end; no current frontier.** Nested/multi-level
-   `generate` (clean but bigger blast radius) and `interface`/`modport`
-   (empirically **disqualified** — Icarus syntax-fails the modport port and both
-   Yosys modes warn on the implicit interface-member decl) are the remaining
-   future vetted surfaces (`.14`+), each with its own decision; the tree stays
-   `active`. Serves ROADMAP steering gap 1 (richer structured emission). Nothing
-   retired.
+   surfaces delivered end-to-end.** The **seventh surface** (decision
+   [`0027`](docs/decisions/0027-structured-emission-seventh-surface-procedural-if-else.md),
+   leaf `.14` design landed `2026-06-22`) — a default-off, valid-by-construction
+   **procedural `always_comb` `if`/`else`** emit-projection of a `Mux` gate (the 2:1
+   selection it renders today as the `(sel)?(a):(b)` ternary), written into a
+   per-gate `<wire>__cv` output var with the existing net driven by a passthrough
+   `assign` — is **picked and designed**; it is the **first procedural-conditional
+   construct** in the lane (none of the six prior surfaces emits a procedural
+   `if`/`else`). It reuses the decision-`0014` single-gate-task output-var +
+   passthrough mechanism; own `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks`
+   metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit`
+   (`__cv` detection). A fresh probe (Verilator `-Wall` 2012/2017/2023 + both Yosys
+   modes + Icarus + iverilog sim-equiv 20000 vectors) is clean. The **current
+   frontier is `.15`** (impl, pre-split `.15a`/`.15b`). Chosen over nested/multi-level
+   `generate` (no by-construction source — operand-uniqueness CSE shares the inner
+   `{N{x}}` so the existing single-level loop already fires on the outer `{M{y}}`)
+   and `interface`/`modport` (empirically **disqualified** — Icarus syntax-fails the
+   modport port and both Yosys modes warn on the implicit interface-member decl); the
+   N-way `CaseMux` → `if`/`else if` priority chain, nested/multi-level `generate`, and
+   `interface`/`modport` are the remaining future vetted surfaces (`.16`+), each with
+   its own decision; the tree stays `active`. Serves ROADMAP steering gap 1 (richer
+   structured emission). Nothing retired.
 3. **`SEMANTIC-INTROSPECTION-EXPANSION`** (`active` — **activated `2026-06-16`
    by explicit owner directive**: deep semantic introspection first-class +
    everything MCP-queryable via a top-notch API). A first-class, versioned,

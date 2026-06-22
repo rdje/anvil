@@ -6,7 +6,24 @@
 - Status: `active`
 - Roadmap lane: `Capability / breadth — richer structured emission (ROADMAP steering gap 1)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-22` (**`.13c` landed — the user-facing docs closeout of the
+- Last updated: `2026-06-22` (**`.14` landed — picked the SEVENTH structured surface
+  (a procedural `always_comb` `if`/`else` emit-projection of a `Mux` gate, decision
+  [`0027`](../decisions/0027-structured-emission-seventh-surface-procedural-if-else.md))
+  autonomously at the no-frontier boundary per `feedback_pick_and_roll_at_no_frontier`;
+  design/decision leaf, no source change; frontier → `.15` (impl, pre-split
+  `.15a`/`.15b`). The 2:1 `Mux` — rendered today as the `(sel)?(a):(b)` ternary — is
+  projected into a procedural conditional that writes a per-gate `<wire>__cv` output
+  var with the existing net driven by a passthrough `assign`: the **first
+  procedural-`if`/`else` construct** in the lane (none of the six delivered surfaces
+  emits a procedural conditional — the `Mux` is a continuous-assign ternary,
+  `CaseMux`/`CasezMux` are `case`/`casez`). Reuses the decision-`0014`
+  single-gate-task output-var + passthrough mechanism. Fresh probe this session:
+  Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings) + Icarus clean,
+  iverilog `vvp` sim-equiv to the inline ternary over 20000 vectors. Own
+  `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15`
+  at impl) + `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection); the N-way
+  `CaseMux` → `if`/`else if` priority chain recorded `.16+`. Default-off / DUT
+  byte-identical. The lane stays `active`.** Prior: **`.13c` landed — the user-facing docs closeout of the
   first *deepening* of the sixth surface (wider `k>2` multi-output `task automatic`
   groups); `.13c` / `.13` all close — the deepening is delivered end-to-end and the
   lane returns to no current frontier (open-ended; future surfaces `.14+`).
@@ -813,23 +830,48 @@ behaviour.
   Verification: `mdbook build book OK; bash knowledge-map/scripts/gen_knowledge_map.sh (64 facts / 593 keys) + check_knowledge_map.sh OK; bash scripts/check_memory_architecture.sh OK; cargo test --test book_examples 3/3 passed (73.76s; no new bash block — the k=3 example is a systemverilog fragment, byte-identical book-runnable contract preserved). Docs-only ⇒ cargo check/clippy/fmt/test --lib unaffected (no src/ touched). The k=3 fragment is a faithful transcription of anvil --seed 22 (forced multi_output_task_emit_prob=1.0 comb-only shape) and the ON form is downstream-clean (Verilator -Wall Δ=0 vs OFF + iverilog sim-equiv 20000 vectors, per .13b).`
   Commit: `this STRUCTURED-EMISSION-EXPANSION.13c commit`
 
+- ID: `STRUCTURED-EMISSION-EXPANSION.14`
+  Status: `done`
+  Goal: `Pick the SEVENTH structured surface at the no-frontier boundary (feedback_pick_and_roll_at_no_frontier) and record it as a decision + design leaf (no source change). The surface = a default-off, valid-by-construction procedural always_comb if/else emit-projection of a Mux gate (the 2:1 selection it renders today as the (sel)?(a):(b) ternary), written into a per-gate <wire>__cv output var with the existing net driven by a passthrough assign — the first procedural-conditional construct in the lane. Run a fresh empirical probe (Verilator -Wall 2012/2017/2023 + both Yosys modes + Icarus + iverilog sim-equiv) before authoring the decision. Own mux_if_emit_prob knob + num_emitted_mux_if_blocks metric (schema 1.14 -> 1.15 at impl) + --mux-if-gate / saw_mux_if_emit (__cv detection). Split .14 (design) + .15 (impl, pre-split .15a/.15b) + future .16+.`
+  Acceptance: `A decision record docs/decisions/0027-*.md + an INDEX row; the .14 leaf recorded (tree split, current frontier -> .15, decisions/verification/commit/changelog entries); ROADMAP owner-directed-lane #2 + TASK_TREE.md row updated; docs/workflow self-checks clean (check_doctrines.sh, check_knowledge_map.sh, check_memory_architecture.sh, mdbook build); no source change (DUT byte-identical). Committed through COMMIT.md with the leaf id.`
+  Result: `Done. Decision 0027 picks the seventh structured surface — a default-off, valid-by-construction procedural always_comb if/else emit-projection of a Mux gate. The Mux ([sel, a, b], sel.width==1) renders today as the continuous-assign ternary assign <g> = (sel) ? (a) : (b); the projection re-expresses it as logic [W-1:0] <g>__cv; always_comb begin if (sel) <g>__cv = a; else <g>__cv = b; end assign <g> = <g>__cv; — the decision-0014 single-gate-task output-var + passthrough mechanism, but a bare always_comb if/else rather than a task call. It is the FIRST procedural-conditional construct in the lane: none of the six delivered surfaces emits a procedural if/else (the six are function/task/generate projections; the Mux ternary is a continuous assign; CaseMux/CasezMux are case/casez). Chosen over nested/multi-level generate (no by-construction source — operand-uniqueness CSE shares the inner {N{x}} into one wire so the existing single-level generate-for already fires on the outer {M{y}}; a doubly-nested {M{{N{x}}}} essentially never survives factorization) and interface/modport (empirically disqualified since .7: Icarus syntax-fails the modport port + both Yosys modes warn on the implicit interface-member decl). Own mux_if_emit_prob knob (separate from task/function knobs; reusing one rejected) + num_emitted_mux_if_blocks metric (schema 1.14 -> 1.15 at impl) + --mux-if-gate / saw_mux_if_emit (__cv detection, distinct from __f/__tv/__mtv/__cf/__mt). First cut = the 2:1 Mux; the N-way CaseMux -> if/else if priority chain is the recorded .16+ follow-up. Default-off / DUT byte-identical. Split .14 (design, this leaf) + .15 (impl, pre-split .15a design-detail + .15b impl) + future .16+. No source change.`
+  Verification: `Fresh empirical probe this session (Verilator 5.046 + Yosys 0.64 + Icarus 13.0): the procedural always_comb if/else projection of a 2:1 mux into a <wire>__cv output var is accepted warning-clean by Verilator --lint-only -Wall under --language 1800-2012/2017/2023, by both repo Yosys modes (synth -noabc and synth -noabc; abc -fast; opt -fast; check — no warnings/errors on an explicit scan), and by iverilog -g2012; iverilog+vvp prove the if/else block bit-equal to the inline (sel)?(a):(b) ternary over 20000 random vectors (SIM-EQUIV OK). Docs-only => cargo check/clippy/fmt/test --lib unaffected (no src/ touched); DUT byte-identical. check_doctrines.sh green (4 doctrines); check_knowledge_map.sh + check_memory_architecture.sh green; mdbook build clean.`
+  Commit: `this STRUCTURED-EMISSION-EXPANSION.14 commit`
+
 ## Current Frontier
 
-**No current frontier.** The tree stays `active` as an open-ended lane. The first
-*deepening* of the sixth surface — **wider (`k > 2`) co-supported multi-output
-`task automatic` groups** (`.13`, the recorded `.13` follow-up of decision `0025`) —
-is delivered end-to-end: `.13a` (design-detail) + `.13b` (the live widening of
-`annotate_multi_output_task_groups` — `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`
-+ `connected_co_support` / `independent_of_all` + greedy partner extension; **no
-emitter / config / metric / schema / knob change** since the emitter was already
-k-agnostic; 5 new k>2 lib proofs; gate re-bank `/tmp/anvil-mo-k3-gate-r1`
-`coverage_gaps = []` with a k=3 group + forced seed-22 k=3 task Verilator `-Wall`
-Δ=0 + sim-equiv 20000 vectors) + `.13c` (user docs — the book sixth-surface
-"Wider groups (`k > 2`)" subsection with a byte-verified seed-22 k=3 example + the
-knob entries + the KM card). Default-off / DUT byte-identical throughout
-(snapshots 6/6). Further future surfaces (nested/multi-level `generate`,
-`interface`/`modport`) remain `.14+`, each its own decision when picked at a
-no-frontier boundary per `feedback_pick_and_roll_at_no_frontier` (none retired).
+**Active frontier: `.15` — implement the seventh structured surface** (the
+procedural `always_comb` `if`/`else` emit-projection of a `Mux` gate, decision
+[`0027`](../decisions/0027-structured-emission-seventh-surface-procedural-if-else.md)).
+The `.14` design leaf (this PNT step) picked the surface autonomously at the
+no-frontier boundary (`feedback_pick_and_roll_at_no_frontier`) and recorded it as
+decision `0027` — no source change. The 2:1 `Mux` (rendered today as the
+`(sel)?(a):(b)` ternary) is projected into a procedural conditional that writes a
+per-gate `<wire>__cv` output var, the existing net driven by a passthrough `assign`
+— the **first procedural-`if`/`else` construct** in the lane (none of the six
+delivered surfaces emits a procedural conditional). A fresh empirical probe this
+session is clean: Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings)
++ Icarus, and iverilog `vvp` sim-equiv to the inline ternary over 20000 vectors.
+`.15` is pre-split into `.15a` (design-detail, grounded in the real `task_emit.rs` /
+`to_sv_with_modules` Mux-render + gate source) + `.15b` (impl, itself pre-split
+`.15b.1` live surface / `.15b.2` metric `num_emitted_mux_if_blocks` @ schema
+`1.14 → 1.15` + `--mux-if-gate` / `.15b.3` user docs). Own `mux_if_emit_prob` knob;
+default-off / DUT byte-identical. The N-way `CaseMux` → `if`/`else if` priority
+chain, nested/multi-level `generate`, and `interface`/`modport` remain `.16+`, each
+its own decision when picked (none retired).
+
+The prior *deepening* of the sixth surface — **wider (`k > 2`) co-supported
+multi-output `task automatic` groups** (`.13`, the recorded `.13` follow-up of
+decision `0025`) — is delivered end-to-end: `.13a` (design-detail) + `.13b` (the
+live widening of `annotate_multi_output_task_groups` —
+`const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8` + `connected_co_support` /
+`independent_of_all` + greedy partner extension; **no emitter / config / metric /
+schema / knob change** since the emitter was already k-agnostic; 5 new k>2 lib
+proofs; gate re-bank `/tmp/anvil-mo-k3-gate-r1` `coverage_gaps = []` with a k=3
+group + forced seed-22 k=3 task Verilator `-Wall` Δ=0 + sim-equiv 20000 vectors) +
+`.13c` (user docs — the book sixth-surface "Wider groups (`k > 2`)" subsection with
+a byte-verified seed-22 k=3 example + the knob entries + the KM card). Default-off /
+DUT byte-identical throughout (snapshots 6/6).
 
 Before this deepening, **SIX**
 structured surfaces are delivered end-to-end — the combinational `function automatic` (`.1`+`.2`), the
@@ -852,6 +894,7 @@ _Most recent completions:_
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| — | `STRUCTURED-EMISSION-EXPANSION.14` | `done` | Decision `0027`: picked the **SEVENTH** structured surface — a default-off, valid-by-construction **procedural `always_comb` `if`/`else`** emit-projection of a `Mux` gate. The 2:1 `Mux` (rendered today as the `(sel)?(a):(b)` ternary) is re-expressed as `logic [W-1:0] <g>__cv; always_comb begin if (sel) <g>__cv = a; else <g>__cv = b; end assign <g> = <g>__cv;` — the decision-`0014` single-gate-task **output-var + passthrough** mechanism, but a bare `always_comb if/else` rather than a task call. The **first procedural-conditional construct** in the lane (the six delivered surfaces are function/task/generate projections; the `Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are `case`/`casez`). Chosen over nested/multi-level `generate` (no by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the existing single-level loop already fires on `{M{y}}`) and `interface`/`modport` (empirically disqualified since `.7`). Own `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection). Fresh probe: Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings) + Icarus clean + iverilog sim-equiv to the inline ternary over 20000 vectors. The N-way `CaseMux` → `if`/`else if` chain recorded `.16+`. Split `.14` (design) + `.15` (impl, pre-split `.15a`/`.15b`) + future `.16+`. No source change. Frontier → `.15`. |
 | — | `STRUCTURED-EMISSION-EXPANSION.13c` | `done` | User-facing docs closeout — **the first deepening of the sixth surface (wider `k>2` groups) delivered end-to-end**. `book/src/structured-emission.md`: the sixth-surface intro reframed (co-supported PAIR → GROUP `k>=2`, up to 8) + a new `### Wider groups (k > 2)` subsection with a **real seed-22 three-member task** (the shared select `a0` feeds both `o1` and `o2`, `a2` feeds both `o0` and `o1`) + the connected-co-support / all-member-independence rules + the 8-member cap + the Δ=0/sim-equiv note; "What gets wrapped" + "How anvil proves it" generalized pair → group (k=3 in the bank + new proofs at every size). The `multi_output_task_emit_prob` knob entry updated in `book/src/knobs.md` / `USER_GUIDE.md` / README "Current CLI truth". KM card `multi-output-task-emit` refreshed (title + 4 new answers incl. "can a multi-output task have more than two outputs" / the group-size cap / "connected co-support", evidence, body pair → k>=2 greedy extension + cap, bank → `/tmp/anvil-mo-k3-gate-r1`); KM regenerated 64 facts / 589→593 keys. No decision-`0025` mutation (the ADR already records the `.13` follow-up). `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `book_examples` 3/3 green. Docs-only / DUT byte-identical. Closes `.13c` / `.13` — lane returns to no current frontier. |
 | — | `STRUCTURED-EMISSION-EXPANSION.13b` | `done` | The **live `k>2` widening** of the sixth surface. Whole change in `src/ir/multi_output_task_emit.rs`: `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8` + `connected_co_support` / `independent_of_all` helpers + the partner loop rewritten "find first + break" → "greedily admit every eligible ungrouped higher-`NodeId` candidate up to the cap" (a group forms iff `>= 1` partner ⇒ `k=2` is the exact subset). **No emitter / config / metric / schema / knob change** — the emitter was already k-agnostic (verified by the new 3-output emit proof). 5 new k>2 lib proofs (co-supported triple, connectivity-bounded, fan-in-dependent exclusion at k>2, cap respected, 3-output emit) + all 10 pair proofs green (15 total); doc comments + `CODEBASE_ANALYSIS.md` brought current. Default-off / DUT byte-identical (`cargo test --lib` 600→605, snapshots 6/6). Gate re-bank `/tmp/anvil-mo-k3-gate-r1` `coverage_gaps = []` / `saw_multi_output_task_emit = true` / `12/0` Verilator + both Yosys + Icarus with a k=3 group present; forced sweep seed 22 emits a genuine k=3 task `shr_0__mt(o0,o1,o2,…)`, Verilator `-Wall` Δ=0 vs OFF + iverilog sim-equiv over 20000 vectors. Frontier → `.13c` (user docs). |
 | — | `STRUCTURED-EMISSION-EXPANSION.13a` | `done` | Design-detail (no source) for the first **deepening** of the sixth surface — widen the multi-output `task automatic` group from the pair (`k=2`) to a bounded `k>2` (the recorded `.13` follow-up of decision `0025`). A `DEVELOPMENT_NOTES.md` entry grounded in a fresh read confirms the **emitter is already k-agnostic** (`multi_output_task_params` / `render_multi_output_task_decl` / `render_multi_output_task_call` iterate `members` of any length; the carrier is `BTreeMap<NodeId,Vec<NodeId>>`), so the **only `.13b` source change** is `annotate_multi_output_task_groups`. Pinned: the greedy group-extension (keep the per-leader inline `gen_bool(prob)` roll; collect all eligible partners up to a cap); **connected co-support** (shares a non-constant operand with at least one current member — leader-anchored star rejected); **generalized mutual fan-in independence** with all current members (inductively maintained ⇒ cycle-free at any `k`); a named `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`; **no new knob / metric / schema** (the metric counts groups, valid for any `k`); the byte-identical/RNG argument (default `0.0` ⇒ pass not called; `prob=1.0` `gen_bool` short-circuits ⇒ zero draws). `.13b` proof plan + rejected alternatives recorded. Pre-split `.13` → `.13b` (impl) + `.13c` (docs); frontier → `.13b`. No source change. |
@@ -889,6 +932,31 @@ _Most recent completions:_
 | — | `STRUCTURED-EMISSION-EXPANSION.1` | `done` | Decision `0012`: picked the combinational `function automatic` emit-projection as the first surface (over interface/modport + nested generate), with its valid-by-construction discipline, opt-in `function_emit_prob`, and downstream gate. Split `.1`/`.2`/future. No source change. |
 
 ## Decisions
+
+- `2026-06-22` (`.14`, decision
+  [`0027`](../decisions/0027-structured-emission-seventh-surface-procedural-if-else.md)):
+  the **seventh** structured surface is a default-off, valid-by-construction
+  **procedural `always_comb` `if`/`else`** emit-projection of a `Mux` gate. The 2:1
+  `Mux` (`[sel, a, b]`, `sel.width == 1`), rendered today as the continuous-assign
+  ternary `assign <g> = (sel) ? (a) : (b);`, is re-expressed as a procedural
+  conditional writing a per-gate `<g>__cv` output var, the existing net driven by a
+  passthrough `assign` — the decision-`0014` single-gate-task output-var + passthrough
+  mechanism, but a bare `always_comb if/else` rather than a task call. It is the
+  **first procedural-conditional construct** in the lane: none of the six delivered
+  surfaces emits a procedural `if`/`else` (the six are function/task/generate
+  projections; the `Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are
+  `case`/`casez`). Chosen over nested/multi-level `generate` (no by-construction
+  source — operand-uniqueness CSE shares the inner `{N{x}}` so the existing
+  single-level `generate for` already fires on the outer `{M{y}}`) and
+  `interface`/`modport` (empirically disqualified since `.7`/decision `0015`). Own
+  `mux_if_emit_prob` knob (separate from the task/function knobs; reusing one
+  rejected) + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15` at impl) +
+  `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection). First cut = the 2:1 `Mux`;
+  the N-way `CaseMux` → `if`/`else if` priority chain is the recorded `.16+` follow-up.
+  The ADR pins the discipline, the candidate set, the rejected alternatives, and the
+  `.15a` open questions (pass ordering, the `Module` carrier, the emitter
+  integration, the knob/metric/gate names). Default-off / DUT byte-identical. Split
+  `.14` (design) + `.15` (impl, pre-split `.15a`/`.15b`) + future `.16+`.
 
 - `2026-06-22` (`.13a`, no new decision record — covered by decision
   [`0025`](../decisions/0025-structured-emission-sixth-surface-multi-output-task.md),
@@ -1107,6 +1175,7 @@ _Most recent completions:_
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-22` | `STRUCTURED-EMISSION-EXPANSION.14` | **Design/decision leaf, no source change.** Decision `0027` (`docs/decisions/0027-structured-emission-seventh-surface-procedural-if-else.md`) + `INDEX.md` row + tree split (`.14` done + `.15` impl pending, pre-split `.15a`/`.15b`; frontier → `.15`) + ROADMAP owner-directed-lane #2 + `docs/TASK_TREE.md` row. **Fresh empirical tool-acceptance + simulation-equivalence probe** (this session, `/tmp/anvil-ifelse-probe.*`): the **procedural `always_comb` `if`/`else`** projection of a 2:1 `Mux` into a `<wire>__cv` output var (`if (sel) cv = a; else cv = b;` + passthrough `assign`) accepted **warning-clean** by **Verilator 5.046 `-Wall --lint-only`** under `--language 1800-2012`, `1800-2017`, **and** `1800-2023`, by **Yosys 0.64 both modes** (`synth -noabc` and `synth -noabc; abc -fast; opt -fast; check` — an explicit `grep -iE warning|error` scan returned **NO warnings/errors**), and by **Icarus `iverilog -g2012`**, and **`iverilog`+`vvp` prove the `if`/`else` block bit-equal to the inline `(sel)?(a):(b)` ternary** over **20000 random vectors** (`SIM-EQUIV OK`). `bash scripts/check_doctrines.sh` ✅ (4 doctrines); `bash scripts/check_memory_architecture.sh` ✅ (`0027` indexed); `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (decision `0027` carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt/test --lib` unaffected (`cargo check --all-targets` was clean at session start; `cargo test --lib` 605 + snapshots 6/6 per the `.13b` bank still hold). DUT byte-identical. Frontier → `.15`. | `done` |
 | `2026-06-22` | `STRUCTURED-EMISSION-EXPANSION.13c` | **User-facing docs closeout (docs-only / DUT byte-identical)** (`book/src/structured-emission.md` sixth-surface intro + new `### Wider groups (k > 2)` subsection [real seed-22 k=3 task] + "What gets wrapped"/"How anvil proves it" generalized pair → group; `book/src/knobs.md` + `USER_GUIDE.md` + README `multi_output_task_emit_prob` knob entries; KM card `docs/knowledge/multi-output-task-emit.md` [title + 4 new answers + evidence + body pair → k>=2 + bank path]; `KNOWLEDGE_MAP.md` regenerated). `mdbook build book` OK; `bash knowledge-map/scripts/gen_knowledge_map.sh` (**64 facts / 593 keys**, was 64 / 589) + `check_knowledge_map.sh` OK; `bash scripts/check_memory_architecture.sh` OK; `cargo test --test book_examples` **3/3 passed** (73.76s; no new bash block — the k=3 example is a `systemverilog` fragment, byte-identical book-runnable contract preserved). No `src/` touched ⇒ `cargo check/clippy/fmt/test --lib` unaffected. The k=3 fragment is a faithful transcription of `anvil --seed 22` (forced `multi_output_task_emit_prob=1.0`) and the ON form is downstream-clean (Verilator `-Wall` Δ=0 vs OFF + iverilog sim-equiv 20000 vectors, per `.13b`). Closes `.13c` / `.13` — the first deepening of the sixth surface delivered end-to-end; lane returns to no current frontier. | `done` |
 | `2026-06-22` | `STRUCTURED-EMISSION-EXPANSION.13b` | **Live emitter-surface widening** (`src/ir/multi_output_task_emit.rs` only: `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8` + `connected_co_support` / `independent_of_all` helpers + the greedy partner loop replacing "find-first-and-break" + 5 new k>2 lib proofs + doc-comment refresh; `CODEBASE_ANALYSIS.md` pass description brought current pair → k>=2; `DEVELOPMENT_NOTES.md` impl-time note). **No emitter / config / metric / schema / knob change.** `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean; `cargo test --lib` **605 passed** / 2 ignored (600 + 5 new k>2 proofs: `prob_one_groups_a_co_supported_triple`, `group_extends_only_to_connected_co_support`, `group_excludes_fan_in_dependent_member_when_widening`, `group_respects_the_member_cap`, `grouped_triple_emits_three_output_task`; the 10 existing pair proofs + introspect `schema_version` 1.14 + `umbrella` DUT-byte-identical still green); `cargo test --test snapshots` **6/6 byte-identical** (default-off — the `0.0` path never calls the pass). **Gate re-bank** `/tmp/anvil-mo-k3-gate-r1` (`--multi-output-task-gate --yosys-mode both --iverilog-compile`): 3 scenarios / 12 modules / **6 emitting a multi-output task** / `coverage_gaps = []` / `saw_multi_output_task_emit = true` / Verilator `12/0` / Yosys without-abc `12/0` / Yosys with-abc `12/0` / Icarus compile `12/0`; a **k=3 group** (output formal `o2`) present among the emitted modules. **Forced `multi_output_task_emit_prob=1.0` comb-only sweep** (`terminal_reuse_prob=0.6`, `max_depth=2`, `min_outputs=2`): seed 22 emits a genuine **k=3** task `shr_0__mt(o0,o1,o2, a0,a1,a2)` co-emitting `shr_0`/`mux_0`/`mux_1` over the deduplicated inputs `i_4`/`slice_0`/`concat_0`; Verilator `-Wall` (1800-2012) **0 real warnings ON and OFF (Δ=0)** — the lone line is the filename≠module `DECLFILENAME` harness artifact, identical both ways — and `iverilog`+`vvp` prove the k=3 task **bit-equal to the inline OFF reference over 20000 random vectors** (`SIM-EQUIV OK`). Frontier → `.13c`. | `done` |
 | `2026-06-22` | `STRUCTURED-EMISSION-EXPANSION.13a` | **Design-detail leaf, no source change** (a `DEVELOPMENT_NOTES.md` design-detail entry + the `.13`/`.13a`/`.13b`/`.13c` tree registration + the `.13a`→`.13b` frontier move; no `src/` touched). Grounded in a fresh read of `src/ir/multi_output_task_emit.rs` (`annotate_multi_output_task_groups` / `admissible` / `sibling_marked` / `nonconst_operands` / `shares_nonconst_operand` / `in_fanin`), `src/emit/sv.rs` (`multi_output_task_params` ~`1843` / `render_multi_output_task_decl` ~`1867` / `render_multi_output_task_call` ~`1914` — **verified k-agnostic**: all three iterate `members` of arbitrary length + the per-gate passthrough ~`583`), `src/gen/mod.rs` (the two `multi_output_task_emit_prob > 0.0`-guarded call sites ~`133`/`364`), `src/config.rs` (`default_multi_output_task_emit_prob` = `0.0`). Resolved all points: the widening locus is `annotate_multi_output_task_groups` only (no emitter/knob/metric/schema change); the greedy group-extension keeping the per-leader inline roll; connected co-support (shares a non-constant operand with at least one current member); generalized mutual fan-in independence with all current members (inductively maintained ⇒ cycle-free at any `k`); `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`; the byte-identical/RNG argument (default `0.0` ⇒ pass not called; `prob=1.0` `gen_bool(1.0)` short-circuits ⇒ zero draws) + the `.13b` proof plan + rejected alternatives. Pre-split `.13` → `.13b` (impl) + `.13c` (docs); frontier → `.13b`. `bash scripts/check_memory_architecture.sh` ✅; `bash knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (no card change — `0025` already carries `answers:`); `mdbook build book` ✅. No source touched ⇒ `cargo check/clippy/fmt/test` unaffected (`cargo check --all-targets` was clean at session start; `cargo test --lib` 600 + snapshots 6/6 per the `.12b.3` bank still hold). | `done` |
@@ -1148,6 +1217,7 @@ _Most recent completions:_
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `STRUCTURED-EMISSION-EXPANSION.14` | `STRUCTURED-EMISSION-EXPANSION.14 — pick procedural if/else mux surface + decision 0027` | Design/decision leaf (no source): decision `0027` picks the **seventh** structured surface — a default-off, valid-by-construction **procedural `always_comb` `if`/`else`** emit-projection of a `Mux` gate. The 2:1 `Mux` (rendered today as `assign <g> = (sel)?(a):(b);`) is re-expressed as `logic [W-1:0] <g>__cv; always_comb begin if (sel) <g>__cv = a; else <g>__cv = b; end assign <g> = <g>__cv;` — the decision-`0014` single-gate-task **output-var + passthrough** mechanism, but a bare `always_comb if/else` rather than a task call. The **first procedural-conditional construct** in the lane (the six delivered surfaces are function/task/generate projections; the `Mux` is a continuous-assign ternary; `CaseMux`/`CasezMux` are `case`/`casez`). Autonomously selected at a no-frontier boundary (`feedback_pick_and_roll_at_no_frontier`); chosen over nested/multi-level `generate` (no by-construction source — CSE shares the inner `{N{x}}` so the single-level loop already fires on `{M{y}}`) and `interface`/`modport` (empirically disqualified since `.7`). **Fresh probe** (`/tmp/anvil-ifelse-probe.*`): the projection is Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings) + Icarus clean and iverilog-sim-equiv to the inline ternary over 20000 vectors. Own `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15` at impl) + `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection). N-way `CaseMux` → `if`/`else if` chain recorded `.16+`. `INDEX.md` row; KM picks up `0027` (carries `answers:`); tree split `.14`/`.15` (pre-split `.15a`/`.15b`)/`.16+`; frontier → `.15`. No source change; self-checks clean. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.13c` | `STRUCTURED-EMISSION-EXPANSION.13c — wider (k>2) multi-output task user docs` | Docs-only closeout: `book/src/structured-emission.md` sixth-surface intro reframed (pair → group `k>=2`, up to 8) + a `### Wider groups (k > 2)` subsection with a real seed-22 three-member task + the connected-co-support / all-member-independence rules + the cap; "What gets wrapped"/"How anvil proves it" generalized; the `multi_output_task_emit_prob` knob entry in `book/src/knobs.md` / `USER_GUIDE.md` / README; KM card `multi-output-task-emit` refreshed (4 new answers, body pair → k>=2, bank → `/tmp/anvil-mo-k3-gate-r1`); KM 589→593 keys. `mdbook build` + `check_knowledge_map` + `check_memory_architecture` + `cargo test --test book_examples` 3/3 green. Closes `.13c` / `.13` — the first deepening of the sixth surface delivered end-to-end. DUT byte-identical. Nothing retired. |
 | `STRUCTURED-EMISSION-EXPANSION.13b` | `STRUCTURED-EMISSION-EXPANSION.13b — widen multi-output task groups to k>2 (live)` | The live `k>2` widening. Whole change in `src/ir/multi_output_task_emit.rs`: `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8` + `connected_co_support` / `independent_of_all` helpers + the partner loop rewritten "find-first-and-break" → greedy "admit every eligible ungrouped higher-`NodeId` candidate up to the cap" (a group forms iff `>= 1` partner ⇒ `k=2` is the exact subset). **No emitter / config / metric / schema / knob change** (the emitter was already k-agnostic). 5 new k>2 lib proofs + all 10 pair proofs green (15 total); doc comments + `CODEBASE_ANALYSIS.md` brought current. Default-off / DUT byte-identical (`cargo test --lib` 600→605, snapshots 6/6). Gate re-bank `/tmp/anvil-mo-k3-gate-r1` `coverage_gaps = []` / `12/0` all tools, k=3 group present; forced sweep seed 22 k=3 task Verilator `-Wall` Δ=0 vs OFF + iverilog sim-equiv (20000 vectors). Frontier → `.13c`. |
 | `STRUCTURED-EMISSION-EXPANSION.13a` | `STRUCTURED-EMISSION-EXPANSION.13a — wider (k>2) multi-output task groups impl design-detail` | Design-detail (no source): a `DEVELOPMENT_NOTES.md` entry grounding the first deepening of the sixth surface (widen the multi-output `task automatic` group from the pair `k=2` to a bounded `k>2`, the recorded `.13` follow-up of decision `0025`) in the real `multi_output_task_emit.rs` / `emit/sv.rs` (verified **k-agnostic** emitter) / `gen/mod.rs` / `config.rs`. Pinned: the widening locus is `annotate_multi_output_task_groups` only (no emitter/knob/metric/schema change); the greedy group-extension keeping the per-leader inline roll; **connected co-support**; **generalized mutual fan-in independence** (inductively maintained ⇒ cycle-free at any `k`); `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`; the byte-identical/RNG argument; the `.13b` proof plan. Split `.13` into `.13a` (done) + `.13b` (impl pending) + `.13c` (docs pending); frontier → `.13b`. No source change; self-checks clean. |
@@ -1187,6 +1257,24 @@ _Most recent completions:_
 
 ## Changelog
 
+- `2026-06-22`: **`.14` landed — picked the SEVENTH structured surface (a procedural
+  `always_comb` `if`/`else` emit-projection of a `Mux` gate, decision `0027`)
+  autonomously at the no-frontier boundary per `feedback_pick_and_roll_at_no_frontier`;
+  design/decision leaf, no source change; frontier → `.15` (impl, pre-split
+  `.15a`/`.15b`).** The 2:1 `Mux` (rendered today as the `(sel)?(a):(b)` ternary) is
+  projected into a procedural conditional writing a per-gate `<wire>__cv` output var
+  with the existing net driven by a passthrough `assign` — the first
+  procedural-`if`/`else` construct in the lane (none of the six delivered surfaces
+  emits a procedural conditional); reuses the decision-`0014` single-gate-task
+  output-var + passthrough mechanism. Fresh probe (`/tmp/anvil-ifelse-probe.*`):
+  Verilator `-Wall` 2012/2017/2023 + both Yosys modes (no warnings) + Icarus clean,
+  iverilog `vvp` sim-equiv to the inline ternary over 20000 vectors. Own
+  `mux_if_emit_prob` knob + `num_emitted_mux_if_blocks` metric (schema `1.14 → 1.15`
+  at impl) + `--mux-if-gate` / `saw_mux_if_emit` (`__cv` detection); the N-way
+  `CaseMux` → `if`/`else if` priority chain recorded `.16+`. Decision `0027` +
+  `INDEX.md` row + ROADMAP owner-directed-lane #2 + `docs/TASK_TREE.md` row. `mdbook
+  build` + `check_doctrines` + `check_knowledge_map` + `check_memory_architecture`
+  green. Default-off / DUT byte-identical. Nothing retired.
 - `2026-06-22`: **`.13c` landed — the user-facing docs closeout of the first
   *deepening* of the sixth surface (wider `k>2` multi-output `task automatic`
   groups); `.13c` / `.13` all close — the deepening is delivered end-to-end and the
