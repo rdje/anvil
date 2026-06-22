@@ -573,20 +573,27 @@ src/
 │                     both modes + Icarus (`/tmp/anvil-cf-sweep/`). Metric +
 │                     repo-owned gate + coverage fact = `.10b.2`.
 │
-├── ir/multi_output_task_emit.rs  STRUCTURED-EMISSION-EXPANSION.12b.1 — the
-│                     sixth richer-structured emit surface (decision 0025).
+├── ir/multi_output_task_emit.rs  STRUCTURED-EMISSION-EXPANSION.12b.1 (pair) +
+│                     .13b (wider k>2 groups) — the sixth richer-structured emit
+│                     surface (decision 0025).
 │                     Gen-time `annotate_multi_output_task_groups(m, rng, prob)`
 │                     pass (rolled at the `gen/mod.rs` call site AFTER the four
 │                     single-gate projections, BEFORE cone_function; param-env
-│                     modules skipped) groups a co-supported **pair** of
+│                     modules skipped) groups a co-supported **k >= 2** set of
 │                     admissible combinational gates (the same candidate set as
 │                     `task_emit`, not sibling-marked): scanning ascending
-│                     `NodeId`, one `gen_bool(prob)` roll per ungrouped leader
-│                     pairs it with the next ungrouped candidate that (a) shares
-│                     a **non-constant** direct operand and (b) is mutually
-│                     fan-in-independent (the `in_fanin` bounded backward DFS —
-│                     else the shared `always_comb` task call would close a
-│                     combinational cycle). The pair lands in the new
+│                     `NodeId`, one `gen_bool(prob)` roll per ungrouped leader,
+│                     then greedily admitting every ungrouped higher-`NodeId`
+│                     candidate that (a) **connected-co-supports** the group —
+│                     shares a **non-constant** direct operand with at least one
+│                     current member (`connected_co_support`) — and (b) is
+│                     mutually fan-in-independent with **every** current member
+│                     (`independent_of_all` over the `in_fanin` bounded backward
+│                     DFS — else the shared `always_comb` task call would close a
+│                     combinational cycle), up to
+│                     `MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`. A group forms iff
+│                     `>= 1` partner is admitted (so `k=2` is the exact subset).
+│                     The group lands in the new
 │                     emitter-surface `Module.multi_output_task_groups`
 │                     (BTreeMap<NodeId, Vec<NodeId>> leader→partners, not hashed
 │                     into identity, disjoint from the sibling gate sets). The

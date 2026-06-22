@@ -5,6 +5,41 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Wider (k>2) multi-output task groups — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.13b`
+
+The live widening implemented the `.13a` design with **no deviations**. The whole
+change is in `src/ir/multi_output_task_emit.rs`: a `const
+MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8`, two small helpers (`connected_co_support`
+/ `independent_of_all`), and replacing the "find the first partner and break" loop
+with a greedy "admit every eligible partner up to the cap" loop. The emitter,
+config, metric, schema, knob, and gate were all left untouched — exactly the
+`.13a` prediction. Three notes worth keeping:
+
+- **The emitter really was free.** `render_multi_output_task_decl` /
+  `render_multi_output_task_call` / `multi_output_task_params` rendered a 3-member
+  group with zero changes — `o0`/`o1`/`o2` over a deduplicated `a0..a{m-1}` input
+  list, three `__mtv` vars, three passthroughs. The `.12b.1` decision to write the
+  emitter k-agnostic (iterating `members`, not hard-coding two) paid off here.
+
+- **The test-assertion gotcha.** A first-cut emit proof asserted
+  `out.matches("__mtv;").count() == 3`; it is **6** — each member contributes both a
+  `logic … <m>__mtv;` decl *and* a passthrough `assign <m> = <m>__mtv;` (both end in
+  `__mtv;`). Likewise `output logic` counts **6** not 3 (the module's own output
+  ports `y0`/`y1`/`y2` are `output logic` too). The robust k=3 proof is the body
+  statements (`o0 =`/`o1 =`/`o2 =` present, `o3 =` absent).
+
+- **Downstream evidence (k=3, ON-vs-OFF).** Forced `multi_output_task_emit_prob=1.0`
+  comb-only shape (`terminal_reuse_prob=0.6`, `max_depth=2`, `min_outputs=2`): seed
+  22 emits a genuine **k=3** task `shr_0__mt(o0,o1,o2, a0,a1,a2)` co-emitting
+  `shr_0`/`mux_0`/`mux_1` over the deduplicated inputs `i_4`/`slice_0`/`concat_0`.
+  Verilator `-Wall` (1800-2012) is **0 real warnings ON and OFF (Δ=0)** — the only
+  line is the filename≠module `DECLFILENAME` harness artifact, identical both ways —
+  and `iverilog`+`vvp` prove the k=3 task **bit-equal to the inline OFF reference
+  over 20000 random vectors** (`SIM-EQUIV OK`). The repo-owned
+  `tool_matrix --multi-output-task-gate` re-bank (`/tmp/anvil-mo-k3-gate-r1`) stays
+  `coverage_gaps = []`, `saw_multi_output_task_emit = true`, `12/0` Verilator + both
+  Yosys + Icarus, with a k=3 group present among the emitted modules.
+
 ## 2026-06-22 — Wider (k>2) multi-output task groups — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.13a`
 
 The design-detail leaf for the first **deepening** of the sixth structured

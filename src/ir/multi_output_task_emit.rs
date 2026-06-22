@@ -1,7 +1,7 @@
-//! `STRUCTURED-EMISSION-EXPANSION.12b.1` — post-construction annotation that
-//! groups a co-supported **pair** of combinational gates for the multi-output
-//! combinational `task automatic` emit-projection (decision `0025` + the `.12a`
-//! design-detail in `DEVELOPMENT_NOTES.md`).
+//! `STRUCTURED-EMISSION-EXPANSION.12b.1` (pair) + `.13b` (wider `k > 2` groups) —
+//! post-construction annotation that groups a co-supported set of combinational
+//! gates for the multi-output combinational `task automatic` emit-projection
+//! (decision `0025` + the `.12a` / `.13a` design-details in `DEVELOPMENT_NOTES.md`).
 //!
 //! The sixth richer-structured surface: a co-supported group of gates is
 //! co-emitted by the emitter as one behaviour-preserving `task automatic` with
@@ -25,18 +25,28 @@
 //! **one** input formal feeding multiple outputs (the genuine "co-supported
 //! sink"); a `Constant` operand folds inline as a literal (the cone-function
 //! precedent). Each output is the member gate's exact operation over those
-//! formals, so the task is **behaviour-preserving by construction.** First cut is
-//! a **pair** (group size 2); wider groups are a recorded follow-up.
+//! formals, so the task is **behaviour-preserving by construction.**
 //!
-//! **The soundness rule (mutual fan-in independence).** A pair is admissible only
-//! when neither member lies in the other's transitive fan-in. If member `gb` were
+//! **Group size (`STRUCTURED-EMISSION-EXPANSION.13`).** The group is a `k >= 2`
+//! co-supported set, bounded by [`MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS`]. The first
+//! cut shipped a **pair** (`k = 2`, decision `0025`); `.13` deepens it to wider
+//! groups (the recorded `.13` follow-up). The emitter was already written
+//! k-agnostic (`render_multi_output_task_decl` / `render_multi_output_task_call` /
+//! `multi_output_task_params` iterate `members` of any length) and the carrier
+//! `Module.multi_output_task_groups: BTreeMap<NodeId, Vec<NodeId>>` holds `k - 1`
+//! partners, so the widening lives entirely in this pass.
+//!
+//! **The soundness rule (mutual fan-in independence).** A member is admissible only
+//! when no member lies in another member's transitive fan-in. If member `gb` were
 //! in `ga`'s fan-in, `gb`'s net — driven by the shared task's `<gb>__mtv`
 //! passthrough — would feed, through gates *outside* the task, into a direct
 //! operand the task reads, closing a combinational cycle through the single
 //! `always_comb` task call (a Verilator `UNOPTFLAT` even though it converges
-//! functionally). Requiring mutual fan-in independence makes the co-emitted task
-//! cycle-free by construction — the multi-output analogue of the cone function's
-//! single-use rule. The check is a bounded backward DFS over the operand DAG;
+//! functionally). Requiring **pairwise** mutual fan-in independence (each new
+//! member checked against *every* current member, [`independent_of_all`]) makes the
+//! co-emitted task cycle-free by construction at any group size — the multi-output
+//! analogue of the cone function's single-use rule. The check is a bounded backward
+//! DFS over the operand DAG;
 //! because `Module::intern_gate` appends a gate after its operands, a gate's
 //! operands always have strictly smaller `NodeId`, so for `ga < gb` the direction
 //! `gb ∈ fanin(ga)` is automatically false — but both directions are checked for
@@ -46,10 +56,15 @@
 //! that are already valid in the flat emission; selection happens here at
 //! construction time. There is nothing to check-and-discard.
 //!
-//! **One roll per leader.** For the lowest ungrouped candidate the pass rolls a
-//! seeded `gen_bool(prob)` once (reproducible; never `thread_rng`); if it fires it
-//! pairs with the next ungrouped candidate that shares a non-constant operand and
-//! is fan-in-independent. The generator guards the call on
+//! **One roll per leader, then greedy extension.** For the lowest ungrouped
+//! candidate the pass rolls a seeded `gen_bool(prob)` once (reproducible; never
+//! `thread_rng`); if it fires it greedily admits **every** ungrouped higher-`NodeId`
+//! candidate that (1) shares a non-constant operand with at least one current member
+//! ([`connected_co_support`]) and (2) is mutually fan-in-independent with every
+//! current member ([`independent_of_all`]), up to
+//! [`MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS`]. A group forms iff at least one partner is
+//! admitted, so `k = 2` is the exact subset (the pair behaviour is unchanged when
+//! only one partner qualifies). The generator guards the call on
 //! `Config::multi_output_task_emit_prob > 0.0`, so the default (`0.0`) draws
 //! nothing and groups nothing ⇒ byte-identical stream + output. The annotation is
 //! an emitter-surface marker only: the flat IR body, validators, CSE keys and
@@ -65,6 +80,15 @@
 use crate::ir::{GateOp, Module, Node, NodeId};
 use rand::Rng;
 use std::collections::BTreeSet;
+
+/// Upper bound on the number of gates co-emitted into a single multi-output
+/// `task automatic` (`STRUCTURED-EMISSION-EXPANSION.13`): the leader plus up to
+/// `MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS - 1` partners. A bounded, reviewable first
+/// cut for the `k > 2` widening — it keeps any one task readable and lets
+/// **multiple** groups form per module (a leader stops absorbing at the cap; the
+/// next ungrouped leader forms its own group) rather than collapsing a dense comb
+/// module into one giant task. Raising or removing it is a one-constant follow-up.
+const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS: usize = 8;
 
 /// True iff `node` is a *computational* `Node::Gate` admissible as a multi-output
 /// task member: not a procedural structured block (`CaseMux` / `CasezMux` /
@@ -140,9 +164,32 @@ fn in_fanin(m: &Module, target: NodeId, root: NodeId) -> bool {
     false
 }
 
+/// True iff candidate `gc` shares at least one non-constant direct operand with at
+/// least one gate already in `members` — the **connected co-support** rule that
+/// generalizes the pair's [`shares_nonconst_operand`] to a `k > 2` group. It keeps
+/// the deduplicated task a genuine shared-formal structure: every shared formal
+/// still feeds `>= 2` outputs (the "co-supported sink" essence), and the group
+/// stays connected through shared operands rather than fusing unrelated gates.
+fn connected_co_support(m: &Module, gc: NodeId, members: &[NodeId]) -> bool {
+    members.iter().any(|&gm| shares_nonconst_operand(m, gm, gc))
+}
+
+/// True iff candidate `gc` is mutually fan-in-independent with **every** gate in
+/// `members` — the generalized soundness rule (the multi-output analogue of the
+/// cone-function single-use rule). Checked against all current members (both
+/// `in_fanin` directions for robustness), so as the group grows greedily the
+/// invariant "all members are pairwise fan-in-independent" is maintained
+/// inductively ⇒ the co-emitted task is cycle-free by construction at any size.
+fn independent_of_all(m: &Module, gc: NodeId, members: &[NodeId]) -> bool {
+    members
+        .iter()
+        .all(|&gm| !in_fanin(m, gm, gc) && !in_fanin(m, gc, gm))
+}
+
 /// Group admissible, non-sibling-marked combinational gates into co-supported
-/// **pairs** for the multi-output `task automatic` emit-projection by rolling
-/// `prob` once per leader on the seeded generator RNG. Returns the number of
+/// `k >= 2` groups for the multi-output `task automatic` emit-projection by rolling
+/// `prob` once per leader on the seeded generator RNG, then greedily extending the
+/// group up to [`MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS`]. Returns the number of
 /// groups newly formed. Callers must gate on `prob > 0.0` so the default path is
 /// byte-identical (draws nothing). Single-call per module (mirrors the
 /// `task_emit` / `cone_function` call-site roll). Must run **after**
@@ -169,32 +216,42 @@ pub fn annotate_multi_output_task_groups(m: &mut Module, rng: &mut impl Rng, pro
         if used.contains(&ga) {
             continue;
         }
-        // One roll per ungrouped leader (a clean function of the candidate list,
-        // so a future widening to k>2 won't perturb the pair-era stream).
+        // One roll per ungrouped leader (the per-leader roll is unchanged by the
+        // k>2 widening; at the gate's prob=1.0 `gen_bool` short-circuits and draws
+        // nothing, and the default prob=0.0 path never calls this pass).
         if !rng.gen_bool(p) {
             continue;
         }
-        // Find the first ungrouped, higher-NodeId partner that shares a
-        // non-constant operand and is mutually fan-in-independent.
-        let mut partner: Option<NodeId> = None;
-        for &gb in &candidates {
-            if gb <= ga || used.contains(&gb) {
+        // Greedily build the group: start with the leader, then admit each
+        // ungrouped, higher-NodeId candidate (ascending) that (1) is connected to
+        // the current group through a shared non-constant operand and (2) is
+        // mutually fan-in-independent with every current member, up to the cap.
+        // Scanning ascending keeps the result deterministic.
+        let mut members: Vec<NodeId> = vec![ga];
+        for &gc in &candidates {
+            if members.len() >= MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS {
+                break;
+            }
+            if gc <= ga || used.contains(&gc) {
                 continue;
             }
-            if !shares_nonconst_operand(m, ga, gb) {
+            if !connected_co_support(m, gc, &members) {
                 continue;
             }
-            if in_fanin(m, ga, gb) || in_fanin(m, gb, ga) {
+            if !independent_of_all(m, gc, &members) {
                 continue;
             }
-            partner = Some(gb);
-            break;
+            members.push(gc);
         }
-        if let Some(gb) = partner {
-            // Keyed by the leader (lower NodeId) → the partner members.
-            m.multi_output_task_groups.insert(ga, vec![gb]);
-            used.insert(ga);
-            used.insert(gb);
+        // A group forms iff at least one partner was admitted (so k=2 is the exact
+        // subset). Keyed by the leader (lowest NodeId) → the partner members
+        // (ascending). Every member is consumed.
+        if members.len() >= 2 {
+            let partners: Vec<NodeId> = members[1..].to_vec();
+            for &g in &members {
+                used.insert(g);
+            }
+            m.multi_output_task_groups.insert(ga, partners);
             groups += 1;
         }
     }
@@ -494,6 +551,279 @@ mod tests {
             crate::metrics::canonical_module_signature(&m),
             sig_before,
             "identity is unaffected by the emitter-surface mark"
+        );
+    }
+
+    // ----- STRUCTURED-EMISSION-EXPANSION.13: wider (k>2) co-supported groups -----
+
+    /// Three pairwise-independent gates connected by shared operands:
+    /// `y0 = a & b`, `y1 = b | c`, `y2 = c ^ d` (`b` shared by y0,y1; `c` shared by
+    /// y1,y2; none feeds another). Nodes: 0=a 1=b 2=c 3=d, 4=(a&b), 5=(b|c), 6=(c^d).
+    fn module_three_co_supported_gates() -> Module {
+        let mut m = Module {
+            name: "mo3".into(),
+            ..Module::default()
+        };
+        for (id, name) in [(0u32, "a"), (1, "b"), (2, "c"), (3, "d")] {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width: 4,
+                dir: Direction::In,
+            });
+            m.nodes.push(Node::PrimaryInput { port: id, width: 4 });
+        }
+        for (id, name) in [(4u32, "y0"), (5, "y1"), (6, "y2")] {
+            m.outputs.push(Port {
+                id,
+                name: name.into(),
+                width: 4,
+                dir: Direction::Out,
+            });
+        }
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 1],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 4
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![1, 2],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 5
+        m.nodes.push(Node::Gate {
+            op: GateOp::Xor,
+            operands: vec![2, 3],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 6
+        m.drives.push((4, 4));
+        m.drives.push((5, 5));
+        m.drives.push((6, 6));
+        m
+    }
+
+    /// `n + 1` inputs (a shared `s` plus `x1..xn`) and `n` gates `s & x_i` — every
+    /// gate shares the operand `s` (connected) and reads only inputs (so all are
+    /// mutually fan-in-independent). Used to exercise the group-size cap.
+    fn module_n_co_supported_independent_gates(n: u32) -> Module {
+        let mut m = Module {
+            name: "cap".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "s".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        for i in 1..=n {
+            m.inputs.push(Port {
+                id: i,
+                name: format!("x{i}"),
+                width: 4,
+                dir: Direction::In,
+            });
+            m.nodes.push(Node::PrimaryInput { port: i, width: 4 });
+        }
+        // Gate `i` (i in 1..=n) lands at node id `n + i` = `s & x_i`.
+        for i in 1..=n {
+            m.nodes.push(Node::Gate {
+                op: GateOp::And,
+                operands: vec![0, i],
+                width: 4,
+                deps: DepSet::new(),
+            });
+        }
+        m
+    }
+
+    #[test]
+    fn prob_one_groups_a_co_supported_triple() {
+        let mut m = module_three_co_supported_gates();
+        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        assert_eq!(n, 1, "the three connected independent gates form ONE group");
+        // Keyed by the lowest-NodeId leader (4) → the two higher partners (5, 6),
+        // ascending. The k=2 first cut would have stopped at [5]; the widening
+        // admits 6 (shares c with member 5, independent of both).
+        assert_eq!(m.multi_output_task_groups.get(&4), Some(&vec![5, 6]));
+    }
+
+    #[test]
+    fn group_extends_only_to_connected_co_support() {
+        // y0=a&b, y1=b|c (connected via b), y2=e&f (disjoint support).
+        // Nodes: 0=a 1=b 2=c 3=e 4=f, 5=(a&b), 6=(b|c), 7=(e&f).
+        let mut m = Module {
+            name: "conn".into(),
+            ..Module::default()
+        };
+        for (id, name) in [(0u32, "a"), (1, "b"), (2, "c"), (3, "e"), (4, "f")] {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width: 4,
+                dir: Direction::In,
+            });
+            m.nodes.push(Node::PrimaryInput { port: id, width: 4 });
+        }
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 1],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 5 (a&b)
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![1, 2],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 6 (b|c)
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![3, 4],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 7 (e&f) — shares no operand with 5 or 6
+        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        assert_eq!(
+            n, 1,
+            "only the connected pair groups; the disjoint gate cannot"
+        );
+        assert_eq!(
+            m.multi_output_task_groups.get(&5),
+            Some(&vec![6]),
+            "the disjoint gate 7 is NOT admitted into the group"
+        );
+        assert!(
+            !m.multi_output_task_groups.contains_key(&7),
+            "the disjoint gate forms no group of its own (no eligible partner)"
+        );
+    }
+
+    #[test]
+    fn group_excludes_fan_in_dependent_member_when_widening() {
+        // g0=a&b, g1=b|c (independent, shares b ⇒ pairs), g2=g0|b (shares b with g0
+        // AND has g0 in its fan-in ⇒ excluded by the soundness rule even though it
+        // co-supports). Nodes: 0=a 1=b 2=c, 3=(a&b), 4=(b|c), 5=(g0|b)=(3|1).
+        let mut m = Module {
+            name: "dep3".into(),
+            ..Module::default()
+        };
+        for (id, name) in [(0u32, "a"), (1, "b"), (2, "c")] {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width: 4,
+                dir: Direction::In,
+            });
+            m.nodes.push(Node::PrimaryInput { port: id, width: 4 });
+        }
+        m.nodes.push(Node::Gate {
+            op: GateOp::And,
+            operands: vec![0, 1],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 3 (g0)
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![1, 2],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 4 (g1)
+        m.nodes.push(Node::Gate {
+            op: GateOp::Or,
+            operands: vec![3, 1],
+            width: 4,
+            deps: DepSet::new(),
+        }); // id 5 (g2 = g0 | b)
+        assert!(in_fanin(&m, 3, 5), "g0 (3) is in g2 (5)'s fan-in");
+        assert!(
+            shares_nonconst_operand(&m, 3, 5),
+            "g2 co-supports g0 (both read b) — only independence excludes it"
+        );
+        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        assert_eq!(
+            n, 1,
+            "the independent pair groups; the dependent gate is excluded"
+        );
+        assert_eq!(
+            m.multi_output_task_groups.get(&3),
+            Some(&vec![4]),
+            "the fan-in-dependent member 5 must NOT join — would close a cycle"
+        );
+    }
+
+    #[test]
+    fn group_respects_the_member_cap() {
+        // MAX + 1 mutually-independent co-supported gates: the leader's group caps
+        // at MAX members (leader + MAX-1 partners); the surplus gate is left
+        // ungrouped (it has no remaining un-used partner).
+        let n_gates = (MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS + 1) as u32;
+        let mut m = module_n_co_supported_independent_gates(n_gates);
+        let groups = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        assert_eq!(
+            groups, 1,
+            "one capped group; the surplus gate has no partner"
+        );
+        // The first gate node id is `n_gates + 1` (after the shared `s` + n inputs).
+        let leader = n_gates + 1;
+        let partners = m
+            .multi_output_task_groups
+            .get(&leader)
+            .expect("the leader heads the capped group");
+        assert_eq!(
+            partners.len() + 1,
+            MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS,
+            "the group is capped at MAX members (leader + MAX-1 partners)"
+        );
+        // The last gate (the surplus beyond the cap) is grouped nowhere.
+        let surplus = n_gates + n_gates; // node id of gate #n_gates
+        assert!(
+            !m.multi_output_task_groups.contains_key(&surplus) && !partners.contains(&surplus),
+            "the over-cap surplus gate is left ungrouped"
+        );
+    }
+
+    /// The end-to-end emit proof for a 3-member group: it renders ONE `__mt(` task
+    /// with three `output`s (`o0`/`o1`/`o2`), a deduplicated `input` list, an
+    /// `always_comb` call into three `<member>__mtv` vars, and three passthrough
+    /// `assign`s — exercising the already-k-agnostic emitter at `k = 3`.
+    #[test]
+    fn grouped_triple_emits_three_output_task() {
+        use crate::emit::to_sv;
+        let mut m = module_three_co_supported_gates();
+        m.multi_output_task_groups.insert(4, vec![5, 6]);
+        let out = to_sv(&m);
+        assert!(
+            out.contains("__mt("),
+            "a multi-output task is declared:\n{out}"
+        );
+        assert!(out.contains("o0 ="), "first member output:\n{out}");
+        assert!(out.contains("o1 ="), "second member output:\n{out}");
+        assert!(
+            out.contains("o2 ="),
+            "THIRD member output — the k>2 widening:\n{out}"
+        );
+        assert!(out.contains("endtask"), "the task is closed:\n{out}");
+        assert!(
+            out.contains("always_comb"),
+            "the task is called from always_comb:\n{out}"
+        );
+        // Exactly three task output formals ⇒ a genuine k=3 group (o2 present, no
+        // o3). The body statements `o0..o2 = …` already drive each member.
+        assert!(
+            !out.contains("o3 ="),
+            "exactly three task outputs — no fourth member:\n{out}"
+        );
+        // Three per-member output vars + their three passthrough assigns
+        // (each line ends in `__mtv;`).
+        assert_eq!(
+            out.matches("__mtv;").count(),
+            6,
+            "three `__mtv` var decls + three passthrough assigns:\n{out}"
         );
     }
 }

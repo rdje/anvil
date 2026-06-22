@@ -1,6 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.13b — widen multi-output task groups to k>2 (live)
+
+**Landed as:** this commit (previous: `8790528`). The live `k>2` widening of the
+sixth structured surface (the multi-output combinational `task automatic`,
+decision `0025`). Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.13b`.
+Default-off / **DUT byte-identical**.
+
+**What changed (why)**
+
+- **`src/ir/multi_output_task_emit.rs`** (the *only* source file) — widen
+  `annotate_multi_output_task_groups` from a pair to a bounded `k >= 2` group:
+  - a `const MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS = 8` (leader + up to 7 partners) —
+    bounded/reviewable, lets multiple groups still form per module;
+  - two helpers — `connected_co_support` (a candidate shares a non-constant operand
+    with **at least one** current member — the connected-co-support generalization
+    of the pair's `shares_nonconst_operand`) and `independent_of_all` (a candidate is
+    mutually fan-in-independent with **every** current member, via `in_fanin` both
+    directions — the generalized soundness rule, inductively cycle-free at any `k`);
+  - the per-leader partner loop rewritten from "find the first eligible partner and
+    break" to "greedily admit **every** eligible ungrouped higher-`NodeId` candidate
+    (ascending) up to the cap". A group forms iff `>= 1` partner is admitted, so
+    `k = 2` is the **exact subset** (every pair proof holds verbatim).
+  - the per-leader `gen_bool(prob)` roll is unchanged; default `0.0` ⇒ the generator
+    never calls the pass ⇒ byte-identical (no snapshot sets the knob).
+  - doc comments updated (file header, module doc, the per-leader-roll + soundness
+    paragraphs).
+  - **No emitter / config / metric / schema / knob change** — the emitter
+    (`render_multi_output_task_decl` / `render_multi_output_task_call` /
+    `multi_output_task_params`) was already written k-agnostic, and the metric
+    (`num_emitted_multi_output_tasks = groups.len()`) counts groups, valid for any
+    `k`. Confirmed by the new 3-output emit proof rendering `o0`/`o1`/`o2` with zero
+    emitter changes.
+  - 5 new lib proofs: `prob_one_groups_a_co_supported_triple`,
+    `group_extends_only_to_connected_co_support`,
+    `group_excludes_fan_in_dependent_member_when_widening`,
+    `group_respects_the_member_cap`, `grouped_triple_emits_three_output_task`. All 10
+    existing pair proofs stay green (15 total).
+- **`CODEBASE_ANALYSIS.md`** — the `ir/multi_output_task_emit.rs` pass description
+  brought current (a co-supported **pair** → a co-supported **`k >= 2`** set; the
+  greedy extension + connectivity + all-member independence + the cap).
+- **`DEVELOPMENT_NOTES.md`** — a `.13b` impl-time note (no deviations from `.13a`;
+  the emitter-was-free confirmation; the `__mtv;`/`output logic` test-count gotcha;
+  the k=3 downstream evidence).
+
+**Validation** — `cargo fmt --all --check` clean; `cargo clippy --all-targets
+-- -D warnings` clean; `cargo test --lib` **605 passed** / 2 ignored (600 + 5 new
+k>2 proofs; introspect `schema_version` 1.14 + `umbrella` DUT-byte-identical still
+green); `cargo test --test snapshots` **6/6 byte-identical** (default-off). Repo-owned
+gate re-bank `/tmp/anvil-mo-k3-gate-r1` (`--multi-output-task-gate --yosys-mode both
+--iverilog-compile`): 3 scenarios / 12 modules / 6 emitting a multi-output task /
+`coverage_gaps = []` / `saw_multi_output_task_emit = true` / `12/0` Verilator + both
+Yosys + Icarus, with a **k=3 group** present. Forced `multi_output_task_emit_prob=1.0`
+comb-only sweep (seed 22): a genuine **k=3** task `shr_0__mt(o0,o1,o2, a0,a1,a2)`,
+Verilator `-Wall` (1800-2012) **0 real warnings ON and OFF (Δ=0)** (only the
+filename≠module `DECLFILENAME` artifact, identical both ways), and `iverilog`+`vvp`
+prove it **bit-equal to the inline OFF reference over 20000 random vectors**
+(`SIM-EQUIV OK`).
+
+**Impact** — when `multi_output_task_emit_prob > 0.0`, a co-supported group of `k`
+mutually-fan-in-independent gates is now co-emitted into one `task automatic` with
+`k` outputs (was capped at 2) — a richer, less common procedural shape for
+downstream tools to parse / elaborate / lower (`project_anvil_north_star`).
+Default-off ⇒ the DUT lane stays byte-identical. Nothing retired.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.13a — wider (k>2) multi-output task groups impl design-detail
 
 **Landed as:** this commit (previous: `2e2eb72`). Docs-only / no source /
