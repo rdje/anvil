@@ -1,6 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.1 — align task-tree index status with tree files
+
+**Landed as:** this commit (previous: `470699e` `STRUCTURED-EMISSION-EXPANSION.15b.3`).
+**Docs-only / live-doc** (no `src/` touched) ⇒ **DUT byte-identical**. Tracked by the
+new single-leaf tree `LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.1` (live-doc alignment, exempt
+from the code task-tree-ownership doctrine; tracked as a tree by the repo's
+`LIVE-DOC-*-ALIGNMENT` convention for traceability).
+
+**What changed (why)**
+
+A session-bootstrap audit cross-checked every `docs/tasks/*.md` `- Status:` value
+against its `docs/TASK_TREE.md` `Active Task Trees` index row. Exactly one drift was
+found: the index row for `LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT` still read `active`
+even though that tree's own file is `done` and was closed by commit `d3eb968`. The
+index is the resume surface a fresh session reads to find the live frontier, so a stale
+`active` row there falsely advertises an open frontier — exactly the roadmap ↔ codebase
+↔ live-doc drift the standing owner mandate forbids.
+
+1. **`docs/TASK_TREE.md`** — the `LIVE-DOC-ROADMAP-LANE-STATUS-ALIGNMENT` index row is
+   corrected `active`→`done`, its frontier cell rewritten from the pending-`.1` present
+   tense to a closure summary (closed `2026-06-22` by `d3eb968`).
+2. **`docs/TASK_TREE.md`** — a new `done` index row is added for this owning tree,
+   `LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT`.
+3. **`docs/tasks/LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.md`** — new single-leaf tree file
+   documenting the goal, the full-index audit decision, and the closure.
+
+**Validation**
+- Full per-file `- Status:` grep vs every index row: the corrected row is now the only
+  one whose index state matches its file; no other index/file mismatch remains.
+- `scripts/check_doctrines.sh`: all 4 doctrines PASS (code-scoped checks exempt — docs
+  commit). `git diff --check` clean.
+
+**Impact:** docs-only ⇒ DUT byte-identical; `cargo`/snapshot suites unaffected. Restores
+full task-tree-index ↔ tree-file alignment (no drift).
+
+**Files touched:** `docs/TASK_TREE.md`, `docs/tasks/LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT.md`
+(new), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.15b.3 — seventh-surface user docs (book/knobs/USER_GUIDE/README/KM)
 
 **Landed as:** this commit (previous: this `.15b.2` commit). **Docs-only** (no `src/`
