@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.17b.2a — case-mux-if metric + introspection schema 1.16
+
+**Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17b.1` commit).
+**Code change** (`src/` touched), default-off ⇒ **DUT byte-identical** (the metric is a
+post-hoc, RTL-invisible structural count; the schema bump is introspection-only). Tracked
+by `STRUCTURED-EMISSION-EXPANSION.17b.2a` (the metric+schema half of the eighth surface's
+`.17b.2`, pre-split `.17b.2a` metric+schema + `.17b.2b` gate per the `.6b.2a`/`.6b.2b` /
+`.12b.2a`/`.12b.2b` convention).
+
+**What changed (why)**
+
+The eighth surface's emitted-chain count is surfaced to the agent-introspection API so the
+`.17b.2b` downstream gate can key its coverage fact on the metric (the chain has no new
+identifier token, so a metric-keyed gate is strictly more robust than a text scan).
+
+1. **`src/metrics.rs`** — `Metrics::num_emitted_case_mux_if_chains` (`=
+   m.case_mux_if_gates.len()`, `#[serde(default)]`) added beside `num_emitted_mux_if_blocks`
+   + assigned in `compute()` + the `metrics_count_emitted_case_mux_if_chains` lib proof
+   (unmarked ⇒ 0, marked dynamic `CaseMux` ⇒ 1). **Exact** — because the annotation pass
+   excludes constant-selector `CaseMux` (which the emitter statically collapses), every
+   counted gate emits exactly one chain.
+2. **Introspection schema `1.15 → 1.16`** (additive MINOR bump) — `src/introspect/mod.rs`
+   `SCHEMA_VERSION` + the const doc-comment (now attributes `1.16` to the new metric,
+   demotes `1.15` to `num_emitted_mux_if_blocks`) + 3 lib assertions; `src/mcp/mod.rs` 8
+   assertions; `docs/AGENT_INTROSPECTION_SCHEMA.md` the "today both are early" example +
+   "This document defines" + the §8 checklist line + a new `1.15 → 1.16` changelog entry;
+   README ×2 (the `--introspect` envelope + the `analyze` schema) + USER_GUIDE ×1 (the
+   `--sv-version` row envelope ref) + `CODEBASE_ANALYSIS.md` (the envelope `schema_version`
+   + a `1.15→1.16` bump-list entry). The historical `num_emitted_mux_if_blocks @ 1.15`
+   **landing attributions** (the mux_if knob-description lines in README/USER_GUIDE, the
+   CODEBASE metric entry + changelog list) are left intact, per the established "historical
+   attributions intact" rule. The `book/src/*` example JSONs are deferred to `.17b.3`
+   (the `.12b.2a`/`.15b.2` precedent).
+
+**Validation**
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean; `cargo test --lib` **626 passed** / 2 ignored (625 + the
+  new metric proof; all introspect + mcp `schema_version` assertions green at `"1.16"`);
+  `cargo test --test snapshots` **6/6 byte-identical** (default-off).
+- **Live `--introspect`**: default (seed 42) ⇒ `schema_version "1.16"` +
+  `module_metrics.num_emitted_case_mux_if_chains 0`; forced (seed 2, `--flop-prob 0
+  --case-mux-prob 0.9 --case-mux-if-emit-prob 1.0`) ⇒ `"1.16"` + `53`.
+
+**Impact:** opt-in surface unchanged; default-off ⇒ DUT byte-identical (`tests/snapshots.rs`
+untouched). The agent API now reports how many `CaseMux` priority chains a run emitted —
+the read surface the `.17b.2b` gate keys on.
+
+**Files touched:** `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`, `ROADMAP.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.17b.1 — live CaseMux if/else-if priority-chain emit-projection (eighth surface)
 
 **Landed as:** this commit (previous: this `STRUCTURED-EMISSION-EXPANSION.17a` commit).

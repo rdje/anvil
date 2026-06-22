@@ -372,9 +372,11 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `--case-mux-if-gate` / `saw_case_mux_if_emit` (metric-keyed detection, no new text
    token). A fresh probe (Verilator `-Wall` 2012/2017/2023 + both Yosys modes [32 cells,
    no warnings] + Icarus + iverilog sim-equiv to the parallel `case` over 20000 vectors +
-   an exhaustive selector sweep) is clean. `.17b.2` (the `num_emitted_case_mux_if_chains`
-   metric @ schema `1.15 → 1.16` + the repo-owned `tool_matrix --case-mux-if-gate` /
-   `saw_case_mux_if_emit`) and `.17b.3` (user docs) are the remaining frontier. Chosen over
+   an exhaustive selector sweep) is clean. The `num_emitted_case_mux_if_chains` metric is
+   now surfaced at introspection schema **`1.16`** (`.17b.2a`; live `--introspect` confirms
+   `0` default / `53` forced). `.17b.2b` (the repo-owned `tool_matrix --case-mux-if-gate` /
+   `saw_case_mux_if_emit`, metric-keyed) and `.17b.3` (user docs) are the remaining
+   frontier. Chosen over
    nested/multi-level `generate` (no
    by-construction source — operand-uniqueness CSE shares the inner `{N{x}}` so the
    existing single-level loop already fires on the outer `{M{y}}`) and

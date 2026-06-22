@@ -378,6 +378,21 @@ pub struct Metrics {
     /// introspection projection additive (schema `1.15`).
     #[serde(default)]
     pub num_emitted_mux_if_blocks: usize,
+
+    /// `STRUCTURED-EMISSION-EXPANSION.17b.2a` — the number of dynamic-selector
+    /// `CaseMux` gates re-rendered as a procedural `always_comb` `if`/`else if`
+    /// **priority chain** instead of the parallel `case` statement (decision
+    /// `0028`; `= m.case_mux_if_gates.len()`). Zero unless
+    /// `case_mux_if_emit_prob > 0.0` selected qualifying `CaseMux` gates. The
+    /// N-way generalization of `num_emitted_mux_if_blocks` (the 2:1 `Mux` →
+    /// `if`/`else`). Because the annotation pass excludes constant-selector
+    /// `CaseMux` (which the emitter statically collapses), every counted gate
+    /// emits exactly one chain — the count is exact. A post-hoc structural count
+    /// of an emitter-surface annotation — adding it changes no emitted RTL
+    /// (default-off byte-identical). `#[serde(default)]` keeps the introspection
+    /// projection additive (schema `1.16`).
+    #[serde(default)]
+    pub num_emitted_case_mux_if_chains: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -985,6 +1000,13 @@ pub fn compute(m: &Module) -> Metrics {
     // projects as a procedural `always_comb` `if`/`else` block (an emitter-surface
     // annotation; structural, post-hoc, RTL-invisible).
     out.num_emitted_mux_if_blocks = m.mux_if_gates.len();
+
+    // `STRUCTURED-EMISSION-EXPANSION.17b.2a` — count of dynamic-selector
+    // `CaseMux` gates the emitter projects as a procedural `always_comb`
+    // `if`/`else if` priority chain (an emitter-surface annotation; structural,
+    // post-hoc, RTL-invisible; exact because static-selector CaseMux are
+    // excluded from the candidate set).
+    out.num_emitted_case_mux_if_chains = m.case_mux_if_gates.len();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3425,6 +3447,52 @@ mod tests {
         // Marked ⇒ counted (one procedural `if`/`else` block).
         m.mux_if_gates.insert(g);
         assert_eq!(compute(&m).num_emitted_mux_if_blocks, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_case_mux_if_chains() {
+        // `STRUCTURED-EMISSION-EXPANSION.17b.2a` — the metric is the count of
+        // dynamic-selector `CaseMux` gates marked for the procedural
+        // `always_comb` `if`/`else if` priority-chain emit-projection (decision
+        // `0028`; `= m.case_mux_if_gates.len()`).
+        let mut m = Module {
+            name: "cm".into(),
+            ..Module::default()
+        };
+        m.inputs.push(Port {
+            id: 0,
+            name: "sel".into(),
+            width: 2,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 1,
+            name: "a".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 2,
+            name: "b".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.inputs.push(Port {
+            id: 3,
+            name: "c".into(),
+            width: 4,
+            dir: Direction::In,
+        });
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 2 }); // id 0 (sel)
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 }); // id 1 (a)
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 }); // id 2 (b)
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 4 }); // id 3 (c)
+        let (g, _) = m.intern_gate(GateOp::CaseMux, vec![0, 1, 2, 3], 4, DepSet::from_port(0));
+        // Unmarked ⇒ zero.
+        assert_eq!(compute(&m).num_emitted_case_mux_if_chains, 0);
+        // Marked ⇒ counted (one procedural `if`/`else if` priority chain).
+        m.case_mux_if_gates.insert(g);
+        assert_eq!(compute(&m).num_emitted_case_mux_if_chains, 1);
     }
 
     #[test]

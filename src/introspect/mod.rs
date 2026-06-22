@@ -51,19 +51,20 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.15` is the
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.16` is the
 /// additive (backward-compatible) MINOR bump that adds the
-/// `Metrics::num_emitted_mux_if_blocks` field — the count of 2:1 `Mux` gates the
-/// emitter projects as a procedural `always_comb` `if`/`else` block
-/// (`STRUCTURED-EMISSION-EXPANSION.15b`, decision `0027`). It is a SCHEMA-DERIVED
-/// projection of an existing emitter-surface annotation (a count of
-/// `Module::mux_if_gates`), not new computed truth; default-off modules report `0`
-/// and the default-`dut` **artifact** (`.sv`) stays byte-identical. The prior `1.14`
-/// added `Metrics::num_emitted_multi_output_tasks` (decision `0025`); a `1.14`
+/// `Metrics::num_emitted_case_mux_if_chains` field — the count of dynamic-selector
+/// `CaseMux` gates the emitter projects as a procedural `always_comb` `if`/`else if`
+/// **priority chain** (`STRUCTURED-EMISSION-EXPANSION.17b`, decision `0028`; the
+/// N-way generalization of the seventh surface's 2:1 `Mux` → `if`/`else`). It is a
+/// SCHEMA-DERIVED projection of an existing emitter-surface annotation (a count of
+/// `Module::case_mux_if_gates`), not new computed truth; default-off modules report
+/// `0` and the default-`dut` **artifact** (`.sv`) stays byte-identical. The prior
+/// `1.15` added `Metrics::num_emitted_mux_if_blocks` (decision `0027`); a `1.15`
 /// consumer simply ignores the new integer key. MINOR is an integer, so
-/// `1.14 → 1.15` (fifteen), not a decimal fraction. See the schema-doc §7
-/// changelog for the full `1.0 → … → 1.14 → 1.15` history.
-pub const SCHEMA_VERSION: &str = "1.15";
+/// `1.15 → 1.16` (sixteen), not a decimal fraction. See the schema-doc §7
+/// changelog for the full `1.0 → … → 1.15 → 1.16` history.
+pub const SCHEMA_VERSION: &str = "1.16";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -506,7 +507,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.15");
+        assert_eq!(doc.schema_version, "1.16");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -647,7 +648,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.15");
+        assert_eq!(doc.schema_version, "1.16");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -690,7 +691,7 @@ mod tests {
         let readout = coverage::module_coverage(&compute(&m));
         let doc = coverage_document(&base, readout.clone());
 
-        assert_eq!(doc.schema_version, "1.15");
+        assert_eq!(doc.schema_version, "1.16");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
                                                              // The payload IS the embedded readout, byte-for-byte.
