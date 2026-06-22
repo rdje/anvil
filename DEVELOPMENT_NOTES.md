@@ -5,6 +5,143 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-22 — Multi-output task surface — impl design-detail — `STRUCTURED-EMISSION-EXPANSION.12a`
+
+The design-detail leaf for the sixth structured surface (decision `0025`, the
+multi-output combinational `task automatic`). No source change; this entry grounds
+the ADR in the real code and pins every `.12b` impl choice so the implementation
+slice is mechanical. Read against `src/ir/task_emit.rs` (`gate_qualifies`),
+`src/ir/cone_function_emit.rs` (`admissible` / `sibling_marked`), `src/emit/sv.rs`
+(`render_gate_task_decl` / `render_gate_task_call` + the cone primitives
+`cone_function_params` / `cone_operand_ref` / `render_cone_gate_expr` + the per-gate
+assign loop ~`468`), `src/gen/mod.rs` (the `soft_union → function_emit →
+generate_loop → task_emit → cone_function` roll chain, both the single + design
+call sites), `src/config.rs` (the `*_emit_prob` knob list + the `Option<f64>` CLI
+overlay), `src/metrics.rs`, and `src/ir/types.rs` (the `*_gates` Module fields).
+
+**(1) The candidate predicate — replicate, don't share (the codebase convention).**
+Each emit-projection pass (`function_emit`, `generate_loop`, `task_emit`,
+`cone_function`) carries its **own** 4-line admissibility `matches!` (non-structured
+— not `CaseMux`/`CasezMux`/`ForFold` — non-`Slice`, `>= 1` operand) plus
+pass-specific sibling exclusions; none share one predicate. So
+`multi_output_task_emit` gets its own local `admissible(node)` mirroring
+`task_emit::gate_qualifies`, plus exclusion of every prior sibling mark
+(`function_emit_gates` / `generate_loop_gates` / `task_emit_gates` /
+`soft_union_slice_gates`) and of gates already consumed into an earlier
+multi-output group this pass. This is **not** a `feedback_full_factorization`
+violation: the "one mechanism" reuse is the **body rendering** (the cone
+primitives, point 5) and the candidate *concept*, not the trivial `matches!`
+(decision `0016`'s `cone_function_emit::admissible` likewise replicates it).
+
+**(2) The Module carrier: `multi_output_task_groups: BTreeMap<NodeId, Vec<NodeId>>`,**
+keyed by the group **leader** (lowest-`NodeId` member) → the **partner** members
+(for the first-cut pair, a single-element `[partner]`); the full group is `key ++
+value`. This mirrors `cone_function_gates: BTreeMap<NodeId, Vec<NodeId>>` (root →
+interior) exactly: a `BTreeMap` so the emitter iterates in leader-`NodeId` order
+(deterministic), and an emitter-surface annotation only — flat IR / validators /
+CSE keys / `canonical_module_signature` untouched (a default-empty field added to
+`Module`, like the four existing `*_gates`). A `member_set()` helper
+(`groups.iter().flat_map(|(k,v)| once(k).chain(v))`) gives the "is this gate a
+multi-output member" lookup the emitter + `cone_function` need.
+
+**(3) Selection — `src/ir/multi_output_task_emit.rs`,
+`annotate_multi_output_task_groups(m, rng, prob) -> usize`.** Skip `param_env`
+modules (the `task_emit` scoping). Collect admissible, non-sibling-marked
+candidates in ascending `NodeId`. Walk them in order with a `used: BTreeSet<NodeId>`;
+for the lowest ungrouped candidate `ga`, **roll `gen_bool(prob)` once** (the leader
+roll — reproducible; the call site guards on `prob > 0.0` so default `0.0` draws
+nothing ⇒ byte-identical); if it fires, scan forward for the **next** ungrouped
+candidate `gb` (ascending `NodeId`) such that (a) `operands(ga) ∩ operands(gb)` has
+a **non-constant** member and (b) `ga`/`gb` are mutually fan-in-independent
+(point 4); on the first such `gb`, insert `ga → [gb]` and add both to `used`. If the
+roll fires but no partner qualifies, `ga` is left ungrouped (no group, no retry) —
+it still emits inline. **One roll per leader** (not per pair) keeps the RNG draw
+count a clean function of the candidate list, so a future widening to `k > 2`
+won't perturb the pair-era stream for unaffected seeds. Returns the group count.
+
+**(4) The soundness check — `in_fanin(m, target, root)` bounded backward DFS.**
+The shared task reads its members' deduplicated direct operands and writes the
+member output vars (whose passthrough `assign`s drive the member nets). If `gb`
+were in `ga`'s transitive fan-in (or vice-versa), a member net would feed — through
+gates outside the task — a direct operand the task reads, closing a combinational
+cycle through the single `always_comb` task call (a Verilator `UNOPTFLAT`, even
+though it converges functionally). So a pair is admissible only when **neither
+member is in the other's operand cone**. Implementation: a DFS from `root`'s
+operands over `Node::Gate` operands with a `visited: BTreeSet` (each node expanded
+once ⇒ bounded by the cone size), returning `true` if `target` is reached. The IR's
+**operand-topological `NodeId` invariant** (`Module::intern_gate` appends after its
+operands ⇒ a gate's operands always have strictly smaller `NodeId`) means for
+`ga < gb`, `gb ∉ fanin(ga)` is automatic, so only `in_fanin(m, ga, gb)` must be
+checked — but the impl checks both directions for robustness (cheap; survives any
+future invariant change). The DFS only needs to descend through `Node::Gate`
+operands; primary inputs / flop `Q`s / instance outputs / constants are leaves
+(never the `target` of interest since `target` is itself a gate).
+
+**(5) Rendering — reuse the cone primitives for a deduplicated body.** The decl is
+
+```systemverilog
+task automatic <leader>__mt(output logic [W0-1:0] o0, output logic [W1-1:0] o1,
+                            input logic [..] a0, input logic [..] a1, ...);
+    o0 = <render_cone_gate_expr(op0, operands0, m, {}, params, names)>;
+    o1 = <render_cone_gate_expr(op1, operands1, m, {}, params, names)>;
+endtask
+```
+
+where `params = multi_output_task_params(m, members)` — the **deduplicated union**
+of the members' **non-constant** direct operands, ascending `NodeId`
+(`cone_function_params` adapted: union over members instead of root+interior, no
+interior concept). Passing an **empty `interior_set`** to the existing
+`render_cone_gate_expr` / `cone_operand_ref` makes every member operand resolve to
+either a folded `Constant` literal or its boundary parameter `a{position in
+params}` — exactly the shared-formal semantics (a shared non-constant operand →
+one `a{i}` feeding multiple outputs). Output formals are `o{j}` (one per member, in
+ascending-member order), input formals `a{i}` (one per dedup param); `o*` vs `a*`
+never collide. The call site (one `always_comb` **per group** — mirrors the
+single-gate task's one-call-per-gate; simpler than sharing a block):
+
+```systemverilog
+logic [W0-1:0] <m0name>__mtv;
+logic [W1-1:0] <m1name>__mtv;
+always_comb <leader>__mt(<m0name>__mtv, <m1name>__mtv, <node_ref(param0)>, <node_ref(param1)>, ...);
+```
+
+and in the per-gate assign loop each member's inline `assign` becomes the
+passthrough `assign <mjname> = <mjname>__mtv;`. **Members keep their module wires**
+(unlike `cone_function` interiors — multi-output members are co-equal roots, not
+absorbed, so no use-count rule and DAG-shared members are fine). Names: task
+`<leader>__mt`, per-member var `<mjname>__mtv` (suffixes unique vs `__t` / `__tv` /
+`__f` / `__cf`; the gate detector greps `__mt(`, which does **not** substring-match
+`__t(` because the char before `t(` is `m`).
+
+**(6) Ordering + mutual exclusion.** The new pass runs **after `task_emit` and
+before `cone_function`** in both `gen/mod.rs` call sites (the established "later
+pass excludes earlier marks" chain). `cone_function_emit::sibling_marked` is
+extended to also return `true` for any gate in the `multi_output_task_groups`
+member-set, so a multi-output member is never a cone root or absorbed interior.
+All knobs default `0.0` ⇒ no pass runs ⇒ byte-identical; order only matters when
+several are on, and is documented.
+
+**(7) Knob + metric + gate (the `.12b` split).** `Config::multi_output_task_emit_prob`
+(default `0.0`, `0.0..=1.0` validation, dump-config) + a first-class
+`--multi-output-task-emit-prob` `Option<f64>` CLI flag (the
+`KNOB-ERGONOMICS-AND-PRESETS` convention, beside `--task-emit-prob` /
+`--cone-function-emit-prob`). `Metrics::num_emitted_multi_output_tasks` (=
+`m.multi_output_task_groups.len()`, `#[serde(default)]`) surfaced in introspection
+`module_metrics` ⇒ `SCHEMA_VERSION` `1.13 → 1.14` (the metric bumps; the knob rides
+the version — the `.10b` precedent). `tool_matrix --multi-output-task-gate` +
+`ScenarioSet::MultiOutputTaskSweep` + `ModuleReport.emitted_multi_output_task`
+(`__mt(` detection) + `saw_multi_output_task_emit` + the early-return gap arm,
+templated on `--cone-function-gate`. **Gate-shape calibration (the one risk):** the
+surface fires only when co-supported *independent* pairs exist — a fanout signal
+feeding two sibling gates that don't feed each other. So the focus config sets a
+high `terminal_reuse_prob` (≈`0.6`) to make gates reuse shared input terminals
+(co-support) while keeping the cones shallow (`max_depth` small) so siblings stay
+fan-in-independent; flagged for verification at `.12b.2`. Split `.12b` →
+`.12b.1` (live surface: knob + Module field + `src/ir/multi_output_task_emit.rs` +
+two rolls + emitter + `cone_function` exclusion + lib proofs + forced-sweep) +
+`.12b.2` (metric + schema `1.13→1.14` + the `tool_matrix` gate) + `.12b.3` (book /
+USER_GUIDE / README / KM). Default-off / DUT byte-identical throughout.
+
 ## 2026-06-22 — Mealy FSM output mechanism — impl-time refinements — `CAPABILITY-BREADTH-EXPANSION.2b.1`
 
 The first **code** slice of the Mealy lane. Decision `0024` pinned the model; the

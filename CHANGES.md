@@ -1,6 +1,61 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.12a — multi-output task impl design-detail
+
+**Landed as:** this commit (previous: `c31fbb0`). **Design-detail leaf — grounds
+decision `0025` in the real source and pins every `.12b` impl choice so the
+implementation slice is mechanical.** No source change; DUT byte-identical.
+Task-tree-owned by `STRUCTURED-EMISSION-EXPANSION.12a`.
+
+**What changed (why)**
+
+- **`DEVELOPMENT_NOTES.md`** — a new "Multi-output task surface — impl design-detail
+  — `.12a`" entry resolving all seven impl points against a fresh read of the real
+  code (`src/ir/task_emit.rs`, `src/ir/cone_function_emit.rs`, `src/emit/sv.rs` —
+  `render_gate_task_decl`/`_call` + the cone primitives
+  `cone_function_params`/`cone_operand_ref`/`render_cone_gate_expr` + the per-gate
+  assign loop, `src/gen/mod.rs` roll chain, `src/config.rs`, `src/ir/types.rs`):
+  (1) **replicate** the 4-line admissibility predicate (the per-pass convention —
+  not a factorization violation; the reuse is the body rendering + the candidate
+  concept); (2) `Module.multi_output_task_groups: BTreeMap<NodeId, Vec<NodeId>>`
+  (leader → partners, the `cone_function_gates` shape); (3) the
+  `src/ir/multi_output_task_emit.rs` selection with **one `gen_bool(prob)` roll per
+  leader** + forward pairing on a shared **non-constant** operand; (4) the
+  `in_fanin(m, target, root)` **bounded backward DFS** soundness check (the IR's
+  operand-topological `NodeId` invariant — confirmed: `intern_gate` sets
+  `node_id = nodes.len()` then `push` ⇒ operands < gate id — makes one direction
+  free; both checked for robustness); (5) **deduplicated-formal rendering reusing
+  `render_cone_gate_expr` with an empty `interior_set`** (a shared non-constant
+  operand → one `a{i}` feeding multiple `o{j}`) + the `__mt`/`__mtv` naming + one
+  `always_comb` per group + per-member passthrough `assign` (members keep their
+  wires — co-equal roots, no use-count rule); (6) run **after `task_emit`, before
+  `cone_function`** (extend `cone_function_emit::sibling_marked` to exclude
+  multi-output members); (7) `Config::multi_output_task_emit_prob` +
+  `--multi-output-task-emit-prob` flag + `Metrics::num_emitted_multi_output_tasks`
+  (schema `1.13 → 1.14`) + `tool_matrix --multi-output-task-gate` /
+  `saw_multi_output_task_emit` (`__mt(` detection) + the gate-shape calibration
+  (high `terminal_reuse_prob` + shallow `max_depth` so co-supported *independent*
+  sibling pairs exist).
+- **`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`** — `.12` → `active`; added the
+  `.12a` (done) + `.12b` (pending, pre-split `.12b.1`/`.12b.2`/`.12b.3`) nodes;
+  Current Frontier (→ `.12b`), Verification Log, Commit Log, Changelog, Metadata
+  updated.
+- **`docs/TASK_TREE.md`** — the `STRUCTURED-EMISSION-EXPANSION` row frontier column
+  updated (`.12a` done → frontier `.12b`).
+
+**Validation**
+
+- `bash scripts/check_memory_architecture.sh` ✅; `bash
+  knowledge-map/scripts/gen_knowledge_map.sh` + `check_knowledge_map.sh` ✅ (no card
+  change — `0025` already carries `answers:`); `mdbook build book` ✅. No `src/`
+  touched ⇒ `cargo check/clippy/fmt/test` unaffected.
+
+**Impact**
+
+- Fully specifies the `.12b` implementation; no behaviour change (design-detail
+  leaf). Default-off / DUT byte-identical. No ROADMAP phase label changed.
+
 ## 2026-06-22 — STRUCTURED-EMISSION-EXPANSION.11 — pick the sixth structured surface (multi-output task) + decision 0025
 
 **Landed as:** this commit (previous: `df21b5c`). **Design/decision leaf — picks
