@@ -101,11 +101,11 @@ the donor project's portable kit). Reference: decision `0026`.
   Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.4 — mechanize the flagship TASK-TREE-OWNERSHIP doctrine`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.5`
-  Status: `pending`
+  Status: `done`
   Goal: `Discovery layer — route every harness bootstrap pointer to DOCTRINE_ENFORCEMENT.md + TOOLBOX.md; add GEMINI.md + .windsurfrules.`
   Acceptance: `CLAUDE.md, AGENTS.md, .cursorrules, .github/copilot-instructions.md, README.md (and new GEMINI.md, .windsurfrules) point at DOCTRINE_ENFORCEMENT.md + TOOLBOX.md while preserving the README.md + MEMORY_ARCHITECTURE.md references the memory-arch check requires. Driver still green.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `bash scripts/check_doctrines.sh → all six bootstrap pointers ok (incl. GEMINI.md + .windsurfrules now in BOOTSTRAP_FILES), PASS x4, exit 0.`
+  Commit: `DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit`
 
 - ID: `DOCTRINE-ENFORCEMENT-ADOPTION.6`
   Status: `pending`
@@ -122,8 +122,8 @@ the donor project's portable kit). Reference: decision `0026`.
 | 2 | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `done` | Driver + hook/CI rewired over MEMORY-ARCH + KNOWLEDGE-MAP. |
 | 3 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `done` | TOOLBOX (ANVIL's diagnostic tools) + `CODE-CHANGE-EVIDENCE` registered. |
 | 4 | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `done` | `TASK-TREE-OWNERSHIP` registered; flagship doctrine mechanically gated. |
-| 5 | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `in_progress` | Discovery layer so a fresh agent in any harness is routed to the doctrine kit. |
-| 6 | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `pending` | Closeout + live-doc/book/KM alignment; verify and close. |
+| 5 | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `done` | Six harness pointers route to the doctrine kit. |
+| 6 | `DOCTRINE-ENFORCEMENT-ADOPTION.6` | `in_progress` | Closeout + live-doc/book/KM alignment; verify and close. |
 
 ## Decisions
 
@@ -167,6 +167,7 @@ the donor project's portable kit). Reference: decision `0026`.
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `bash scripts/check_doctrines.sh` (PASS MEMORY-ARCH + PASS KNOWLEDGE-MAP, exit 0); meta-check on a dangling-entry copy (META-FAIL → REGISTRY ERROR, exit 1); rewired pre-commit ran on the commit | passed; no source code changed (`0003-resource-safe-validation`) |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | evidence check on 4 staged-set cases (exempt / pass / code-only FAIL / Cargo.lock FAIL); `bash scripts/check_doctrines.sh` (PASS x3, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
 | `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.4` | ownership check on 4 staged-set cases (exempt / pass / no-task FAIL / template-only FAIL); `bash scripts/check_doctrines.sh` (PASS x4, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
+| `2026-06-22` | `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `bash scripts/check_doctrines.sh` (6 bootstrap pointers ok incl. GEMINI.md + .windsurfrules, PASS x4, exit 0) | passed; no source code changed (`0003-resource-safe-validation`) |
 
 ## Commit Log
 
@@ -175,7 +176,8 @@ the donor project's portable kit). Reference: decision `0026`.
 | `DOCTRINE-ENFORCEMENT-ADOPTION.1` | `DOCTRINE-ENFORCEMENT-ADOPTION.1 — register tree + land the doctrine-enforcement standard + decision 0026` | `1b433d9`; standard + decision + tree, no check wired yet. |
 | `DOCTRINE-ENFORCEMENT-ADOPTION.2` | `DOCTRINE-ENFORCEMENT-ADOPTION.2 — registry+driver over the existing checks; rewire pre-commit + CI` | `fbe6849`; driver + hook/CI; the existing checks are registered, not rewritten. |
 | `DOCTRINE-ENFORCEMENT-ADOPTION.3` | `DOCTRINE-ENFORCEMENT-ADOPTION.3 — TOOLBOX.md (ANVIL's own diagnostic tools) + CODE-CHANGE-EVIDENCE check` | `fb5ecac`; TOOLBOX + scope-aware evidence check; driver now 3 doctrines. |
-| `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `DOCTRINE-ENFORCEMENT-ADOPTION.4 — mechanize the flagship TASK-TREE-OWNERSHIP doctrine` | `pending hash`; scope-aware ownership check; driver now 4 doctrines. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.4` | `DOCTRINE-ENFORCEMENT-ADOPTION.4 — mechanize the flagship TASK-TREE-OWNERSHIP doctrine` | `4a49681`; scope-aware ownership check; driver now 4 doctrines. |
+| `DOCTRINE-ENFORCEMENT-ADOPTION.5` | `DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit` | `pending hash`; 6 harness pointers + README ramp-up items 18+19. |
 
 ## Changelog
 
@@ -192,3 +194,6 @@ the donor project's portable kit). Reference: decision `0026`.
 - `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.4` (scope-aware
   `scripts/check_task_tree_ownership.sh` registered as `TASK-TREE-OWNERSHIP`; the
   flagship code-ownership doctrine is now mechanically gated); frontier advanced to `.5`.
+- `2026-06-22`: Completed `DOCTRINE-ENFORCEMENT-ADOPTION.5` (six harness bootstrap
+  pointers — incl. new `GEMINI.md` + `.windsurfrules` — route to `DOCTRINE_ENFORCEMENT.md`
+  + `TOOLBOX.md`; `BOOTSTRAP_FILES` + README ramp-up updated); frontier advanced to `.6`.

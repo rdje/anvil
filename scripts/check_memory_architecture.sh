@@ -15,6 +15,8 @@ BOOTSTRAP_FILES=(
   "CLAUDE.md"
   ".cursorrules"
   ".github/copilot-instructions.md"
+  "GEMINI.md"
+  ".windsurfrules"
 )
 
 fail=0

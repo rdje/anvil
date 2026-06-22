@@ -1,6 +1,39 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.5 — discovery layer: route every harness pointer to the doctrine kit
+
+**Landed as:** this commit (previous: `4a49681`). **E1 discovery — a fresh agent in any
+harness is routed to `DOCTRINE_ENFORCEMENT.md` + `TOOLBOX.md`.** Workflow/docs only / DUT
+byte-identical (no `src/`). Task-tree-owned by `DOCTRINE-ENFORCEMENT-ADOPTION.5`.
+
+**What changed (why)**
+
+- **`CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.github/copilot-instructions.md`** —
+  each now also points at `DOCTRINE_ENFORCEMENT.md` + `TOOLBOX.md` (and names the
+  task-tree ownership rule + the `scripts/check_doctrines.sh` gate), while preserving the
+  `README.md` + `MEMORY_ARCHITECTURE.md` references the `MEMORY-ARCH` check requires.
+- **`GEMINI.md` + `.windsurfrules`** (new) — Gemini CLI + Windsurf bootstrap pointers,
+  byte-identical body to the others (the `DOCTRINE_ENFORCEMENT.md` §8 Group C set).
+- **`scripts/check_memory_architecture.sh`** — `BOOTSTRAP_FILES` extended with
+  `GEMINI.md` + `.windsurfrules`, so all six harness pointers are uniformly enforced
+  (each must point at `README.md` + `MEMORY_ARCHITECTURE.md`).
+- **`README.md`** — ramp-up list gains items 18 (`DOCTRINE_ENFORCEMENT.md`) + 19
+  (`TOOLBOX.md`) so the entry-point document names the enforcement kit + ANVIL's
+  diagnostic toolbox.
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` → all six bootstrap pointers `ok` (incl. the new
+  `GEMINI.md` + `.windsurfrules`), `PASS` × 4 doctrines, exit `0`. No `src/` touched ⇒
+  `cargo check/clippy/fmt/test` unaffected; `tests/snapshots.rs` untouched.
+
+**Impact**
+
+- Discovery (E1) now covers six harnesses: whatever tool a contributor brings, its first
+  read routes the agent to the doctrine kit + the toolbox. Frontier `.5` → `.6` (closeout).
+  No ROADMAP phase changed.
+
 ## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.4 — mechanize the flagship TASK-TREE-OWNERSHIP doctrine
 
 **Landed as:** this commit (previous: `fb5ecac`). **Mechanizes ANVIL's most load-bearing

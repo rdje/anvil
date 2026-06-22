@@ -57,6 +57,8 @@ that are now tracked through explicit current-proof boundaries.
 15. `docs/tasks/*.md`: one file per top-level task tree, with stable leaf IDs, current frontier or closure state, blockers, decisions, and verification log.
 16. `docs/decisions/*.md`: durable layer-C decision/fact records used by the memory architecture.
 17. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
+18. `DOCTRINE_ENFORCEMENT.md`: the fourth portable architecture — every load-bearing doctrine is paired with a deterministic check run from one registry+driver (`scripts/check_doctrines.sh`) gated by the git hook (E3) + CI (E4). Live registry: `MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`, `TASK-TREE-OWNERSHIP` (decision `0026`).
+19. `TOOLBOX.md`: the catalog of **ANVIL's own diagnostic instruments** (trace / metrics / introspect / `analyze` / `coverage` / `validate` / `minimize` / `hunt` / `divergence` / `--diff-sim` / `tool_matrix` gates / snapshots / `ram_guard`) for pinpointing issues ANVIL may have, plus the acceptance-checklist a code change must satisfy.
 
 Only the documents above are status authority. The mdBook is explicitly part of this set — not reference material adjacent to it.
 
