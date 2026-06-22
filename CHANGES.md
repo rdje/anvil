@@ -1,6 +1,42 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.4 — mechanize the flagship TASK-TREE-OWNERSHIP doctrine
+
+**Landed as:** this commit (previous: `fb5ecac`). **Mechanizes ANVIL's most load-bearing
+prose doctrine — no code change without a task-tree leaf owning it.** Workflow only / DUT
+byte-identical (no `src/`). Task-tree-owned by `DOCTRINE-ENFORCEMENT-ADOPTION.4`.
+
+**What changed (why)**
+
+- **`scripts/check_task_tree_ownership.sh`** (new, executable) — the
+  `TASK-TREE-OWNERSHIP` doctrine: scope-aware structural check that, when the staged set
+  touches code (`src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`),
+  requires at least one owning `docs/tasks/*.md` task file (other than `TEMPLATE.md`)
+  co-staged — mechanizing the 2026-05-17 owner directive (`docs/TASK_TREE.md` "ANVIL
+  Adoption Scope") + `COMMIT.md` task-tree rule #2 ("the owning task file must be updated
+  in the same commit"). Pure non-code commits are exempt. bash-3.2-compatible;
+  `DOCTRINE_STAGED_OVERRIDE` test seam. Honest limit (§9): the un-fakeable leaf-id leg is
+  the `commit-msg` hook + review.
+- **`scripts/check_doctrines.sh`** — register `TASK-TREE-OWNERSHIP` (the driver now runs
+  four doctrines).
+
+**Validation**
+
+- Ownership check proven across four staged-set cases: non-code → exempt (exit 0); code +
+  an owning `docs/tasks/*.md` → pass (exit 0); code with no task file → FAIL (exit 1);
+  code + only `TEMPLATE.md` → FAIL (exit 1, template does not count). `bash
+  scripts/check_doctrines.sh` → `PASS` × 4 (MEMORY-ARCH, KNOWLEDGE-MAP,
+  CODE-CHANGE-EVIDENCE, TASK-TREE-OWNERSHIP), exit `0`. No `src/` touched ⇒
+  `cargo check/clippy/fmt/test` unaffected; `tests/snapshots.rs` untouched.
+
+**Impact**
+
+- ANVIL's flagship doctrine is now mechanically gated at E3 + E4: a code commit that
+  forgets to update its owning task tree is blocked locally and cannot merge. All four
+  enforcement legs (E1 discovery, E2 self-check, E3 hook, E4 CI) now cover it. Frontier
+  `.4` → `.5`. No ROADMAP phase changed.
+
 ## 2026-06-22 — DOCTRINE-ENFORCEMENT-ADOPTION.3 — TOOLBOX.md (ANVIL's own diagnostic tools) + CODE-CHANGE-EVIDENCE check
 
 **Landed as:** this commit (previous: `fbe6849`). **Adds ANVIL's diagnostic toolbox +
