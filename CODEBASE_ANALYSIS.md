@@ -753,8 +753,14 @@ src/
 │                     128/128, `scratchpad/sweep19/`). Metric
 │                     (`Metrics::num_emitted_casez_mux_if_chains` = `len()`,
 │                     introspection schema 1.16→1.17) = `.19b.2a` (done);
-│                     repo-owned `tool_matrix --casez-mux-if-gate` (metric-keyed)
-│                     = `.19b.2b` (pending).
+│                     repo-owned `tool_matrix --casez-mux-if-gate` (metric-keyed
+│                     `ScenarioSet::CasezMuxIfSweep` + `casez_mux_if_focus_config`
+│                     × 3 strategies, BOTH `comb_mux_prob` + `case_mux_prob` zeroed)
+│                     = `.19b.2b` (done; banked clean
+│                     `/tmp/anvil-casez-mux-if-gate-r1`: 3 scenarios / 12 modules /
+│                     12 emitting a chain / 108 chains / `coverage_gaps = []` /
+│                     `saw_casez_mux_if_emit` / 12/0 Verilator + both Yosys +
+│                     Icarus).
 │
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate

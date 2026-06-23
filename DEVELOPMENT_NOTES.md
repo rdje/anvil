@@ -5,6 +5,31 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — `--casez-mux-if-gate` — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.19b.2b`
+
+The ninth-surface downstream gate, templated 1:1 on the eighth surface's
+`--case-mux-if-gate` (`.17b.2b`). Implemented per the `.19a`/`.19b.2b` design — **no
+design deviations**. Two things worth recording:
+
+1. **The focus config needs a *double* zero, not a single.** The eighth surface's
+   `case_mux_if_focus_config` zeroed only `comb_mux_prob` (the one earlier-rolling block
+   that short-circuits `case_mux`). For `casez`, the structured-block roll order in
+   `src/gen/cone.rs` is `comb_mux → case_mux → casez_mux` (all three sites: ~230, ~491,
+   ~789), each an `if roll { …; return }`. So `casez_mux` is reachable only when **both**
+   `comb_mux_prob` **and** `case_mux_prob` miss. `casez_mux_if_focus_config` therefore forces
+   **both** to `0.0` and `casez_mux_prob = 0.9`. With a single zero the gate would
+   intermittently starve the `casez` roll and the `saw_casez_mux_if_emit` fact would flake.
+   (The bank confirms saturation: 12/12 modules emit a chain, 108 chains total.)
+
+2. **rustfmt 1.9.0 gotcha (cost a fmt-gate failure).** A standalone `//` comment that
+   *directly abuts* a run of trailing-`//` lines gets vertically aligned by rustfmt to the
+   trailing-comment column of the line above (here ~61 cols deep). This had silently landed
+   in the `.19b.2a` `metrics.rs` test — HEAD failed `cargo fmt --all --check`. **Fix: a single
+   blank line between the trailing-comment run and the standalone comment de-groups them.** No
+   toolchain pin in this repo, so a contributor on current stable will hit this; prefer a blank
+   line (or a trailing comment) over a standalone comment immediately after trailing-comment
+   lines.
+
 ## 2026-06-23 — CasezMux masked priority-chain surface — impl-time note — `STRUCTURED-EMISSION-EXPANSION.19b.1`
 
 Implemented exactly per the `.19a` design — **no deviations**. The two things worth

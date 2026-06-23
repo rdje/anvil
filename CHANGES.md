@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.2b — repo-owned `tool_matrix --casez-mux-if-gate`
+
+**Landed as:** this commit (previous: `3d944fd`, `STRUCTURED-EMISSION-EXPANSION.19b.2a`).
+A **code change** (touches `src/`), task-tree-owned by `.19b.2b` (the ninth-surface
+downstream gate). **Default-off ⇒ DUT byte-identical** (a new opt-in `tool_matrix` gate
+adds no generator output path; `tests/snapshots.rs` untouched).
+
+**What changed (why)**
+
+The ninth surface (the procedural `always_comb` `if`/`else if` **masked** priority-chain
+emit-projection of a wildcard `CasezMux`) went live at `.19b.1` and was metered at `.19b.2a`,
+but had no repo-owned downstream-clean gate proving it fires by construction AND is accepted
+warning-clean by the real tools. This slice adds that gate, templated 1:1 on the eighth
+surface's `--case-mux-if-gate` (`.17b.2b`).
+
+1. **`src/bin/tool_matrix.rs`** — the full `--casez-mux-if-gate` wiring (~30 touch points
+   mirroring `--case-mux-if-gate`): the `--casez-mux-if-gate` CLI flag +
+   `ScenarioSet::CasezMuxIfSweep` + `build_casez_mux_if_sweep_scenarios` (one comb-only DUT ×
+   3 construction strategies) + `casez_mux_if_focus_config` (node-id + e-graph,
+   `casez_mux_if_emit_prob = 1.0`, `casez_mux_prob = 0.9`, and **BOTH** `comb_mux_prob` **and**
+   `case_mux_prob` forced to `0.0` — both roll *before* `casez_mux` in `src/gen/cone.rs` and
+   short-circuit it, the eighth surface's single-zero trap generalized to a double-zero) +
+   **METRIC-KEYED** `ModuleReport.emitted_casez_mux_if`
+   (`= module_metrics.num_emitted_casez_mux_if_chains > 0`, **no new text token** — a marked
+   `CasezMux` is already an `always_comb`-written `logic` var, and a text scan would also match
+   the bare-equality `CaseMux` chain) + `CoverageSummary.saw_casez_mux_if_emit` + the merge +
+   `MatrixReport.casez_mux_if_gate` + run-plan units/`fail_on_coverage_gap`/mutual-exclusion
+   count+message + `select_scenario_set`/`build_scenarios` dispatch + the early-return gap arm +
+   the 3 exhaustive "unreachable" match arms + the 2 slug arms + the `test_cli` default + the 8
+   `ModuleReport` fixtures + 5 cargo-portable proofs (flag parse / set-select+units /
+   mutual-exclusion / knob-forcing / gap-requires-fact).
+
+2. **`src/metrics.rs`** (co-located hygiene) — a 1-line **pre-existing fmt drift** fix in the
+   `.19b.2a` `metrics_count_emitted_casez_mux_if_chains` test: a blank line now separates the
+   standalone `// [sel, …] — one wildcard arm.` comment from the preceding run of trailing-`//`
+   lines. rustfmt 1.9.0 was vertically aligning that standalone comment to the trailing-comment
+   column (~61 cols) — i.e. HEAD itself failed `cargo fmt --all --check`. The blank line
+   de-groups them, yielding clean output. Formatting only — no behaviour / no RTL change.
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean (the `.19b.2a` drift fixed).
+- `cargo test --bin tool_matrix` green incl. the 5 new `casez_mux_if_*` proofs; `cargo test
+  --lib casez_mux_if` 10/10 (the metrics test intact after the whitespace edit).
+- `cargo test --test snapshots` **6/6 byte-identical** (default-off ⇒ DUT byte-identical).
+- **Banked downstream-clean** `/tmp/anvil-casez-mux-if-gate-r1` (release `tool_matrix
+  --casez-mux-if-gate --yosys-mode both --iverilog-compile`): **3 scenarios / 12 modules / 12
+  emitting a chain / 108 chains / `coverage_gaps = []` / `saw_casez_mux_if_emit = true` / 12/0
+  Verilator + Yosys without-abc + Yosys with-abc + Icarus compile**.
+- `bash scripts/check_doctrines.sh` green (4 doctrines; code-scoped `CODE-CHANGE-EVIDENCE` +
+  `TASK-TREE-OWNERSHIP` satisfied — `CHANGES.md`/`MEMORY.md` + the owning task file co-staged).
+
+**Impact**
+
+Default-off / DUT byte-identical. The ninth structured surface is now proven downstream-clean by
+a repo-owned gate, exactly like the eight surfaces before it. `.19b.2` closes; frontier → `.19b.3`
+(the ninth-surface user docs: book section + knobs/USER_GUIDE/README + the deferred book
+example-JSON `1.16 → 1.17` refresh + a KM card), on whose completion `.19b`/`.19` close ⇒ the
+ninth surface is delivered end-to-end.
+
+**Files touched:** `src/bin/tool_matrix.rs`, `src/metrics.rs` (fmt), `CODEBASE_ANALYSIS.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.2a — casez-mux-if metric + introspection schema 1.17
 
-**Landed as:** this commit (previous: `61b8c8e`, `STRUCTURED-EMISSION-EXPANSION.19b.1`).
+**Landed as:** `3d944fd` (previous: `61b8c8e`, `STRUCTURED-EMISSION-EXPANSION.19b.1`).
 A **code change** (touches `src/`), task-tree-owned by `.19b` (the `.19b.2a` sub-slice).
 **Default-off ⇒ DUT byte-identical** (a post-hoc `Metrics` field changes no emitted RTL;
 `tests/snapshots.rs` untouched).

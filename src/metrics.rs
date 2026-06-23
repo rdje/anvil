@@ -3543,6 +3543,7 @@ mod tests {
         m.nodes.push(Node::PrimaryInput { port: 1, width: 4 }); // id 1 (a)
         m.nodes.push(Node::Constant { value: 0, width: 2 }); // id 2 (pattern)
         m.nodes.push(Node::Constant { value: 1, width: 2 }); // id 3 (wildcard mask 2'b01)
+
         // [sel, (value, mask, data)] — one wildcard arm.
         let (g, _) = m.intern_gate(GateOp::CasezMux, vec![0, 2, 3, 1], 4, DepSet::from_port(0));
         // Unmarked ⇒ zero.
