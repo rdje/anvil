@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — LIVE-DOC-HYGIENE-BACKFILL.2 — backfill SEMANTIC-INTROSPECTION task-tree logs
+
+**Landed as:** this commit (previous: `4092782`, `LIVE-DOC-HYGIENE-BACKFILL.1`).
+A **docs-only** change (task-tree files only), task-tree-owned by `.2`. **DUT
+byte-identical** (no `src/`). Closes the task-tree-integrity half of the hygiene tree —
+and the `LIVE-DOC-HYGIENE-BACKFILL` tree overall.
+
+**What changed (why)**
+
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` had two integrity gaps that accumulated
+across its query lane (flagged in the resume pointer, deliberately not bundled into the
+per-query slices to keep each leaf↔commit mapping clean): the `.8a`/`.8b.1`/`.8b.2` leaves
+(the `fsm_provenance` query) were never added to the Verification Log or Commit Log, and
+several completed leaves carried stale `pending`/`active` Status labels that disagreed
+with their own `done` Result. The task-tree logs are the session-recovery backbone, so a
+missing leaf↔commit row weakens continuity.
+
+1. **`.8*` log backfill** — the `.8a` (design-detail), `.8b.1` (pure core), and `.8b.2`
+   (surface) rows were reconstructed from each leaf's own recorded
+   `Result`/`Verification`/`Commit` fields + the real commit hashes from `git log`
+   (`cabe696` / `5499067` / `ce86560`) and inserted, chronologically, between the `.9a` and
+   `.7b.2` rows in **both** the Verification Log and the Commit Log. Each is marked
+   _(backfilled by `LIVE-DOC-HYGIENE-BACKFILL.2`)_ so the provenance of a late-added row is
+   explicit — no verification was fabricated, only re-recorded from the leaf bodies.
+2. **Stale Status corrections** — `.5b.2` (`pending → done`), `.9` (`active → done`), and
+   — caught in the consistency sweep, the same stale-completed-container error class —
+   `.9b` (`active → done`) and the `.3` frontier-table summary cell (`active → done`). After
+   the fix the file has **no leaf whose Status disagrees with its `done` Result**: the only
+   remaining `active` labels are the legitimately-open tree Metadata Status + the root
+   `SEMANTIC-INTROSPECTION-EXPANSION` node (the lane stays active at its no-frontier
+   boundary by design — further query kinds are open-ended breadth).
+3. **`LIVE-DOC-HYGIENE-BACKFILL` tree closed** — `.2` `done`; the tree's Metadata, root
+   node, Current Frontier, Decisions, Verification Log, Commit Log, and Changelog filled in;
+   the `docs/TASK_TREE.md` row flipped to `done`.
+
+**Validation**
+
+`grep "Status: \`pending\`"` on the tree file ⇒ none; the only `active` labels are the two
+legitimately-open ones; the `.8a`/`.8b.1`/`.8b.2` leaves now appear in both logs (3 each);
+`bash scripts/check_doctrines.sh` green (docs commit ⇒ the code-scoped checks are
+scope-exempt; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass). No `src/` touched ⇒ **DUT
+byte-identical**.
+
+**Impact**
+
+The `SEMANTIC-INTROSPECTION-EXPANSION` task file is now internally self-consistent and its
+leaf↔commit history is complete; the `LIVE-DOC-HYGIENE-BACKFILL` tree is closed. No
+behavioural / generated-RTL change. Back at a PNT decision point (no open frontier).
+
+**Files touched:** `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/tasks/LIVE-DOC-HYGIENE-BACKFILL.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — LIVE-DOC-HYGIENE-BACKFILL.1 — book schema chapter 1.14 → 1.22
 
 **Landed as:** this commit (previous: `e492f3e`, `SEMANTIC-INTROSPECTION-EXPANSION.10b.2`).

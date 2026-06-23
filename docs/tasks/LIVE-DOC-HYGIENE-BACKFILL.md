@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `LIVE-DOC-HYGIENE-BACKFILL`
-- Status: `active` (`.1` book schema-drift **done**; `.2` task-tree log-integrity backfill pending)
+- Status: `done` (`.1` book schema-drift + `.2` task-tree log-integrity backfill both **done**; tree closed `2026-06-24`)
 - Roadmap lane: `Workflow / live-doc + task-tree hygiene`
 - Created: `2026-06-24`
-- Last updated: `2026-06-24` (**`.1` landed** — `book/src/api-introspection.md` was stale at schema `1.14` [predating the `.15`–`.22` bumps]; rewritten to `1.22` with the nine `analyze` queries + the metric-count bumps enumerated and the canonical §7 changelog cross-linked; also fixed a `1.21 → 1.22` JSON example in `book/src/api-tools.md` that `SEMANTIC-INTROSPECTION-EXPANSION.10b.2` missed. mdBook builds. Docs-only ⇒ DUT byte-identical. Frontier → `.2`.)
+- Last updated: `2026-06-24` (**`.2` landed — tree closed.** `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`: the `.8a`/`.8b.1`/`.8b.2` rows backfilled into the Verification Log + Commit Log (with the real hashes `cabe696`/`5499067`/`ce86560`); the stale Status labels corrected — `.5b.2` `pending → done`, `.9` + `.9b` `active → done`, and the `.3` frontier-table cell `active → done`; the file now has no leaf whose Status disagrees with its `done` Result. Prior — **`.1` landed**: `book/src/api-introspection.md` rewritten from its stale schema `1.14` to `1.22` + a missed `1.21 → 1.22` example in `book/src/api-tools.md`. Docs-only ⇒ DUT byte-identical.)
 - Owner: repo-local workflow
 
 ## Goal
@@ -41,9 +41,10 @@ backbone, so a missing leaf↔commit row weakens continuity.
 ## Task Tree
 
 - ID: `LIVE-DOC-HYGIENE-BACKFILL`
-  Status: `active`
+  Status: `done`
   Goal: `Close the live-doc + task-tree drift flagged across the SEMANTIC-INTROSPECTION-EXPANSION lane (book schema chapter + task-tree log integrity), docs-only / DUT byte-identical.`
   Children: `LIVE-DOC-HYGIENE-BACKFILL.1`, `LIVE-DOC-HYGIENE-BACKFILL.2`
+  Result: `Done — both children done. .1 brought book/src/api-introspection.md from schema 1.14 to 1.22 (+ a missed example in api-tools.md); .2 backfilled the .8a/.8b.1/.8b.2 Verification/Commit-Log rows and corrected the stale .5b.2/.9/.9b/.3 Status labels in SEMANTIC-INTROSPECTION-EXPANSION.md. The book schema chapter is in sync and the SEMANTIC-INTROSPECTION-EXPANSION task file is internally self-consistent. Docs-only ⇒ DUT byte-identical.`
 
 - ID: `LIVE-DOC-HYGIENE-BACKFILL.1`
   Status: `done`
@@ -54,6 +55,60 @@ backbone, so a missing leaf↔commit row weakens continuity.
   Commit: `this LIVE-DOC-HYGIENE-BACKFILL.1 commit`
 
 - ID: `LIVE-DOC-HYGIENE-BACKFILL.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Task-tree log integrity in docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md: backfill the missing .8a/.8b.1/.8b.2 rows in the Verification Log + Commit Log (reconstructed from each leaf's recorded Result/Verification/Commit + CHANGES.md), and correct the stale leaf Status labels .5b.2 (pending → done) and .9 (active → done) so the file is internally consistent (Result/Verification/Commit already say done). Docs-only / DUT byte-identical; no other tree content changed.`
   Acceptance: `The .8a/.8b.1/.8b.2 leaves appear in both the Verification Log and the Commit Log of SEMANTIC-INTROSPECTION-EXPANSION.md; .5b.2 + .9 Status read done; a grep of that file shows no leaf whose Status disagrees with its Result; bash scripts/check_doctrines.sh green; committed through COMMIT.md.`
+  Result: `Done. docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md: the .8a/.8b.1/.8b.2 leaves were backfilled into both the Verification Log and the Commit Log (each row reconstructed from the leaf's own recorded Result/Verification/Commit fields + the real commit hashes cabe696/.8a, 5499067/.8b.1, ce86560/.8b.2 from git log, marked "(backfilled by LIVE-DOC-HYGIENE-BACKFILL.2)"), inserted chronologically between the .9a and .7b.2 rows. Stale Status labels corrected: the .5b.2 leaf (pending → done), the .9 leaf (active → done), and — caught in the sweep, same stale-completed-container error class — the .9b leaf (active → done) and the .3 frontier-table summary cell (active → done). After the fix the file has no leaf whose Status disagrees with its done Result: the only remaining "active" labels are the legitimately-open tree Metadata Status and the root SEMANTIC-INTROSPECTION-EXPANSION node (the lane is at a no-frontier boundary but stays active by design — further query kinds are open-ended breadth). No src/ touched ⇒ DUT byte-identical.`
+  Verification: `grep "Status: \`pending\`" docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md ⇒ none; the 3 remaining "Status: \`active\`" are the tree Metadata + the root node (both legitimate) + nothing stale; the .8a/.8b.1/.8b.2 leaves appear in both logs (3 each); bash scripts/check_doctrines.sh green (docs commit ⇒ code-scoped checks exempt). DUT byte-identical (no src/ touched).`
+  Commit: `this LIVE-DOC-HYGIENE-BACKFILL.2 commit`
+
+## Current Frontier
+
+**Tree complete (closed `2026-06-24`).** Both leaves done: `.1` (book schema chapter
+`1.14 → 1.22`) and `.2` (task-tree log integrity in `SEMANTIC-INTROSPECTION-EXPANSION.md`).
+No remaining frontier.
+
+| Order | Leaf | Status | Why |
+| --- | --- | --- | --- |
+| 1 | `LIVE-DOC-HYGIENE-BACKFILL.1` | `done` | Book schema chapter brought to `1.22`; mdBook builds; book schema-example sweep clean. |
+| 2 | `LIVE-DOC-HYGIENE-BACKFILL.2` | `done` | `.8*` log rows backfilled; stale `.5b.2`/`.9`/`.9b`/`.3` Status labels corrected; file self-consistent. |
+
+## Decisions
+
+- `2026-06-24`: Treat the accumulated `SEMANTIC-INTROSPECTION-EXPANSION` doc-drift (the
+  stale book schema chapter + the missing `.8*` log rows + the stale completed-container
+  Status labels) as a dedicated docs-only hygiene tree rather than bundling it into the
+  per-query slices — preserving each query slice's clean leaf↔commit mapping while still
+  closing the drift under task-tree ownership (the `LIVE-DOC-PATH-HYGIENE` precedent).
+- `2026-06-24`: When backfilling historical log rows, reconstruct each from the leaf's own
+  recorded `Result`/`Verification`/`Commit` fields + the real commit hash from `git log`,
+  and mark it `(backfilled by …)` so the provenance of a late-added row is explicit (never
+  fabricate a verification that was not run).
+
+## Open Questions
+
+- None.
+
+## Blockers
+
+- None.
+
+## Verification Log
+
+| Date | Leaf | Checks | Result |
+| --- | --- | --- | --- |
+| `2026-06-24` | `LIVE-DOC-HYGIENE-BACKFILL.2` | Backfilled the `.8a`/`.8b.1`/`.8b.2` rows into the Verification Log + Commit Log of `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` (reconstructed from the leaf bodies + hashes `cabe696`/`5499067`/`ce86560`); corrected the stale Status labels `.5b.2` (`pending → done`), `.9` + `.9b` (`active → done`), and the `.3` frontier-table cell (`active → done`). `grep` confirms no `pending` leaf remains and the only `active` labels are the legitimately-open tree Metadata + root node; the `.8*` leaves now appear in both logs (3 each). `bash scripts/check_doctrines.sh` green (docs commit ⇒ code-scoped checks exempt). DUT byte-identical (no `src/` touched). | `done` |
+| `2026-06-24` | `LIVE-DOC-HYGIENE-BACKFILL.1` | `book/src/api-introspection.md` rewritten from schema `1.14` to `1.22` (envelope example + field table + stability-contract section enumerating the nine `analyze` queries + the metric-count bumps + the canonical §7 cross-link); fixed a missed `1.21 → 1.22` example in `book/src/api-tools.md:165`. `book/src` schema-example sweep clean (all `1.22`); `mdbook build book` clean; `bash scripts/check_doctrines.sh` green. DUT byte-identical (no `src/` touched). | `done` |
+
+## Commit Log
+
+| Leaf | Commit subject or reference | Notes |
+| --- | --- | --- |
+| `LIVE-DOC-HYGIENE-BACKFILL.2` | `LIVE-DOC-HYGIENE-BACKFILL.2 — backfill SEMANTIC-INTROSPECTION task-tree logs` | `.8*` Verification/Commit-Log rows backfilled (hashes `cabe696`/`5499067`/`ce86560`); stale `.5b.2`/`.9`/`.9b`/`.3` Status labels corrected. Closes the tree. Docs-only ⇒ DUT byte-identical. |
+| `LIVE-DOC-HYGIENE-BACKFILL.1` | `LIVE-DOC-HYGIENE-BACKFILL.1 — book schema chapter 1.14 -> 1.22` (`4092782`) | `book/src/api-introspection.md` + a missed `api-tools.md` example brought to schema `1.22`; new tree registered. Docs-only ⇒ DUT byte-identical. |
+
+## Changelog
+
+- `2026-06-24`: Created the tree and landed `.1` (book schema chapter `1.14 → 1.22`).
+- `2026-06-24`: Landed `.2` (backfilled the `.8*` task-tree log rows + corrected the stale
+  `.5b.2`/`.9`/`.9b`/`.3` Status labels); tree closed.
