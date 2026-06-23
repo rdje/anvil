@@ -444,8 +444,19 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `build_cone` machinery, without recursing through its contents): `.7a` design-detail +
    `.7b.1` pure core + `.7b.2` surface (registry + `run_analyze` dispatch + `analyze_schema`
    enum + book/USER_GUIDE/schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
-   **No active frontier** — further derived-query kinds (incl. the FSM analog
-   `fsm_provenance`) remain open-ended breadth, not a blocker, none retired. Extends
+   `.8` **done** (`2026-06-23`) adds a **seventh** derived query, `fsm_provenance` —
+   per-generated-encoding-FSM **provenance** (each `Fsm`'s shape — `num_states`/`encoding`/
+   `state_width`/`sel_width`/`out_width`/`is_mealy` — + the support cone of its one generated
+   input, the transition-select cone `sel`; schema `1.20`), the **third** query beyond
+   decision `0011`'s four named kinds and the **second to open a documented opaque-leaf
+   boundary** — the `Node::FsmOut` sibling of `.7`'s `MemRead` (the prior queries terminate a
+   support cone at an `FsmOut`; this one reports what drives the FSM's `sel` input, reusing the
+   same `build_cone` machinery, without recursing through its registered state and without
+   surfacing the transition/output table values): `.8a` design-detail + `.8b.1` pure core +
+   `.8b.2` surface (registry + `run_analyze` dispatch + `analyze_schema` enum +
+   book/USER_GUIDE/schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
+   **No active frontier** — further derived-query kinds (a per-FSM reach; per-child-module
+   provenance) remain open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the

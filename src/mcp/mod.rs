@@ -187,7 +187,9 @@ impl McpServer {
                      design top via the instance graph; flop_dependencies = the \
                      register-to-register dependency graph; memory_provenance = \
                      per inferrable memory its shape + the support cone of each of \
-                     its read/write address, write-data, and write-enable ports) by \
+                     its read/write address, write-data, and write-enable ports; \
+                     fsm_provenance = per generated-encoding FSM its shape + the \
+                     support cone of its transition-select sel input) by \
                      pure traversal — relations, not behaviour. \
                      Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
@@ -352,7 +354,7 @@ impl McpServer {
                                             dump_config). Omit for defaults." },
                 "query": {
                     "type": "string",
-                    "enum": ["output_support", "input_reach", "flop_reset_provenance", "module_reachability", "flop_dependencies", "memory_provenance"],
+                    "enum": ["output_support", "input_reach", "flop_reset_provenance", "module_reachability", "flop_dependencies", "memory_provenance", "fsm_provenance"],
                     "description": "Derived-relation query kind. output_support (default): each \
                                     target's transitive combinational fan-in support cone. \
                                     input_reach: the dual fan-out — which outputs and flop D-cones \
@@ -365,7 +367,10 @@ impl McpServer {
                                     register predecessors/successors + a self-feedback flag). \
                                     memory_provenance: per inferrable memory its shape (addr/data \
                                     width, kind, single_port) + the support cone of each of its four \
-                                    driving ports (read/write address, write data, write enable). An \
+                                    driving ports (read/write address, write data, write enable). \
+                                    fsm_provenance: per generated-encoding FSM its shape (num_states, \
+                                    encoding, state_width, sel_width, out_width, is_mealy) + the \
+                                    support cone of its transition-select input sel. An \
                                     unknown kind is rejected with -32602."
                 },
                 "target": {
@@ -377,7 +382,8 @@ impl McpServer {
                                     flop_reset_provenance: \"flop:<id>\" (omit for every flop). \
                                     module_reachability: a module name (omit for every module). \
                                     flop_dependencies: \"flop:<id>\" (omit for every flop). \
-                                    memory_provenance: \"mem:<id>\" (omit for every memory). An \
+                                    memory_provenance: \"mem:<id>\" (omit for every memory). \
+                                    fsm_provenance: \"fsm:<id>\" (omit for every FSM). An \
                                     unknown target is rejected with -32602."
                 }
             },
@@ -507,12 +513,17 @@ impl McpServer {
                                     query=memory_provenance returns per inferrable memory its shape \
                                     (addr/data width, kind, single_port) plus the support cone of each \
                                     of its four driving ports (read address, write address, write data, \
-                                    write enable) — opening the boundary the opaque MemRead leaf hides. \
+                                    write enable) — opening the boundary the opaque MemRead leaf hides; \
+                                    query=fsm_provenance returns per generated-encoding FSM its shape \
+                                    (num_states, encoding, state_width, sel_width, out_width, is_mealy) \
+                                    plus the support cone of its transition-select input sel — opening \
+                                    the boundary the opaque FsmOut leaf hides. \
                                     target = an output port name or \"flop:<id>\" for output_support, a \
                                     source (input name / \"flop:<id>\" Q / \"<instance>.<port>\") for \
                                     input_reach, \"flop:<id>\" for flop_reset_provenance, a module \
                                     name for module_reachability, \"flop:<id>\" for flop_dependencies, \
-                                    or \"mem:<id>\" for memory_provenance (omit for all). \
+                                    \"mem:<id>\" for memory_provenance, or \"fsm:<id>\" for \
+                                    fsm_provenance (omit for all). \
                                     Unknown query/target -> -32602. Cached + exposed as \
                                     anvil://artifact/<run_id>/analysis/<query>.",
                     "inputSchema": analyze_schema,
@@ -972,6 +983,9 @@ impl McpServer {
                 introspect::analyze::QUERY_MEMORY_PROVENANCE => {
                     introspect::analyze::design_memory_provenance(&design, target)
                 }
+                introspect::analyze::QUERY_FSM_PROVENANCE => {
+                    introspect::analyze::design_fsm_provenance(&design, target)
+                }
                 _ => introspect::analyze::design_support_cones(&design, target),
             };
             let doc = introspect::design_document(seed, cfg, &design);
@@ -993,6 +1007,9 @@ impl McpServer {
                 }
                 introspect::analyze::QUERY_MEMORY_PROVENANCE => {
                     introspect::analyze::module_memory_provenance(&m, target)
+                }
+                introspect::analyze::QUERY_FSM_PROVENANCE => {
+                    introspect::analyze::module_fsm_provenance(&m, target)
                 }
                 _ => introspect::analyze::module_support_cones(&m, target),
             };
@@ -1019,6 +1036,7 @@ impl McpServer {
                 introspect::analyze::QUERY_MEMORY_PROVENANCE => {
                     analysis.memory_provenance.is_empty()
                 }
+                introspect::analyze::QUERY_FSM_PROVENANCE => analysis.fsm_provenance.is_empty(),
                 _ => analysis.results.is_empty(),
             };
             if empty {
@@ -2092,7 +2110,7 @@ mod tests {
         // A default comb DUT module ⇒ a coverage readout over its roll telemetry.
         let resp = call(&mut s, 1, "coverage", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["lane"], "dut");
         // The readout carries the per-knob + per-category rates and the three
         // construct histograms.
@@ -2150,7 +2168,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -2196,7 +2214,7 @@ mod tests {
             json!({ "seed": 7, "query": "input_reach" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["analysis"]["query"], "input_reach");
         // input_reach populates reach_results, not results.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2237,7 +2255,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_reset_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["analysis"]["query"], "flop_reset_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2287,7 +2305,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_dependencies" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["analysis"]["query"], "flop_dependencies");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2338,7 +2356,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "memory_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["analysis"]["query"], "memory_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2373,6 +2391,63 @@ mod tests {
             1,
             "analyze",
             json!({ "seed": 7, "config": cfg_json, "query": "memory_provenance", "target": "mem:99999" }),
+        );
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
+    }
+
+    #[test]
+    fn analyze_returns_fsm_provenance_and_caches_it() {
+        let mut s = McpServer::new();
+        // fsm_prob = 1.0 makes the DUT likely to carry a generated-encoding FSM; the
+        // routing + schema + caching assertions below hold regardless of FSM count.
+        let cfg = Config {
+            seed: 7,
+            fsm_prob: 1.0,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "config": cfg_json, "query": "fsm_provenance" }),
+        );
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.20");
+        assert_eq!(doc["analysis"]["query"], "fsm_provenance");
+        // The other queries' vecs are not populated by this kind.
+        assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
+        assert!(doc["analysis"].get("reach_results").is_none());
+        assert!(doc["analysis"].get("memory_provenance").is_none());
+        // Cached + served under the fsm_provenance query key.
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+        let read = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/analysis/fsm_provenance") }),
+            ))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let cached: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(cached["analysis"]["query"], "fsm_provenance");
+    }
+
+    #[test]
+    fn analyze_fsm_provenance_unknown_target_is_invalid_params() {
+        let mut s = McpServer::new();
+        // No DUT has FSM id 99999 ⇒ an unresolvable target ⇒ -32602.
+        let cfg = Config {
+            seed: 7,
+            fsm_prob: 1.0,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 7, "config": cfg_json, "query": "fsm_provenance", "target": "fsm:99999" }),
         );
         assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
     }
@@ -2464,7 +2539,7 @@ mod tests {
             json!({ "seed": 42, "config": cfg_json, "query": "module_reachability" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["artifact"]["kind"], "design");
         assert_eq!(doc["analysis"]["query"], "module_reachability");
         // module_reachability populates its own vec; the others are empty/omitted.
@@ -2673,7 +2748,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -2774,7 +2849,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -2829,7 +2904,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.19");
+        assert_eq!(doc["schema_version"], "1.20");
     }
 
     #[test]

@@ -1,6 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.8b.2 — fsm_provenance MCP surface + schema 1.20
+
+**Landed as:** this commit (previous: `5499067`, `SEMANTIC-INTROSPECTION-EXPANSION.8b.1`).
+A **code change** (`src/mcp/mod.rs` + `src/introspect/{analyze,mod}.rs` + docs/book/KM),
+task-tree-owned by `.8b.2`. **DUT byte-identical** (`tests/snapshots.rs` untouched). Closes
+`.8b`/`.8` ⇒ the **seventh** derived `analyze` query, `fsm_provenance`, is **delivered
+end-to-end** — the second query to open a documented opaque-leaf boundary (the `Node::FsmOut`
+sibling of `.7`'s `MemRead`).
+
+**What changed (why)**
+
+The `.8b.1` pure core landed `fsm_provenance` but left it out of the MCP registry/dispatch
+(the `.4b`/`.5b`/`.6b`/`.7b` precedent: registry + dispatch + schema bump land together so each
+commit is coherent). This slice wires the agent-facing surface and bumps the schema.
+
+1. **Registry + dispatch (one commit)** — `fsm_provenance` added to
+   `analyze::supported_query_kinds()` (`src/introspect/analyze.rs`); `run_analyze`
+   (`src/mcp/mod.rs`) branches by query kind (`module_fsm_provenance` / `design_fsm_provenance`
+   in both the module and design paths); the empty-result → `-32602` guard checks
+   `analysis.fsm_provenance` for this kind. The `analyze_schema` `query` enum + `target`
+   description (the `"fsm:<id>"` form), the `analyze` tool description (opening the opaque
+   `FsmOut` boundary), and the server `instructions` all cover the seventh kind.
+
+2. **Schema `1.19 → 1.20`** (`src/introspect/mod.rs`) — additive MINOR bump (the new query
+   kind + its parallel vec; `DerivedAnalysisDocument` envelope reused). 13 `"1.19" → "1.20"`
+   test assertions (3 introspect, 10 mcp) + 2 new MCP proofs
+   (`analyze_returns_fsm_provenance_and_caches_it` +
+   `analyze_fsm_provenance_unknown_target_is_invalid_params`).
+
+3. **Docs + KM** — schema-doc §6.7 (the seventh `fsm_provenance` payload + `FsmProvenance`,
+   "one of seven parallel result vecs") + the `1.19 → 1.20` changelog + "defines 1.20" / §7 /
+   checklist; `book/src/agent-mcp.md` (analyze tool row + a `fsm_provenance` worked example +
+   the resource line + every JSON envelope `1.19 → 1.20`) + `book/src/api-tools.md` (the query
+   enum/target list + `1.19 → 1.20`); `USER_GUIDE.md` (analyze description + the sv-version row
+   schema ref); `README.md` (`--introspect` schema `1.20` + the analyze sentence + the seventh
+   query); a new KM card `semantic-introspection-fsm-provenance` (+ cross-link from
+   `semantic-introspection-analyze-tool`, also refreshing its stale opaque-leaf "reserved future
+   kind" note now both memory and FSM provenance are delivered). `KNOWLEDGE_MAP.md` regenerated
+   (72 → 73 facts / 710 keys). `CODEBASE_ANALYSIS.md` (analyze.rs/mcp/schema-history blocks) +
+   `ROADMAP.md` lane status.
+
+**Validation**
+
+- `cargo test --lib` 663 passed / 0 failed / 2 ignored (incl. the 2 new mcp `fsm_provenance`
+  proofs + the 8 `.8b.1` core proofs).
+- `cargo test --test snapshots` 6/6 byte-identical (DUT `.sv` unchanged; `fsm_provenance`
+  omitted from the six prior documents).
+- `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples`
+  3/3.
+- KM regenerated (73 facts / 710 keys) + `check_knowledge_map.sh` in sync;
+  `scripts/check_doctrines.sh` green.
+- **End-to-end `anvil-mcp` stdio smoke:** `analyze {query:"fsm_provenance", seed:7,
+  fsm_prob:1.0}` → schema `1.20`, 1 FSM (fsm 0: `gray`, 3 states, `state_width` 2, `sel_width`
+  1, `out_width` 24, Moore; `sel_support` cone over input `sel`), `results:[]` +
+  `reach_results`/`memory_provenance` keys omitted; unknown `fsm:99999` → `-32602`.
+
+**Impact**
+
+- DUT byte-identical. The MCP `analyze` tool now answers **seven** derived queries
+  (`fsm_provenance` is the seventh). The lane returns to a no-frontier boundary (stays
+  `active`); further kinds (a per-FSM reach; per-child-module provenance) are open-ended
+  breadth.
+
+**Files touched**
+
+- `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+  `docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+  `USER_GUIDE.md`, `README.md`, `docs/knowledge/semantic-introspection-fsm-provenance.md`,
+  `docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`,
+  `CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+  `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.8b.1 — pure fsm_provenance core
 
 **Landed as:** this commit (previous: `cabe696`, `SEMANTIC-INTROSPECTION-EXPANSION.8a`).

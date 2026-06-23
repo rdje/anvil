@@ -312,7 +312,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
-| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.19`). The first **up-opt** now ships — see `--soft-union-slice-prob`. |
+| `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.20`). The first **up-opt** now ships — see `--soft-union-slice-prob`. |
 | `--profile`             | none     | Apply a curated knob preset *before* explicit flags: `arithmetic-heavy` / `deep-hierarchy` / `structured-emission-max` / `sv2023-upopts`. Explicit flags override the preset. See "Presets" below |
 | `--steer`               | none     | Bias construction-time coverage steering: repeatable `--steer <key>=<weight>` (knob name or category → a non-negative probability multiplier). Layers after `--profile`. See "Coverage steering" below |
 | `--function-emit-prob`  | 0.0      | Per-qualifying-gate probability of the `function automatic` emit-projection |
@@ -2192,7 +2192,11 @@ It exposes three MCP primitives:
   kind, single_port) plus the support cone of each of its four driving ports (read
   address, write address, write data, write enable) — opening the boundary the
   opaque memory-read leaf hides, with `target` a `"mem:<id>"` (omit for all
-  memories). Unknown
+  memories); `query = fsm_provenance` returns **per-generated-encoding-FSM
+  provenance** — each FSM's shape (num_states, encoding, state_width, sel_width,
+  out_width, is_mealy) plus the support cone of its one generated input, the
+  transition-select cone `sel` — opening the boundary the opaque FSM-output leaf
+  hides, with `target` a `"fsm:<id>"` (omit for all FSMs). Unknown
   query/target → `-32602`. Relations, not behaviour (no shadow simulator). `coverage_gaps` projects the already-computed `coverage_gaps` out
   of a recorded `tool_matrix_report.json` (inline `report` or `report_path`) so
   the agent can target *unexercised* surfaces — read-only, no recompute, no

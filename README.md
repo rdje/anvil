@@ -648,7 +648,7 @@ exercising adversarial axes that previously fired only by chance
   tools (no vendoring). CI-infra only ⇒ DUT byte-identical. See `USER_GUIDE.md`
   ("Use ANVIL in your CI") and `book/src/recipes.md`.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.19`) for a single-artifact run instead of SystemVerilog
+  (schema `1.20`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
   truth), with a content-addressed `run_id`. Since schema `1.12`
@@ -672,10 +672,14 @@ exercising adversarial axes that previously fired only by chance
   (`module_reachability`: which modules in a design are reachable via the instance
   graph), the per-module register-to-register dependency graph
   (`flop_dependencies`: each flop's direct register predecessors/successors +
-  self-feedback flag), and per-inferrable-memory port provenance
+  self-feedback flag), per-inferrable-memory port provenance
   (`memory_provenance`: each memory's shape + the support cone of its read/write
   address, write-data, and write-enable ports — opening the opaque-memory-read-leaf
-  boundary), schema `1.19`, unknown query/target ⇒
+  boundary), and per-generated-encoding-FSM provenance
+  (`fsm_provenance`: each FSM's shape — num_states/encoding/state_width/sel_width/
+  out_width/is_mealy — + the support cone of its transition-select `sel` input —
+  opening the opaque-FSM-output-leaf boundary, the sibling of `memory_provenance`),
+  schema `1.20`, unknown query/target ⇒
   `-32602`, `coverage` (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`) returns
   the DUT run's achieved-coverage readout — per-knob + per-category
   construction-time fire rates + gate/operand/depth histograms, the same

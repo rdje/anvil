@@ -1103,7 +1103,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.19"`
+│                     only the envelope metadata (`schema_version` `"1.20"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -1133,7 +1133,9 @@ src/
 │                     1.17→1.18 the fifth `flop_dependencies` analyze query
 │                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.6b.2`), and
 │                     1.18→1.19 the sixth `memory_provenance` analyze query
-│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.7b.2`);
+│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.7b.2`), and
+│                     1.19→1.20 the seventh `fsm_provenance` analyze query
+│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.8b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1362,7 +1364,11 @@ src/
 │                     `.5b.2` the `module_reachability` branch
 │                     (`module_module_reachability`/`design_module_reachability`,
 │                     schema `1.6 → 1.7`) beside
-│                     `output_support` (`{module,design}_support_cones`); the
+│                     `output_support` (`{module,design}_support_cones`), with
+│                     `.6b.2`/`.7b.2`/`.8b.2` adding the
+│                     `flop_dependencies`/`memory_provenance`/`fsm_provenance`
+│                     branches (`{module,design}_{flop_dependencies,memory_provenance,
+│                     fsm_provenance}`, schema → `1.20`); the
 │                     unknown-target test checks the result vec the query
 │                     populates. Unknown `query`/`target` ⇒ `-32602`
 │                     (JSON-RPC error, like `prompts/get`); the result is cached

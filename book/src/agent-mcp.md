@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -179,7 +179,7 @@ generate · introspect · analyze · coverage · dump_config · coverage_gaps ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics + the `coverage_readout`) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). `query` = `fsm_provenance`: per generated-encoding FSM its shape + the **support cone of its transition-select `sel` input** (*what drives this FSM's state machine?*). Relations, not behaviour. |
 | `coverage` | ✅ pure | Return the DUT `(seed, config)` run's **achieved-coverage readout** — per-knob **and** per-category empirical fire rates (`fires / attempts`) plus the gate-kind / operand-arity / depth histograms (for a hierarchy design, aggregated across child modules). The **read** half of [coverage steering](#coverage-steered-generation): read what was exercised, then steer the next run. SCHEMA-DERIVED from the metrics ANVIL already records — no new truth, no tool spawn. The same readout is also embedded in `introspect`'s `coverage_readout`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
@@ -246,7 +246,7 @@ anvil://audit/log              the append-only validate/minimize/hunt/divergence
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance / fsm_provenance)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -269,7 +269,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -317,7 +317,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -360,7 +360,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -410,7 +410,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },
@@ -460,7 +460,7 @@ registers to relate:
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -506,7 +506,7 @@ built by the same machinery `output_support` uses. The `target` is `"mem:<id>"`
 
 ```json
 {
-  "schema_version": "1.19",
+  "schema_version": "1.20",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -541,6 +541,64 @@ built by the same machinery `output_support` uses. The `target` is `"mem:<id>"`
 - Served as `anvil://artifact/<run_id>/analysis/memory_provenance`; an unknown or
   out-of-range `"mem:<id>"` → `-32602`. With `memory_prob` default-off (no memory),
   the array is empty.
+
+#### `fsm_provenance` — per-FSM provenance
+
+The seventh query kind, `fsm_provenance`, is the **direct sibling of
+`memory_provenance`** for the FSM motif. For each generated-encoding FSM it returns
+its structural shape (`num_states`, `encoding` — `binary` / `one_hot` / `gray` —
+`state_width`, `sel_width`, `out_width`, `is_mealy`) plus the support cone of its one
+generated input port, the transition-select cone `sel`. It is the query that **opens
+the boundary the opaque `FsmOut` leaf hides**: the other queries terminate a support
+cone at an FSM output; `fsm_provenance` instead reports what drives the FSM's `sel`
+input — without recursing through its registered state, and without surfacing the
+transition/output table *values* (that is state-machine behaviour, not a relation).
+The `sel` cone is a full `SupportCone` (target `"fsm:<id>.sel"`), built by the same
+machinery `output_support` uses. The `target` is `"fsm:<id>"` (omit for every FSM).
+Pair it with `fsm_prob` high so there is an FSM:
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "config": { "fsm_prob": 1.0 }, "query": "fsm_provenance" } }
+```
+
+```json
+{
+  "schema_version": "1.20",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "artifact": { "kind": "module", "top": "…" },
+  "analysis": {
+    "query": "fsm_provenance",
+    "fsm_provenance": [
+      {
+        "fsm": 0,
+        "num_states": 4,
+        "encoding": "one_hot",
+        "state_width": 4,
+        "sel_width": 1,
+        "out_width": 2,
+        "is_mealy": false,
+        "sel_support": { "target": "fsm:0.sel", "support_inputs": ["s"], "support_flops": [], "support_instance_outputs": [], "cone_nodes": 1, "cone_depth": 0 }
+      }
+    ]
+  }
+}
+```
+
+(shape illustrative: a 4-state one-hot Moore FSM whose `sel` is the input `s`; a
+`binary`/`gray` encoding would report `state_width` `ceil(log2 num_states)`, and a
+Mealy output decode would set `is_mealy: true`.)
+
+- The payload is a seventh `fsm_provenance` array (not `results` / `reach_results`
+  / `flop_provenance` / `module_reachability` / `flop_dependencies` /
+  `memory_provenance`), again `skip_serializing_if`, so the prior six replies stay
+  byte-identical across the `1.19 → 1.20` bump.
+- An FSM has exactly one generated input cone (`sel`) — its transition/output tables
+  are construction-time constants, so the query reports the FSM's shape, not its
+  behaviour.
+- Served as `anvil://artifact/<run_id>/analysis/fsm_provenance`; an unknown or
+  out-of-range `"fsm:<id>"` → `-32602`. With `fsm_prob` default-off (no FSM), the
+  array is empty.
 
 ### All three lanes, not just DUT
 

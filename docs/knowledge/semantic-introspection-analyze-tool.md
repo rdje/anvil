@@ -48,8 +48,9 @@ permanent ceiling).
   **register boundary** (recorded in `support_flops`, not recursed — the cone
   feeding its `D` is the separate `"flop:<id>"` target); a child-instance output
   **stops at the instance boundary**; a `Constant` is no support source; opaque
-  `MemRead`/`FsmOut` **terminate** the cone (counted, listed nowhere — surfacing
-  memory/FSM provenance is a reserved future query kind).
+  `MemRead`/`FsmOut` **terminate** the cone (counted, listed nowhere — the memory
+  and FSM sides of that boundary are surfaced by the separate `memory_provenance`
+  and `fsm_provenance` queries).
 - **Document:** a `DerivedAnalysisDocument` (`src/introspect/mod.rs`) reuses the
   introspection envelope (`RequestEcho` + content `run_id`, the artifact
   pointers) with an `analysis: DerivedAnalysis` payload instead of the structural
@@ -70,9 +71,11 @@ The dual fan-out query, `input_reach` (schema `1.5`), is
 `module_reachability` (schema `1.7`), is
 [[semantic-introspection-module-reachability]]; the register-to-register
 dependency graph, `flop_dependencies` (schema `1.18`), is
-[[semantic-introspection-flop-dependencies]]; and the per-inferrable-memory port
+[[semantic-introspection-flop-dependencies]]; the per-inferrable-memory port
 provenance, `memory_provenance` (schema `1.19`), is
-[[semantic-introspection-memory-provenance]].
+[[semantic-introspection-memory-provenance]]; and the per-generated-encoding-FSM
+provenance, `fsm_provenance` (schema `1.20`), is
+[[semantic-introspection-fsm-provenance]].
 
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].
