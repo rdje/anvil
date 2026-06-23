@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.16",
+  "schema_version": "1.17",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {

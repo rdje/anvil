@@ -583,6 +583,30 @@ with a matching `--kebab-case` CLI flag since
   `--config` JSON. The surface is proven downstream-clean by `tool_matrix
   --case-mux-if-gate` (**metric-keyed** detection — no new identifier token; see the
   matrix section below). Full walk-through: `book/src/structured-emission.md`.
+- `casez_mux_if_emit_prob` (the `--casez-mux-if-emit-prob` CLI flag, or `--config` JSON,
+  like `case_mux_if_emit_prob`; decision `0029`) is the **ninth richer-structured emission
+  surface** and the lane's **first masked priority chain** — it **generalizes the eighth
+  surface** from the bare-equality `CaseMux` to the wildcard `CasezMux`. Per qualifying
+  dynamic-selector `CasezMux` gate (a `GateOp::CasezMux` whose selector is not a constant,
+  with `>= 1` arm, not already marked by one of the eight sibling projections), it is the
+  probability the emitter re-expresses its parallel `always_comb casez (sel) … default` body
+  as a **masked** `if`/`else if` priority chain over the same operand refs
+  (`if ((sel & care_mask) == value_masked) g = arm_0; else if … else g = W'h0;`). The wildcard
+  forces the mask: each arm compares only its care bits (`care_mask = ~wildcard_mask`,
+  `value_masked = pattern & care_mask`). It is the `case_mux_if` parallel, but masked, and like
+  it **simpler** than the seventh surface — a `CasezMux` is already an `always_comb`-written
+  `logic` var, so it needs **no** `<wire>__cv` output var + passthrough; only the block body
+  swaps `casez…endcase` → masked `if…else if`. An **emit-time projection** (behaviour-preserving
+  by construction — one wildcard bit per arm + non-overlapping care patterns ⇒ masked priority ==
+  parallel `casez`; the trailing `else` covers the `default`) with its **own** knob, so the
+  shipped surfaces stay byte-identical. Constant-selector `CasezMux` (statically collapsed) and
+  the bare-equality `CaseMux` (owned by the eighth surface) are excluded. The nine emit-projections
+  are mutually exclusive on a gate (this pass runs **last**). Combinational only. `default = 0.0`
+  is byte-identical; the emitted count is surfaced as `num_emitted_casez_mux_if_chains` in
+  `--introspect` (schema `1.17`; exact because constant-selector `CasezMux` is excluded). Set it
+  via `--casez-mux-if-emit-prob` or a `--config` JSON. The surface is proven downstream-clean by
+  `tool_matrix --casez-mux-if-gate` (**metric-keyed** detection — no new identifier token; see the
+  matrix section below). Full walk-through: `book/src/structured-emission.md`.
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed
@@ -1143,6 +1167,23 @@ Useful options:
   `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
   chains / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both modes / Icarus
   compile 12/0).
+- `--casez-mux-if-gate` to run the repo-owned procedural `always_comb` `if`/`else if`
+  **masked priority-chain** emit gate (`STRUCTURED-EMISSION-EXPANSION.19b.2b`) and fail unless
+  the report proves the ninth richer-structured emission surface (the first masked priority
+  chain, decision `0029`) fires **by construction** and is downstream-accepted. It forces
+  `casez_mux_if_emit_prob = 1.0` over a comb-only single-module DUT across all three
+  construction strategies (a `casez_mux_prob`-biased focus config — `casez_mux_prob = 0.9` with
+  **both** `comb_mux_prob` and `case_mux_prob` zeroed, since both roll before `casez_mux` in the
+  cone builder and would otherwise pre-empt it), so every qualifying dynamic-selector `CasezMux`
+  is re-expressed as a masked `if`/`else if` chain over the same operand refs, and requires the
+  `saw_casez_mux_if_emit` fact. Detection is **metric-keyed** (`num_emitted_casez_mux_if_chains
+  > 0`) because this surface emits no new identifier token — a marked `CasezMux` is already an
+  `always_comb`-written `logic` var, so only its body swaps `casez…endcase` → masked
+  `if…else if`. Like a single-gate task, a procedural `always_comb if/else if` chain is
+  universally synthesizable, so the gate runs the full Verilator + both Yosys modes (+ Icarus
+  when `--iverilog-compile` is set) plan. Banked clean at `/tmp/anvil-casez-mux-if-gate-r1`
+  (3 scenarios / 12 modules / 12 emitting a chain / 108 chains / `coverage_gaps = []` /
+  Verilator 12/0 / Yosys 12/0 both modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

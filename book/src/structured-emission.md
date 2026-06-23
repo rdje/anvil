@@ -12,8 +12,9 @@ tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
 construction in a richer SystemVerilog surface — today a single-gate
 `function`, a `generate for` loop, a `task`, a whole-cone `function`, a
-multi-output `task`, a procedural `if`/`else`, and an `if`/`else if` priority
-chain, and later nested `generate` or an `interface` — so the
+multi-output `task`, a procedural `if`/`else`, an `if`/`else if` priority
+chain, and a masked `if`/`else if` priority chain, and later nested `generate`
+or an `interface` — so the
 tools have more legal structural variety to ingest,
 and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds
@@ -1061,3 +1062,133 @@ anvil --seed 1 --config base.json
 
 Flip `case_mux_if_emit_prob` back to `0.0` and the output is byte-identical to the default
 lane.
+
+## The ninth surface: a masked `if`/`else if` priority chain
+
+The ninth surface **generalizes the
+[eighth](#the-eighth-surface-a-procedural-ifelse-if-priority-chain)** from the bare-equality
+`CaseMux` to the **wildcard `CasezMux`**. Where the eighth re-expresses a `case (sel)` over
+distinct constant labels, the ninth re-expresses a `casez (sel)` over `?`-wildcard patterns. A
+`CasezMux` with a **dynamic** selector renders today as a parallel `always_comb casez (sel) …
+default` statement; the ninth surface re-expresses that same block's *body* as an `if`/`else if`
+**masked** priority chain — each arm a *masked* equality `(sel & care_mask) == value_masked`,
+falling through to the same `default`.
+
+The wildcard is what forces the mask: a `casez` arm `2'b0?` matches every selector whose high
+bit is `0`, regardless of the low (`?`) bit. A plain equality cannot express that, so each arm
+compares only its **care** bits: `care_mask = ~wildcard_mask` (the non-`?` bits) and
+`value_masked = pattern & care_mask`. Because anvil builds `casez` patterns with exactly one
+wildcard bit per arm and non-overlapping care patterns, at most one masked equality is ever true,
+so the masked chain selects the same arm as the parallel `casez` and the trailing `else` covers
+exactly the `default` — it is **behaviour-preserving by construction**.
+
+Like the eighth surface it is **simpler than the seventh**: a `CasezMux` is *already* an
+`always_comb`-written `logic` var, so it needs **no** `<wire>__cv` output var + passthrough. Only
+the `always_comb` *body* swaps `casez … endcase` → masked `if … else if`. It uses its **own**
+knob, [`casez_mux_if_emit_prob`](knobs.md#structured-emission) (default `0.0`), separate from
+`case_mux_if_emit_prob`, so the shipped surfaces stay byte-identical. A new
+[`num_emitted_casez_mux_if_chains`](agent-mcp.md) metric counts the chains it emits, bumping the
+introspection schema to `1.17`.
+
+### Before and after
+
+Here is a small combinational module with the knob **off** (the default). A 4-bit `CasezMux` over
+a two-bit dynamic selector renders as a parallel `always_comb casez`:
+
+```systemverilog
+    logic [3:0] casez_mux_0;
+
+    always_comb begin
+        casez (slice_0)
+            2'b0?: casez_mux_0 = 4'hd;
+            2'b1?: casez_mux_0 = 4'h9;
+            default: casez_mux_0 = 4'h0;
+        endcase
+    end
+```
+
+With `casez_mux_if_emit_prob = 1.0`, the *same* `CasezMux` is re-expressed as a masked `if`/`else
+if` priority chain writing the *same* `casez_mux_0` var — the parallel `casez`/`endcase` is
+suppressed, the `default` becomes the trailing `else`, and there is **no** `<wire>__cv` var:
+
+```systemverilog
+    logic [3:0] casez_mux_0;
+
+    always_comb begin
+        if ((slice_0 & 2'h2) == 2'h0) casez_mux_0 = 4'hd;
+        else if ((slice_0 & 2'h2) == 2'h2) casez_mux_0 = 4'h9;
+        else casez_mux_0 = 4'h0;
+    end
+```
+
+Each arm masks the selector to its **care** bits (here `2'h2` — the high bit; the low bit is the
+`?` wildcard) and compares against the masked pattern (`2'h0` for `2'b0?`, `2'h2` for `2'b1?`), in
+ascending arm order; the trailing `else` carries the former `default`. Only the block's *body*
+changed — the net `casez_mux_0`, its declaration, and every downstream consumer are unchanged.
+
+### What gets wrapped (and what doesn't)
+
+- **The candidate is a dynamic-selector `CasezMux`** (a `GateOp::CasezMux` gate whose selector
+  operand is *not* a constant, with at least one arm). A **constant-selector** `CasezMux` is
+  statically collapsed by the emitter to a continuous `assign` — it never emits an `always_comb`
+  block, so it is **not** a candidate (and excluding it keeps the chain count exact). The
+  bare-equality `CaseMux` is owned by the
+  [eighth surface](#the-eighth-surface-a-procedural-ifelse-if-priority-chain); it is **not**
+  re-claimed here.
+- **Minus any gate already marked by a sibling projection.** The pass runs **last** (after
+  `case_mux_if` and the seven earlier projections), so a gate is projected by **at most one** of
+  the nine surfaces.
+- **The body swaps in place; the net stays a net.** Like the eighth surface there is no new
+  declaration and no passthrough — the `CasezMux` is already an `always_comb`-written `logic`
+  var, so only its block body changes form. Minimal blast radius.
+- **Combinational only.** The masked chain reads only the selector + arm operand refs the `casez`
+  arm already reads and writes only the gate's own var — exactly the parallel `casez`'s
+  read/write set, so there is no cycle risk.
+- **No new IR node / no new computed truth.** The masked chain is a pure emit-time projection of
+  an existing `CasezMux`; the flat IR, validators, CSE keys, and the canonical module signature
+  are untouched.
+
+### How anvil proves it
+
+The same two-mechanism proof as the prior surfaces:
+
+- The [`num_emitted_casez_mux_if_chains`](agent-mcp.md) metric (a post-hoc count of
+  `Module.casez_mux_if_gates`) is surfaced in `--introspect` at schema `1.17`, so a sweep can
+  confirm the surface fired. It is **exact** — because constant-selector `CasezMux` is excluded,
+  the count never over-reports.
+- The repo-owned `tool_matrix --casez-mux-if-gate` forces `casez_mux_if_emit_prob = 1.0` over
+  `casez_mux_prob`-biased comb-only DUTs across all three construction strategies and requires the
+  `saw_casez_mux_if_emit` coverage fact. Detection here is **metric-keyed** rather than a text
+  scan: this surface emits **no new identifier token** (only the `always_comb` body changes form),
+  and an `if ((… & …) == …)` scan would also match the eighth surface's chain, so the gate keys on
+  the exact `num_emitted_casez_mux_if_chains` metric instead. The focus config zeros **both**
+  `comb_mux_prob` and `case_mux_prob` — both roll *before* `casez_mux` in the cone builder and
+  would otherwise pre-empt it. Banked clean (3 scenarios / 12 modules / 12 emitting a chain / 108
+  chains / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus). Across that bank the
+  masked chain adds **zero** new Verilator `-Wall` warnings versus the knob-off parallel `casez`.
+- Library tests pin the marking: a dynamic-selector `CasezMux` qualifies, a constant-selector
+  `CasezMux`, a plain `Mux`, and a bare `CaseMux` do not, a gate already marked by a sibling
+  projection is excluded, the prob-`0.0` path marks nothing (byte-identical), and a marked
+  `CasezMux` emits the masked chain while the unmarked default stays the parallel `casez`.
+
+The picked-ninth rationale (generalize the eighth's bare-equality chain to the wildcard
+`CasezMux`, chosen over the concise `sel ==? pattern` wildcard-equality form — which Yosys 0.64
+rejects in both repo modes — and nested/multi-level `generate` and `interface` / `modport`) is
+recorded in decision `0029`
+(`docs/decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md`).
+Nested/multi-level `generate` and `interface` / `modport` remain the recorded future surfaces.
+
+### Reproducing it
+
+<!-- book-test: skip — config-file edit + a forced-knob comb-only shape; not the default generator one-liner -->
+```bash
+anvil --seed 1 --dump-config > base.json
+# edit base.json: set "casez_mux_if_emit_prob": 1.0 (a small comb-only casez-mux shape
+# makes the masked chain easy to read: "flop_prob": 0.0, "constant_prob": 0.0,
+# "comb_mux_prob": 0.0, "case_mux_prob": 0.0, "casez_mux_prob": 1.0, "min_inputs": 3,
+# "max_inputs": 3, "min_outputs": 1, "max_outputs": 1, "min_width": 4, "max_width": 4,
+# "max_depth": 1, "min_mux_arms": 2, "max_mux_arms": 2)
+anvil --seed 1 --config base.json
+```
+
+Flip `casez_mux_if_emit_prob` back to `0.0` and the output is byte-identical to the default lane.

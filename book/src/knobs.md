@@ -733,6 +733,45 @@ instead of creating fresh logic.
   `tool_matrix --case-mux-if-gate` (Verilator + both Yosys modes + Icarus, **metric-keyed**
   `saw_case_mux_if_emit` — this surface emits no new identifier token). See
   [Structured Emission Surfaces](structured-emission.md) for the full walk-through.
+- `casez_mux_if_emit_prob` (the `--casez-mux-if-emit-prob` CLI flag, or `--config` JSON,
+  like `case_mux_if_emit_prob`; default `0.0` ⇒ byte-identical; validated `0.0..=1.0`) — the
+  **ninth richer-structured emission surface** (decision `0029`), and the lane's **first
+  masked priority chain**. It **generalizes the eighth surface** from the bare-equality
+  `CaseMux` to the wildcard `CasezMux`. Probability, per qualifying dynamic-selector
+  `CasezMux` gate (a `GateOp::CasezMux` whose selector operand is *not* a constant, with at
+  least one arm, not already marked by one of the eight sibling projections), that anvil
+  re-expresses its parallel `always_comb casez` body as a **masked** `if`/`else if` priority
+  chain over the same operand refs:
+
+  ```systemverilog
+  always_comb begin
+      if ((slice_0 & 2'h2) == 2'h0) casez_mux_0 = 4'hd;       // was: casez (slice_0)
+      else if ((slice_0 & 2'h2) == 2'h2) casez_mux_0 = 4'h9;  //          2'b0?: …; 2'b1?: …;
+      else casez_mux_0 = 4'h0;                                 //          default: …
+  end                                                          //      endcase
+  ```
+
+  The wildcard forces the mask: each arm compares only its **care** bits
+  (`care_mask = ~wildcard_mask`, `value_masked = pattern & care_mask`), since a `casez` arm
+  `2'b0?` ignores the `?` bit. Because anvil builds `casez` patterns with one wildcard bit per
+  arm and non-overlapping care patterns, at most one masked equality is true, so the chain
+  selects the same arm as the parallel `casez` and the trailing `else` covers exactly the
+  `default` — behaviour-preserving by construction. Like the eighth surface it is **simpler
+  than the seventh**: a `CasezMux` is *already* an `always_comb`-written `logic` var, so it
+  needs **no** `<wire>__cv` output var + passthrough — only the block *body* swaps `casez …
+  endcase` → masked `if … else if`. A **constant-selector** `CasezMux` (statically collapsed
+  to a continuous `assign`) and the bare-equality `CaseMux` (owned by the eighth surface) are
+  **not** candidates. It has its **own** knob so the shipped surfaces stay byte-identical
+  (reusing `case_mux_if_emit_prob` was rejected). The nine emit-projections (`function_emit` /
+  `generate_loop` / `task_emit` / `multi_output_task` / `cone_function` / `soft_union` /
+  `mux_if` / `case_mux_if` / `casez_mux_if`) are mutually exclusive on a gate — this pass runs
+  **last**. No new IR node / no new computed truth. Combinational only. `default = 0.0` ⇒
+  byte-identical. Surfaced via the `num_emitted_casez_mux_if_chains` metric in `--introspect`
+  (schema `1.17`; exact because constant-selector `CasezMux` is excluded). Proven
+  downstream-clean by the repo-owned `tool_matrix --casez-mux-if-gate` (Verilator + both Yosys
+  modes + Icarus, **metric-keyed** `saw_casez_mux_if_emit` — this surface emits no new
+  identifier token). See
+  [Structured Emission Surfaces](structured-emission.md) for the full walk-through.
 
 ### Hierarchy knobs (Phase 4+)
 

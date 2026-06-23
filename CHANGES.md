@@ -1,9 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.3 — ninth-surface user docs
+
+**Landed as:** this commit (previous: `925c103`, `STRUCTURED-EMISSION-EXPANSION.19b.2b`).
+A **docs-only** change (no `src/` / `tests/`), task-tree-owned by `.19b.3`. **DUT
+byte-identical** (no generator code touched). Closes `.19b` / `.19` ⇒ the **ninth structured
+emission surface is delivered end-to-end**.
+
+**What changed (why)**
+
+The ninth surface (the procedural `always_comb` `if`/`else if` **masked** priority-chain
+emit-projection of a wildcard `CasezMux`) was live (`.19b.1`), metered (`.19b.2a`), and gated
+(`.19b.2b`) — but the user-facing book / knobs / CLI docs and the Knowledge Map had no entry
+for it. The book is the project's only user-facing surface and must not drift; this slice closes
+that gap.
+
+1. **`book/src/structured-emission.md`** — a new `## The ninth surface: a masked if/else if
+   priority chain` section: a **byte-verified seed-1 before/after** (the parallel `casez
+   (slice_0)` `2'b0?`/`2'b1?` block vs the masked `if ((slice_0 & 2'h2) == 2'h0)` / `(== 2'h2)`
+   chain, captured verbatim from `anvil --seed 1 --config <casez-focused>` with/without the knob)
+   + What-gets-wrapped / How-anvil-proves-it / Reproducing-it subsections mirroring the eighth
+   surface, explaining the `care_mask = ~wildcard_mask` / `value_masked = pattern & care_mask`
+   idiom and the one-wildcard-bit-per-arm non-overlap that makes the masked chain
+   behaviour-preserving. The chapter-intro surface list gains "a masked `if`/`else if` priority
+   chain".
+
+2. **Book example-JSON `schema_version` `1.16 → 1.17`** — the 4 deferred current-output example
+   envelopes (`book/src/agent-mcp.md` ×1 + `book/src/api-tools.md` ×3) catch up to the schema the
+   `.19b.2a` metric bumped.
+
+3. **Knob + gate reference** — the `casez_mux_if_emit_prob` entry in `book/src/knobs.md` and
+   `USER_GUIDE.md`, a `--casez-mux-if-gate` matrix-gate entry in `USER_GUIDE.md`, and the README
+   "Current CLI truth" `casez_mux_if_emit_prob` knob para + `--casez-mux-if-gate` gate para — each
+   noting the masked form, the own-knob separation, schema `1.17`, the metric-keyed gate, and the
+   double-zero (`comb_mux_prob` + `case_mux_prob`) focus config.
+
+4. **Knowledge Map** — a new `docs/knowledge/casez-mux-if-emit.md` fact card (templated on
+   `case-mux-if-emit.md`, linking `[[case-mux-if-emit]]` +
+   `[[structured-emission-ninth-surface-casez-mux-masked-priority-chain]]`, with a `reverify`
+   command), and `KNOWLEDGE_MAP.md` regenerated (69 → 70 facts / 672 question keys).
+
+**Validation**
+
+- `mdbook build book` clean (HTML written, no warnings).
+- `cargo test --test book_examples` 3/3 green (`skip_sentinels_have_reasons` +
+  `harness_detects_a_broken_command` + `every_runnable_book_bash_block_succeeds`; the new
+  Reproducing-it bash block carries a `<!-- book-test: skip -->` sentinel with a reason).
+- `bash knowledge-map/scripts/check_knowledge_map.sh` OK (facts valid, ids unique, map in sync,
+  `casez-mux-if-emit` indexed).
+- The before/after example **byte-matches** real emitter output; `off == casez_mux_if_emit_prob
+  0.0` is byte-identical. (The `target/release/anvil` binary was stale — it lacked the `.19b.1`
+  `--casez-mux-if-emit-prob` flag — so it was rebuilt before the example was captured.)
+- `bash scripts/check_doctrines.sh` green (DOCS-ONLY ⇒ exempt from the code-scoped checks).
+
+**Impact**
+
+DOCS-ONLY / DUT byte-identical. The ninth structured surface is now documented end-to-end on the
+user-facing surface (book + knobs + USER_GUIDE + README + KM). `.19b.3` / `.19b` / `.19` close;
+**NINE structured surfaces delivered end-to-end.** The `STRUCTURED-EMISSION-EXPANSION` lane stays
+`active` at a no-frontier boundary — future surfaces (nested/multi-level `generate`,
+`interface`/`modport`) are the recorded `.20+` candidates, each picked on its own merits.
+
+**Files touched:** `book/src/structured-emission.md`, `book/src/knobs.md`, `book/src/agent-mcp.md`,
+`book/src/api-tools.md`, `USER_GUIDE.md`, `README.md`, `docs/knowledge/casez-mux-if-emit.md` (new),
+`KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`, `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`,
+`docs/TASK_TREE.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.2b — repo-owned `tool_matrix --casez-mux-if-gate`
 
-**Landed as:** this commit (previous: `3d944fd`, `STRUCTURED-EMISSION-EXPANSION.19b.2a`).
+**Landed as:** `925c103` (previous: `3d944fd`, `STRUCTURED-EMISSION-EXPANSION.19b.2a`).
 A **code change** (touches `src/`), task-tree-owned by `.19b.2b` (the ninth-surface
 downstream gate). **Default-off ⇒ DUT byte-identical** (a new opt-in `tool_matrix` gate
 adds no generator output path; `tests/snapshots.rs` untouched).

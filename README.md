@@ -1038,6 +1038,37 @@ exercising adversarial axes that previously fired only by chance
   repo-owned `tool_matrix --case-mux-if-gate` (**metric-keyed** `saw_case_mux_if_emit` —
   no new identifier token). Set it via `--case-mux-if-emit-prob` or `--config` JSON. See
   `book/src/structured-emission.md`.
+- `casez_mux_if_emit_prob` is a default-off knob (the `--casez-mux-if-emit-prob` CLI flag,
+  or `--config` JSON, like `case_mux_if_emit_prob`; `STRUCTURED-EMISSION-EXPANSION.19b`,
+  decision `0029`) — ANVIL's **ninth richer-structured emission surface** and its **first
+  masked priority chain**, a **generalization of the eighth surface** from the bare-equality
+  `CaseMux` to the wildcard `CasezMux`. Per *qualifying* dynamic-selector `CasezMux` gate (a
+  `GateOp::CasezMux` whose selector operand is **not** a `Node::Constant`, with `>= 1` arm,
+  not already marked by one of the eight sibling projections), it is the probability the
+  emitter re-expresses its parallel `always_comb casez (sel) … default` body as a **masked**
+  `if`/`else if` priority chain over the same operand refs (`if ((sel & SW'h{care}) ==
+  SW'h{val}) g = arm_0; else if … else g = W'h0;`) instead of the `casez … endcase`. The
+  wildcard forces the mask: each arm compares only its **care** bits (`care_mask =
+  ~wildcard_mask`, `value_masked = pattern & care_mask`, the established
+  `metrics.rs`/`compact.rs` idiom), since a `casez` arm `2'b0?` ignores the `?` bit.
+  Behaviour-preserving by construction (anvil builds `casez` patterns with one wildcard bit
+  per arm + non-overlapping care patterns ⇒ masked priority == parallel `casez`; the trailing
+  `else` covers exactly the `default`), rules-first. Like the eighth surface it needs **no**
+  `<wire>__cv` output var + passthrough — a `CasezMux` is already an `always_comb`-written
+  `logic` var, so only the block *body* swaps. A **constant-selector** `CasezMux` (statically
+  collapsed to a continuous `assign`) and the bare-equality `CaseMux` (owned by the eighth
+  surface) are excluded (nothing retired). It has its **own** knob (reusing
+  `case_mux_if_emit_prob` rejected). The nine emit-projections (`function_emit` /
+  `generate_loop` / `task_emit` / `multi_output_task` / `cone_function` / `soft_union` /
+  `mux_if` / `case_mux_if` / `casez_mux_if`) are mutually exclusive on a gate; this pass runs
+  **last**. The lowered masked-AND form ships because the concise `sel ==? pattern`
+  wildcard-equality form is rejected by Yosys `0.64` in both repo modes. Combinational only.
+  Default `0.0` ⇒ DUT byte-identical (`tests/snapshots.rs` untouched); the emitted-chain count
+  is surfaced as `num_emitted_casez_mux_if_chains` in `--introspect` (schema `1.17`; exact
+  because constant-selector `CasezMux` is excluded). Proven downstream-clean by the repo-owned
+  `tool_matrix --casez-mux-if-gate` (**metric-keyed** `saw_casez_mux_if_emit` — no new
+  identifier token). Set it via `--casez-mux-if-emit-prob` or `--config` JSON. See
+  `book/src/structured-emission.md`.
 - `tool_matrix --function-emit-gate` runs the repo-owned combinational
   `function automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`)
   and fails on coverage gaps unless the report proves the first
@@ -1180,6 +1211,31 @@ exercising adversarial axes that previously fired only by chance
   Separate from the per-gate/per-cone gates and `--mux-if-gate`; default
   `case_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in
   proof axis.
+- `tool_matrix --casez-mux-if-gate` runs the repo-owned procedural `always_comb`
+  `if`/`else if` **masked priority-chain** emit gate (`STRUCTURED-EMISSION-EXPANSION.19b.2b`)
+  and fails on coverage gaps unless the report proves the ninth richer-structured emission
+  surface (the first masked priority chain, decision `0029`) fires by construction and is
+  downstream-accepted. It forces `casez_mux_if_emit_prob = 1.0` over a comb-only
+  single-module DUT across all three construction strategies (a `casez_mux_prob`-biased focus
+  config — `casez_mux_prob = 0.9` with **both** `comb_mux_prob` and `case_mux_prob` zeroed,
+  since both roll before `casez_mux` in the cone builder and would otherwise short-circuit the
+  `casez`-mux roll; this is the eighth surface's single-zero generalized to a double-zero), so
+  every qualifying dynamic-selector `CasezMux` gate is re-expressed as a behaviour-preserving
+  masked `if`/`else if` priority chain (`(sel & care) == val`) over the same operand refs
+  (instead of the parallel `casez` statement), and requires the `saw_casez_mux_if_emit` fact.
+  Like the `--case-mux-if-gate` the detection is **metric-keyed** — this surface emits **no
+  new identifier token** (a marked `CasezMux` is already an `always_comb`-written `logic` var,
+  so only the body swaps `casez…endcase` → masked `if…else if`), and a text scan for `if ((…
+  & …) == …)` would also match the eighth surface's chain, so the report keys
+  `emitted_casez_mux_if` off the exact `num_emitted_casez_mux_if_chains` metric (`> 0`) rather
+  than a substring. Like a single-gate task (and unlike the `union soft` up-opt), a procedural
+  `always_comb if/else if` chain is universally synthesizable, so the gate runs the full
+  Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean
+  at `/tmp/anvil-casez-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 108
+  chains, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile). Separate from
+  the per-gate/per-cone gates, `--mux-if-gate`, and `--case-mux-if-gate`; default
+  `casez_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in proof
+  axis.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now
