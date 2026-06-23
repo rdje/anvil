@@ -1,6 +1,61 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — LIVE-DOC-DRIFT-FIX.1 — ROADMAP ninth-surface frontier + TOOLBOX schema/analyze currency
+
+**Landed as:** this commit (previous: `a5afa3b`, `LIVE-DOC-HYGIENE-BACKFILL.2`).
+A **docs-only** change, task-tree-owned by a new `LIVE-DOC-DRIFT-FIX` tree. **DUT
+byte-identical** (no `src/`). Closes residual live-doc drift surfaced during the
+session-bootstrap pass — drift the prior `LIVE-DOC-HYGIENE-BACKFILL` sweep did not reach
+(it scoped the mdBook schema chapter + the `SEMANTIC-INTROSPECTION-EXPANSION` task-tree
+logs, not the top-level ROADMAP/TOOLBOX docs).
+
+**What changed (why)**
+
+The bootstrap drift audit cross-checked the introspection schema and the structured-surface
+count across all top-level live docs against the actual code (`src/ir/casez_mux_if_emit.rs`
+present; `casez_mux_if_emit_prob` in `src/config.rs`; `.19a`→`.19b.3` all in `git log`;
+introspection schema `1.22`). `README.md`, `USER_GUIDE.md`, `docs/AGENT_INTROSPECTION_SCHEMA.md`,
+and the mdBook were all already current. Three stale spots remained, all pure-docs:
+
+1. **`ROADMAP.md` ninth-surface frontier** — the `STRUCTURED-EMISSION-EXPANSION` paragraph
+   still ended `Frontier → .19 (impl, pre-split .19a design-detail / .19b impl)` even though
+   the ninth structured surface (the wildcard `CasezMux` masked `if`/`else if` priority chain,
+   decision `0029`) is delivered end-to-end (`.19b.3` recorded in
+   `docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`). Replaced with the delivered-end-to-end
+   record (`.19a` design-detail + `.19b.1` live + `.19b.2a` metric @ schema `1.17` + `.19b.2b`
+   `tool_matrix --casez-mux-if-gate` banked clean `/tmp/anvil-casez-mux-if-gate-r1` + `.19b.3`
+   docs) and **"Nine structured surfaces delivered end-to-end; the lane returns to a
+   no-active-frontier boundary"**.
+2. **`TOOLBOX.md:36` current schema** — the `--introspect` row stated the current introspection
+   schema as `1.14`; corrected to `1.22`.
+3. **`TOOLBOX.md:37` analyze query list** — the MCP `analyze` row listed only 4 of the 9
+   delivered derived queries; extended to all nine (added `flop_dependencies`,
+   `memory_provenance`, `fsm_provenance`, `node_drivers`, `node_readers` with one-line
+   descriptions), matching `USER_GUIDE.md` / `README.md` / `docs/AGENT_INTROSPECTION_SCHEMA.md`.
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` green (4/4: `MEMORY-ARCH`, `KNOWLEDGE-MAP`,
+  `CODE-CHANGE-EVIDENCE`, `TASK-TREE-OWNERSHIP`); docs commit ⇒ code-scoped checks exempt.
+- Re-grep confirms no remaining present-tense `(schema 1.14)` in `TOOLBOX.md`, no remaining
+  `Frontier → .19` in `ROADMAP.md`, and the nine-query `analyze` list in `TOOLBOX.md`.
+- No `src/` touched ⇒ DUT byte-identical (cargo suites unaffected; `cargo check --all-targets`
+  was green at the session-bootstrap baseline).
+
+**Impact**
+
+ROADMAP/codebase/mdBook are realigned with no remaining schema/surface-count/frontier drift in
+the audited neighborhood. No user-visible behaviour change.
+
+**Files touched**
+
+- `ROADMAP.md` (ninth-surface paragraph)
+- `TOOLBOX.md` (current schema + analyze query table)
+- `docs/tasks/LIVE-DOC-DRIFT-FIX.md` (new tree)
+- `docs/TASK_TREE.md` (index row)
+- `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-24 — LIVE-DOC-HYGIENE-BACKFILL.2 — backfill SEMANTIC-INTROSPECTION task-tree logs
 
 **Landed as:** this commit (previous: `4092782`, `LIVE-DOC-HYGIENE-BACKFILL.1`).

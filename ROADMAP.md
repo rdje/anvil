@@ -406,7 +406,15 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    (128/128 disjoint + 128/128 a hand-built overlapping-priority probe). Own
    `casez_mux_if_emit_prob` knob + `num_emitted_casez_mux_if_chains` metric (schema
    `1.16 → 1.17` at impl) + metric-keyed `--casez-mux-if-gate` / `saw_casez_mux_if_emit`.
-   Frontier → `.19` (impl, pre-split `.19a` design-detail / `.19b` impl); nested/multi-level
+   The **ninth surface is now delivered end-to-end** (`2026-06-23`): `.19a` design-detail +
+   `.19b.1` live (`src/ir/casez_mux_if_emit.rs` + `Module.casez_mux_if_gates` + the
+   `emit/sv.rs` `casez…endcase → masked if/else if` body branch, no `__cv`) + `.19b.2a`
+   metric `num_emitted_casez_mux_if_chains` @ introspection schema `1.17` + `.19b.2b`
+   repo-owned `tool_matrix --casez-mux-if-gate` / metric-keyed `saw_casez_mux_if_emit`
+   (banked clean `/tmp/anvil-casez-mux-if-gate-r1`: 3 scenarios / 12 modules / 108 chains /
+   `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus) + `.19b.3` user docs.
+   Default-off / DUT byte-identical throughout. **Nine structured surfaces delivered
+   end-to-end**; the lane returns to a **no-active-frontier boundary**. nested/multi-level
    `generate` and `interface`/`modport` remain the future vetted surfaces (`.20`+), each with
    its own decision; the tree stays `active`. Serves ROADMAP steering gap 1
    (richer structured emission). Nothing retired.
