@@ -182,6 +182,27 @@ pub const QUERY_FSM_PROVENANCE: &str = "fsm_provenance";
 /// future sibling.
 pub const QUERY_NODE_DRIVERS: &str = "node_drivers";
 
+/// The query-kind string for the ninth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.10`): per-node **immediate (1-hop) reader
+/// adjacency** — the **exact transpose of [`QUERY_NODE_DRIVERS`]**. For each [`Node`]
+/// it reports the node's kind, bit width, gate `op` (for a [`Node::Gate`]), and the
+/// list of nodes that list it as a direct operand — its immediate **readers** — each a
+/// [`NodeRef`], in ascending reader node-id order. Where `node_drivers` walks operand
+/// edges **forward** (*"what drives this node?"*), `node_readers` inverts the same edge
+/// set (*"which nodes read this node?"*), so the two satisfy the provable duality
+/// `B ∈ node_drivers(A) ⇔ A ∈ node_readers(B)` (they cannot drift — the node-level
+/// analog of [`QUERY_INPUT_REACH`] ↔ [`QUERY_OUTPUT_SUPPORT`], restricted to the
+/// node-operand relation). With both queries an agent walks the construction DAG in
+/// **either direction** one hop at a time. `node_readers` reports **only node-to-node
+/// operand fan-out**: a node that drives a module output port or a flop `D` — but is no
+/// gate's operand — has an empty `readers` (output-port / flop-`D` drives are not
+/// operand edges), exactly symmetric with `node_drivers` reporting only operand fan-in.
+/// The fifth query beyond decision `0011`'s four named kinds (the lane's "open-ended
+/// breadth" clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_node_readers`] / [`design_node_readers`], dispatched by the MCP `analyze`
+/// tool (`.10b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_NODE_READERS: &str = "node_readers";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -263,6 +284,12 @@ pub struct DerivedAnalysis {
     /// this is a `node_drivers` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub node_drivers: Vec<NodeDrivers>,
+    /// The [`QUERY_NODE_READERS`] payload: one [`NodeReaders`] per IR node — the exact
+    /// transpose of `node_drivers`. A **ninth** parallel vec, same rationale as the
+    /// prior seven: `skip_serializing_if` keeps the eight prior query documents
+    /// byte-identical (the key is omitted unless this is a `node_readers` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_readers: Vec<NodeReaders>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -551,6 +578,47 @@ pub struct NodeRef {
     pub name: String,
 }
 
+/// One IR node's **immediate (1-hop) reader adjacency** — the [`QUERY_NODE_READERS`]
+/// payload, the **exact transpose of [`NodeDrivers`]**. A pure projection of
+/// [`Module::nodes`](Module): the subject node's kind, bit width, gate `op` (for a
+/// [`Node::Gate`]), and the list of nodes that list it as a direct operand — its
+/// immediate **readers** — each a [`NodeRef`]. Where a [`NodeDrivers`] reports a node's
+/// fan-**in** (its operands), this reports its fan-**out** (its consumers), so by
+/// construction `B ∈ node_drivers(A).drivers` ⇔ `A ∈ node_readers(B).readers`.
+///
+/// `node`/`kind`/`op`/`width` describe the **subject** node (mirroring [`NodeDrivers`]
+/// field-for-field, so the two documents are visually symmetric). `readers` are kept in
+/// **ascending reader node-id order — sorted and deduplicated** (unlike [`NodeDrivers`],
+/// whose `drivers` are in operand order): a node's readers are a *set* with no inherent
+/// order, and a reader that lists the subject as an operand more than once (e.g. `x & x`)
+/// appears **exactly once**. Readers are always [`Node::Gate`]s (only a gate has
+/// operands), so each reader's [`NodeRef`] has `kind = "gate"` and `name = "node:<id>"`
+/// (an interior gate has no external handle), resolved through the **same** [`node_ref_of`]
+/// helper `node_drivers` uses (full-factorization).
+///
+/// **Boundary (deliberate, symmetric with `node_drivers`):** only node-to-node operand
+/// fan-out is reported. A node that drives a module output port or a flop `D` — but is no
+/// gate's operand — has an **empty `readers`** (those are not operand edges); use
+/// [`QUERY_INPUT_REACH`] for the cone-level fan-out to outputs / flop-D cones.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeReaders {
+    /// The subject node id (its index in [`Module::nodes`](Module); addressed
+    /// `"node:<id>"`, the entity this entry is about).
+    pub node: u32,
+    /// The subject node's kind (same vocabulary as [`NodeDrivers::kind`]).
+    pub kind: String,
+    /// For a [`Node::Gate`] subject, its [`GateOp`] as a stable string; omitted (`None`)
+    /// for every leaf node (the [`NodeDrivers::op`] convention).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub op: Option<String>,
+    /// The subject node's bit width ([`Node::width`]).
+    pub width: u32,
+    /// The node's **immediate** readers — the nodes that list this node as a direct
+    /// operand — as [`NodeRef`]s in **ascending node-id order** (sorted, deduplicated);
+    /// empty for a node no gate reads.
+    pub readers: Vec<NodeRef>,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -579,6 +647,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -617,6 +686,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -651,6 +721,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -727,6 +798,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -761,6 +833,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -797,6 +870,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -876,6 +950,7 @@ fn flop_dependencies_with(
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -912,6 +987,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -978,6 +1054,7 @@ fn memory_provenance_with(
         memory_provenance,
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -1015,6 +1092,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1078,6 +1156,7 @@ fn fsm_provenance_with(
         memory_provenance: Vec::new(),
         fsm_provenance,
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -1114,6 +1193,7 @@ pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnal
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
+            node_readers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1178,6 +1258,126 @@ fn node_drivers_with(
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers,
+        node_readers: Vec::new(),
+    }
+}
+
+/// Compute the `node_readers` analysis for a single [`Module`]: per-node immediate
+/// (1-hop) reader adjacency (each node's kind, width, gate `op`, and the [`NodeRef`]s of
+/// the nodes that read it, in ascending node-id order) — the exact transpose of
+/// [`module_node_drivers`].
+///
+/// `target = None` ⇒ one [`NodeReaders`] per node in [`Module::nodes`](Module), in
+/// ascending node-id (= index) order — the whole node-level fan-out adjacency.
+/// `target = Some("node:<id>")` ⇒ that one node's entry (a node **no gate reads** yields a
+/// known-but-empty `readers`, not an error); any other string, or an out-of-range id
+/// (`id >= nodes.len()`), ⇒ no result (→ `-32602` at the MCP layer). Instance-output
+/// operand handles are named `"<instance>.port<id>"` here; use [`design_node_readers`]
+/// for fully-resolved child port names.
+pub fn module_node_readers(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    node_readers_with(m, target, &fmt)
+}
+
+/// Compute the `node_readers` analysis for the **top** module of a [`Design`], resolving
+/// each instance-output operand handle to its `"<instance>.<child-output-port-name>"`
+/// form. Returns an empty analysis when the named top module is absent. (Per-child-module
+/// node readers are a future extension; like the other gate-graph queries this operates on
+/// the top module.)
+pub fn design_node_readers(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return DerivedAnalysis {
+            query: QUERY_NODE_READERS.to_string(),
+            results: Vec::new(),
+            reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
+            node_readers: Vec::new(),
+        };
+    };
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    node_readers_with(top, target, &fmt)
+}
+
+/// Shared driver for [`module_node_readers`] / [`design_node_readers`]: build the reader
+/// index by **transposing the operand relation** (one pass over `m.nodes` — for each
+/// [`Node::Gate`], record it as a reader of each of its operands), then emit the requested
+/// [`NodeReaders`]. The transpose of [`node_drivers_with`]; the
+/// `BTreeMap<u32, BTreeSet<u32>>` keeps every node's readers sorted + deduplicated +
+/// deterministic for free (the `x & x` double-operand case collapses to one reader). Pure:
+/// reads `m.nodes` only, no IR/generator change.
+fn node_readers_with(
+    m: &Module,
+    target: Option<&str>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> DerivedAnalysis {
+    // Transpose the operand relation: index[o] = the gate ids that list node o as a direct
+    // operand. The BTreeSet dedups a reader that reads the subject twice (e.g. `x & x`) and
+    // keeps readers ascending + deterministic.
+    let mut index: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    for (rid, node) in m.nodes.iter().enumerate() {
+        if let Node::Gate { operands, .. } = node {
+            for &o in operands {
+                index.entry(o).or_default().insert(rid as u32);
+            }
+        }
+    }
+
+    let make = |id: usize, node: &Node| -> NodeReaders {
+        let op = match node {
+            Node::Gate { op, .. } => Some(gate_op_str(op).to_string()),
+            _ => None,
+        };
+        let reader_refs = index
+            .get(&(id as u32))
+            .into_iter()
+            .flatten()
+            .map(|&r| node_ref_of(m, r, fmt))
+            .collect();
+        NodeReaders {
+            node: id as u32,
+            kind: node_kind_str(node).to_string(),
+            op,
+            width: node.width(),
+            readers: reader_refs,
+        }
+    };
+
+    let mut node_readers = Vec::new();
+    match target {
+        None => {
+            for (id, node) in m.nodes.iter().enumerate() {
+                node_readers.push(make(id, node));
+            }
+        }
+        Some(t) => {
+            // Only the `"node:<id>"` form is a valid target; anything else (or an
+            // out-of-range id) ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t
+                .strip_prefix("node:")
+                .and_then(|r| r.parse::<usize>().ok())
+            {
+                if let Some(node) = m.nodes.get(id) {
+                    node_readers.push(make(id, node));
+                }
+            }
+        }
+    }
+    DerivedAnalysis {
+        query: QUERY_NODE_READERS.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
+        node_readers,
     }
 }
 
@@ -1307,6 +1507,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -1373,6 +1574,7 @@ fn support_cones_with(
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -1446,6 +1648,7 @@ fn input_reach_with(
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
+        node_readers: Vec::new(),
     }
 }
 
@@ -3739,5 +3942,287 @@ mod tests {
             modules: vec![],
         };
         assert!(design_node_drivers(&ghost, None).node_drivers.is_empty());
+    }
+
+    // ---- node_readers (`SEMANTIC-INTROSPECTION-EXPANSION.10`) -------------------
+
+    /// The defining proof: `node_readers` is the **exact transpose** of `node_drivers` —
+    /// for every pair, `B ∈ node_drivers(A).drivers` ⇔ `A ∈ node_readers(B).readers`.
+    /// Also: a node read by several gates lists its readers ascending; a gate that only
+    /// drives an output (no gate reads it) has empty `readers` (the operand-only boundary);
+    /// the subject node's `kind`/`op`/`width` mirror `node_drivers`.
+    #[test]
+    fn node_readers_is_the_exact_transpose_of_node_drivers() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.inputs.push(port(2, "c", 8, Direction::In));
+        m.outputs.push(port(3, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = b
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 2 = c
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a & b
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![3, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 4 = (a&b) | c   — drives output y
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![3, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 5 = (a&b) ^ c   — read by nothing
+        m.drives.push((3, 4));
+
+        let nr = module_node_readers(&m, None);
+        assert_eq!(nr.query, QUERY_NODE_READERS);
+        assert_eq!(nr.node_readers.len(), 6); // one per node
+        for (i, x) in nr.node_readers.iter().enumerate() {
+            assert_eq!(x.node, i as u32); // ascending id == index
+        }
+
+        // node 3 = And(a,b): subject fields mirror node_drivers; read by 4 (Or) and 5
+        // (Xor), ascending. Each reader is a gate addressed "node:<id>".
+        let n3 = &nr.node_readers[3];
+        assert_eq!(n3.kind, "gate");
+        assert_eq!(n3.op.as_deref(), Some("and"));
+        assert_eq!(n3.width, 8);
+        assert_eq!(
+            n3.readers
+                .iter()
+                .map(|r| (r.node, r.kind.as_str(), r.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(4, "gate", "node:4"), (5, "gate", "node:5")]
+        );
+
+        // node 4 drives the output but no gate reads it ⇒ empty readers (the boundary).
+        assert!(nr.node_readers[4].readers.is_empty());
+        // node 2 = c is read by both 4 and 5.
+        assert_eq!(
+            nr.node_readers[2]
+                .readers
+                .iter()
+                .map(|r| r.node)
+                .collect::<Vec<_>>(),
+            vec![4, 5]
+        );
+
+        // The transpose invariant, both directions.
+        let nd = module_node_drivers(&m, None).node_drivers;
+        let nr_v = &nr.node_readers;
+        for a in &nd {
+            for dref in &a.drivers {
+                assert!(
+                    nr_v[dref.node as usize]
+                        .readers
+                        .iter()
+                        .any(|r| r.node == a.node),
+                    "node {} drives {} but {} not in readers({})",
+                    a.node,
+                    dref.node,
+                    a.node,
+                    dref.node
+                );
+            }
+        }
+        for b in nr_v {
+            for rref in &b.readers {
+                assert!(
+                    nd[rref.node as usize]
+                        .drivers
+                        .iter()
+                        .any(|d| d.node == b.node),
+                    "node {} reads {} but {} not in drivers({})",
+                    rref.node,
+                    b.node,
+                    b.node,
+                    rref.node
+                );
+            }
+        }
+
+        // Deterministic.
+        assert_eq!(nr, module_node_readers(&m, None));
+    }
+
+    /// A gate reading the same node twice (`x & x`, operands `[0, 0]`) lists that node as a
+    /// reader **once** (deduped — `readers` is a set of reader nodes), while
+    /// `node_drivers` keeps both operand slots.
+    #[test]
+    fn node_readers_dedups_a_double_operand_reader() {
+        let mut m = Module {
+            name: "dup".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.outputs.push(port(1, "y", 4, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // 0 = a
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 0], // a & a
+            width: 4,
+            deps: crate::ir::DepSet::new(),
+        }); // 1
+        m.drives.push((1, 1));
+
+        // node 0's readers: gate 1, exactly once.
+        let readers0 = &module_node_readers(&m, Some("node:0")).node_readers[0].readers;
+        assert_eq!(readers0.iter().map(|r| r.node).collect::<Vec<_>>(), vec![1]);
+        // …whereas node_drivers keeps both operand slots.
+        assert_eq!(
+            module_node_drivers(&m, Some("node:1")).node_drivers[0]
+                .drivers
+                .len(),
+            2
+        );
+    }
+
+    /// `"node:<id>"` resolves to exactly one entry (even a node with no readers —
+    /// known-but-empty); an out-of-range id or a malformed target ⇒ no entry
+    /// (→ `-32602` at the MCP layer).
+    #[test]
+    fn node_readers_target_and_unknown() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.outputs.push(port(1, "y", 4, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // 0 — read by gate 1
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 4,
+            deps: crate::ir::DepSet::new(),
+        }); // 1 — drives output, no reader
+        m.drives.push((1, 1));
+
+        // Resolvable target with no readers ⇒ one known-but-empty entry (NOT an error).
+        let one = module_node_readers(&m, Some("node:1"));
+        assert_eq!(one.node_readers.len(), 1);
+        assert_eq!(one.node_readers[0].node, 1);
+        assert!(one.node_readers[0].readers.is_empty());
+
+        // Out-of-range id, and malformed / wrong-vocabulary targets ⇒ none.
+        for bad in ["node:99", "node:nope", "node:", "flop:0", "y", "0"] {
+            assert!(
+                module_node_readers(&m, Some(bad)).node_readers.is_empty(),
+                "target {bad:?} should resolve to no entry"
+            );
+        }
+    }
+
+    /// The `node_readers` document omits the other eight query vecs (and a leaf entry with
+    /// no readers omits `op`); `output_support` / `node_drivers` omit `node_readers` ⇒
+    /// prior documents byte-identical.
+    #[test]
+    fn node_readers_document_omits_the_other_query_vecs() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        let v = serde_json::to_value(module_node_readers(&m, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("node_readers"));
+        assert!(obj.get("node_drivers").is_none());
+        assert!(obj.get("reach_results").is_none());
+        assert!(obj.get("flop_provenance").is_none());
+        assert!(obj.get("module_reachability").is_none());
+        assert!(obj.get("flop_dependencies").is_none());
+        assert!(obj.get("memory_provenance").is_none());
+        assert!(obj.get("fsm_provenance").is_none());
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+                                                                 // The lone leaf node (no readers) omits the `op` key.
+        assert!(v["node_readers"][0]
+            .as_object()
+            .unwrap()
+            .get("op")
+            .is_none());
+
+        // The prior documents omit `node_readers`.
+        let sup = serde_json::to_value(module_support_cones(&m, None)).unwrap();
+        assert!(sup.as_object().unwrap().get("node_readers").is_none());
+        let drv = serde_json::to_value(module_node_drivers(&m, None)).unwrap();
+        assert!(drv.as_object().unwrap().get("node_readers").is_none());
+    }
+
+    /// The design variant runs on the top module: an `InstanceOutput` subject node lists
+    /// the gate that reads it (a reader is always a gate ⇒ `"node:<id>"`); an absent top ⇒
+    /// an empty analysis.
+    #[test]
+    fn design_node_readers_top_module_and_absent_top() {
+        let mut child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 1, Direction::In));
+        child.outputs.push(port(1, "o", 1, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        child.drives.push((1, 0));
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 1, Direction::In));
+        top.outputs.push(port(1, "y", 1, Direction::Out));
+        top.instances.push(Instance {
+            id: 0,
+            name: "u0".into(),
+            module: "child".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![],
+            param_bindings: vec![],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 1,
+        }); // 0 = u0.o
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 1 = a
+        top.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![1, 0], // a ^ u0.o
+            width: 1,
+            deps: crate::ir::DepSet::new(),
+        }); // 2
+        top.drives.push((1, 2));
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let nr = design_node_readers(&design, None).node_readers;
+        // node 0 = u0.o (an instance_output) is read by the xor gate (node 2).
+        assert_eq!(nr[0].kind, "instance_output");
+        assert_eq!(
+            nr[0]
+                .readers
+                .iter()
+                .map(|r| (r.node, r.kind.as_str(), r.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(2, "gate", "node:2")]
+        );
+        // node 2 (the xor) drives the output only ⇒ no readers.
+        assert!(nr[2].readers.is_empty());
+
+        // Absent top ⇒ empty.
+        let ghost = Design {
+            top: "ghost".into(),
+            modules: vec![],
+        };
+        assert!(design_node_readers(&ghost, None).node_readers.is_empty());
     }
 }

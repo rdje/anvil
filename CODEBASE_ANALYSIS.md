@@ -1275,11 +1275,25 @@ src/
 │                     handles; `"node:<id>"` addressing (a leaf ⇒ known-but-empty).
 │                     Not in `supported_query_kinds()` yet (joins with the
 │                     `run_analyze` dispatch in `.9b.2`). 6 in-crate proofs;
-│                     DUT byte-identical. The parallel-vec pattern
-│                     now carries eight query kinds (`results`/`reach_results`/
+│                     DUT byte-identical. **`node_readers`** (`.10b.1`, the NINTH
+│                     derived query): per-node **immediate (1-hop) reader adjacency**
+│                     — the **exact transpose of `node_drivers`** —
+│                     `NodeReaders { node, kind, op: Option<String>, width,
+│                     readers: Vec<NodeRef> }` (reusing `NodeRef`);
+│                     `module_node_readers`/`design_node_readers` + the
+│                     `node_readers_with` driver build a `BTreeMap<u32,BTreeSet<u32>>`
+│                     reader index by transposing each `Gate`'s operands (readers
+│                     sorted+deduped ascending — the `x & x` double-operand reader
+│                     once; output-port/flop-`D` drives out of scope, so
+│                     `B ∈ drivers(A) ⇔ A ∈ readers(B)`); `"node:<id>"` addressing
+│                     (a node no gate reads ⇒ known-but-empty). Not in
+│                     `supported_query_kinds()` yet (joins with the `run_analyze`
+│                     dispatch in `.10b.2`). 5 in-crate proofs (incl. the transpose
+│                     proof); DUT byte-identical. The parallel-vec pattern
+│                     now carries nine query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
-│                     `memory_provenance`/`fsm_provenance`/`node_drivers`), each a
-│                     `skip_serializing_if` vec the `query` discriminates.
+│                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`),
+│                     each a `skip_serializing_if` vec the `query` discriminates.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

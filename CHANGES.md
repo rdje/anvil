@@ -1,6 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.10b.1 — pure node_readers core
+
+**Landed as:** this commit (previous: `955846e`, `SEMANTIC-INTROSPECTION-EXPANSION.10a`).
+A **code change** (`src/introspect/analyze.rs` only + `CODEBASE_ANALYSIS.md`),
+task-tree-owned by `.10b.1`. **DUT byte-identical** (`tests/snapshots.rs` untouched; not
+wired to any emit path). The pure core of the **ninth** derived `analyze` query,
+`node_readers` — the exact transpose of `node_drivers` (`.9`). Not yet on the MCP
+surface (the registry entry + `run_analyze` dispatch + schema bump land together in
+`.10b.2`, the `.4b`–`.9b` precedent).
+
+**What changed (why)**
+
+`node_readers` answers *"which nodes immediately read this node?"* — the inverse of
+`node_drivers`' *"what immediately drives this node?"*. It is the node-level analog of
+`input_reach` (`.3`) ↔ `output_support` (`.1`): one walks operand edges forward, the
+other inverts the same edge set.
+
+1. **`QUERY_NODE_READERS = "node_readers"`** + a doc comment fixing the SCHEMA-DERIVED
+   ceiling and the duality `B ∈ node_drivers(A) ⇔ A ∈ node_readers(B)`.
+2. **`NodeReaders { node, kind, op: Option<String>, width, readers: Vec<NodeRef> }`** —
+   the subject node's kind/op/width (mirroring `NodeDrivers` field-for-field) + its
+   immediate readers. **Reuses the existing `NodeRef`** (one struct for both directions —
+   full-factorization). `readers` are in **ascending reader node-id order, sorted +
+   deduplicated** (unlike `node_drivers`' operand order: a node's readers are a set; the
+   `x & x` double-operand reader appears once). `op` keeps
+   `#[serde(skip_serializing_if = "Option::is_none")]`.
+3. **A ninth `DerivedAnalysis.node_readers` vec** with
+   `#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the eight prior query
+   documents stay byte-identical. The 15 existing empty-fill `DerivedAnalysis` literals
+   gained `node_readers: Vec::new()` (a guarded python insert that skipped the two
+   literals already carrying it — the `node_drivers_with` populated return and the new
+   `design_node_readers` early-return).
+4. **`module_node_readers` / `design_node_readers` + the `node_readers_with` driver** —
+   one pass over `m.nodes` building a `BTreeMap<u32, BTreeSet<u32>>` reader index by
+   transposing each `Gate`'s operands (the BTreeSet keeps readers sorted + deduped +
+   deterministic and collapses `x & x`), then one `NodeReaders` per requested node with
+   its readers resolved through the shared `node_ref_of`. Output-port / flop-`D` drives
+   are **not** operand edges ⇒ out of scope (the exact transpose of `node_drivers`'
+   operand-only fan-in). `"node:<id>"` addressing (None ⇒ all nodes ascending; a node no
+   gate reads ⇒ known-but-empty; out-of-range/malformed ⇒ no entry ⇒ `-32602` at the MCP
+   layer). `supported_query_kinds()` is **unchanged** (joins with the dispatch in
+   `.10b.2`).
+5. **5 in-crate proofs** — the exact-transpose proof (`B ∈ drivers(A) ⇔ A ∈ readers(B)`
+   both directions + ascending readers + an output-only-driver node has empty readers +
+   subject kind/op/width mirror); the `x & x` dedup (reader once, drivers twice);
+   `"node:<id>"` target + out-of-range/malformed ⇒ none + a no-reader node
+   known-but-empty; serialization omits the other eight vecs +
+   `output_support`/`node_drivers` omit `node_readers`; the design top-module variant
+   (an instance-output subject read by a gate; absent top ⇒ empty).
+
+**Validation**
+
+`cargo test --lib introspect::analyze` **58 passed / 0 failed** (53 prior + 5 new).
+`cargo test --lib` **676 passed / 0 failed / 2 ignored**. `cargo test --test snapshots`
+**6/6 byte-identical** (DUT `.sv` unchanged; `node_readers` omitted from the eight prior
+documents). `cargo fmt --all --check` clean; `scripts/ram_guard.sh --threshold 90 --
+cargo clippy --all-targets -- -D warnings` clean; `cargo check --lib` clean.
+`scripts/check_doctrines.sh` green. DUT byte-identical (no IR/generator change).
+
+**Impact**
+
+The pure analysis is complete and lib-proven; the agent-facing MCP surface + the schema
+`1.21 → 1.22` bump are next at `.10b.2`. No behavioural / generated-RTL change.
+
+**Files touched:** `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.10a — node_readers impl design-detail
 
 **Landed as:** this commit (previous: `d409498`, `SEMANTIC-INTROSPECTION-EXPANSION.9b.2`).
