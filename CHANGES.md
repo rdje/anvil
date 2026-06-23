@@ -1,6 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.8a — fsm_provenance impl design-detail
+
+**Landed as:** this commit (previous: `fd0852a`, `SEMANTIC-INTROSPECTION-EXPANSION.7b.2`).
+A **docs/design-only change** (DEVELOPMENT_NOTES + the task tree + live-doc index), **no
+`src/` touched** ⇒ **DUT byte-identical**. Opens `.8` — the **seventh** derived `analyze`
+query, `fsm_provenance`, the direct sibling of `.7` `memory_provenance`.
+
+**What changed (why)**
+
+The lane returned to a no-frontier boundary after `.7` closed; PNT self-selects the recorded
+next sibling, `fsm_provenance` (the FSM analog of `memory_provenance`). Per the per-query
+design-detail precedent (`.3a`/`.4a`/`.5a`/`.6a`/`.7a`), the design leaf lands first, docs-only,
+before any code.
+
+1. **DEVELOPMENT_NOTES design-detail entry** — "`fsm_provenance` impl design-detail —
+   `SEMANTIC-INTROSPECTION-EXPANSION.8a`" resolves Q1–Q5 grounded in a fresh read of the real
+   `Fsm`/`FsmEncoding` IR (`src/ir/types.rs`) + `analyze.rs`:
+   - **Q1 result shape** — a new `FsmProvenance { fsm: u32, num_states, encoding: String,
+     state_width, sel_width, out_width, is_mealy: bool, sel_support: SupportCone }` + a SEVENTH
+     parallel vec `fsm_provenance: Vec<FsmProvenance>` on `DerivedAnalysis`
+     (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the six prior query documents
+     byte-identical). The one `sel` cone reuses the existing tested `SupportCone` (target
+     `"fsm:<id>.sel"`); structural fields are cheap projection context. An FSM has exactly **one**
+     generated input cone (`sel`) — its transition/output tables are construction-time *constants*,
+     not `NodeId` cones, and their *values* are deliberately out of scope (the state-machine-
+     behaviour boundary, the `0004`/`0011` non-goal). `is_mealy` is the FSM analog of
+     `MemoryProvenance::single_port`.
+   - **Q2 derivation** — `build_cone` over `Fsm::sel` (a plain `NodeId` ⇒ `Some(node)`) via the
+     same walker `output_support` uses + project the structural fields (`state_width =
+     FsmEncoding::state_width(num_states)`, the existing impl method); ascending fsm id; pure, no
+     IR/generator change.
+   - **Q3 addressing** — `"fsm:<id>"` (a new vocabulary parallel to `"mem:<id>"` / `"flop:<id>"` /
+     the module name); `None` ⇒ all FSMs ascending; unknown/out-of-range ⇒ `-32602`; FSM-less +
+     `None` ⇒ empty (default-off `fsm_prob` ⇒ DUT byte-identical regardless).
+   - **Q4 module-vs-design** — `module_fsm_provenance` + `design_fsm_provenance` on the top module
+     (`format_instance_leaf_design` fmt so an instance-output leaf in the `sel` cone resolves to
+     `"<instance>.<child-output-port-name>"`).
+   - **Q5 schema** — additive MINOR `1.19 → 1.20`, envelope reused. Pre-split `.8b` → `.8b.1`
+     (pure core) + `.8b.2` (surface).
+
+2. **Task tree** — registered `.8` (container, `active`) + `.8a` (design-detail, **done**) + `.8b`
+   (impl) → `.8b.1` (pure core, **frontier**) + `.8b.2` (surface) in
+   `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` (Task Tree + Metadata/Status + Current Frontier
+   + Decisions + Changelog); updated the `docs/TASK_TREE.md` index row (frontier `.8b.1`).
+
+3. **No new numbered decision** — decision `0011` governs the surface; this is breadth under its
+   "open-ended further derived-query kinds" clause (the `.3a`–`.7a` precedent).
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` green (docs/design commit ⇒ code-scoped checks exempt; no
+  `src/` touched).
+- `git diff --check` clean. DUT byte-identical (`tests/snapshots.rs` untouched; `cargo`
+  unaffected — no source change).
+
+**Impact**
+
+- Opens the seventh derived `analyze` query end-to-end design; the implementation follows in
+  `.8b.1` (pure core) + `.8b.2` (surface, schema `1.19 → 1.20`).
+
+**Files touched**
+
+- `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+  `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.7b.2 — memory_provenance MCP surface + schema 1.19
 
 **Landed as:** this commit (previous: `305b5a5`, `SEMANTIC-INTROSPECTION-EXPANSION.7b.1`).

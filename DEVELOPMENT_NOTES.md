@@ -5,6 +5,141 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — Semantic introspection — `fsm_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.8a`
+
+Design-detail leaf for `.8` — the **seventh** derived query, `fsm_provenance`:
+*per generated-encoding FSM block, its structural shape plus the support cone of
+its one generated input port, the transition-select cone `sel`* — what the FSM's
+state transitions (and, for a Mealy FSM, its output decode) combinationally depend
+on. Docs-only (no source). This is the **third query beyond decision `0011`'s four
+named kinds** (after `flop_dependencies` `.6` and `memory_provenance` `.7`), again
+under the lane's documented *"further derived-query kinds are open-ended breadth"*
+clause — strictly under decision `0011`'s API and the `0004`/`0011` SCHEMA-DERIVED /
+structure-first ceiling (a **relation** over the construction graph, never
+behaviour). It follows the per-query design-detail precedent
+(`.3a`/`.4a`/`.5a`/`.6a`/`.7a`): no new numbered decision record; decision `0011`
+already governs the surface.
+
+It is the **direct sibling of `memory_provenance`**: the query that opens the
+documented opaque-`Node::FsmOut`-leaf boundary, exactly as `.7` opened the
+opaque-`Node::MemRead` boundary. The six delivered queries all treat
+`Node::FsmOut` / `Node::MemRead` as an opaque registered leaf that *terminates* the
+combinational cone (counted in `cone_nodes`, recorded in no support list) — the
+`analyze.rs` module docs name this explicitly. `fsm_provenance` is that future kind
+for the **FSM** motif: it does not recurse *through* the `FsmOut` output (the
+registered Moore/Mealy state is a register boundary, like a flop `Q`), and it does
+**not** surface the FSM's transition/output *table values* (the
+construction-time-resolved state-machine behaviour — that would drift toward a
+behavioural oracle, the `0004`/`0011` non-goal, and is the FSM analog of
+`memory_provenance` deliberately not recursing through a memory's stored contents).
+What it surfaces is what drives the FSM's **one generated input port**, the
+transition-select cone `sel` — exactly the cone the opaque leaf hides — plus the
+FSM's cheap structural metadata.
+
+### Q1 — result shape: a SEVENTH parallel result vec, reusing `SupportCone`
+
+A new `FsmProvenance` struct + a SEVENTH parallel vec
+`fsm_provenance: Vec<FsmProvenance>` on `DerivedAnalysis`, with
+`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the **six prior query
+documents stay byte-identical** (the key is omitted unless this is a
+`fsm_provenance` document — the established parallel-vec pattern, rejected: a tagged
+enum that would break the existing wire shapes; shoehorning FSM facts into
+`SupportCone`).
+
+```rust
+pub struct FsmProvenance {
+    pub fsm: u32,                 // FSM id (addressed "fsm:<id>")
+    pub num_states: u32,          // Fsm::num_states (>= 1; reset state index 0)
+    pub encoding: String,         // "binary" | "one_hot" | "gray" (FsmEncoding → stable string)
+    pub state_width: u32,         // FsmEncoding::state_width(num_states) — the state_q register width
+    pub sel_width: u32,           // Fsm::sel_width (the 1 << sel_width transition/output table columns)
+    pub out_width: u32,           // Fsm::out_width (== Node::FsmOut.width)
+    pub is_mealy: bool,           // Fsm::is_mealy() — Mealy decode over (state_q, sel) vs Moore (state only)
+    pub sel_support: SupportCone, // build_cone over Fsm::sel; target "fsm:<id>.sel"
+}
+```
+
+The `sel_support` reuses the existing tested `SupportCone` (one cone shape / one
+walker — full-factorization), with `target` `"fsm:<id>.sel"`; the structural fields
+are cheap construction-time projection context. An FSM has exactly **one** generated
+input cone (`sel`) — unlike a memory's four ports — because its transition/output
+tables are construction-time *constants* (`Vec<u32>` / `Vec<u128>`), not `NodeId`
+cones; surfacing those table *values* is deliberately out of scope (see the intro:
+the state-machine behaviour boundary). `is_mealy` is the FSM analog of
+`MemoryProvenance::single_port` — a one-bit structural flag distinguishing the two
+output shapes. `encoding` maps `FsmEncoding::{Binary, OneHot, Gray}` to the stable
+strings `"binary"`/`"one_hot"`/`"gray"` (the `"one_hot"` spelling matches
+`FlopProvenance::mux_kind`), so the wire shape survives the enum gaining variants.
+
+### Q2 — derivation: reuse `build_cone` over `sel` (no new walker)
+
+`module_fsm_provenance(&Module, target)`:
+1. For each FSM in `m.fsms` (ascending id), build one `SupportCone` with the existing
+   `build_cone(m, "fsm:<id>.sel", Some(fsm.sel), fmt)` — the same memoized
+   combinational fan-in DFS `output_support` uses. `Fsm::sel` is a plain `NodeId`
+   (never `None`), so the cone is `Some(node)`.
+2. Project the structural fields (`num_states`; `encoding` →
+   `"binary"`/`"one_hot"`/`"gray"`; `state_width = fsm.encoding.state_width(fsm.num_states)`,
+   the existing `FsmEncoding` impl method — no new arithmetic; `sel_width`;
+   `out_width`; `is_mealy = fsm.is_mealy()`).
+3. Emit one `FsmProvenance` per FSM, **ascending id** (the determinism contract
+   `flop_reset_provenance`/`flop_dependencies`/`memory_provenance` hold by the same
+   sort); the `sel` cone is internally sorted/deduped by `build_cone`.
+
+Pure: no IR field, no generator change (the `coverage_gaps` / `output_support`
+project-don't-recompute precedent). A `sel` cone that itself reaches a `MemRead`,
+another `FsmOut`, or a flop `Q` terminates at that opaque/register leaf exactly as
+`output_support` does — the documented boundary inherited for free, and the reason
+the analysis is finite/acyclic (an FSM's `sel` cone never recurses *into* an FSM's
+state). The `fmt` closure (`format_instance_leaf_module` /
+`format_instance_leaf_design`) is needed here because a `sel` cone *can* depend on a
+child-instance output (a parent FSM selected by a child's result), exactly as a
+memory port cone can.
+
+### Q3 — target addressing: `"fsm:<id>"`
+
+`target` is `"fsm:<id>"` — a **new** address vocabulary for this query (the FSM is
+the entity), parallel to the `"mem:<id>"` `memory_provenance` uses, the `"flop:<id>"`
+the flop queries use, and the module name `module_reachability` uses; the natural
+identifier for a per-FSM query.
+- `target = None` ⇒ one entry per FSM in `m.fsms`, ascending id.
+- `target = Some("fsm:<id>")` ⇒ that one FSM's entry.
+- any other string, or an out-of-range id ⇒ no entry ⇒ `-32602` at the MCP layer —
+  the established "unknown target vs known-but-empty" contract. The `run_analyze`
+  empty-result guard checks `analysis.fsm_provenance.is_empty()` for this kind.
+- an FSM-less module + `target = None` ⇒ an empty `fsm_provenance` (the honest "no
+  FSMs" answer, not an error — the `flop_reset_provenance`/`memory_provenance`
+  precedent). Since `fsm_prob` is default-off, the default DUT has no FSMs ⇒ the
+  honest empty answer, and the query is DUT byte-identical regardless.
+
+### Q4 — module-vs-design semantics
+
+`run_analyze` already routes design-vs-module on
+`cfg.effective_hierarchy_depth_range().is_some()`. `module_fsm_provenance` is the
+single-module query; `design_fsm_provenance(&Design, target)` analyzes the **top**
+module's FSMs (early-returns an empty analysis when the named top is absent),
+exactly like `design_flop_provenance` / `design_flop_dependencies` /
+`design_memory_provenance` — per-child-module FSM provenance is a future extension,
+the same "operates on the top module" convention all the gate-graph / flop-projection
+queries hold. The design variant uses the `format_instance_leaf_design` fmt so any
+instance-output support in the `sel` cone resolves to
+`"<instance>.<child-output-port-name>"`.
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.19 → 1.20` (a new `#[serde(default, skip_serializing_if)]` field +
+a new query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv`
+byte-identical — introspect is not in `tests/snapshots.rs`). Pre-split `.8b` →
+`.8b.1` (the pure core in `analyze.rs` + the `FsmProvenance` type + the seventh
+`fsm_provenance: Vec::new()` fill-ins across the existing `DerivedAnalysis` literals
++ lib proofs; **not** added to `supported_query_kinds()` yet) + `.8b.2` (the surface:
+the registry entry + `run_analyze` dispatch land together; `SCHEMA_VERSION 1.19 →
+1.20` + the `"1.19"` test-assertion bumps; the `analyze_schema` enum; schema-doc §6.7
++ a `1.19 → 1.20` changelog + the row; book `agent-mcp` row + worked example + the
+JSON examples `1.19 → 1.20` + api-tools; USER_GUIDE + README; a KM card; an
+`anvil-mcp` stdio e2e smoke) — the `.4b`/`.5b`/`.6b`/`.7b` precedent (registry +
+dispatch in one commit so the intermediate commit is coherent).
+
 ## 2026-06-23 — Semantic introspection — `memory_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.7a`
 
 Design-detail leaf for `.7` — the **sixth** derived query, `memory_provenance`:
