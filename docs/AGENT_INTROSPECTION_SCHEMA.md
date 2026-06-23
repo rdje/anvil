@@ -451,7 +451,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.16"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.17"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -461,7 +461,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.16"`**.
+This document defines **`schema_version = "1.17"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -640,6 +640,18 @@ This document defines **`schema_version = "1.16"`**.
   consumer ignores the new integer key; no field was removed/renamed/retyped; the
   default-`dut` **artifact** (`.sv`) stays byte-identical and determinism is
   preserved. MINOR is an integer, so this is `1.14 → 1.15` (fifteen), not a decimal.
+- **`1.16` → `1.17` (`STRUCTURED-EMISSION-EXPANSION.19b.2a`).** Additive MINOR bump:
+  surfaced the new `Metrics::num_emitted_casez_mux_if_chains` field — the count of
+  dynamic-selector `CasezMux` gates the emitter projects as a procedural `always_comb`
+  `if`/`else if` **masked** priority chain (`(sel & care_mask) == value_masked`; decision
+  `0029`, the lane's ninth structured surface; the wildcard generalization of the `1.16`
+  `num_emitted_case_mux_if_chains` bare-equality `CaseMux` chain). SCHEMA-DERIVED (a count of
+  `Module::casez_mux_if_gates`, an emitter-surface annotation — the `1.7 → 1.8`
+  `num_emitted_combinational_functions` additive-growth precedent), `0` for every default-off
+  module (`casez_mux_if_emit_prob == 0.0`). Backward compatible — a `1.16` consumer ignores
+  the new integer key; no field was removed/renamed/retyped; the default-`dut` **artifact**
+  (`.sv`) stays byte-identical and determinism is preserved. MINOR is an integer, so this is
+  `1.16 → 1.17` (seventeen), not a decimal.
 - **`1.15` → `1.16` (`STRUCTURED-EMISSION-EXPANSION.17b.2a`).** Additive MINOR bump:
   surfaced the new `Metrics::num_emitted_case_mux_if_chains` field — the count of
   dynamic-selector `CaseMux` gates the emitter projects as a procedural `always_comb`
@@ -690,5 +702,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.16"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.17"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

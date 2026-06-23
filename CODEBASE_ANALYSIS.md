@@ -751,9 +751,10 @@ src/
 │                     `-Wall` Δ=0 vs OFF (2012/2017/2023) + Yosys both modes +
 │                     Icarus clean, and ON==OFF sim-equiv (seed 1 8/8 + seed 4
 │                     128/128, `scratchpad/sweep19/`). Metric
-│                     (`num_emitted_casez_mux_if_chains`, schema 1.16→1.17) =
-│                     `.19b.2a` (pending); repo-owned `tool_matrix
-│                     --casez-mux-if-gate` (metric-keyed) = `.19b.2b` (pending).
+│                     (`Metrics::num_emitted_casez_mux_if_chains` = `len()`,
+│                     introspection schema 1.16→1.17) = `.19b.2a` (done);
+│                     repo-owned `tool_matrix --casez-mux-if-gate` (metric-keyed)
+│                     = `.19b.2b` (pending).
 │
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate
@@ -1096,7 +1097,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.16"`
+│                     only the envelope metadata (`schema_version` `"1.17"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the

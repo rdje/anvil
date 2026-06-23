@@ -1,9 +1,67 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.2a — casez-mux-if metric + introspection schema 1.17
+
+**Landed as:** this commit (previous: `61b8c8e`, `STRUCTURED-EMISSION-EXPANSION.19b.1`).
+A **code change** (touches `src/`), task-tree-owned by `.19b` (the `.19b.2a` sub-slice).
+**Default-off ⇒ DUT byte-identical** (a post-hoc `Metrics` field changes no emitted RTL;
+`tests/snapshots.rs` untouched).
+
+**What changed (why)**
+
+The ninth surface (`.19b.1`) shipped its emitter projection but rode the existing schema. This
+slice surfaces the count of emitted masked chains in the introspection document — the
+SCHEMA-DERIVED read surface an agent uses to confirm the surface fired — which is a new derived
+`Metrics` field and so an additive MINOR schema bump (`1.16 → 1.17`), mirroring the eighth
+surface's `.17b.2a`.
+
+1. **`src/metrics.rs`** — `Metrics::num_emitted_casez_mux_if_chains: usize` (`#[serde(default)]`)
+   computed in `metrics::compute()` as `m.casez_mux_if_gates.len()` (a post-hoc structural count
+   of the emitter-surface annotation; reads `0` by default). It is **exact**: the annotation pass
+   excludes constant-selector `CasezMux` (which the emitter statically collapses), so every
+   counted gate emits exactly one chain. A lib proof `metrics_count_emitted_casez_mux_if_chains`
+   (unmarked `0`, marked `1`).
+
+2. **Introspection schema `1.16 → 1.17`** — `SCHEMA_VERSION` in `src/introspect/mod.rs` (the
+   const + the doc-comment history note `1.16 → 1.17`). Because `Metrics` is the exact serde
+   projection in the introspection `module_metrics`, the new field bumps the schema (the
+   `1.0 → 1.1` `bisimulation_flops_merged` precedent), whereas the `.19b.1` knob rode the version
+   (the default-off prob-knob precedent). All **current-output** schema refs bumped to `1.17`:
+   the 3 `introspect/mod.rs` assertions + the 8 `mcp/mod.rs` assertions; the schema doc
+   (`docs/AGENT_INTROSPECTION_SCHEMA.md`) current-version ×3 + a new `1.16 → 1.17` changelog
+   entry above the `1.15 → 1.16` one; the README envelope refs ×2 (`--introspect` + `analyze`);
+   the USER_GUIDE envelope ref ×1 (`--sv-version`); and the `CODEBASE_ANALYSIS.md` envelope line.
+   **Per-metric "landed at schema X" attributions left intact** (`num_emitted_case_mux_if_chains
+   @ 1.16`, etc. — the `.17b.2a` convention); the 5 book `agent-mcp.md` example JSONs are
+   **deferred to `.19b.3`** (the docs leaf, the `.17b.2a`/`.17b.3` precedent).
+
+**Validation**
+
+- `cargo check --all-targets` clean; `cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean.
+- `cargo test --lib` 635 → 636 (the new metric proof; all `schema_version` assertions green at
+  `"1.17"`); `cargo test --test snapshots` 6/6 byte-identical (default-off; the metric changes
+  no RTL). No stray current `"1.16"` left in `src`.
+- End-to-end `--introspect`: default seed 2 ⇒ `schema_version 1.17` + `num_emitted_casez_mux_if_chains
+  0`; forced `casez_mux_if_emit_prob=1.0` (seed 4) ⇒ `1.17` + `1`.
+- `bash scripts/check_doctrines.sh` green (4 doctrines).
+
+**Impact**
+
+No behaviour change; `anvil` / `--artifact dut` byte-identical. An agent can now read the
+emitted-masked-chain count from `--introspect` / the MCP `coverage` surface at schema `1.17`.
+Nothing retired.
+
+**Files touched**
+
+`src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`, `docs/AGENT_INTROSPECTION_SCHEMA.md`,
+`README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `MEMORY.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.1 — CasezMux masked priority-chain emit-projection (live surface)
 
-**Landed as:** this commit (previous: `f266d54`, `STRUCTURED-EMISSION-EXPANSION.19a`).
+**Landed as:** `61b8c8e` (previous: `f266d54`, `STRUCTURED-EMISSION-EXPANSION.19a`).
 This is a **code change** (touches `src/`), task-tree-owned by the `.19b` leaf (the `.19b.1`
 sub-slice); the code-scoped doctrine checks (`CODE-CHANGE-EVIDENCE` + `TASK-TREE-OWNERSHIP`)
 are satisfied by co-staging `CHANGES.md` + `MEMORY.md` + the owning
