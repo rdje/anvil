@@ -5,6 +5,150 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-24 — Semantic introspection — `node_readers` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.10a`
+
+Design-detail leaf for `.10` — the **ninth** derived query, `node_readers`:
+*per IR node, its immediate (1-hop) reader nodes* — the node-level fan-**out**
+adjacency, the **exact transpose of `node_drivers` (`.9`)**. Docs-only (no
+source). This is the **fifth query beyond decision `0011`'s four named kinds**
+(after `flop_dependencies` `.6`, `memory_provenance` `.7`, `fsm_provenance` `.8`,
+and `node_drivers` `.9`), again under the lane's documented *"further
+derived-query kinds are open-ended breadth"* clause — strictly under decision
+`0011`'s API and the `0004`/`0011` SCHEMA-DERIVED / structure-first ceiling (a
+**relation** over the construction graph, never behaviour). It follows the
+per-query design-detail precedent (`.3a`–`.9a`): no new numbered decision record;
+decision `0011` already governs the surface.
+
+`node_drivers` answers *"what immediately drives this node?"* — the node's direct
+operands. `node_readers` answers the **dual**: *"which nodes immediately read this
+node?"* — the nodes that list it as a direct operand. The pair is the node-level
+analog of `output_support` (`.1`) ↔ `input_reach` (`.3`): one walks operand edges
+forward, the other inverts the same edge set. Because `node_readers` is the **exact
+transpose of the same operand relation** `node_drivers` exposes, the two satisfy a
+provable duality — `B ∈ node_drivers(A)` ⇔ `A ∈ node_readers(B)` — so they **cannot
+drift** (the `input_reach` / `output_support` dual-consistency property, restated at
+the node level). With both queries an agent can walk the construction DAG in **either
+direction** one hop at a time: `node_drivers` toward the leaves (what feeds a node),
+`node_readers` toward the outputs (what a node feeds).
+
+### Q1 — result shape: a NINTH parallel result vec, reusing `NodeRef`
+
+A new `NodeReaders` struct + a NINTH parallel vec
+`node_readers: Vec<NodeReaders>` on `DerivedAnalysis`, with
+`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the **eight prior
+query documents stay byte-identical** (the key is omitted unless this is a
+`node_readers` document — the established parallel-vec pattern). It **reuses the
+existing `NodeRef`** operand/neighbour struct `.9` introduced (id + kind + resolved
+handle) for each reader — one struct for both directions, the full-factorization
+discipline.
+
+```rust
+pub struct NodeReaders {
+    pub node: u32,             // the subject node id (index into m.nodes), addressed "node:<id>"
+    pub kind: String,          // "primary_input" | "constant" | "flop_q" | "mem_read"
+                               //   | "fsm_out" | "instance_output" | "gate"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub op: Option<String>,    // for a Gate, its GateOp as a stable string; None (omitted) for a leaf
+    pub width: u32,            // Node::width()
+    pub readers: Vec<NodeRef>, // the immediate readers (nodes that list this as an operand), ASCENDING node id
+}
+```
+
+`node`/`kind`/`op`/`width` describe the **subject** node, mirroring `NodeDrivers`
+field-for-field (so `node_readers` and `node_drivers` documents are visually
+symmetric — an agent sees `node 3 (slice)` with both its `drivers` and, in the dual
+query, its `readers`). `op` keeps the same `#[serde(skip_serializing_if = "Option::is_none")]`
+treatment (a non-gate subject omits it).
+
+**`readers` are in ASCENDING reader node-id order — sorted, deduplicated** — the one
+deliberate departure from `node_drivers`, whose `drivers` are in *operand order*.
+Operand order is semantically meaningful (`a - b` ≠ `b - a`), so `node_drivers`
+preserves it; a node's **readers are a set** with no inherent order, so ascending
+node id is the natural deterministic order (the cone-query sorted-vec convention).
+A reader that lists the subject as an operand more than once (e.g. `x & x`, where the
+subject feeds operand 0 *and* operand 1 of the same `And`) appears in `readers`
+**exactly once** — `readers` is the set of reader *nodes*, not the multiset of
+operand slots. Each reader's `NodeRef` is built by the **same** `node_ref_of` helper
+`.9` uses; readers are always `Gate`s (only a `Gate` has operands), so each reader's
+`NodeRef.kind` is `"gate"` and its `name` is `"node:<id>"` (an interior gate has no
+external handle) — but the resolution goes through the shared helper for uniformity.
+
+**Boundary (deliberate, exactly symmetric with `node_drivers`):** `node_readers`
+reports **only node-to-node operand fan-out**. A node that drives a module **output
+port** or a **flop `D`** input — but is no gate's operand — has an **empty `readers`**,
+because output-port drives and flop-`D` drives are *not* operand edges (a port / flop
+is not a `Node`). This is the exact transpose of `node_drivers` reporting only
+operand fan-in, and it keeps the duality `B ∈ drivers(A) ⇔ A ∈ readers(B)` exact and
+provable. An agent that wants *"which outputs / flop-D cones does this node reach"*
+uses `input_reach` (the cone-level fan-out); `node_readers` is the **atomic
+node-level** operand transpose, the building block beneath it.
+
+### Q2 — derivation: transpose the operand relation (one pass)
+
+`module_node_readers(&Module, target)`:
+1. Build the reader index in a single pass over `m.nodes`: for each node `r` that is
+   a `Gate`, for each operand `o` in `r.operands`, insert `r` into `readers[o]`
+   (a `BTreeMap<u32, BTreeSet<u32>>` ⇒ readers per node are **sorted + deduplicated +
+   deterministic** for free; the set dedups the `x & x` double-operand case).
+2. For each requested node id, classify the subject node (the same `node_kind_str` /
+   `gate_op_str` / `Node::width` mapping `node_drivers` uses) and resolve each reader
+   id in `readers[node]` to a `NodeRef` via the shared `node_ref_of` helper.
+
+This is the **inversion `input_reach` performs, restricted to the node-operand
+relation** — no second walker, no re-implemented boundary rule, no IR field, no
+generator change (the `coverage_gaps` / `output_support` project-don't-recompute
+precedent). Cost is `O(nodes + operand_edges)` — one pass to build the index, one to
+emit — bounded by module size (a read-only analysis). The `fmt` closure is threaded
+through `node_ref_of` for signature uniformity with `node_drivers_with`; a reader is
+always a `Gate` so the `InstanceOutput` arm never fires for a reader, but the helper
+is shared rather than forked (full-factorization).
+
+### Q3 — target addressing: `"node:<id>"`
+
+`target` is `"node:<id>"` — the **same** address vocabulary `node_drivers` introduced
+(the node is the entity), so the dual pair shares one addressing scheme.
+- `target = None` ⇒ one entry per node in `m.nodes`, ascending id — the **whole
+  node-level fan-out adjacency in one query** (the `node_drivers` /
+  `flop_dependencies` / `module_reachability` complete-graph-view precedent; the
+  agent-API completeness rule, decision `0011` / `feedback_api_for_agents_not_humans`).
+- `target = Some("node:<id>")` ⇒ that one node's entry. A node with **no readers**
+  (a leaf that no gate reads, or a node that only drives an output port / flop `D`)
+  resolves to exactly one entry with an empty `readers` — *known-but-empty*, NOT an
+  error (the `output_support` "undriven output still yields one empty cone" contract;
+  load-bearing for the `-32602` mapping).
+- any other string, or an out-of-range id (`id >= m.nodes.len()`) ⇒ no entry ⇒
+  `-32602` at the MCP layer — the established "unknown target vs known-but-empty"
+  contract. The `run_analyze` empty-result guard checks `analysis.node_readers.is_empty()`
+  for this kind.
+
+### Q4 — module-vs-design semantics
+
+`module_node_readers` is the single-module query; `design_node_readers(&Design, target)`
+analyzes the **top** module's nodes (early-returns an empty analysis when the named top
+is absent), exactly like `design_node_drivers` and the other gate-graph queries —
+per-child-module node readers is a future extension, the same "operates on the top
+module" convention. The design variant threads the `format_instance_leaf_design` fmt
+for `node_ref_of` uniformity (unused for readers, which are always gates, but shared
+not forked).
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.21 → 1.22` (a new `#[serde(default, skip_serializing_if)]` field +
+a new query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv`
+byte-identical — introspect is not in `tests/snapshots.rs`). Pre-split `.10b` →
+`.10b.1` (the pure core in `analyze.rs` + the `NodeReaders` type + the ninth
+`node_readers: Vec::new()` fill-ins across the existing `DerivedAnalysis` literals +
+lib proofs, including the **transpose proof** `B ∈ drivers(A) ⇔ A ∈ readers(B)`;
+**not** added to `supported_query_kinds()` yet) + `.10b.2` (the surface: the registry
+entry + `run_analyze` dispatch land together; `SCHEMA_VERSION 1.21 → 1.22` + the
+`"1.21"` test-assertion bumps; the `analyze_schema` enum; schema-doc §6.7 + a
+`1.21 → 1.22` changelog + the row; book `agent-mcp` row + worked example + the JSON
+examples `1.21 → 1.22` + api-tools; USER_GUIDE + README; a KM card; an `anvil-mcp`
+stdio e2e smoke) — the `.4b`–`.9b` precedent (registry + dispatch in one commit so the
+intermediate commit is coherent).
+
+---
+
 ## 2026-06-23 — Semantic introspection — `node_drivers` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.9a`
 
 Design-detail leaf for `.9` — the **eighth** derived query, `node_drivers`:

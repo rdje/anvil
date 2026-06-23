@@ -1,6 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.10a — node_readers impl design-detail
+
+**Landed as:** this commit (previous: `d409498`, `SEMANTIC-INTROSPECTION-EXPANSION.9b.2`).
+A **docs/design-only** change (no `src/` touched), task-tree-owned by `.10a`. **DUT
+byte-identical** (`tests/snapshots.rs` untouched; nothing in any emit path). Opens
+`.10` — the **ninth** derived `analyze` query, `node_readers`: the **immediate (1-hop)
+fan-OUT dual of `node_drivers` (`.9`)** — for each IR node, the nodes that list it as a
+direct operand (its immediate readers). It is the **exact transpose of the operand
+relation** `node_drivers` exposes, so the two satisfy the provable duality
+`B ∈ node_drivers(A) ⇔ A ∈ node_readers(B)` (the node-level analog of
+`input_reach` (`.3`) ↔ `output_support` (`.1`)). The **fifth query beyond decision
+`0011`'s four named kinds**, under the lane's "open-ended breadth" clause.
+
+**What changed (why)**
+
+A design-detail leaf, before any code — the per-query `.Na` precedent (`.3a`–`.9a`): no
+new numbered decision (decision `0011` governs the surface). Grounded in a fresh read of
+the `Node`/`GateOp` IR (`src/ir/types.rs`) and the landed `node_drivers` code
+(`src/introspect/analyze.rs`).
+
+1. **`DEVELOPMENT_NOTES.md`** — a new design-detail entry "`node_readers` impl
+   design-detail — `.10a`" resolving the five Q-points:
+   - **Q1 result shape** — a NINTH parallel vec `node_readers: Vec<NodeReaders>` on
+     `DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the
+     eight prior documents byte-identical). A new `NodeReaders { node, kind, op:
+     Option<String>, width, readers: Vec<NodeRef> }` **reusing the existing `NodeRef`**
+     (one struct for both directions — full-factorization). `readers` are in **ascending
+     reader node-id order — sorted + deduped** (unlike `node_drivers`' operand order: a
+     node's readers are a set; the `x & x` double-operand reader appears once).
+   - **Q2 derivation** — transpose the operand relation in one pass: a
+     `BTreeMap<u32, BTreeSet<u32>>` reader index (for each `Gate` `r`, for each operand
+     `o`, insert `r` into `readers[o]`), then resolve each reader via the shared
+     `node_ref_of`. The inversion `input_reach` performs, restricted to the node-operand
+     relation. Output-port / flop-`D` drives are **not** operand edges ⇒ deliberately out
+     of scope (the exact transpose of `node_drivers`' operand-only fan-in, keeping the
+     duality exact). Pure, no IR/generator change.
+   - **Q3 addressing** — `"node:<id>"` (the vocabulary `node_drivers` introduced); None ⇒
+     all nodes ascending; a node with no readers ⇒ known-but-empty; out-of-range ⇒
+     `-32602`.
+   - **Q4 module-vs-design** — `module_node_readers` + `design_node_readers` on the top
+     module (early-return when absent), per-child-module a future extension.
+   - **Q5 schema** — additive MINOR `1.21 → 1.22`; pre-split `.10b` → `.10b.1` (pure core
+     + the transpose proof) + `.10b.2` (surface).
+2. **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — registered `.10`/`.10a`/`.10b`
+   (+ root child `.10`), `.10a` marked `done`, `.10b` pre-split → `.10b.1`/`.10b.2`;
+   Metadata status/last-updated, Current Frontier (now `.10b.1`) + table, Verification
+   Log, Commit Log, and Changelog updated.
+3. **`docs/TASK_TREE.md`** — the `SEMANTIC-INTROSPECTION-EXPANSION` row's frontier moved
+   to `.10b.1` with the `.10` summary.
+
+**Validation**
+
+`bash scripts/check_doctrines.sh` green (docs/design commit ⇒ the code-scoped
+`CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` checks are scope-exempt; `MEMORY-ARCH` +
+`KNOWLEDGE-MAP` pass). No `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected;
+**DUT byte-identical**.
+
+**Impact**
+
+Opens the implementation of the ninth derived query. No behavioural / generated-RTL
+change. Frontier → `.10b.1` (the pure `node_readers` core).
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.9b.2 — node_drivers MCP surface + schema 1.21
 
 **Landed as:** this commit (previous: `1c84d76`, `SEMANTIC-INTROSPECTION-EXPANSION.9b.1`).
