@@ -455,8 +455,20 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    surfacing the transition/output table values): `.8a` design-detail + `.8b.1` pure core +
    `.8b.2` surface (registry + `run_analyze` dispatch + `analyze_schema` enum +
    book/USER_GUIDE/schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
-   **No active frontier** — further derived-query kinds (a per-FSM reach; per-child-module
-   provenance) remain open-ended breadth, not a blocker, none retired. Extends
+   `.9` **done** (`2026-06-23`) adds an **eighth** derived query, `node_drivers` —
+   per-node **immediate (1-hop) driver adjacency** (each IR node's kind/width/gate-`op`
+   + its direct operand `NodeRef`s — operand id/kind/resolved handle — in operand order;
+   schema `1.21`), the **fourth** query beyond decision `0011`'s four named kinds: the
+   **atomic node-level primitive complementing the transitive `output_support` cone**
+   (where a cone collapses to its boundary leaves and names neither interior gates nor
+   their ops, `node_drivers` exposes the node-level fan-in graph one hop at a time and
+   surfaces each node's `GateOp`): `.9a` design-detail + `.9b.1` pure core (a single
+   one-hop pass over `m.nodes`, no transitive walk) + `.9b.2` surface (registry +
+   `run_analyze` dispatch + `analyze_schema` enum + book/USER_GUIDE/schema-doc/README/KM
+   + e2e `anvil-mcp` smoke), DUT byte-identical.
+   **No active frontier** — further derived-query kinds (`node_drivers`'s dual
+   `node_readers`; a per-FSM/per-memory reach; per-child-module provenance) remain
+   open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the

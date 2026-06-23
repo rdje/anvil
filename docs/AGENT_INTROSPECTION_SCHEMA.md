@@ -314,8 +314,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance`) |
-| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance` / `NodeDrivers` / `NodeRef`) |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -328,11 +328,11 @@ structure-first boundary is the permanent ceiling.
 `DerivedAnalysis` **category groups** (fields owned by `src/introspect/analyze.rs`):
 the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
 `module_reachability` — the four named kinds from decision `0011` — plus
-`flop_dependencies`, the **fifth** kind, `memory_provenance`, the **sixth**, and
-`fsm_provenance`, the **seventh**, all added under the lane's open-ended-breadth
-clause) + **one of seven parallel result vecs**, the one the query kind populates
-(the others are empty and, except for the always-present `results`, omitted via
-`skip_serializing_if`):
+`flop_dependencies`, the **fifth** kind, `memory_provenance`, the **sixth**,
+`fsm_provenance`, the **seventh**, and `node_drivers`, the **eighth**, all added
+under the lane's open-ended-breadth clause) + **one of eight parallel result vecs**,
+the one the query kind populates (the others are empty and, except for the
+always-present `results`, omitted via `skip_serializing_if`):
 
 - **`results: Vec<SupportCone>`** — the `output_support` payload. A `SupportCone`
   is the transitive **combinational** fan-in support of one target — an output
@@ -444,7 +444,31 @@ clause) + **one of seven parallel result vecs**, the one the query kind populate
   across the `1.19 → 1.20` bump; a `fsm_provenance` document carries it with `results:
   []`. `target` is `"fsm:<id>"` (omit for every FSM).
 
-`target = None` ⇒ all targets/sources/flops/modules/memories/FSMs (per the
+- **`node_drivers: Vec<NodeDrivers>`** (schema `1.21`, `SEMANTIC-INTROSPECTION-EXPANSION.9b.2`)
+  — the `node_drivers` payload: per IR node, its **immediate (1-hop) driver
+  adjacency**. A `NodeDrivers` is, per node: `node` (id = its index in `Module.nodes`,
+  addressed `"node:<id>"`), `kind` (`"primary_input"` / `"constant"` / `"flop_q"` /
+  `"mem_read"` / `"fsm_out"` / `"instance_output"` / `"gate"`), `op` (for a `Gate`, its
+  `GateOp` as a stable base-op string e.g. `"and"` / `"mux"` / `"slice"`; omitted for a
+  leaf), `width`, and `drivers` — the list of its direct operand `NodeRef`s **in operand
+  order** (empty for a leaf). A `NodeRef` is one operand's `node` (id), `kind`, and
+  `name` (a resolved handle: an input port name / `"flop:<id>"` / `"mem:<id>"` /
+  `"fsm:<id>"` / `"<instance>.<port>"`, or `"node:<id>"` for an interior gate /
+  constant). It is the **atomic node-level primitive complementing the transitive
+  `output_support` cone**: where a `SupportCone` collapses the whole fan-in to its
+  boundary leaves and names neither the interior gates it crossed nor their ops,
+  `node_drivers` exposes the node-level fan-in graph one hop at a time **and** surfaces
+  each node's `GateOp` — genuinely new information no prior query carries. An agent can
+  re-issue it per operand that is itself a gate, walking the DAG hop by hop. It is a pure
+  single one-hop pass over `Module.nodes` (no transitive walk) — no IR field, no
+  generator change. `node_drivers` carries the same `skip_serializing_if`, so the prior
+  seven documents stay byte-identical across the `1.20 → 1.21` bump; a `node_drivers`
+  document carries it with `results: []`. `drivers` are in operand order, **not** sorted
+  (operand order is semantically meaningful; it stays deterministic). `target` is
+  `"node:<id>"` (omit for every node); a leaf node is a known-but-empty entry, not an
+  error.
+
+`target = None` ⇒ all targets/sources/flops/modules/memories/FSMs/nodes (per the
 agent-audience completeness rule); an unknown `query` or `target` is rejected with
 JSON-RPC `-32602`.
 
@@ -511,7 +535,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.20"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.21"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -521,7 +545,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.20"`**.
+This document defines **`schema_version = "1.21"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -700,6 +724,21 @@ This document defines **`schema_version = "1.20"`**.
   consumer ignores the new integer key; no field was removed/renamed/retyped; the
   default-`dut` **artifact** (`.sv`) stays byte-identical and determinism is
   preserved. MINOR is an integer, so this is `1.14 → 1.15` (fifteen), not a decimal.
+- **`1.20` → `1.21` (`SEMANTIC-INTROSPECTION-EXPANSION.9b.2`).** Additive MINOR bump:
+  added the **eighth** derived `analyze` query kind `node_drivers` — per IR node its
+  **immediate (1-hop) driver adjacency**: `kind` / `width` / gate `op` (for a `Gate`) +
+  the list of its direct operand `NodeRef`s (`node` / `kind` / resolved `name`) **in
+  operand order**, carried by an eighth `DerivedAnalysis.node_drivers: Vec<NodeDrivers>`
+  parallel vec (`#[serde(default, skip_serializing_if = "Vec::is_empty")]`). The fourth
+  query beyond decision `0011`'s four named kinds — the **atomic node-level primitive
+  complementing the transitive `output_support` cone**: where a cone collapses to its
+  boundary leaves and names neither interior gates nor their ops, `node_drivers` exposes
+  the node-level fan-in graph one hop at a time and surfaces each node's `GateOp`.
+  SCHEMA-DERIVED (a single one-hop pass over `Module.nodes` — not new computed truth).
+  Backward compatible: the `node_drivers` key is `skip_serializing_if`-omitted on every
+  other `analyze` document, so the seven prior query documents and the default-`dut`
+  **artifact** (`.sv`) stay byte-identical; a `1.20` consumer ignores the new query kind.
+  MINOR is an integer, so this is `1.20 → 1.21` (twenty-one), not a decimal.
 - **`1.19` → `1.20` (`SEMANTIC-INTROSPECTION-EXPANSION.8b.2`).** Additive MINOR bump:
   added the **seventh** derived `analyze` query kind `fsm_provenance` — per
   generated-encoding FSM its shape (`num_states`/`encoding`/`state_width`/`sel_width`/
@@ -807,5 +846,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.20"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.21"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

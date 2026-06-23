@@ -73,9 +73,11 @@ The dual fan-out query, `input_reach` (schema `1.5`), is
 dependency graph, `flop_dependencies` (schema `1.18`), is
 [[semantic-introspection-flop-dependencies]]; the per-inferrable-memory port
 provenance, `memory_provenance` (schema `1.19`), is
-[[semantic-introspection-memory-provenance]]; and the per-generated-encoding-FSM
+[[semantic-introspection-memory-provenance]]; the per-generated-encoding-FSM
 provenance, `fsm_provenance` (schema `1.20`), is
-[[semantic-introspection-fsm-provenance]].
+[[semantic-introspection-fsm-provenance]]; and the per-node immediate (1-hop)
+driver adjacency, `node_drivers` (schema `1.21`), is
+[[semantic-introspection-node-drivers]].
 
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].

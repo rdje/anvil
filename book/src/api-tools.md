@@ -101,7 +101,7 @@ Schemas](api-introspection.md).
 { "name": "introspect", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.20", "anvil_version": "0.1.0", "lane": "dut",
+{ "schema_version": "1.21", "anvil_version": "0.1.0", "lane": "dut",
   "request": { "seed": 42, "lane": "dut", "knobs": { "…": "Config" },
                "run_id": "ee39c1e3df8192dd" },
   "artifact": { "kind": "module", "top": "mod_42_0000",
@@ -141,15 +141,15 @@ this entry covers the call surface.
 | `seed` | integer ≥ 0 | no | `0` | |
 | `config` | object | no | defaults | DUT lane only |
 | `profile` | string | no | none | a curated knob preset (see [`anvil://catalog/presets`](./api-resources-prompts.md)) |
-| `query` | `"output_support"` \| `"input_reach"` \| `"flop_reset_provenance"` \| `"module_reachability"` \| `"flop_dependencies"` \| `"memory_provenance"` \| `"fsm_provenance"` | no | `"output_support"` | the relation kind |
+| `query` | `"output_support"` \| `"input_reach"` \| `"flop_reset_provenance"` \| `"module_reachability"` \| `"flop_dependencies"` \| `"memory_provenance"` \| `"fsm_provenance"` \| `"node_drivers"` | no | `"output_support"` | the relation kind |
 | `target` | string | no | all | meaning depends on `query` (below) |
 
 `target` by query: `output_support` → an output port name or `"flop:<id>"` (a
 flop D-cone); `input_reach` → a source (input name, `"flop:<id>"` Q, or
 `"<instance>.<port>"`); `flop_reset_provenance` → `"flop:<id>"`;
 `module_reachability` → a module name; `flop_dependencies` → `"flop:<id>"`;
-`memory_provenance` → `"mem:<id>"`; `fsm_provenance` → `"fsm:<id>"`. Omit `target`
-for *every* element.
+`memory_provenance` → `"mem:<id>"`; `fsm_provenance` → `"fsm:<id>"`;
+`node_drivers` → `"node:<id>"`. Omit `target` for *every* element.
 
 **Errors** — an unknown `query` or `target` → protocol error `-32602`.
 
@@ -162,7 +162,7 @@ for *every* element.
   "arguments": { "seed": 7, "query": "output_support", "target": "o_0" } }
 ```
 ```json
-{ "schema_version": "1.20", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
+{ "schema_version": "1.21", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
   "analysis": { "query": "output_support",
     "results": [ { "target": "o_0", "support_inputs": ["i_1"],
                    "support_flops": [], "support_instance_outputs": [],
@@ -192,7 +192,7 @@ byte-stable; `attempts`/`fires` are the exact integers.
 { "name": "coverage", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.20", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
+{ "schema_version": "1.21", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
   "coverage": {
     "knob_fire_rates": { "flop_prob": { "attempts": 295, "fires": 36, "fire_rate": 0.122034 } },
     "category_fire_rates": { "state": { "attempts": 331, "fires": 53, "fire_rate": 0.160121 } },

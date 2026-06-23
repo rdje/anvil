@@ -197,6 +197,7 @@ pub fn supported_query_kinds() -> &'static [&'static str] {
         QUERY_FLOP_DEPENDENCIES,
         QUERY_MEMORY_PROVENANCE,
         QUERY_FSM_PROVENANCE,
+        QUERY_NODE_DRIVERS,
     ]
 }
 
