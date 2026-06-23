@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **74** facts · **722** question keys.
+> **75** facts · **734** question keys.
 
 ## Questions → fact
 
@@ -151,6 +151,7 @@
 - "does multi-output task emission change the emitted RTL behaviour" -> [multi-output-task-emit](docs/knowledge/multi-output-task-emit.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"multi_output_task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"terminal_reuse_prob\":0.9,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":2,\"max_outputs\":2,\"min_width\":4,\"max_width\":4,\"max_depth\":1});json.dump(c,open(\"/tmp/mt.json\",\"w\"))" && cargo run --quiet -- --seed 3 --config /tmp/mt.json | tee /tmp/mt.sv | grep -c "__mt(" && verilator --lint-only /tmp/mt.sv && echo CLEAN'`
 - "does node_drivers keep the operand order" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "does node_drivers keep the other analyze queries byte-identical" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "does node_readers keep the other analyze queries byte-identical" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "does procedural if/else emission change the emitted RTL behaviour" -> [mux-if-emit](docs/knowledge/mux-if-emit.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":1.0,\"comb_mux_encoding_prob\":1.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\"/tmp/mi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/mi.json | tee /tmp/mi.sv | grep -c "__cv" && iverilog -g2012 -o /tmp/mi.vvp /tmp/mi.sv && echo CLEAN'`
 - "does semantic gate merge ignore endpoint identity" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
 - "does sequential module dedup merge modules with memories or FSMs" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
@@ -258,6 +259,8 @@
 - "how do I turn on the tool_matrix divergence column" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how do I use a locally-built anvil with the Action (anvil-bin)" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
 - "how do I use the anvil --steer flag" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
+- "how do I walk the ANVIL construction DAG in either direction" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "how do I walk the ANVIL gate graph fan-out one hop at a time over MCP" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how do I walk the ANVIL gate graph one hop at a time over MCP" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how do an ANVIL module's registers feed each other" -> [semantic-introspection-flop-dependencies](docs/knowledge/semantic-introspection-flop-dependencies.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how do non-DUT lanes reach the MCP interface" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
@@ -324,8 +327,10 @@
 - "how is an ANVIL FSM output Moore vs Mealy" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'`
 - "how is an FSM addressed in the analyze tool" -> [semantic-introspection-fsm-provenance](docs/knowledge/semantic-introspection-fsm-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how is an IR node addressed in the analyze tool" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "how is an IR node's fan-out addressed in the analyze tool" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how is deep semantic introspection kept SCHEMA-DERIVED" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "how is node_drivers different from output_support" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "how is node_readers different from node_drivers" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how is task emission different from function emission" -> [combinational-task-emit](docs/knowledge/combinational-task-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
 - "how is the ANVIL introspection schema kept from drifting" -> [agent-introspection-schema](docs/knowledge/agent-introspection-schema.md) · 2026-06-14
 - "how is the bisimulation flop merge proven sound and downstream-clean" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
@@ -370,6 +375,7 @@
 - "is coverage steering rules-first or post-hoc filtering" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "is deep semantic introspection first-class in ANVIL" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "is hierarchy_sequential_module_dedup default-off" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
+- "is node_readers the transpose of node_drivers" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "is slang a downstream tool in ANVIL" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "is sv2v a downstream tool in ANVIL" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "is task-tree ownership of code changes mechanically enforced" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
@@ -408,6 +414,7 @@
 - "should I run the full cargo test suite for memory architecture docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "the eighth analyze derived query kind" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "the fifth analyze derived query kind" -> [semantic-introspection-flop-dependencies](docs/knowledge/semantic-introspection-flop-dependencies.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "the ninth analyze derived query kind" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the seventh analyze derived query kind" -> [semantic-introspection-fsm-provenance](docs/knowledge/semantic-introspection-fsm-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "the sixth analyze derived query kind" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "what ANVIL presets are there" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)`
@@ -484,6 +491,7 @@
 - "what happens when slang is not installed" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "what happens when sv2v is not installed" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "what immediately drives an ANVIL IR node" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "what immediately reads an ANVIL IR node" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what inputs does the ANVIL GitHub Action take" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
 - "what introspection schema version adds the sequential module proof metric" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what invariants constrain the AGENT-MCP-EXPANSION lane" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
@@ -502,6 +510,7 @@
 - "what is a MemoryProvenance" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "what is a ModuleReachability" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a NodeDrivers / NodeRef" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "what is a NodeReaders" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is a ReachResult" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a SupportCone" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is acceptance divergence hunting" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
@@ -591,6 +600,7 @@
 - "what is the ninth STRUCTURED-EMISSION-EXPANSION surface" -> [structured-emission-ninth-surface-casez-mux-masked-priority-chain](docs/decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md) · 2026-06-23
 - "what is the ninth structured emission surface" -> [casez-mux-if-emit](docs/knowledge/casez-mux-if-emit.md) · 2026-06-23 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/cz.json && python3 -c "import json;c=json.load(open(\"/tmp/cz.json\"));c.update({\"casez_mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":0.0,\"case_mux_prob\":0.0,\"casez_mux_prob\":1.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\"/tmp/czi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/czi.json | tee /tmp/czi.sv | grep -c "else if ((" && iverilog -g2012 -o /tmp/czi.vvp /tmp/czi.sv && echo CLEAN'`
 - "what is the node_drivers query" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "what is the node_readers query" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the output-var passthrough form in an emitted task" -> [combinational-task-emit](docs/knowledge/combinational-task-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
 - "what is the output_support query" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is the register-to-register dependency graph in ANVIL" -> [semantic-introspection-flop-dependencies](docs/knowledge/semantic-introspection-flop-dependencies.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
@@ -607,6 +617,7 @@
 - "what metric counts bisimulation flop merges" -> [bisimulation-flop-merge](docs/knowledge/bisimulation-flop-merge.md) · 2026-06-15 · reverify: `ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers, then lint /tmp/anvil-bisim-merged.sv with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what metric counts sequentially-duplicate module pairs" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what modules does a module instantiate" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "what nodes consume an ANVIL IR node" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what release mechanism does ANVIL use" -> [ci-packaging-prebuilt-binaries-and-github-action](docs/decisions/0022-ci-packaging-prebuilt-binaries-and-github-action.md) · 2026-06-18
 - "what roadmap work remains after the five follow-up bullets" -> [post-phase-followup-frontier-closed](docs/knowledge/post-phase-followup-frontier-closed.md) · 2026-06-05
 - "what runs in the pre-commit hook and CI" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
@@ -670,6 +681,7 @@
 - "which introspection schema version adds memory_provenance" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds module_reachability" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds node_drivers" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "which introspection schema version adds node_readers" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds the analyze surface" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which knob makes the FSM output depend on the input" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'`
 - "which metric proves mux_arm_duplication_rate fired" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
@@ -1178,6 +1190,15 @@ _ANVIL's analyze tool answers node_drivers — per-node immediate (1-hop) driver
 - **evidence:** `src/introspect/analyze.rs (QUERY_NODE_DRIVERS, NodeDrivers, NodeRef, DerivedAnalysis.node_drivers, module_node_drivers/design_node_drivers, node_drivers_with, node_kind_str/gate_op_str/node_ref_of); src/mcp/mod.rs (run_analyze node_drivers dispatch + analyze_schema enum); src/introspect/mod.rs (SCHEMA_VERSION = 1.21); docs/AGENT_INTROSPECTION_SCHEMA.md (section 6.7 + the 1.20 -> 1.21 changelog); book/src/agent-mcp.md; docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
 - **reverify:** `cargo test --lib analyze`
 - **source:** [`docs/knowledge/semantic-introspection-node-drivers.md`](docs/knowledge/semantic-introspection-node-drivers.md)
+
+### semantic-introspection-node-readers
+_ANVIL's analyze tool answers node_readers — per-node immediate (1-hop) reader adjacency, the exact transpose of node_drivers (schema 1.22)_
+
+- **answers:** what immediately reads an ANVIL IR node | what is the node_readers query | what nodes consume an ANVIL IR node | how do I walk the ANVIL gate graph fan-out one hop at a time over MCP | what is a NodeReaders | how is node_readers different from node_drivers | is node_readers the transpose of node_drivers | which introspection schema version adds node_readers | how is an IR node's fan-out addressed in the analyze tool | does node_readers keep the other analyze queries byte-identical | the ninth analyze derived query kind | how do I walk the ANVIL construction DAG in either direction
+- **date:** 2026-06-24 · **status:** current
+- **evidence:** `src/introspect/analyze.rs (QUERY_NODE_READERS, NodeReaders, DerivedAnalysis.node_readers, module_node_readers/design_node_readers, node_readers_with, the transpose proof node_readers_is_the_exact_transpose_of_node_drivers); src/mcp/mod.rs (run_analyze node_readers dispatch + analyze_schema enum + the 2 mcp proofs); src/introspect/mod.rs (SCHEMA_VERSION = 1.22); docs/AGENT_INTROSPECTION_SCHEMA.md (section 6.7 + the 1.21 -> 1.22 changelog); book/src/agent-mcp.md; docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
+- **reverify:** `cargo test --lib analyze`
+- **source:** [`docs/knowledge/semantic-introspection-node-readers.md`](docs/knowledge/semantic-introspection-node-readers.md)
 
 ### semantic-proof-budget
 _Bounded semantic proofs use support, node, and work budgets_

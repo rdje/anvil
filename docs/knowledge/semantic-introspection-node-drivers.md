@@ -79,10 +79,12 @@ cone itself.
   *known-but-empty* entry (empty `drivers`, no `op`), not an error. SCHEMA-DERIVED /
   default-off: a pure post-hoc projection — the default `anvil` build and
   `--artifact dut` stay byte-identical.
-- **Future sibling:** the dual `node_readers` (immediate fan-**out**) is a natural
-  follow-up (nothing retired).
+- **Dual:** the immediate fan-**out** transpose `node_readers`
+  ([[semantic-introspection-node-readers]], the ninth query, schema `1.22`) is now
+  delivered — together they let an agent walk the construction DAG in either direction
+  one hop at a time, with the duality `B ∈ node_drivers(A) ⇔ A ∈ node_readers(B)`.
 
-See [[semantic-introspection-analyze-tool]], [[semantic-introspection-fsm-provenance]],
+See [[semantic-introspection-node-readers]], [[semantic-introspection-analyze-tool]], [[semantic-introspection-fsm-provenance]],
 [[semantic-introspection-memory-provenance]],
 [[semantic-introspection-flop-dependencies]],
 [[semantic-introspection-input-reach]],

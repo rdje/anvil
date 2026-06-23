@@ -466,8 +466,18 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    one-hop pass over `m.nodes`, no transitive walk) + `.9b.2` surface (registry +
    `run_analyze` dispatch + `analyze_schema` enum + book/USER_GUIDE/schema-doc/README/KM
    + e2e `anvil-mcp` smoke), DUT byte-identical.
-   **No active frontier** — further derived-query kinds (`node_drivers`'s dual
-   `node_readers`; a per-FSM/per-memory reach; per-child-module provenance) remain
+   `.10` **done** (`2026-06-24`) adds a **ninth** derived query, `node_readers` — the
+   **exact transpose of `node_drivers`**: per-node **immediate (1-hop) reader adjacency**
+   (each IR node's readers — the nodes that list it as a direct operand — in ascending
+   node-id order; schema `1.22`), the **fifth** query beyond decision `0011`'s four named
+   kinds and the node-level fan-out dual of `node_drivers`, with the provable duality
+   `B ∈ node_drivers(A) ⇔ A ∈ node_readers(B)` so an agent can walk the construction DAG
+   in either direction one hop at a time: `.10a` design-detail + `.10b.1` pure core (one
+   pass transposing each `Gate`'s operands via a `BTreeMap<u32,BTreeSet<u32>>` reader
+   index) + `.10b.2` surface (registry + `run_analyze` dispatch + `analyze_schema` enum +
+   book/USER_GUIDE/schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
+   **No active frontier** — further derived-query kinds (a per-FSM/per-memory reach;
+   per-child-module provenance) remain
    open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 

@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -179,7 +179,7 @@ generate · introspect · analyze · coverage · dump_config · coverage_gaps ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics + the `coverage_readout`) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). `query` = `fsm_provenance`: per generated-encoding FSM its shape + the **support cone of its transition-select `sel` input** (*what drives this FSM's state machine?*). `query` = `node_drivers`: per IR node its **immediate (1-hop) driver adjacency** — kind, width, gate op, and its direct operand drivers in operand order (*what immediately drives this node, and what op is it?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). `query` = `fsm_provenance`: per generated-encoding FSM its shape + the **support cone of its transition-select `sel` input** (*what drives this FSM's state machine?*). `query` = `node_drivers`: per IR node its **immediate (1-hop) driver adjacency** — kind, width, gate op, and its direct operand drivers in operand order (*what immediately drives this node, and what op is it?*). `query` = `node_readers`: the **exact transpose** — per IR node its immediate (1-hop) **readers** (the nodes that read it), in ascending node-id order (*what immediately reads this node?*). Relations, not behaviour. |
 | `coverage` | ✅ pure | Return the DUT `(seed, config)` run's **achieved-coverage readout** — per-knob **and** per-category empirical fire rates (`fires / attempts`) plus the gate-kind / operand-arity / depth histograms (for a hierarchy design, aggregated across child modules). The **read** half of [coverage steering](#coverage-steered-generation): read what was exercised, then steer the next run. SCHEMA-DERIVED from the metrics ANVIL already records — no new truth, no tool spawn. The same readout is also embedded in `introspect`'s `coverage_readout`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
@@ -246,7 +246,7 @@ anvil://audit/log              the append-only validate/minimize/hunt/divergence
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance / fsm_provenance / node_drivers)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance / fsm_provenance / node_drivers / node_readers)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -269,7 +269,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -317,7 +317,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -360,7 +360,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -410,7 +410,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },
@@ -460,7 +460,7 @@ registers to relate:
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -506,7 +506,7 @@ built by the same machinery `output_support` uses. The `target` is `"mem:<id>"`
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -563,7 +563,7 @@ Pair it with `fsm_prob` high so there is an FSM:
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -622,7 +622,7 @@ every node; a leaf node is a known-but-empty entry, not an error):
 
 ```json
 {
-  "schema_version": "1.21",
+  "schema_version": "1.22",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -656,6 +656,64 @@ every node; a leaf node is a known-but-empty entry, not an error):
 - `target = None` returns the **whole node-level adjacency** in one reply (every node,
   ascending id). Served as `anvil://artifact/<run_id>/analysis/node_drivers`; an unknown
   or out-of-range `"node:<id>"` → `-32602`.
+
+#### `node_readers` — per-node immediate (1-hop) reader adjacency
+
+The ninth query kind, `node_readers`, is the **exact transpose of `node_drivers`**.
+Where `node_drivers` answers *"what immediately drives this node?"* (its operands),
+`node_readers` answers the dual *"which nodes immediately read this node?"* (the nodes
+that list it as a direct operand). It is the node-level analog of `input_reach` ↔
+`output_support`: one walks operand edges forward, the other inverts the same edge set.
+For each node it returns the subject node's `kind` / `op` / `width` (mirroring
+`node_drivers`) and its `readers` — the nodes that read it, each a `NodeRef`, in
+**ascending node-id order** (sorted + deduplicated; a reader that reads the subject
+twice, like `x & x`, appears once). With both queries an agent walks the construction
+DAG in **either direction** one hop at a time, with the provable duality
+`B ∈ node_drivers(A) ⇔ A ∈ node_readers(B)`. The `target` is `"node:<id>"` (omit for
+every node; a node no gate reads is a known-but-empty entry, not an error):
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "query": "node_readers", "target": "node:3" } }
+```
+
+```json
+{
+  "schema_version": "1.22",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "artifact": { "kind": "module", "top": "…" },
+  "analysis": {
+    "query": "node_readers",
+    "node_readers": [
+      {
+        "node": 3,
+        "kind": "gate",
+        "op": "and",
+        "width": 8,
+        "readers": [
+          { "node": 4, "kind": "gate", "name": "node:4" },
+          { "node": 5, "kind": "gate", "name": "node:5" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+(shape illustrative: the interior gate `node:3` is read by gates `node:4` and `node:5`,
+in ascending node-id order. Readers are always gates — only a gate has operands.)
+
+- The payload is a ninth `node_readers` array (not `results` / `reach_results` /
+  `flop_provenance` / `module_reachability` / `flop_dependencies` /
+  `memory_provenance` / `fsm_provenance` / `node_drivers`), again `skip_serializing_if`,
+  so the prior eight replies stay byte-identical across the `1.21 → 1.22` bump.
+- `readers` are **sorted + deduplicated** (a node's readers are a set), unlike
+  `node_drivers`' operand order. Only node-to-node operand fan-out is reported — a node
+  that only drives an output port or a flop `D` has an empty `readers` (use `input_reach`
+  for the cone-level fan-out).
+- `target = None` returns the **whole node-level fan-out adjacency** in one reply (every
+  node, ascending id). Served as `anvil://artifact/<run_id>/analysis/node_readers`; an
+  unknown or out-of-range `"node:<id>"` → `-32602`.
 
 ### All three lanes, not just DUT
 

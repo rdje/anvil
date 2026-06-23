@@ -1,6 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.10b.2 — node_readers MCP surface + schema 1.22
+
+**Landed as:** this commit (previous: `a2b5f98`, `SEMANTIC-INTROSPECTION-EXPANSION.10b.1`).
+A **code change** (`src/mcp/mod.rs` + `src/introspect/{analyze,mod}.rs` + docs/book/KM),
+task-tree-owned by `.10b.2`. **DUT byte-identical** (`tests/snapshots.rs` untouched). Closes
+`.10b`/`.10` ⇒ the **ninth** derived `analyze` query, `node_readers` (the exact transpose
+of `node_drivers`), is **delivered end-to-end**.
+
+**What changed (why)**
+
+The `.10b.1` pure core landed `node_readers` but left it out of the MCP registry/dispatch
+(the `.4b`–`.9b` precedent: registry + dispatch + schema bump land together so each commit
+is coherent). This slice wires the agent-facing surface and bumps the schema.
+
+1. **Registry + dispatch (one commit)** — `node_readers` added to
+   `analyze::supported_query_kinds()` (`src/introspect/analyze.rs`); `run_analyze`
+   (`src/mcp/mod.rs`) branches by query kind (`module_node_readers` / `design_node_readers`
+   in both the module and design paths); the empty-result → `-32602` guard checks
+   `analysis.node_readers` for this kind. The `analyze_schema` `query` enum + the
+   `query`/`target` descriptions, the `analyze` tool description, and the server
+   `instructions` all cover the ninth kind (the `"node:<id>"` target form is shared with
+   `node_drivers`).
+
+2. **Schema `1.21 → 1.22`** (`src/introspect/mod.rs`) — additive MINOR bump (the new query
+   kind + its parallel vec; `DerivedAnalysisDocument` envelope reused). 15 `"1.21" → "1.22"`
+   test assertions (3 introspect, 12 mcp) + 2 new MCP proofs
+   (`analyze_returns_node_readers_and_caches_it` — verifying schema 1.22, ascending +
+   deduplicated + all-gate readers, caching, and the other vecs omitted — and
+   `analyze_node_readers_unknown_target_is_invalid_params`).
+
+3. **Docs + KM** — schema-doc §6.7 (the ninth `node_readers` payload + `NodeReaders`, "one
+   of nine parallel result vecs") + the `1.21 → 1.22` changelog + "defines 1.22" / §7 /
+   checklist; `book/src/agent-mcp.md` (analyze tool row + a `node_readers` worked example +
+   the resource line + every JSON envelope `1.21 → 1.22`) + `book/src/api-tools.md` (the
+   query enum/target list + `1.21 → 1.22`); `USER_GUIDE.md` (analyze description + the
+   sv-version row schema ref); `README.md` (`--introspect` schema `1.22` + the analyze
+   `node_readers` sentence + the ninth query); a new KM card
+   `semantic-introspection-node-readers` (+ cross-links from
+   `semantic-introspection-node-drivers` and `semantic-introspection-analyze-tool`;
+   `KNOWLEDGE_MAP.md` regenerated, 74 → 75 facts / 734 keys); `CODEBASE_ANALYSIS.md` (the
+   analyze.rs block now wired + the schema-history `1.21 → 1.22`); `ROADMAP.md` (`.10` done).
+
+**Validation**
+
+`cargo test --lib` **678 passed / 0 failed / 2 ignored** (incl. the 2 new mcp `node_readers`
+proofs + the 5 `.10b.1` core proofs). `cargo test --test snapshots` **6/6 byte-identical**.
+`cargo fmt --all --check` clean; `scripts/ram_guard.sh --threshold 90 -- cargo clippy
+--all-targets -- -D warnings` clean; `mdbook build book` clean; `cargo test --test
+book_examples` **3/3**; KM regenerated + `check_knowledge_map.sh` in sync;
+`scripts/check_doctrines.sh` green. End-to-end `anvil-mcp` stdio smoke:
+`analyze {query:"node_readers", seed:7}` → schema `1.22`, 1674 nodes (1653 with ≥1 reader;
+node 0 read by gates `[43, 705]`, ascending + deduplicated + all-gate), `node_drivers` key
+omitted + `results:[]`; unknown `node:999999` → `-32602`. DUT byte-identical.
+
+**Impact**
+
+The ninth derived query is delivered end-to-end (live + schema-versioned 1.22 +
+MCP-dispatched + cached + documented + KM-carded + e2e-smoked). With `node_drivers` (`.9`)
++ `node_readers` (`.10`) an agent can walk the construction DAG in either direction one hop
+at a time. The lane returns to a no-frontier boundary. No behavioural / generated-RTL change.
+
+**Pre-existing drift noted (not bundled):** `docs/api-introspection.md` is stale at schema
+`1.14` (predating the `.15`–`.21` bumps, not introduced here) — flagged for the
+docs-hygiene backfill alongside the `.8a`/`.8b.1`/`.8b.2` missing log rows and the `.5b.2`
+stale `pending` status.
+
+**Files touched:** `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`USER_GUIDE.md`, `README.md`, `docs/knowledge/semantic-introspection-node-readers.md`,
+`docs/knowledge/semantic-introspection-node-drivers.md`,
+`docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`,
+`CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.10b.1 — pure node_readers core
 
 **Landed as:** this commit (previous: `955846e`, `SEMANTIC-INTROSPECTION-EXPANSION.10a`).

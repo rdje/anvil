@@ -314,8 +314,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance` / `NodeDrivers` / `NodeRef`) |
-| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance` / `NodeDrivers` / `NodeReaders` / `NodeRef`) |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers`; `node_readers`: `module_node_readers` / `design_node_readers` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -329,8 +329,9 @@ structure-first boundary is the permanent ceiling.
 the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
 `module_reachability` — the four named kinds from decision `0011` — plus
 `flop_dependencies`, the **fifth** kind, `memory_provenance`, the **sixth**,
-`fsm_provenance`, the **seventh**, and `node_drivers`, the **eighth**, all added
-under the lane's open-ended-breadth clause) + **one of eight parallel result vecs**,
+`fsm_provenance`, the **seventh**, `node_drivers`, the **eighth**, and
+`node_readers`, the **ninth**, all added
+under the lane's open-ended-breadth clause) + **one of nine parallel result vecs**,
 the one the query kind populates (the others are empty and, except for the
 always-present `results`, omitted via `skip_serializing_if`):
 
@@ -468,6 +469,27 @@ always-present `results`, omitted via `skip_serializing_if`):
   `"node:<id>"` (omit for every node); a leaf node is a known-but-empty entry, not an
   error.
 
+- **`node_readers: Vec<NodeReaders>`** (schema `1.22`, `SEMANTIC-INTROSPECTION-EXPANSION.10b.2`)
+  — the `node_readers` payload: the **exact transpose of `node_drivers`** — per IR node, its
+  **immediate (1-hop) readers**. A `NodeReaders` is, per node: `node` (id = its index in
+  `Module.nodes`, addressed `"node:<id>"`), `kind` and `op` and `width` describing the
+  **subject** node (the same vocabulary as `NodeDrivers`, mirrored field-for-field), and
+  `readers` — the list of nodes that list this node as a **direct operand**, as `NodeRef`s
+  in **ascending node-id order** (sorted + deduplicated, unlike `node_drivers`' operand
+  order: a node's readers are a set; a reader that reads the subject twice, e.g. `x & x`,
+  appears once). Readers are always gates (only a gate has operands), so each reader's
+  `NodeRef.kind` is `"gate"` and `name` is `"node:<id>"`. Together with `node_drivers` an
+  agent can walk the construction DAG in **either direction** one hop at a time, with the
+  provable duality `B ∈ node_drivers(A).drivers` ⇔ `A ∈ node_readers(B).readers`. Only
+  node-to-node operand fan-out is reported: a node that drives a module output port or a
+  flop `D` — but is no gate's operand — has an **empty `readers`** (those are not operand
+  edges; use `input_reach` for the cone-level fan-out). It is a pure one-pass transpose of
+  the node-operand relation — no IR field, no generator change. `node_readers` carries the
+  same `skip_serializing_if`, so the prior eight documents stay byte-identical across the
+  `1.21 → 1.22` bump; a `node_readers` document carries it with `results: []`. `target` is
+  `"node:<id>"` (omit for every node); a node no gate reads is a known-but-empty entry, not
+  an error.
+
 `target = None` ⇒ all targets/sources/flops/modules/memories/FSMs/nodes (per the
 agent-audience completeness rule); an unknown `query` or `target` is rejected with
 JSON-RPC `-32602`.
@@ -535,7 +557,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.21"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.22"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -545,7 +567,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.21"`**.
+This document defines **`schema_version = "1.22"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -739,6 +761,24 @@ This document defines **`schema_version = "1.21"`**.
   other `analyze` document, so the seven prior query documents and the default-`dut`
   **artifact** (`.sv`) stay byte-identical; a `1.20` consumer ignores the new query kind.
   MINOR is an integer, so this is `1.20 → 1.21` (twenty-one), not a decimal.
+- **`1.21` → `1.22` (`SEMANTIC-INTROSPECTION-EXPANSION.10b.2`).** Additive MINOR bump:
+  added the **ninth** derived `analyze` query kind `node_readers` — the **exact transpose
+  of `node_drivers`**: per IR node its **immediate (1-hop) readers** (the nodes that list
+  it as a direct operand), as `NodeRef`s in **ascending node-id order** (sorted +
+  deduplicated), with the subject node's `kind` / `op` / `width` mirrored from
+  `NodeDrivers`, carried by a ninth `DerivedAnalysis.node_readers: Vec<NodeReaders>`
+  parallel vec (`#[serde(default, skip_serializing_if = "Vec::is_empty")]`). The fifth
+  query beyond decision `0011`'s four named kinds — the **node-level fan-out dual of
+  `node_drivers`**, with the provable duality `B ∈ node_drivers(A).drivers` ⇔
+  `A ∈ node_readers(B).readers`, so an agent can walk the construction DAG in either
+  direction one hop at a time. Only node-to-node operand fan-out is reported (output-port /
+  flop-`D` drives are out of scope — the exact transpose of `node_drivers`' operand-only
+  fan-in). SCHEMA-DERIVED (a one-pass transpose of the node-operand relation — not new
+  computed truth). Backward compatible: the `node_readers` key is
+  `skip_serializing_if`-omitted on every other `analyze` document, so the eight prior query
+  documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.21`
+  consumer ignores the new query kind. MINOR is an integer, so this is `1.21 → 1.22`
+  (twenty-two), not a decimal.
 - **`1.19` → `1.20` (`SEMANTIC-INTROSPECTION-EXPANSION.8b.2`).** Additive MINOR bump:
   added the **seventh** derived `analyze` query kind `fsm_provenance` — per
   generated-encoding FSM its shape (`num_states`/`encoding`/`state_width`/`sel_width`/
@@ -846,5 +886,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.21"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.22"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

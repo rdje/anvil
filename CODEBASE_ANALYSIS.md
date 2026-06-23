@@ -1103,7 +1103,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.21"`
+│                     only the envelope metadata (`schema_version` `"1.22"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -1137,7 +1137,10 @@ src/
 │                     1.19→1.20 the seventh `fsm_provenance` analyze query
 │                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.8b.2`), and
 │                     1.20→1.21 the eighth `node_drivers` analyze query
-│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.9b.2`);
+│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.9b.2`), and
+│                     1.21→1.22 the ninth `node_readers` analyze query
+│                     kind — the exact transpose of `node_drivers`
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.10b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1286,10 +1289,12 @@ src/
 │                     sorted+deduped ascending — the `x & x` double-operand reader
 │                     once; output-port/flop-`D` drives out of scope, so
 │                     `B ∈ drivers(A) ⇔ A ∈ readers(B)`); `"node:<id>"` addressing
-│                     (a node no gate reads ⇒ known-but-empty). Not in
-│                     `supported_query_kinds()` yet (joins with the `run_analyze`
-│                     dispatch in `.10b.2`). 5 in-crate proofs (incl. the transpose
-│                     proof); DUT byte-identical. The parallel-vec pattern
+│                     (a node no gate reads ⇒ known-but-empty). Wired to the MCP
+│                     surface in `.10b.2`: in `supported_query_kinds()` + the
+│                     `run_analyze` dispatch (`module`/`design_node_readers`) + the
+│                     `analyze_schema` enum + schema `1.21 → 1.22`; 5 in-crate proofs
+│                     (incl. the transpose proof) + 2 mcp proofs; DUT
+│                     byte-identical. The parallel-vec pattern
 │                     now carries nine query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
 │                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`),

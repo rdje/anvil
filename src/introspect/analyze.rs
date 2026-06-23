@@ -219,6 +219,7 @@ pub fn supported_query_kinds() -> &'static [&'static str] {
         QUERY_MEMORY_PROVENANCE,
         QUERY_FSM_PROVENANCE,
         QUERY_NODE_DRIVERS,
+        QUERY_NODE_READERS,
     ]
 }
 
