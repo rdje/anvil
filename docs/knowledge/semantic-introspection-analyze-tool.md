@@ -70,7 +70,9 @@ The dual fan-out query, `input_reach` (schema `1.5`), is
 `module_reachability` (schema `1.7`), is
 [[semantic-introspection-module-reachability]]; the register-to-register
 dependency graph, `flop_dependencies` (schema `1.18`), is
-[[semantic-introspection-flop-dependencies]].
+[[semantic-introspection-flop-dependencies]]; and the per-inferrable-memory port
+provenance, `memory_provenance` (schema `1.19`), is
+[[semantic-introspection-memory-provenance]].
 
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].

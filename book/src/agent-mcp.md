@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.18",
+  "schema_version": "1.19",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -179,7 +179,7 @@ generate · introspect · analyze · coverage · dump_config · coverage_gaps ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics + the `coverage_readout`) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). Relations, not behaviour. |
 | `coverage` | ✅ pure | Return the DUT `(seed, config)` run's **achieved-coverage readout** — per-knob **and** per-category empirical fire rates (`fires / attempts`) plus the gate-kind / operand-arity / depth histograms (for a hierarchy design, aggregated across child modules). The **read** half of [coverage steering](#coverage-steered-generation): read what was exercised, then steer the next run. SCHEMA-DERIVED from the metrics ANVIL already records — no new truth, no tool spawn. The same readout is also embedded in `introspect`'s `coverage_readout`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
@@ -246,7 +246,7 @@ anvil://audit/log              the append-only validate/minimize/hunt/divergence
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -269,7 +269,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.18",
+  "schema_version": "1.19",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -317,7 +317,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.18",
+  "schema_version": "1.19",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -360,7 +360,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.18",
+  "schema_version": "1.19",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -410,7 +410,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.18",
+  "schema_version": "1.19",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },
@@ -460,7 +460,7 @@ registers to relate:
 
 ```json
 {
-  "schema_version": "1.18",
+  "schema_version": "1.19",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -486,6 +486,61 @@ self-feedback counter.)
   (the agent-audience completeness rule) — a relation over the IR, never behaviour.
 - Served as `anvil://artifact/<run_id>/analysis/flop_dependencies`; an unknown or
   out-of-range `"flop:<id>"` → `-32602`.
+
+#### `memory_provenance` — per-memory port provenance
+
+The sixth query kind, `memory_provenance`, answers *what drives this memory's
+ports?* For each inferrable memory it returns its structural shape (`addr_width`,
+`data_width`, `kind`, `single_port`) plus the support cone of each of its four
+driving ports — read address, write address, write data, and write enable. It is
+the query that **opens the boundary the opaque `MemRead` leaf hides**: the other
+queries terminate a support cone at a memory read; `memory_provenance` instead
+reports what feeds the memory's *input* ports (without recursing through its stored
+contents). Each port cone is a full `SupportCone` (target `"mem:<id>.<port>"`),
+built by the same machinery `output_support` uses. The `target` is `"mem:<id>"`
+(omit for every memory). Pair it with `memory_prob` high so there is a memory:
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "config": { "memory_prob": 1.0 }, "query": "memory_provenance" } }
+```
+
+```json
+{
+  "schema_version": "1.19",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "artifact": { "kind": "module", "top": "…" },
+  "analysis": {
+    "query": "memory_provenance",
+    "memory_provenance": [
+      {
+        "mem": 0,
+        "addr_width": 4,
+        "data_width": 8,
+        "kind": "simple_dual_port",
+        "single_port": false,
+        "read_addr_support":   { "target": "mem:0.raddr", "support_inputs": ["ra"], "support_flops": [], "support_instance_outputs": [], "cone_nodes": 1, "cone_depth": 0 },
+        "write_addr_support":  { "target": "mem:0.waddr", "support_inputs": ["wa"], "support_flops": [], "support_instance_outputs": [], "cone_nodes": 1, "cone_depth": 0 },
+        "write_data_support":  { "target": "mem:0.wdata", "support_inputs": ["wd"], "support_flops": [0], "support_instance_outputs": [], "cone_nodes": 3, "cone_depth": 1 },
+        "write_enable_support": { "target": "mem:0.we",   "support_inputs": [], "support_flops": [], "support_instance_outputs": [], "cone_nodes": 1, "cone_depth": 0 }
+      }
+    ]
+  }
+}
+```
+
+(ports illustrative: the write data is `wd ^ Q0`, so its cone carries both the input
+`wd` and flop 0; the write enable is a constant, so its cone has no support source.)
+
+- The payload is a sixth `memory_provenance` array (not `results` / `reach_results`
+  / `flop_provenance` / `module_reachability` / `flop_dependencies`), again
+  `skip_serializing_if`, so the prior five replies stay byte-identical across the
+  `1.18 → 1.19` bump.
+- For a `single_port` memory the read and write address cones carry identical
+  support (one shared address node) — `single_port` flags it.
+- Served as `anvil://artifact/<run_id>/analysis/memory_provenance`; an unknown or
+  out-of-range `"mem:<id>"` → `-32602`. With `memory_prob` default-off (no memory),
+  the array is empty.
 
 ### All three lanes, not just DUT
 

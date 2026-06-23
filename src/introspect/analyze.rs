@@ -150,6 +150,7 @@ pub fn supported_query_kinds() -> &'static [&'static str] {
         QUERY_FLOP_RESET_PROVENANCE,
         QUERY_MODULE_REACHABILITY,
         QUERY_FLOP_DEPENDENCIES,
+        QUERY_MEMORY_PROVENANCE,
     ]
 }
 

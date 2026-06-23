@@ -314,8 +314,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies`) |
-| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance`) |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -328,10 +328,10 @@ structure-first boundary is the permanent ceiling.
 `DerivedAnalysis` **category groups** (fields owned by `src/introspect/analyze.rs`):
 the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
 `module_reachability` — the four named kinds from decision `0011` — plus
-`flop_dependencies`, the **fifth** kind added under the lane's open-ended-breadth
-clause) + **one of five parallel result vecs**, the one the query kind populates
-(the others are empty and, except for the always-present `results`, omitted via
-`skip_serializing_if`):
+`flop_dependencies`, the **fifth** kind, and `memory_provenance`, the **sixth**,
+both added under the lane's open-ended-breadth clause) + **one of six parallel
+result vecs**, the one the query kind populates (the others are empty and, except
+for the always-present `results`, omitted via `skip_serializing_if`):
 
 - **`results: Vec<SupportCone>`** — the `output_support` payload. A `SupportCone`
   is the transitive **combinational** fan-in support of one target — an output
@@ -402,8 +402,27 @@ clause) + **one of five parallel result vecs**, the one the query kind populates
   flop). `flop_dependencies` carries the same `skip_serializing_if`, so the prior
   four documents stay byte-identical across the `1.17 → 1.18` bump; a
   `flop_dependencies` document carries it with `results: []`.
+- **`memory_provenance: Vec<MemoryProvenance>`** (schema `1.19`, `SEMANTIC-INTROSPECTION-EXPANSION.7b.2`)
+  — the `memory_provenance` payload: per inferrable memory block, its **port
+  provenance**. A `MemoryProvenance` is, per memory: `mem` (id, addressed
+  `"mem:<id>"`), the structural shape `addr_width` / `data_width` / `kind`
+  (`"single_port"` / `"simple_dual_port"`) / `single_port`, and the `SupportCone` of
+  each of its four driving ports — `read_addr_support` / `write_addr_support` /
+  `write_data_support` / `write_enable_support` (each a full support cone, `target`
+  `"mem:<id>.<port>"`). It is the query that **opens the documented opaque-`MemRead`
+  -leaf boundary**: the five prior queries terminate a support cone at a `MemRead`
+  (counted, listed nowhere); `memory_provenance` instead reports what drives a
+  memory's *input* ports — built by the **same** support-cone machinery, without
+  recursing *through* the memory's stored contents (a register boundary). For a
+  `SinglePort` memory the read and write addresses are the same node, so the two
+  address cones carry identical support (`single_port` flags this). It is a pure read
+  of `Module.memories` + the per-port cones — no IR field, no generator change.
+  `memory_provenance` carries the same `skip_serializing_if`, so the prior five
+  documents stay byte-identical across the `1.18 → 1.19` bump; a `memory_provenance`
+  document carries it with `results: []`. `target` is `"mem:<id>"` (omit for every
+  memory).
 
-`target = None` ⇒ all targets/sources/flops/modules (per the agent-audience
+`target = None` ⇒ all targets/sources/flops/modules/memories (per the agent-audience
 completeness rule); an unknown `query` or `target` is rejected with JSON-RPC
 `-32602`.
 
@@ -470,7 +489,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.18"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.19"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -480,7 +499,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.18"`**.
+This document defines **`schema_version = "1.19"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -659,6 +678,21 @@ This document defines **`schema_version = "1.18"`**.
   consumer ignores the new integer key; no field was removed/renamed/retyped; the
   default-`dut` **artifact** (`.sv`) stays byte-identical and determinism is
   preserved. MINOR is an integer, so this is `1.14 → 1.15` (fifteen), not a decimal.
+- **`1.18` → `1.19` (`SEMANTIC-INTROSPECTION-EXPANSION.7b.2`).** Additive MINOR bump:
+  added the **sixth** derived `analyze` query kind `memory_provenance` — per inferrable
+  memory its shape (`addr_width`/`data_width`/`kind`/`single_port`) plus the support cone
+  of each of its four driving ports (`read_addr_support`/`write_addr_support`/
+  `write_data_support`/`write_enable_support`), carried by a sixth
+  `DerivedAnalysis.memory_provenance: Vec<MemoryProvenance>` parallel vec
+  (`#[serde(default, skip_serializing_if = "Vec::is_empty")]`). The second query beyond
+  decision `0011`'s four named kinds, and the first to **open the documented
+  opaque-`MemRead`-leaf boundary** (it reports what drives a memory's input ports without
+  recursing through its stored contents). SCHEMA-DERIVED (a reuse of the `output_support`
+  cone machinery per memory port — not new computed truth). Backward compatible: the
+  `memory_provenance` key is `skip_serializing_if`-omitted on every other `analyze`
+  document, so the five prior query documents and the default-`dut` **artifact** (`.sv`)
+  stay byte-identical; a `1.18` consumer ignores the new query kind. MINOR is an integer,
+  so this is `1.18 → 1.19` (nineteen), not a decimal.
 - **`1.17` → `1.18` (`SEMANTIC-INTROSPECTION-EXPANSION.6b.2`).** Additive MINOR bump:
   added the **fifth** derived `analyze` query kind `flop_dependencies` — the
   register-to-register dependency graph (per flop its direct register predecessors
@@ -735,5 +769,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.18"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.19"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

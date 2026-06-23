@@ -1103,7 +1103,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.18"`
+│                     only the envelope metadata (`schema_version` `"1.19"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -1131,7 +1131,9 @@ src/
 │                     1.16→1.17 the `Metrics::num_emitted_casez_mux_if_chains`
 │                     count (`STRUCTURED-EMISSION-EXPANSION.19b.2a`), and
 │                     1.17→1.18 the fifth `flop_dependencies` analyze query
-│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.6b.2`);
+│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.6b.2`), and
+│                     1.18→1.19 the sixth `memory_provenance` analyze query
+│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.7b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1235,10 +1237,13 @@ src/
 │                     **opening the documented opaque-`MemRead`-leaf boundary** — it
 │                     reports what drives a memory's input ports without recursing
 │                     through its contents) — reusing the `build_cone` support
-│                     machinery; `"mem:<id>"` addressing. `supported_query_kinds()`
-│                     unchanged at `.7b.1` (the registry entry + `run_analyze`
-│                     dispatch land together in `.7b.2`, schema `1.18 → 1.19`). 7
-│                     in-crate proofs; DUT byte-identical. The parallel-vec pattern
+│                     machinery; `"mem:<id>"` addressing. `.7b.2` registers it in
+│                     `supported_query_kinds()` with the `run_analyze` dispatch
+│                     (`module`/`design_memory_provenance`) + the `analyze_schema`
+│                     enum (the `"mem:<id>"` target) + schema `1.18 → 1.19` +
+│                     book/USER_GUIDE/schema-doc/KM + an e2e `anvil-mcp` smoke
+│                     (2 MCP proofs). 7 in-crate proofs; DUT byte-identical. The
+│                     parallel-vec pattern
 │                     now carries six query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
 │                     `memory_provenance`), each a `skip_serializing_if` vec the

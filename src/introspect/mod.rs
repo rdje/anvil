@@ -51,23 +51,25 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.18` is the
-/// additive (backward-compatible) MINOR bump that adds the **fifth** derived
-/// `analyze` query kind `flop_dependencies` — the register-to-register dependency
-/// graph (per flop its direct register predecessors / successors / self-feedback
-/// flag), carried by a fifth `DerivedAnalysis.flop_dependencies` parallel vec
-/// (`SEMANTIC-INTROSPECTION-EXPANSION.6b`; the first query beyond decision `0011`'s
-/// four named kinds, under the lane's open-ended-breadth clause). It is a
-/// SCHEMA-DERIVED projection over the already-emitted IR (a reuse of the
-/// `output_support`/`input_reach` cone machinery, not new computed truth); the
-/// `flop_dependencies` key is `skip_serializing_if`-omitted on every other query
-/// document, so the four prior `analyze` documents and the default-`dut`
-/// **artifact** (`.sv`) stay byte-identical. The prior `1.17` added
-/// `Metrics::num_emitted_casez_mux_if_chains` (decision `0029`); a `1.17` consumer
-/// simply ignores the new query kind. MINOR is an integer, so `1.17 → 1.18`
-/// (eighteen), not a decimal fraction. See the schema-doc §7 changelog for the full
-/// `1.0 → … → 1.17 → 1.18` history.
-pub const SCHEMA_VERSION: &str = "1.18";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.19` is the
+/// additive (backward-compatible) MINOR bump that adds the **sixth** derived
+/// `analyze` query kind `memory_provenance` — per inferrable memory its shape
+/// (address/data width, kind, single-port flag) plus the support cone of each of
+/// its four driving ports (read/write address, write data, write enable), carried
+/// by a sixth `DerivedAnalysis.memory_provenance` parallel vec
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.7b`; the second query beyond decision
+/// `0011`'s four named kinds, and the first to open the documented opaque-`MemRead`
+/// -leaf boundary). It is a SCHEMA-DERIVED projection over the already-emitted IR
+/// (a reuse of the `output_support` cone machinery per memory port, not new
+/// computed truth); the `memory_provenance` key is `skip_serializing_if`-omitted on
+/// every other query document, so the five prior `analyze` documents and the
+/// default-`dut` **artifact** (`.sv`) stay byte-identical. The prior `1.18` added
+/// the fifth `analyze` query kind `flop_dependencies`
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.6b`); a `1.18` consumer simply ignores the new
+/// query kind. MINOR is an integer, so `1.18 → 1.19` (nineteen), not a decimal
+/// fraction. See the schema-doc §7 changelog for the full
+/// `1.0 → … → 1.18 → 1.19` history.
+pub const SCHEMA_VERSION: &str = "1.19";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -510,7 +512,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.18");
+        assert_eq!(doc.schema_version, "1.19");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -651,7 +653,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.18");
+        assert_eq!(doc.schema_version, "1.19");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -694,7 +696,7 @@ mod tests {
         let readout = coverage::module_coverage(&compute(&m));
         let doc = coverage_document(&base, readout.clone());
 
-        assert_eq!(doc.schema_version, "1.18");
+        assert_eq!(doc.schema_version, "1.19");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
                                                              // The payload IS the embedded readout, byte-for-byte.

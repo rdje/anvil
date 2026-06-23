@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.7b.2 — memory_provenance MCP surface + schema 1.19
+
+**Landed as:** this commit (previous: `305b5a5`, `SEMANTIC-INTROSPECTION-EXPANSION.7b.1`).
+A **code change** (`src/mcp/mod.rs` + `src/introspect/{analyze,mod}.rs` + docs/book/KM),
+task-tree-owned by `.7b.2`. **DUT byte-identical** (`tests/snapshots.rs` untouched). Closes
+`.7b`/`.7` ⇒ the **sixth** derived `analyze` query, `memory_provenance`, is **delivered
+end-to-end** — the first query to open the documented opaque-`MemRead`-leaf boundary.
+
+**What changed (why)**
+
+The `.7b.1` pure core landed `memory_provenance` but left it out of the MCP
+registry/dispatch (the `.4b`/`.5b`/`.6b` precedent: registry + dispatch + schema bump land
+together so each commit is coherent). This slice wires the agent-facing surface and bumps
+the schema.
+
+1. **Registry + dispatch (one commit)** — `memory_provenance` added to
+   `analyze::supported_query_kinds()` (`src/introspect/analyze.rs`); `run_analyze`
+   (`src/mcp/mod.rs`) branches by query kind (`module_memory_provenance` /
+   `design_memory_provenance` in both the module and design paths); the empty-result →
+   `-32602` guard checks `analysis.memory_provenance` for this kind. The `analyze_schema`
+   `query` enum + `target` description (the `"mem:<id>"` form), the `analyze` tool
+   description, and the server `instructions` all cover the sixth kind.
+
+2. **Schema `1.18 → 1.19`** (`src/introspect/mod.rs`) — additive MINOR bump (the new query
+   kind + its parallel vec; `DerivedAnalysisDocument` envelope reused). 12 `"1.18" → "1.19"`
+   test assertions (3 introspect, 9 mcp) + 2 new MCP proofs
+   (`analyze_returns_memory_provenance_and_caches_it` +
+   `analyze_memory_provenance_unknown_target_is_invalid_params`).
+
+3. **Docs + KM** — schema-doc §6.7 (the sixth `memory_provenance` payload + `MemoryProvenance`,
+   "one of six parallel result vecs") + the `1.18 → 1.19` changelog + "defines 1.19" / §7 /
+   §10 checklist; `book/src/agent-mcp.md` (analyze tool row + a `memory_provenance` worked
+   example + the resource line + every JSON envelope `1.18 → 1.19`) + `book/src/api-tools.md`
+   (3× `1.18 → 1.19` + the query enum/target list — **also fixing the pre-existing missing
+   `flop_dependencies` api-tools query-enum entry**, a `.6b.2` drift); `USER_GUIDE.md`
+   (analyze description + the sv-version row schema ref); `README.md` (`--introspect` schema
+   `1.19` + the analyze sentence + the sixth query); a new
+   `docs/knowledge/semantic-introspection-memory-provenance.md` KM card + a cross-link from
+   `semantic-introspection-analyze-tool` (`KNOWLEDGE_MAP.md` regenerated `71 → 72` facts /
+   `697` keys); `CODEBASE_ANALYSIS.md` (mcp + schema-history blocks) + `ROADMAP.md` lane
+   status.
+
+**Validation**
+
+`cargo test --lib` **653 passed / 0 failed / 2 ignored** (incl. the 2 new MCP
+`memory_provenance` proofs + the 7 `.7b.1` core proofs). `cargo test --test snapshots`
+**6/6 byte-identical**. `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets
+-- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean;
+`cargo test --test book_examples` **3/3**; KM regenerated (72 facts / 697 keys) +
+`check_knowledge_map.sh` in sync; `scripts/check_doctrines.sh` green. **End-to-end
+`anvil-mcp` stdio smoke:** `analyze {query:"memory_provenance", seed:7, memory_prob:1.0}`
+→ schema `1.19`, 1 memory (`mem 0`: `simple_dual_port`, addr_width 2, data_width 6; the
+`read_addr` / `write_data` / `write_enable` cones resolved to real input ports), `results:[]`
++ `reach_results` / `flop_dependencies` keys omitted; unknown `mem:99999` → `-32602`.
+
+**Impact**
+
+The MCP `analyze` tool now answers **six** derived queries; `memory_provenance` opens the
+opaque-`MemRead`-leaf boundary an agent could not previously cross. DUT byte-identical — no
+generated RTL changes; default-off. The lane returns to a no-frontier boundary (stays
+`active`; the FSM analog `fsm_provenance` is the recorded next sibling).
+
+**Files touched:** `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`USER_GUIDE.md`, `README.md`, `docs/knowledge/semantic-introspection-memory-provenance.md`,
+`docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`,
+`CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.7b.1 — pure memory_provenance core
 
 **Landed as:** this commit (previous: `221d746`, `SEMANTIC-INTROSPECTION-EXPANSION.7a`).

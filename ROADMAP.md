@@ -434,9 +434,19 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `1.18`), the first query beyond decision `0011`'s four named kinds, under the lane's
    open-ended-breadth clause: `.6a` design-detail + `.6b.1` pure core + `.6b.2` surface
    (registry + `run_analyze` dispatch + `analyze_schema` enum + book/USER_GUIDE/
-   schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical. **No active
-   frontier** — further derived-query kinds remain open-ended breadth, not a blocker,
-   none retired. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
+   schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical. `.7` **done**
+   (`2026-06-23`) adds a **sixth** derived query, `memory_provenance` — per-inferrable
+   -memory **port provenance** (each `Memory`'s shape + the support cone of each of its
+   four driving ports: read/write address, write data, write enable; schema `1.19`), the
+   **second** query beyond decision `0011`'s four named kinds and **the first to open the
+   documented opaque-`MemRead`-leaf boundary** (the prior queries terminate a support cone
+   at a `MemRead`; this one reports what drives the memory's input ports, reusing the same
+   `build_cone` machinery, without recursing through its contents): `.7a` design-detail +
+   `.7b.1` pure core + `.7b.2` surface (registry + `run_analyze` dispatch + `analyze_schema`
+   enum + book/USER_GUIDE/schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
+   **No active frontier** — further derived-query kinds (incl. the FSM analog
+   `fsm_provenance`) remain open-ended breadth, not a blocker, none retired. Extends
+   `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential
