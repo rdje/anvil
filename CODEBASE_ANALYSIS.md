@@ -1242,12 +1242,27 @@ src/
 │                     (`module`/`design_memory_provenance`) + the `analyze_schema`
 │                     enum (the `"mem:<id>"` target) + schema `1.18 → 1.19` +
 │                     book/USER_GUIDE/schema-doc/KM + an e2e `anvil-mcp` smoke
-│                     (2 MCP proofs). 7 in-crate proofs; DUT byte-identical. The
-│                     parallel-vec pattern
-│                     now carries six query kinds (`results`/`reach_results`/
+│                     (2 MCP proofs). 7 in-crate proofs; DUT byte-identical. A
+│                     **seventh** query, `fsm_provenance`
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.8b.1`), adds
+│                     `QUERY_FSM_PROVENANCE` + `FsmProvenance { fsm, num_states,
+│                     encoding, state_width, sel_width, out_width, is_mealy,
+│                     sel_support: SupportCone }` + a seventh
+│                     `DerivedAnalysis.fsm_provenance` `skip_serializing_if` vec +
+│                     `module_fsm_provenance`/`design_fsm_provenance` (the
+│                     per-generated-encoding-FSM provenance: `build_cone` over
+│                     `Fsm::sel`, **opening the documented opaque-`FsmOut`-leaf
+│                     boundary** — it reports what drives the FSM's one generated
+│                     input cone `sel` + the FSM's structural shape, without
+│                     surfacing the transition/output table *values*) — reusing the
+│                     `build_cone` support machinery; `"fsm:<id>"` addressing. Not in
+│                     `supported_query_kinds()` yet (the registry entry +
+│                     `run_analyze` dispatch land in `.8b.2`). 8 in-crate proofs;
+│                     DUT byte-identical. The parallel-vec pattern
+│                     now carries seven query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
-│                     `memory_provenance`), each a `skip_serializing_if` vec the
-│                     `query` discriminates.
+│                     `memory_provenance`/`fsm_provenance`), each a
+│                     `skip_serializing_if` vec the `query` discriminates.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

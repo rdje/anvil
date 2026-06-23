@@ -1,6 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.8b.1 — pure fsm_provenance core
+
+**Landed as:** this commit (previous: `cabe696`, `SEMANTIC-INTROSPECTION-EXPANSION.8a`).
+A **code change** (`src/introspect/analyze.rs` only), task-tree-owned by `.8b.1`. **DUT
+byte-identical** (`tests/snapshots.rs` untouched; no IR/generator change; not wired to any
+emit path). Lands the pure core of the **seventh** derived `analyze` query, `fsm_provenance`;
+the MCP surface + schema bump follow in `.8b.2`.
+
+**What changed (why)**
+
+The `.8a` design pinned `fsm_provenance` as the FSM analog of `memory_provenance` (`.7`). Per the
+`.4b`/`.5b`/`.6b`/`.7b` precedent, the pure analysis core lands first (lib-tested, not wired) so
+the surface commit (`.8b.2`) is a coherent registry+dispatch+schema unit.
+
+1. **`QUERY_FSM_PROVENANCE = "fsm_provenance"`** constant + the **`FsmProvenance`** struct:
+   `{ fsm: u32, num_states, encoding: String, state_width, sel_width, out_width, is_mealy: bool,
+   sel_support: SupportCone }`. The one `sel_support` cone reuses the existing tested `SupportCone`
+   (one walker — full-factorization), target `"fsm:<id>.sel"`; the structural fields are a cheap
+   projection of `Fsm`. `encoding` maps `FsmEncoding::{Binary, OneHot, Gray}` →
+   `"binary"`/`"one_hot"`/`"gray"`; `state_width = FsmEncoding::state_width(num_states)` (the
+   existing impl method); `is_mealy = Fsm::is_mealy()` (the FSM analog of
+   `MemoryProvenance::single_port`).
+
+2. **The seventh `DerivedAnalysis.fsm_provenance: Vec<FsmProvenance>` field**
+   (`#[serde(default, skip_serializing_if = "Vec::is_empty")]`) ⇒ the six prior query documents
+   stay byte-identical (the key is omitted unless this is a `fsm_provenance` document). The 12
+   existing `DerivedAnalysis` literals gained `fsm_provenance: Vec::new()`; the
+   `crate::ir::{Fsm, FsmEncoding}` import was added.
+
+3. **`module_fsm_provenance` / `design_fsm_provenance` + the `fsm_provenance_with` driver** —
+   `build_cone` over `Fsm::sel` (a plain `NodeId` ⇒ `Some(node)`) via the same machinery
+   `output_support` uses; project the structural fields; ascending fsm id; `"fsm:<id>"` target
+   (`None` ⇒ all FSMs; unknown/out-of-range ⇒ none ⇒ `-32602` at the MCP layer; FSM-less ⇒ empty).
+   The design variant resolves an instance-output leaf in the `sel` cone to
+   `"<instance>.<child-output-port-name>"`.
+
+4. **Module-level doc note** — the opaque-`FsmOut`-leaf note now records that FSM provenance is
+   surfaced by the separate `fsm_provenance` query (the FSM analog of the `.7` `MemRead` note);
+   it still does not recurse *through* the registered state and does not surface table *values*.
+
+5. **`supported_query_kinds()` unchanged** — `fsm_provenance` is **not** registered yet; the
+   registry entry + `run_analyze` dispatch land together in `.8b.2` so the intermediate commit is
+   coherent.
+
+**Validation**
+
+- `cargo test --lib introspect::analyze` 47/0 (incl. **8 new** `fsm_provenance` proofs: the exact
+  `sel` cone incl. flop-`Q` + input support + depth + the structural fields/labels; each
+  `FsmEncoding`'s `encoding` string + `state_width`; Moore vs Mealy `is_mealy`; `"fsm:<id>"` target
+  + unknown/out-of-range/malformed ⇒ none; `None` ⇒ all FSMs ascending; FSM-less ⇒ empty;
+  serialization omits the other six query vecs + `output_support` omits `fsm_provenance`; the design
+  top-module variant with the instance-output leaf resolved + absent-top empty).
+- `cargo test --lib` 661 passed / 0 failed / 2 ignored (653 + 8).
+- `cargo test --test snapshots` 6/6 byte-identical (DUT `.sv` unchanged; `fsm_provenance` omitted
+  from the six prior documents).
+- `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean; `cargo check --lib` clean.
+
+**Impact**
+
+- DUT byte-identical. The seventh derived query's pure core is in place; the MCP surface + schema
+  `1.19 → 1.20` + docs/KM + e2e smoke land in `.8b.2`.
+
+**Files touched**
+
+- `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+  `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.8a — fsm_provenance impl design-detail
 
 **Landed as:** this commit (previous: `fd0852a`, `SEMANTIC-INTROSPECTION-EXPANSION.7b.2`).

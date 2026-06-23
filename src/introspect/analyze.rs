@@ -42,8 +42,13 @@
 //!   surfaced by a *separate* query, [`QUERY_MEMORY_PROVENANCE`]
 //!   (`SEMANTIC-INTROSPECTION-EXPANSION.7`): it does not recurse *through* a
 //!   `MemRead` (the stored contents stay a register boundary) but reports the
-//!   support cones of the memory's *input* ports. Surfacing FSM provenance
-//!   (`fsm_provenance`) is the remaining recorded future query kind.
+//!   support cones of the memory's *input* ports. The FSM side of that boundary
+//!   is likewise surfaced by [`QUERY_FSM_PROVENANCE`]
+//!   (`SEMANTIC-INTROSPECTION-EXPANSION.8`): it does not recurse *through* an
+//!   `FsmOut` (the registered state stays a register boundary) but reports the
+//!   support cone of the FSM's one generated input, its transition-select cone
+//!   `sel` (the transition/output table *values* stay out of scope — that is
+//!   state-machine behaviour, not a relation).
 //!
 //! # Targets and addressing (decision `0011` Q1)
 //!
@@ -65,8 +70,8 @@
 //! determinism contract the rest of the introspection surface holds.
 
 use crate::ir::{
-    Design, Flop, FlopKind, FlopMux, InstanceId, MemKind, Memory, Module, Node, NodeId, PortId,
-    ResetKind,
+    Design, Flop, FlopKind, FlopMux, Fsm, FsmEncoding, InstanceId, MemKind, Memory, Module, Node,
+    NodeId, PortId, ResetKind,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -137,6 +142,26 @@ pub const QUERY_FLOP_DEPENDENCIES: &str = "flop_dependencies";
 /// MCP `analyze` tool (`.7b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_MEMORY_PROVENANCE: &str = "memory_provenance";
 
+/// The query-kind string for the seventh derived query: per-generated-encoding-FSM
+/// **provenance**. For each [`Fsm`] block it reports the FSM's structural shape
+/// (`num_states`, `encoding`, `state_width`, `sel_width`, `out_width`, `is_mealy`)
+/// plus the support cone of its one generated input port — the transition-select
+/// cone `sel`. It is the **direct sibling of [`QUERY_MEMORY_PROVENANCE`]**: the
+/// query that **opens the documented opaque-`FsmOut`-leaf boundary**, exactly as
+/// `memory_provenance` opened the `MemRead` boundary. The six prior queries
+/// terminate the combinational cone at a [`Node::FsmOut`] (recorded in no support
+/// list), while `fsm_provenance` reports what drives the FSM's `sel` input — without
+/// recursing *through* the FSM's registered state (still a register boundary, like a
+/// flop `Q`) and without surfacing the transition/output table *values* (that is the
+/// construction-time-resolved state-machine behaviour, the `0004`/`0011`
+/// no-behavioural-oracle non-goal). The `sel` cone is built by the **same**
+/// [`build_cone`] machinery `output_support` uses (one walker — full-factorization).
+/// The third query beyond decision `0011`'s four named kinds (the lane's "open-ended
+/// breadth" clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_fsm_provenance`] / [`design_fsm_provenance`], dispatched by the MCP
+/// `analyze` tool (`.8b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_FSM_PROVENANCE: &str = "fsm_provenance";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -203,6 +228,13 @@ pub struct DerivedAnalysis {
     /// analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub memory_provenance: Vec<MemoryProvenance>,
+    /// The [`QUERY_FSM_PROVENANCE`] payload: one [`FsmProvenance`] per
+    /// generated-encoding FSM block. A **seventh** parallel vec, same rationale as
+    /// the prior five: `skip_serializing_if` keeps the six prior query documents
+    /// byte-identical (the key is omitted unless this is a `fsm_provenance`
+    /// analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fsm_provenance: Vec<FsmProvenance>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -397,6 +429,49 @@ pub struct MemoryProvenance {
     pub write_enable_support: SupportCone,
 }
 
+/// [`QUERY_FSM_PROVENANCE`] payload. A pure projection of the [`Fsm`] the generator
+/// already built: its structural shape plus the [`SupportCone`] of its one generated
+/// input port, the transition-select cone `sel`. It answers *what drives this FSM's
+/// state transitions (and, for a Mealy FSM, its output decode)?* — opening the
+/// boundary the opaque [`Node::FsmOut`] leaf hides from the other queries' cones,
+/// without recursing *through* the FSM's registered state (a register boundary, like
+/// a flop `Q`) and without surfacing the transition/output table *values* (the
+/// construction-time-resolved state-machine behaviour — a deliberate boundary, the
+/// [`MemoryProvenance`] precedent of not recursing through stored contents).
+///
+/// An FSM has exactly **one** generated input cone (`sel`) — unlike a memory's four
+/// ports — because its transition/output tables are construction-time *constants*
+/// (`Vec<u32>` / `Vec<u128>`), not [`NodeId`] cones. The `sel_support` field is built
+/// by the **same** [`build_cone`] machinery `output_support` uses, so it classifies
+/// its leaves exactly like an output cone (primary inputs / flop `Q`s / child-instance
+/// outputs; opaque `MemRead`/`FsmOut` terminate it) and its `target` is
+/// `"fsm:<id>.sel"`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FsmProvenance {
+    /// The FSM id (addressed `"fsm:<id>"`, the entity this entry is about).
+    pub fsm: u32,
+    /// Number of states (`>= 1`; reset state is index 0), from [`Fsm::num_states`].
+    pub num_states: u32,
+    /// `"binary"` | `"one_hot"` | `"gray"`, from [`FsmEncoding`]. Mapped to a stable
+    /// string so the wire shape survives the enum gaining variants.
+    pub encoding: String,
+    /// Width of the encoded `state_q` register ([`FsmEncoding::state_width`] for this
+    /// encoding + state count).
+    pub state_width: u32,
+    /// Width of the transition-select cone `sel` (its `1 << sel_width` values index
+    /// the transition/output tables), from [`Fsm::sel_width`].
+    pub sel_width: u32,
+    /// Width of the registered output (`Node::FsmOut.width` == [`Fsm::out_width`]).
+    pub out_width: u32,
+    /// Whether the output is **Mealy** (a combinational decode over `(state_q, sel)`)
+    /// vs **Moore** (state only), from [`Fsm::is_mealy`]. The FSM analog of
+    /// [`MemoryProvenance::single_port`] — a one-bit structural output-shape flag.
+    pub is_mealy: bool,
+    /// Support cone feeding the transition-select input `sel` (`Fsm::sel`); cone
+    /// `target` `"fsm:<id>.sel"`. The one generated input cone of an FSM.
+    pub sel_support: SupportCone,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -423,6 +498,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -459,6 +535,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -491,6 +568,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -565,6 +643,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         module_reachability,
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
     }
 }
 
@@ -597,6 +676,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         module_reachability,
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
     }
 }
 
@@ -631,6 +711,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -708,6 +789,7 @@ fn flop_dependencies_with(
         module_reachability: Vec::new(),
         flop_dependencies,
         memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
     }
 }
 
@@ -742,6 +824,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -806,6 +889,105 @@ fn memory_provenance_with(
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
         memory_provenance,
+        fsm_provenance: Vec::new(),
+    }
+}
+
+/// Compute the `fsm_provenance` analysis for a single [`Module`]: the per-FSM
+/// provenance (its structural shape + the support cone of its one generated input
+/// port, the transition-select cone `sel`).
+///
+/// `target = None` ⇒ a [`FsmProvenance`] per FSM, in ascending id order.
+/// `target = Some("fsm:<id>")` ⇒ that one FSM's entry; any other string (or an
+/// out-of-range id) ⇒ no result (→ `-32602` at the MCP layer). A module with no
+/// FSMs + `target = None` ⇒ an empty `fsm_provenance` (the honest "no FSMs" answer;
+/// `fsm_prob` is default-off, so the default DUT hits this). Instance-output support
+/// in the `sel` cone is named `"<instance>.port<id>"` here; use
+/// [`design_fsm_provenance`] for fully-resolved child port names.
+pub fn module_fsm_provenance(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    fsm_provenance_with(m, target, &fmt)
+}
+
+/// Compute the `fsm_provenance` analysis for the **top** module of a [`Design`],
+/// resolving each instance-output leaf in the `sel` cone to its
+/// `"<instance>.<child-output-port-name>"` form. Returns an empty analysis when the
+/// named top module is absent. (Per-child-module FSM provenance is a future
+/// extension; like `flop_reset_provenance` / `memory_provenance` this operates on the
+/// top module.)
+pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return DerivedAnalysis {
+            query: QUERY_FSM_PROVENANCE.to_string(),
+            results: Vec::new(),
+            reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
+        };
+    };
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    fsm_provenance_with(top, target, &fmt)
+}
+
+/// Shared driver for [`module_fsm_provenance`] / [`design_fsm_provenance`]: project
+/// `m.fsms` (ascending id) into [`FsmProvenance`]s, building each FSM's one `sel`
+/// support cone with the **same** [`build_cone`] machinery `output_support` uses (one
+/// walker — full-factorization). `Fsm::sel` is a plain [`NodeId`] (never `None`), so
+/// the cone is rooted at `Some(node)`. The structural fields are a direct projection
+/// of the [`Fsm`] (`FsmEncoding` → a stable string + [`FsmEncoding::state_width`]);
+/// the transition/output table *values* are deliberately not surfaced (state-machine
+/// behaviour, not a relation).
+fn fsm_provenance_with(
+    m: &Module,
+    target: Option<&str>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> DerivedAnalysis {
+    let mut fsms: Vec<&Fsm> = m.fsms.iter().collect();
+    fsms.sort_by_key(|fsm| fsm.id); // deterministic, independent of vec order
+
+    let make = |fsm: &Fsm| -> FsmProvenance {
+        let encoding = match fsm.encoding {
+            FsmEncoding::Binary => "binary",
+            FsmEncoding::OneHot => "one_hot",
+            FsmEncoding::Gray => "gray",
+        };
+        FsmProvenance {
+            fsm: fsm.id,
+            num_states: fsm.num_states,
+            encoding: encoding.to_string(),
+            state_width: fsm.encoding.state_width(fsm.num_states),
+            sel_width: fsm.sel_width,
+            out_width: fsm.out_width,
+            is_mealy: fsm.is_mealy(),
+            sel_support: build_cone(m, format!("fsm:{}.sel", fsm.id), Some(fsm.sel), fmt),
+        }
+    };
+
+    let mut fsm_provenance = Vec::new();
+    match target {
+        None => fsm_provenance.extend(fsms.iter().map(|fsm| make(fsm))),
+        Some(t) => {
+            // Only the `"fsm:<id>"` form is a valid target here; anything else
+            // (or an out-of-range id) ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t.strip_prefix("fsm:").and_then(|r| r.parse::<u32>().ok()) {
+                if let Some(fsm) = fsms.iter().find(|fsm| fsm.id == id) {
+                    fsm_provenance.push(make(fsm));
+                }
+            }
+        }
+    }
+    DerivedAnalysis {
+        query: QUERY_FSM_PROVENANCE.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance,
     }
 }
 
@@ -862,6 +1044,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
     }
 }
 
@@ -926,6 +1109,7 @@ fn support_cones_with(
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
     }
 }
 
@@ -997,6 +1181,7 @@ fn input_reach_with(
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
     }
 }
 
@@ -2708,6 +2893,285 @@ mod tests {
         };
         assert!(design_memory_provenance(&ghost, None)
             .memory_provenance
+            .is_empty());
+    }
+
+    // ---- fsm_provenance (.8b.1) ----
+
+    /// A module with one generated-encoding FSM whose `sel` cone is `s ^ Q0`
+    /// (input `s` + flop 0). `encoding`/`mealy` parameterize the shape under test;
+    /// `num_states = 4`, `sel_width = 1`, `out_width = 2`.
+    fn fsm_module(encoding: FsmEncoding, mealy: bool) -> Module {
+        let mut m = Module {
+            name: "fsm".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "s", 1, Direction::In));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // 0 = s
+        m.nodes.push(Node::FlopQ { flop: 0, width: 1 }); // 1 = Q0
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![0, 1], // s ^ Q0
+            width: 1,
+            deps: crate::ir::DepSet::new(),
+        }); // 2 = sel cone
+        m.flops.push(Flop {
+            id: 0,
+            width: 1,
+            d: Some(0), // D = s (well-formed; not under test here)
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        let num_states = 4u32;
+        let sel_width = 1u32;
+        let cols = 1usize << sel_width;
+        let transitions: Vec<Vec<u32>> = (0..num_states)
+            .map(|s| {
+                (0..cols)
+                    .map(|c| ((s as usize + c) % num_states as usize) as u32)
+                    .collect()
+            })
+            .collect();
+        let outputs: Vec<u128> = (0..num_states as u128).collect();
+        let mealy_outputs = mealy.then(|| {
+            (0..num_states)
+                .map(|_| (0..cols).map(|c| c as u128).collect())
+                .collect()
+        });
+        m.fsms.push(Fsm {
+            id: 0,
+            num_states,
+            encoding,
+            sel: 2, // s ^ Q0
+            sel_width,
+            transitions,
+            outputs,
+            out_width: 2,
+            mealy_outputs,
+        });
+        m
+    }
+
+    /// The `sel` support cone is exact (input + flop-`Q` support, one gate deep),
+    /// the structural fields project `Fsm`, and the cone `target` is `"fsm:<id>.sel"`.
+    #[test]
+    fn fsm_provenance_projects_shape_and_sel_support() {
+        let m = fsm_module(FsmEncoding::Binary, false);
+        let a = module_fsm_provenance(&m, None);
+        assert_eq!(a.query, QUERY_FSM_PROVENANCE);
+        // Only the fsm_provenance vec is populated.
+        assert!(a.results.is_empty() && a.reach_results.is_empty() && a.flop_provenance.is_empty());
+        assert!(
+            a.module_reachability.is_empty()
+                && a.flop_dependencies.is_empty()
+                && a.memory_provenance.is_empty()
+        );
+        assert_eq!(a.fsm_provenance.len(), 1);
+
+        let fp = &a.fsm_provenance[0];
+        assert_eq!(fp.fsm, 0);
+        assert_eq!(fp.num_states, 4);
+        assert_eq!(fp.encoding, "binary");
+        assert_eq!(fp.state_width, 2); // ceil(log2 4)
+        assert_eq!(fp.sel_width, 1);
+        assert_eq!(fp.out_width, 2);
+        assert!(!fp.is_mealy);
+
+        // sel = s ^ Q0 ⇒ input `s` + flop 0, one gate deep.
+        assert_eq!(fp.sel_support.target, "fsm:0.sel");
+        assert_eq!(fp.sel_support.support_inputs, vec!["s"]);
+        assert_eq!(fp.sel_support.support_flops, vec![0]);
+        assert!(fp.sel_support.support_instance_outputs.is_empty());
+        assert_eq!(fp.sel_support.cone_depth, 1);
+    }
+
+    /// Each `FsmEncoding` maps to its stable string + the right `state_width`
+    /// (Binary/Gray = ceil(log2 n); OneHot = n).
+    #[test]
+    fn fsm_provenance_encodings_and_state_width() {
+        for (enc, name, width) in [
+            (FsmEncoding::Binary, "binary", 2u32),
+            (FsmEncoding::OneHot, "one_hot", 4u32),
+            (FsmEncoding::Gray, "gray", 2u32),
+        ] {
+            let m = fsm_module(enc, false);
+            let fp = &module_fsm_provenance(&m, None).fsm_provenance[0];
+            assert_eq!(fp.encoding, name);
+            assert_eq!(fp.state_width, width);
+        }
+    }
+
+    /// A Mealy FSM (`mealy_outputs.is_some()`) sets `is_mealy`; a Moore FSM clears it.
+    #[test]
+    fn fsm_provenance_mealy_flag() {
+        assert!(
+            module_fsm_provenance(&fsm_module(FsmEncoding::Binary, true), None).fsm_provenance[0]
+                .is_mealy
+        );
+        assert!(
+            !module_fsm_provenance(&fsm_module(FsmEncoding::Binary, false), None).fsm_provenance[0]
+                .is_mealy
+        );
+    }
+
+    /// `target = "fsm:<id>"` addresses one FSM; an unknown id, a non-`fsm:` string,
+    /// or a malformed id yields no result (→ `-32602` at the MCP layer).
+    #[test]
+    fn fsm_provenance_target_and_unknown() {
+        let m = fsm_module(FsmEncoding::Binary, false);
+        let one = module_fsm_provenance(&m, Some("fsm:0"));
+        assert_eq!(one.fsm_provenance.len(), 1);
+        assert_eq!(one.fsm_provenance[0].fsm, 0);
+
+        assert!(module_fsm_provenance(&m, Some("fsm:9"))
+            .fsm_provenance
+            .is_empty());
+        assert!(module_fsm_provenance(&m, Some("nope"))
+            .fsm_provenance
+            .is_empty());
+        assert!(module_fsm_provenance(&m, Some("fsm:abc"))
+            .fsm_provenance
+            .is_empty());
+    }
+
+    /// `target = None` ⇒ one entry per FSM in ascending id order, regardless of the
+    /// `m.fsms` vec order.
+    #[test]
+    fn fsm_provenance_none_yields_all_ascending() {
+        let mut m = fsm_module(FsmEncoding::Binary, false);
+        // Add a second FSM (id 1) reusing the same sel cone, pushed so the vec is
+        // already [0]; then insert id 1 at the front to prove ascending emission.
+        let second = Fsm {
+            id: 1,
+            num_states: 2,
+            encoding: FsmEncoding::OneHot,
+            sel: 2,
+            sel_width: 1,
+            transitions: vec![vec![0, 1], vec![1, 0]],
+            outputs: vec![0, 1],
+            out_width: 2,
+            mealy_outputs: None,
+        };
+        m.fsms.insert(0, second); // vec order now [1, 0]
+        let a = module_fsm_provenance(&m, None);
+        let ids: Vec<u32> = a.fsm_provenance.iter().map(|e| e.fsm).collect();
+        assert_eq!(ids, vec![0, 1]);
+    }
+
+    /// An FSM-less module + `target = None` ⇒ an empty (not errored) `fsm_provenance`
+    /// — the honest "no FSMs" answer (the default-off `fsm_prob` case).
+    #[test]
+    fn fsmless_module_yields_empty_fsm_provenance() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.drives.push((1, 0));
+        let a = module_fsm_provenance(&m, None);
+        assert_eq!(a.query, QUERY_FSM_PROVENANCE);
+        assert!(a.fsm_provenance.is_empty());
+    }
+
+    /// A `fsm_provenance` document serializes `fsm_provenance`, omits the other six
+    /// query vecs (`skip_serializing_if`), and keeps `results` an empty array — so an
+    /// `output_support` document (which omits `fsm_provenance`) stays byte-identical.
+    #[test]
+    fn fsm_provenance_document_omits_the_other_query_vecs() {
+        let m = fsm_module(FsmEncoding::Binary, false);
+        let v = serde_json::to_value(module_fsm_provenance(&m, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("fsm_provenance"));
+        assert!(obj.get("reach_results").is_none());
+        assert!(obj.get("flop_provenance").is_none());
+        assert!(obj.get("module_reachability").is_none());
+        assert!(obj.get("flop_dependencies").is_none());
+        assert!(obj.get("memory_provenance").is_none());
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+
+        let sup = serde_json::to_value(module_support_cones(&m, None)).unwrap();
+        assert!(sup.as_object().unwrap().get("fsm_provenance").is_none());
+    }
+
+    /// The design variant projects the **top** module's FSMs and resolves an
+    /// instance-output leaf in the `sel` cone to `"<instance>.<child-output-port>"`;
+    /// an absent top ⇒ an empty analysis.
+    #[test]
+    fn design_fsm_provenance_projects_the_top_module() {
+        // Child: out port "o" driven by input "a".
+        let mut child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 1, Direction::In));
+        child.outputs.push(port(1, "o", 1, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        child.drives.push((1, 0));
+
+        // Top: an FSM whose `sel` is the child instance's output.
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "clk", 1, Direction::In));
+        top.inputs.push(port(1, "rst_n", 1, Direction::In));
+        top.clock = Some(0);
+        top.reset = Some(1);
+        top.instances.push(Instance {
+            id: 0,
+            name: "u0".into(),
+            module: "child".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![],
+            param_bindings: vec![],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1, // child output "o"
+            width: 1,
+        }); // 0 = u0.o
+        top.fsms.push(Fsm {
+            id: 0,
+            num_states: 2,
+            encoding: FsmEncoding::Binary,
+            sel: 0, // u0.o
+            sel_width: 1,
+            transitions: vec![vec![0, 1], vec![1, 0]],
+            outputs: vec![0, 1],
+            out_width: 1,
+            mealy_outputs: None,
+        });
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let a = design_fsm_provenance(&design, None);
+        assert_eq!(a.fsm_provenance.len(), 1);
+        let fp = &a.fsm_provenance[0];
+        assert_eq!(fp.sel_support.target, "fsm:0.sel");
+        assert_eq!(fp.sel_support.support_instance_outputs, vec!["u0.o"]);
+        assert!(fp.sel_support.support_inputs.is_empty());
+
+        // Absent top ⇒ empty.
+        let ghost = Design {
+            top: "ghost".into(),
+            modules: vec![Module {
+                name: "child".into(),
+                ..Module::default()
+            }],
+        };
+        assert!(design_fsm_provenance(&ghost, None)
+            .fsm_provenance
             .is_empty());
     }
 }
