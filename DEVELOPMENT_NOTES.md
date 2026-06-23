@@ -5,6 +5,159 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — Semantic introspection — `flop_dependencies` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.6a`
+
+Design-detail leaf for `.6` — the **fifth** derived query, `flop_dependencies`:
+*the register-to-register (flop→flop) dependency graph of a module* — for each
+flop, which flops' `Q` feed its `D` cone (its direct register **predecessors**),
+which flops' `D` cones its own `Q` feeds (its direct register **successors**), and
+whether it feeds itself (a self-feedback register — a counter/accumulator).
+Docs-only (no source). This is the **first query beyond decision `0011`'s four
+named kinds**, exercising the lane's documented *"further derived-query kinds are
+open-ended breadth"* clause — strictly under decision `0011`'s API and the
+`0004`/`0011` SCHEMA-DERIVED / structure-first ceiling (a **relation** over the
+construction graph, never behaviour). It follows the per-query design-detail
+precedent (`.3a`/`.4a`/`.5a`): no new numbered decision record; decision `0011`
+already governs the surface.
+
+It is the **register-level analog of `module_reachability`**: where
+`module_reachability` is a graph over the *module* node-class (the instance graph),
+`flop_dependencies` is a graph over the *flop* node-class (the register graph). But
+unlike `module_reachability` (which walks the module table), it reuses the existing
+**gate-graph** machinery — the same combinational fan-in walk `output_support` /
+`input_reach` already do — so there is no new traversal to get wrong.
+
+Grounded in the real `src/introspect/analyze.rs` (read fresh for this leaf):
+
+- `module_support_cones(m, Some("flop:N"))` → `results[0].support_flops` = the
+  flop ids whose `Q` feeds flop `N`'s `D` cone = **`N`'s direct register
+  predecessors** (the cone is transitive combinational and stops at every register
+  boundary, so a "direct" register-graph edge is exactly one register-stage hop).
+- `module_input_reach(m, Some("flop:N"))` → `reach_results[0].reaches_flops` = the
+  flop ids whose `D` cone `N`'s `Q` reaches = **`N`'s direct register successors**.
+- `self_dependent(N)` = `N ∈ depends_on_flops(N)` (a register whose `Q` feeds its
+  own `D` through pure combinational logic — `q <= q + 1`).
+
+So every datum is already computed by the two delivered queries; the value-add is
+**aggregation for the agent consumer**: no single existing query returns the whole
+register graph, so an agent would otherwise issue `2·N` `analyze` calls (a
+`output_support` + an `input_reach` per flop) and post-process. Per the
+`2026-06-16` agent-API steering (*"ask one query, get the complete
+machine-actionable answer"*), `flop_dependencies` returns the complete flop→flop
+graph (+ `self_dependent`) in one call. Honest framing: individual edges are
+derivable from the prior two queries — this query is the register-graph **view**,
+not new computed truth (still a pure relation over the emitted IR).
+
+### Q1 — result shape: a FIFTH parallel result vec
+
+`DerivedAnalysis` gains a fifth `#[serde(default, skip_serializing_if =
+"Vec::is_empty")]` vec, continuing the parallel-vec pattern (`.3a` chose this over
+a tagged `results` enum so prior documents stay byte-identical; each new kind = one
+more skip-if vec the `query` field discriminates — now scaled to five). The four
+prior query documents (`output_support` / `input_reach` / `flop_reset_provenance` /
+`module_reachability`) stay **byte-identical** (the key is omitted unless this is a
+`flop_dependencies` analysis):
+
+```rust
+pub flop_dependencies: Vec<FlopDependencies>,   // populated only by flop_dependencies
+
+pub struct FlopDependencies {
+    pub flop: u32,                   // the flop id (addressed "flop:<id>")
+    pub depends_on_flops: Vec<u32>,  // direct register PREDECESSORS: flop ids whose Q
+                                     // feeds this flop's D cone (sorted, deduped)
+    pub driven_flops: Vec<u32>,      // direct register SUCCESSORS: flop ids whose D cone
+                                     // this flop's Q feeds (sorted, deduped)
+    pub self_dependent: bool,        // flop ∈ depends_on_flops: a self-feedback register
+                                     // (counter/accumulator)
+}
+```
+
+Field-name note: the primary key is `flop` (a `u32`), mirroring `FlopProvenance`
+(the entity is a flop, named descriptively, not the generic `target`). Both edge
+vecs are present for **every** flop (an empty Vec for a flop with no register
+predecessor/successor) — the API-audience completeness rule: ship the complete
+structured relation so a consumer can reconstruct the entire register graph and
+recompute any reachability/SCC itself. No `in_degree`/`out_degree` count fields:
+they are `len()` of the vecs (deriving one would be a second source of truth — the
+flat Vec is complete). `self_dependent` is the one genuinely-extra derived
+boolean (parallel to `module_reachability`'s `reachable`): it is `len`-cheap and
+high-signal (a self-feedback register is the structural marker of accumulation),
+and it is *not* trivially visible in the flat predecessor Vec for an agent scanning
+many flops, so it earns its place. Additive MINOR schema bump `1.17 → 1.18`.
+
+Deferred sub-kinds (recorded, nothing retired): a transitive register-reachability
+closure, strongly-connected-component / feedback-loop grouping, and a
+sequential-depth (pipeline-stage) metric over the register graph are all natural
+follow-ups under this same query family; the first cut ships the **direct** edge
+relation (one register-stage hop) + `self_dependent`, which is the primitive the
+others build on.
+
+### Q2 — derivation: reuse the support/reach machinery (one inversion pass)
+
+`module_flop_dependencies(&Module, target)`:
+1. For each flop in `m.flops` (ascending id), build its `D`-cone support via the
+   existing support-cone machinery (the same builder `output_support` uses) and
+   take `support_flops` ⇒ `depends_on_flops`.
+2. **Invert** that predecessor relation across all flops to get `driven_flops`
+   (`M ∈ depends_on_flops(N)` ⇔ `N ∈ driven_flops(M)`) — exactly the inversion
+   `input_reach_with` already performs, restricted to flop sources/targets, so one
+   linear pass yields both directions (no `2·N` re-walks). The recommended `.6b.1`
+   form computes all predecessor sets once and transposes; the equivalent
+   per-flop `module_support_cones`/`module_input_reach` reuse is the readable
+   fallback.
+3. `self_dependent` = `flop ∈ depends_on_flops`.
+4. Emit one `FlopDependencies` per flop, **ascending id** (the determinism contract
+   `flop_reset_provenance` holds by the same sort); both edge vecs sorted/deduped.
+
+Pure: no IR field, no generator change (the `coverage_gaps` / `output_support`
+project-don't-recompute precedent). By-construction dual-consistency (the
+transpose) is a free, provable test invariant (the `input_reach` `.3b.1` proof
+pattern). Opaque `MemRead` / `FsmOut` terminate the underlying cone exactly as in
+`output_support` (a documented boundary inherited for free).
+
+### Q3 — target addressing: `"flop:<id>"`
+
+`target` is `"flop:<id>"` — **consistent with** the flop addressing
+`output_support` / `input_reach` / `flop_reset_provenance` already use (not a new
+vocabulary; the natural identifier for a per-flop query):
+- `target = None` ⇒ one entry per flop in `m.flops`, ascending id.
+- `target = Some("flop:<id>")` ⇒ that one flop's entry (even if it has no register
+  predecessor/successor — an empty-edges entry, not an error).
+- any other string, or an out-of-range id ⇒ no entry ⇒ `-32602` at the MCP layer —
+  the established "unknown target vs known-but-empty" contract. The `run_analyze`
+  empty-result guard checks `analysis.flop_dependencies.is_empty()` for this kind.
+- a flopless module + `target = None` ⇒ an empty `flop_dependencies` (the honest
+  "no flops" answer, not an error — the `flop_reset_provenance` precedent).
+
+### Q4 — module-vs-design semantics
+
+`run_analyze` already routes design-vs-module on
+`cfg.effective_hierarchy_depth_range().is_some()` (a hierarchy config ⇒ a `Design`;
+otherwise a single `Module`). `module_flop_dependencies` is the single-module
+query; `design_flop_dependencies(&Design, target)` analyzes the **top** module's
+flops (early-returns an empty analysis when the named top is absent), exactly like
+`design_flop_provenance` — per-child-module flop dependencies are a future
+extension, the same "operates on the top module" convention all the gate-graph /
+flop-projection queries hold. For a hierarchy design whose state lives entirely in
+the children, the top module has no flops ⇒ the honest empty answer. No
+`format_instance_leaf_*` fmt closure is needed (this query reports only flop ids,
+never instance-output leaf names), unlike `output_support` / `input_reach`.
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.17 → 1.18` (a new `#[serde(default, skip_serializing_if)]` field +
+a new query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT
+`.sv` byte-identical — introspect is not in `tests/snapshots.rs`). Pre-split `.6b`
+→ `.6b.1` (the pure core in `analyze.rs` + the types + the five-literal
+`flop_dependencies: Vec::new()` fill-ins + lib proofs; **not** added to
+`supported_query_kinds()` yet) + `.6b.2` (the surface: the registry entry +
+`run_analyze` dispatch land together; `SCHEMA_VERSION 1.17 → 1.18` + the `"1.17"`
+test-assertion bumps; the `analyze_schema` enum; schema-doc §6.7 + a `1.17 → 1.18`
+changelog + the row; book `agent-mcp` row + worked example + the JSON examples
+`1.17 → 1.18`; USER_GUIDE + README; a KM card; an `anvil-mcp` stdio e2e smoke) — the
+`.3b`/`.4b`/`.5b` precedent (registry + dispatch in one commit so the intermediate
+commit is coherent).
+
 ## 2026-06-23 — `--casez-mux-if-gate` — impl-time notes — `STRUCTURED-EMISSION-EXPANSION.19b.2b`
 
 The ninth-surface downstream gate, templated 1:1 on the eighth surface's

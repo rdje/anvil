@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `SEMANTIC-INTROSPECTION-EXPANSION`
-- Status: `active` (**all four named query kinds from decision `0011` delivered**: `output_support` `.1`/`.2` + `input_reach` `.3` + `flop_reset_provenance` `.4` + `module_reachability` `.5`, schema `1.7`; **no active frontier**, nothing retired — further derived-query kinds are open-ended breadth)
+- Status: `active` (**four named query kinds from decision `0011` delivered** at schema `1.7`: `output_support` `.1`/`.2` + `input_reach` `.3` + `flop_reset_provenance` `.4` + `module_reachability` `.5`; **a fifth query — `flop_dependencies` (the register→register dependency graph) — is now in progress**: `.6a` design-detail landed (this commit), `.6b.1`/`.6b.2` impl pending, schema `1.17 → 1.18`. The fifth query exercises the lane's documented "further derived-query kinds are open-ended breadth" clause; nothing retired)
 - Roadmap lane: `Capability — deeper agent/introspection surface (extends AGENT-INTROSPECTION-MCP / AGENT-MCP-EXPANSION)`
 - Created: `2026-06-15`
-- Last updated: `2026-06-16` (**`.5b.2` landed — closes `.5b`/`.5`; `module_reachability` delivered end-to-end** at introspection schema `1.7`, DUT byte-identical. The MCP `analyze` tool now answers **four** derived queries. `.5b.2` registry+dispatch (`module/design_module_reachability`) in one commit, schema `1.6 → 1.7`, the three prior documents byte-identical (the `module_reachability` key is `skip_serializing_if`-omitted), unknown module name ⇒ `-32602`. 2 new MCP proofs; e2e `anvil-mcp` smoke (hierarchy seed 42 → schema `1.7`, 3 modules, top depth 0; unknown module ⇒ `-32602`). Prior: `.5a` design-detail + `.5b.1` pure core; `.1`–`.4` delivered the first three queries.)
+- Last updated: `2026-06-23` (**`.6a` landed — design-detail (no source) for the fifth derived query, `flop_dependencies`**: the register-to-register (flop→flop) dependency graph — per flop its direct register predecessors (`depends_on_flops` = its D-cone `support_flops`), direct successors (`driven_flops` = its Q's `input_reach` `reaches_flops`), and `self_dependent` (self-feedback). A `DEVELOPMENT_NOTES.md` design-detail entry resolves the five points (result shape = a FIFTH `skip_serializing_if`-omitted parallel `flop_dependencies` vec; derivation = reuse the support/reach machinery in one inversion pass; `"flop:<id>"` addressing; module-vs-design = top-module like `flop_reset_provenance`; schema `1.17 → 1.18`) grounded in a fresh read of `src/introspect/analyze.rs`; pre-split `.6b` → `.6b.1` (pure core) + `.6b.2` (surface). No new numbered decision (the `.3a`/`.4a`/`.5a` per-query precedent; decision `0011` governs the surface). Docs/design only — no source ⇒ DUT byte-identical. Prior: `.5b.2` closed `.5`/`.5b` at schema `1.7`.)
 - Owner: repo-local workflow
 - Note: registered `proposed` by owner roadmap steering (`2026-06-15`); **activated
   `2026-06-16` by explicit owner directive** ("deep semantic introspection shall
@@ -48,7 +48,7 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION`
   Status: `active`
   Goal: `A first-class, MCP-queryable, SCHEMA-DERIVED derived-RELATION query surface over generated artifacts (what depends on what), derived from existing IR facts — never a behavioral oracle.`
-  Children: `SEMANTIC-INTROSPECTION-EXPANSION.1`, `SEMANTIC-INTROSPECTION-EXPANSION.2`, `SEMANTIC-INTROSPECTION-EXPANSION.3`, `SEMANTIC-INTROSPECTION-EXPANSION.4`, `SEMANTIC-INTROSPECTION-EXPANSION.5`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.1`, `SEMANTIC-INTROSPECTION-EXPANSION.2`, `SEMANTIC-INTROSPECTION-EXPANSION.3`, `SEMANTIC-INTROSPECTION-EXPANSION.4`, `SEMANTIC-INTROSPECTION-EXPANSION.5`, `SEMANTIC-INTROSPECTION-EXPANSION.6`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.1`
   Status: `done`
@@ -201,17 +201,57 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Verification: `done`
   Commit: `done`
 
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.6`
+  Status: `active`
+  Goal: `The fifth derived query — flop_dependencies: the register-to-register (flop→flop) dependency graph of a module. Per flop: depends_on_flops (direct register predecessors = its D-cone support_flops), driven_flops (direct register successors = its Q's input_reach reaches_flops), and self_dependent (a self-feedback register — counter/accumulator). The register-level analog of module_reachability, reusing the existing gate-graph support/reach machinery. The first query beyond decision 0011's four named kinds, under the lane's "open-ended breadth" clause; same SCHEMA-DERIVED / pure-post-hoc / default-off / DUT-byte-identical contract; a new "flop_dependencies" query kind in the analyze registry.`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.6a`, `SEMANTIC-INTROSPECTION-EXPANSION.6b`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.6a`
+  Status: `done`
+  Goal: `Design-detail leaf (no source): ground flop_dependencies in the real src/introspect/analyze.rs (the DerivedAnalysis/SupportCone/ReachResult shapes + module_support_cones/module_input_reach builders + the "flop:<id>" target convention). Pin the result shape (a FIFTH parallel flop_dependencies: Vec<FlopDependencies> vec + the FlopDependencies struct), the derivation (reuse the support/reach machinery in one inversion pass — depends_on_flops = D-cone support_flops, driven_flops = the transpose, self_dependent = flop ∈ depends_on_flops), "flop:<id>" target addressing, module-vs-design (top-module like flop_reset_provenance), and the schema bump (1.17 → 1.18). DEVELOPMENT_NOTES design-detail entry + the .6b impl shape. No new numbered decision (the .3a/.4a/.5a per-query precedent; decision 0011 governs the surface).`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the five points grounded in the real analyze.rs; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Result: `Done. DEVELOPMENT_NOTES design-detail entry "flop_dependencies impl design-detail — .6a" resolves all five points, grounded in a fresh read of analyze.rs. (1) Result shape: a new FlopDependencies { flop: u32, depends_on_flops: Vec<u32>, driven_flops: Vec<u32>, self_dependent: bool } + a FIFTH parallel vec flop_dependencies: Vec<FlopDependencies> on DerivedAnalysis (#[serde(default, skip_serializing_if = "Vec::is_empty")] ⇒ the four prior documents byte-identical); both edge vecs present for every flop (sorted/deduped); no in/out-degree count fields (= vec len, a second source of truth); self_dependent is the one genuinely-extra derived boolean (the self-feedback marker). Deferred sub-kinds: transitive register-reachability closure, SCC/feedback-loop grouping, sequential-depth metric (nothing retired). (2) Derivation: reuse the support/reach machinery — depends_on_flops = the flop's D-cone support_flops; driven_flops = the transpose (one inversion pass, exactly input_reach_with restricted to flops); self_dependent = flop ∈ depends_on_flops; pure, no IR/generator change; dual-consistency a free test invariant; opaque MemRead/FsmOut terminate the cone for free. (3) Addressing: "flop:<id>" (consistent with output_support/input_reach/flop_reset_provenance); None ⇒ all flops ascending id; unknown/out-of-range ⇒ no entry ⇒ -32602; flopless + None ⇒ empty. (4) Module-vs-design: module_flop_dependencies + design_flop_dependencies on the top module (early-return empty when top absent), per-child-module a future extension (the flop_reset_provenance convention); no fmt closure needed (reports flop ids only). (5) Schema: additive MINOR 1.17 → 1.18, envelope reused, DUT byte-identical. Pre-split .6b → .6b.1 (pure core + lib proofs; NOT in supported_query_kinds yet) + .6b.2 (surface: registry + run_analyze dispatch in one commit + schema 1.17 → 1.18 + analyze_schema enum + schema-doc/book/USER_GUIDE/README/KM + e2e smoke). Docs/design only — no src/ ⇒ DUT byte-identical; self-checks green.`
+  Verification: `bash scripts/check_doctrines.sh green (docs/design commit ⇒ code-scoped checks exempt); no src/ touched ⇒ cargo check/clippy/fmt/test unaffected; DUT byte-identical.`
+  Commit: `this SEMANTIC-INTROSPECTION-EXPANSION.6a commit`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.6b`
+  Status: `pending`
+  Goal: `Implement flop_dependencies per the .6a design: the pure analysis (in analyze.rs), the "flop_dependencies" query kind, the MCP analyze wiring, the schema 1.17 -> 1.18 bump, lib proofs (predecessors/successors via the support/reach machinery + dual-consistency transpose + self_dependent on a counter + "flop:<id>" target + None ⇒ all flops ascending + flopless ⇒ empty + unknown ⇒ -32602 + determinism), and book/USER_GUIDE/schema-doc/README/KM closeout. Default-off / DUT byte-identical.`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.6b.1`, `SEMANTIC-INTROSPECTION-EXPANSION.6b.2`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.6b.1`
+  Status: `pending`
+  Goal: `The pure flop_dependencies core in src/introspect/analyze.rs: QUERY_FLOP_DEPENDENCIES = "flop_dependencies", the FlopDependencies struct, the flop_dependencies: Vec<FlopDependencies> field on DerivedAnalysis (#[serde(default, skip_serializing_if = "Vec::is_empty")]), and module_flop_dependencies(&Module, Option<&str>) / design_flop_dependencies(&Design, Option<&str>) (reuse the support/reach cone machinery: depends_on_flops = the flop's D-cone support_flops, driven_flops = the transpose, self_dependent = flop ∈ depends_on_flops). The existing DerivedAnalysis literals gain flop_dependencies: Vec::new(). Do NOT add to supported_query_kinds() yet (registry + run_analyze dispatch land together in .6b.2). Lib-tested only; not wired to any emit path.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. exact predecessor/successor correctness on a hand-built pipeline + a self-feedback counter (self_dependent) + dual-consistency (M ∈ depends_on(N) ⇔ N ∈ driven(M)) + "flop:<id>" target + None ⇒ all flops ascending + flopless ⇒ empty + unknown ⇒ none + serialization omits the other four query vecs + determinism; cargo test --test snapshots 6/6 byte-identical (analyze.rs is not in any output path).`
+  Result: `pending`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.6b.2`
+  Status: `pending`
+  Goal: `Wire flop_dependencies to the surface: add "flop_dependencies" to analyze::supported_query_kinds() AND branch run_analyze by query kind (module/design_flop_dependencies) in the same commit, updating the empty-result → -32602 guard to check flop_dependencies for this kind; bump SCHEMA_VERSION 1.17 -> 1.18 (+ the "1.17" test-assertion updates); add the kind to the analyze_schema enum + refresh the tool/instructions descriptions; schema-doc §6.7 + a 1.17 -> 1.18 changelog + the row; book(agent-mcp) row + worked example + the JSON examples 1.17 -> 1.18; USER_GUIDE + README; a KM card. Default-off / DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib + introspect/mcp tests green; the pure MCP analyze tool returns the flop_dependencies relation (cached), unknown target ⇒ -32602; schema_version = 1.18 everywhere + schema doc updated; book/USER_GUIDE/schema-doc + a KM fact; snapshots 6/6 byte-identical; mdbook build + book_examples clean; an anvil-mcp stdio e2e smoke; committed through COMMIT.md with the leaf id.`
+  Result: `pending`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
-**No active frontier.** All **four** named derived queries from decision `0011`
-are delivered end-to-end — `output_support` (`.1`/`.2`), `input_reach` (`.3`),
-`flop_reset_provenance` (`.4`), and `module_reachability` (`.5`, all of
-`.5a`/`.5b.1`/`.5b.2` done) — at introspection schema `1.7`, DUT byte-identical.
-The tree stays `active` (nothing retired): further derived-query kinds are
-open-ended breadth (none named, not a blocker). The next lane is owner-directed.
+**Active frontier: `SEMANTIC-INTROSPECTION-EXPANSION.6b.1`** (the pure
+`flop_dependencies` core in `analyze.rs`). The four named derived queries from
+decision `0011` are delivered end-to-end — `output_support` (`.1`/`.2`),
+`input_reach` (`.3`), `flop_reset_provenance` (`.4`), and `module_reachability`
+(`.5`) — at introspection schema `1.7`, DUT byte-identical. A **fifth** query,
+`flop_dependencies` (the register→register dependency graph — the first beyond
+decision `0011`'s four named kinds, under the lane's "open-ended breadth" clause),
+is now in progress: `.6a` design-detail landed; `.6b.1` (pure core) is next, then
+`.6b.2` (surface, schema `1.17 → 1.18`). Nothing retired.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
+| 1 | `SEMANTIC-INTROSPECTION-EXPANSION.6b.1` | `pending` | **Next.** The pure `flop_dependencies` core in `analyze.rs`: `QUERY_FLOP_DEPENDENCIES` + `FlopDependencies` + the fifth `flop_dependencies` vec + `module_flop_dependencies`/`design_flop_dependencies` (reuse the support/reach machinery: predecessors = D-cone `support_flops`, successors = the transpose, `self_dependent`). Not in `supported_query_kinds()` yet (joins with dispatch in `.6b.2`). Lib-tested; snapshots 6/6 byte-identical. DUT byte-identical. |
+| 2 | `SEMANTIC-INTROSPECTION-EXPANSION.6b.2` | `pending` | Surface: add `flop_dependencies` to `supported_query_kinds()` + branch `run_analyze` (same commit) + schema `1.17 → 1.18` + the `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM + e2e `anvil-mcp` smoke. Closes `.6b`/`.6`. DUT byte-identical. |
+| — | `SEMANTIC-INTROSPECTION-EXPANSION.6a` | `done` | Design-detail (no source) for `flop_dependencies`: pinned the result shape (a fifth `flop_dependencies: Vec<FlopDependencies>` vec — prior four documents byte-identical), the derivation (reuse the support/reach machinery in one inversion pass — predecessors = D-cone `support_flops`, successors = the transpose, `self_dependent` = self-feedback), `"flop:<id>"` addressing, the top-module module-vs-design convention, and the schema bump `1.17 → 1.18`. No new numbered decision (the `.3a`/`.4a`/`.5a` precedent). Pre-split `.6b` → `.6b.1`/`.6b.2`. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.5b.2` | `done` | Surface: added `module_reachability` to `supported_query_kinds()` + branched `run_analyze` (same commit) + schema `1.6 → 1.7` + the `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. 2 new MCP proofs; `cargo test --lib` 458/0/2; snapshots 6/6; book_examples 3/3; e2e `anvil-mcp` smoke (hierarchy → schema 1.7, 3 modules). Closes `.5b`/`.5`. DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | `done` | The pure `module_reachability` core in `analyze.rs`: `QUERY_MODULE_REACHABILITY` + `ModuleReachability` + the fourth `module_reachability` vec + `design_module_reachability`/`module_module_reachability` (BFS over the design's instance edges). Not in `supported_query_kinds()` yet (joins with dispatch in `.5b.2`). 6 proofs; `cargo test --lib` 456/0/2; snapshots 6/6; clippy/fmt clean. DUT byte-identical. |
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.5a` | `done` | Design-detail (no source) for `module_reachability`: pinned the result shape (a fourth `module_reachability: Vec<ModuleReachability>` vec — prior documents byte-identical), the derivation (BFS from `design.top` over the `Module.instances[].module` edges), **module-name** target addressing, the module-vs-design degenerate semantics, and the schema bump `1.6 → 1.7`. Pre-split `.5b` → `.5b.1`/`.5b.2`. |
@@ -229,6 +269,43 @@ open-ended breadth (none named, not a blocker). The next lane is owner-directed.
 
 ## Decisions
 
+- `2026-06-23` (`.6a`, design-detail in `DEVELOPMENT_NOTES.md`): pinned
+  `flop_dependencies`, the **fifth** derived query — *the register-to-register
+  (flop→flop) dependency graph* — and the **first query beyond decision `0011`'s
+  four named kinds**, exercising the lane's documented "further derived-query kinds
+  are open-ended breadth" clause (under decision `0011`'s API + the `0004`/`0011`
+  SCHEMA-DERIVED ceiling; **no new numbered decision**, the `.3a`/`.4a`/`.5a`
+  per-query precedent). The register-level analog of `module_reachability` (a graph
+  over a node class), but reusing the existing **gate-graph** support/reach
+  machinery rather than the module table. (1) Result shape: a new `FlopDependencies
+  { flop: u32, depends_on_flops: Vec<u32>, driven_flops: Vec<u32>, self_dependent:
+  bool }` + a **fifth** parallel vec `flop_dependencies: Vec<FlopDependencies>` on
+  `DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒
+  the four prior documents stay byte-identical); both edge vecs present for every
+  flop (sorted/deduped), no in/out-degree count fields (= vec `len`, a second source
+  of truth), `self_dependent` the one genuinely-extra derived boolean (the
+  self-feedback marker, parallel to `module_reachability.reachable`). (2) Derivation:
+  reuse the support/reach machinery — `depends_on_flops` = the flop's D-cone
+  `support_flops`; `driven_flops` = the transpose (one inversion pass, exactly
+  `input_reach_with` restricted to flops); `self_dependent` = `flop ∈
+  depends_on_flops`; pure, no IR/generator change; dual-consistency a free, provable
+  test invariant; opaque `MemRead`/`FsmOut` terminate the underlying cone for free.
+  Honest framing: each edge is individually derivable from `output_support` /
+  `input_reach` on a `"flop:<id>"` target, but no single query returns the whole
+  register graph — per the `2026-06-16` agent-API steering ("ask one query, get the
+  complete machine-actionable answer") this is the register-graph **view**, not new
+  computed truth. (3) Addressing: `"flop:<id>"` (consistent with `output_support` /
+  `input_reach` / `flop_reset_provenance`); `None` ⇒ all flops ascending id;
+  unknown/out-of-range ⇒ no entry ⇒ `-32602`; flopless + `None` ⇒ empty. (4)
+  Module-vs-design: `module_flop_dependencies` + `design_flop_dependencies` on the
+  **top** module (early-return empty when top absent), per-child-module a future
+  extension — the `flop_reset_provenance` "operates on the top module" convention;
+  no `format_instance_leaf_*` fmt closure needed (reports flop ids only). (5)
+  Schema: additive MINOR `1.17 → 1.18`, `DerivedAnalysisDocument` envelope reused,
+  DUT byte-identical. Deferred sub-kinds (nothing retired): a transitive
+  register-reachability closure, SCC/feedback-loop grouping, a sequential-depth
+  metric. Pre-split `.6b` → `.6b.1` (pure core) + `.6b.2` (surface); the registry
+  entry + `run_analyze` dispatch land together in `.6b.2`.
 - `2026-06-16` (`.5a`, design-detail in `DEVELOPMENT_NOTES.md`): pinned
   `module_reachability`, the **fourth** derived query (the last named kind in
   decision `0011`). (1) Result shape: a new `ModuleReachability { module,
@@ -315,6 +392,7 @@ open-ended breadth (none named, not a blocker). The next lane is owner-directed.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-06-23` | `SEMANTIC-INTROSPECTION-EXPANSION.6a` | Design-detail leaf, **no source change** (grounded in a fresh read of `src/introspect/analyze.rs` — the `DerivedAnalysis`/`SupportCone`/`ReachResult` parallel-vec shapes; `module_support_cones`/`design_support_cones` + `module_input_reach`/`design_input_reach` builders + their `support_cones_with`/`input_reach_with` internals; the `"flop:<id>"` target convention; the `design_*` top-module early-return pattern). `DEVELOPMENT_NOTES.md` design-detail entry "`flop_dependencies` impl design-detail — `.6a`" resolving the five points (a FIFTH `flop_dependencies` parallel vec + `FlopDependencies { flop, depends_on_flops, driven_flops, self_dependent }`; reuse the support/reach machinery in one inversion pass; `"flop:<id>"` addressing; top-module module-vs-design; schema `1.17 → 1.18`) + the `.6b` pre-split. Tree `.6`/`.6a`/`.6b` registered (+ root child `.6`) and `.6b` pre-split → `.6b.1`/`.6b.2`; frontier set to `.6b.1`. `bash scripts/check_doctrines.sh` green (docs/design commit ⇒ code-scoped `CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` exempt; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass). No `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected; **DUT byte-identical**. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.5b.2` | Surface wiring: `module_reachability` in `analyze::supported_query_kinds()` + the `run_analyze` query-kind dispatch (`module/design_module_reachability` in both the design and module paths) + the vec-aware `-32602` guard (`src/mcp/mod.rs`); `analyze_schema` `query` enum + `target` description + the `analyze` tool description + the server `instructions`; `SCHEMA_VERSION` `1.6 → 1.7` + doc comment (`src/introspect/mod.rs`); 8 `"1.6" → "1.7"` test assertions (2 introspect, 6 mcp). Docs: schema-doc §6.7 (fourth `module_reachability` payload + `ModuleReachability` + the stale "two parallel vecs" intro corrected to four) + `1.6 → 1.7` changelog + "defines 1.7"/checklist; book `agent-mcp` (analyze row + a `module_reachability` worked example + the four JSON examples `1.6 → 1.7` + the resource line); USER_GUIDE + README; new KM card `semantic-introspection-module-reachability` + cross-link; `CODEBASE_ANALYSIS` (analyze + mcp blocks). `cargo test --lib` **458 passed / 0 failed / 2 ignored** (incl. `mcp::tests::analyze_returns_module_reachability_and_caches_it` + `analyze_module_reachability_unknown_module_is_invalid_params`). `cargo test --test snapshots` **6/6 byte-identical**. `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples` **3/3**; KM regenerated (35 facts / 262 keys) + `check_knowledge_map.sh` in sync; `check_memory_architecture.sh` clean. End-to-end `anvil-mcp` stdio smoke: `analyze {query:"module_reachability", seed:42, hierarchy config}` → schema `1.7`, 3 modules (top `mod_42_0002` depth 0 instantiating both leaves, all reachable); unknown module name → `-32602`. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.5a` | Design-detail leaf, **no source change** (grounded in a fresh read of the `Design { top, modules }` / `Module { instances }` / `Instance { module, role }` IR in `src/ir/types.rs`, plus `src/introspect/analyze.rs` — the `DerivedAnalysis` parallel-vec pattern + `design_*`/`module_*` builder split + `format_instance_leaf_design`; `src/introspect/mod.rs` — `SCHEMA_VERSION`/`DerivedAnalysisDocument`; `src/mcp/mod.rs` — `run_analyze` design-vs-module routing on `effective_hierarchy_depth_range` + the `analyze_schema` enum + the vec-aware `-32602` guard). `DEVELOPMENT_NOTES.md` design-detail entry (the five points + the `.5b` pre-split). Tree `.5`/`.5a`/`.5b` registered (+ root child) and `.5b` pre-split → `.5b.1`/`.5b.2`; frontier set to `.5b.1`. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. Baseline `cargo check --all-targets` clean. | `done` |
 | `2026-06-16` | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | Pure `module_reachability` core in `src/introspect/analyze.rs` (`QUERY_MODULE_REACHABILITY` + `ModuleReachability { module, reachable, depth: Option<usize>, instantiates, instance_count }` + the fourth `DerivedAnalysis.module_reachability` field + `design_module_reachability` (BFS over the instance graph) / `module_module_reachability` (degenerate one-node) + the `reachability_of`/`distinct_instantiated` helpers; the 6 existing `DerivedAnalysis` literals gained `module_reachability: Vec::new()`; `supported_query_kinds()` unchanged). `cargo test --lib` **456 passed / 0 failed / 2 ignored** (32 `introspect::analyze` proofs incl. 6 new: BFS depth/edges/multi-instance/unreachable/sorted; module-name target + unknown; bare-module degenerate; serialization omits the other 3 vecs; determinism; absent-top all-unreachable). `cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged; `module_reachability` omitted from prior documents). `cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. `CODEBASE_ANALYSIS.md` `analyze.rs` block amended. `bash scripts/check_memory_architecture.sh` + `bash knowledge-map/scripts/check_knowledge_map.sh` clean. | `done` |
@@ -334,6 +412,7 @@ open-ended breadth (none named, not a blocker). The next lane is owner-directed.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `SEMANTIC-INTROSPECTION-EXPANSION.6a` | `SEMANTIC-INTROSPECTION-EXPANSION.6a — flop_dependencies impl design-detail` | Design-detail (no source): opened `.6`, the **fifth** derived query `flop_dependencies` (the register→register dependency graph — first beyond decision `0011`'s four named kinds, under the lane's "open-ended breadth" clause). Pinned the result shape (a fifth `flop_dependencies: Vec<FlopDependencies>` vec — prior four documents byte-identical), the derivation (reuse the support/reach machinery in one inversion pass — predecessors = D-cone `support_flops`, successors = the transpose, `self_dependent` = self-feedback), `"flop:<id>"` addressing, the top-module module-vs-design convention, and the schema `1.17 → 1.18` bump. No new numbered decision (the `.3a`/`.4a`/`.5a` precedent). Registered `.6`/`.6a`/`.6b`; pre-split `.6b` → `.6b.1`/`.6b.2`. DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.5b.2` | `SEMANTIC-INTROSPECTION-EXPANSION.5b.2 — module_reachability MCP surface + schema 1.7` | Registry + `run_analyze` dispatch (`module/design_module_reachability`) + schema `1.6 → 1.7` + `analyze_schema` enum + schema-doc/book/USER_GUIDE/README/KM. Closes `.5b`/`.5` — `module_reachability` delivered end-to-end (the **fourth** and last named query kind). 2 new MCP proofs + e2e `anvil-mcp` smoke; DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1` | `SEMANTIC-INTROSPECTION-EXPANSION.5b.1 — pure module_reachability core` | `src/introspect/analyze.rs`: `QUERY_MODULE_REACHABILITY` + `ModuleReachability` + the fourth `module_reachability` vec + `design_module_reachability`/`module_module_reachability` (BFS over the instance graph + the degenerate one-node case). `supported_query_kinds()` unchanged (joins with dispatch in `.5b.2`). 6 proofs; `cargo test --lib` 456/0/2; snapshots 6/6 byte-identical. DUT byte-identical. |
 | `SEMANTIC-INTROSPECTION-EXPANSION.5a` | `SEMANTIC-INTROSPECTION-EXPANSION.5a — module_reachability impl design-detail` | Design-detail (no source): opened `.5`, the **fourth** derived query `module_reachability`. Pinned the result shape (a fourth `module_reachability: Vec<ModuleReachability>` vec — prior documents byte-identical), the derivation (BFS from `design.top` over the `Module.instances[].module` edges), **module-name** target addressing, the module-vs-design degenerate semantics, and the schema `1.6 → 1.7` bump. Registered `.5`/`.5a`/`.5b`; pre-split `.5b` → `.5b.1`/`.5b.2`. |
@@ -351,6 +430,20 @@ open-ended breadth (none named, not a blocker). The next lane is owner-directed.
 
 ## Changelog
 
+- `2026-06-23`: **`.6a` landed — design-detail (no source) for the fifth derived
+  query, `flop_dependencies`** (the register→register dependency graph; the first
+  query beyond decision `0011`'s four named kinds, under the lane's "open-ended
+  breadth" clause). A `DEVELOPMENT_NOTES.md` design-detail entry pins the result
+  shape (a fifth `flop_dependencies: Vec<FlopDependencies>` parallel vec —
+  `FlopDependencies { flop, depends_on_flops, driven_flops, self_dependent }`; the
+  four prior documents byte-identical), the derivation (reuse the support/reach
+  machinery in one inversion pass), `"flop:<id>"` addressing, the top-module
+  module-vs-design convention, and the schema `1.17 → 1.18` bump, grounded in a
+  fresh read of `src/introspect/analyze.rs`. No new numbered decision (the
+  `.3a`/`.4a`/`.5a` per-query precedent; decision `0011` governs the surface).
+  Registered `.6`/`.6a`/`.6b` (+ root child `.6`); pre-split `.6b` → `.6b.1` (pure
+  core) + `.6b.2` (surface); frontier set to `.6b.1`. Docs/design only — no
+  `src/` ⇒ DUT byte-identical; self-checks green.
 - `2026-06-16`: **`.5b.2` landed — closes `.5b`/`.5`; `module_reachability`
   delivered end-to-end** (the **fourth** and last named derived query from decision
   `0011`; DUT byte-identical). Surface wiring: the kind added to

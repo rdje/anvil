@@ -1,9 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.6a — flop_dependencies impl design-detail
+
+**Landed as:** this commit (previous: `715209f`, `STRUCTURED-EMISSION-EXPANSION.19b.3`).
+A **docs/design-only** change (no `src/` / `tests/`), task-tree-owned by `.6a`. **DUT
+byte-identical** (no generator code touched). Opens `SEMANTIC-INTROSPECTION-EXPANSION.6`
+— a **fifth** derived `analyze` query, `flop_dependencies`.
+
+**What changed (why)**
+
+The SEMANTIC-INTROSPECTION-EXPANSION lane had delivered the four named query kinds from
+decision `0011` (`output_support`, `input_reach`, `flop_reset_provenance`,
+`module_reachability`) and sat at a no-frontier boundary. Per PNT at a no-frontier
+boundary (`feedback_pick_and_roll_at_no_frontier`), this slice opens the **fifth** derived
+query — `flop_dependencies`, the register-to-register (flop→flop) dependency graph — the
+first query beyond decision `0011`'s four named kinds, exercising the lane's documented
+"further derived-query kinds are open-ended breadth" clause (under decision `0011`'s API +
+the `0004`/`0011` SCHEMA-DERIVED ceiling). It is the register-level analog of
+`module_reachability` (a graph over a node class), reusing the existing gate-graph
+support/reach machinery rather than the module table. Per the per-query design-detail
+precedent (`.3a`/`.4a`/`.5a`), this design-detail leaf records the shape in
+`DEVELOPMENT_NOTES.md` with **no new numbered decision** — decision `0011` governs the
+surface. No source change yet (the impl lands in `.6b.1`/`.6b.2`).
+
+1. **`DEVELOPMENT_NOTES.md`** — a new top design-detail entry "Semantic introspection —
+   `flop_dependencies` impl design-detail — `.6a`" resolving five points grounded in a
+   fresh read of `src/introspect/analyze.rs`: (1) result shape — a **fifth** parallel
+   `flop_dependencies: Vec<FlopDependencies>` vec on `DerivedAnalysis`
+   (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the four prior documents
+   byte-identical) + `FlopDependencies { flop: u32, depends_on_flops: Vec<u32>,
+   driven_flops: Vec<u32>, self_dependent: bool }`; (2) derivation — reuse the support/reach
+   machinery in one inversion pass (`depends_on_flops` = the flop's D-cone `support_flops`;
+   `driven_flops` = the transpose; `self_dependent` = `flop ∈ depends_on_flops`); pure, no
+   IR/generator change, dual-consistency a free test invariant; (3) addressing —
+   `"flop:<id>"` (consistent with the existing flop queries), `None` ⇒ all flops ascending,
+   unknown ⇒ `-32602`, flopless ⇒ empty; (4) module-vs-design — top-module like
+   `flop_reset_provenance`; (5) schema — additive MINOR `1.17 → 1.18`. Deferred sub-kinds
+   recorded (transitive register-reachability closure, SCC/feedback grouping,
+   sequential-depth metric; nothing retired). Pre-split `.6b` → `.6b.1` (pure core) +
+   `.6b.2` (surface).
+
+2. **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — Status/Last-updated refreshed;
+   root `Children` gains `.6`; new `.6`/`.6a`/`.6b`/`.6b.1`/`.6b.2` leaf blocks (`.6a`
+   `done`, the rest `pending`); Current Frontier flipped from "No active frontier" to the
+   active `.6b.1` (then `.6b.2`); a `.6a` Decisions entry, Verification Log row, Commit Log
+   row, and Changelog entry.
+
+3. **`docs/TASK_TREE.md`** — the SEMANTIC-INTROSPECTION-EXPANSION index row's frontier tail
+   updated from "No active frontier" to "Active frontier: `.6b.1`" with the
+   `flop_dependencies` summary + schema `1.17 → 1.18`.
+
+**Validation**
+
+- `bash scripts/check_doctrines.sh` green — all 4 doctrines PASS. This is a docs/design
+  commit (no `src/`/`tests/`), so the code-scoped `CODE-CHANGE-EVIDENCE` and
+  `TASK-TREE-OWNERSHIP` checks are exempt (scope-aware pass-through); `MEMORY-ARCH` +
+  `KNOWLEDGE-MAP` pass.
+- No `src/` touched ⇒ `cargo check`/`clippy`/`fmt`/`test` unaffected; **DUT byte-identical**
+  (no generator/IR change).
+
+**Impact**
+
+DOCS/DESIGN-ONLY / DUT byte-identical. Establishes task-tree ownership for the fifth
+derived query before any code, per the non-negotiable task-tree-ownership doctrine. The
+`SEMANTIC-INTROSPECTION-EXPANSION` lane moves from a no-frontier boundary to an active
+frontier (`.6b.1` next). Nothing retired.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — STRUCTURED-EMISSION-EXPANSION.19b.3 — ninth-surface user docs
 
-**Landed as:** this commit (previous: `925c103`, `STRUCTURED-EMISSION-EXPANSION.19b.2b`).
+**Landed as:** `715209f` (previous: `925c103`, `STRUCTURED-EMISSION-EXPANSION.19b.2b`).
 A **docs-only** change (no `src/` / `tests/`), task-tree-owned by `.19b.3`. **DUT
 byte-identical** (no generator code touched). Closes `.19b` / `.19` ⇒ the **ninth structured
 emission surface is delivered end-to-end**.
