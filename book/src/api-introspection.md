@@ -31,7 +31,7 @@ Every document is a thin, versioned envelope:
 
 ```json
 {
-  "schema_version": "1.14",
+  "schema_version": "1.22",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -58,7 +58,7 @@ Every document is a thin, versioned envelope:
 
 | Field | Meaning |
 | --- | --- |
-| `schema_version` | the document schema version (currently `1.14`) — see [stability](#schema_version-stability-contract) |
+| `schema_version` | the document schema version (currently `1.22`) — see [stability](#schema_version-stability-contract) |
 | `anvil_version` | the generating `anvil` crate version |
 | `lane` | `dut` / `microdesign` / `frontend` |
 | `request` | the echoed `seed` / `lane` / `knobs` plus the content-addressed `run_id` |
@@ -216,18 +216,26 @@ A dead (unreachable) module is reported `reachable: false` with no `depth`.
 
 ## `schema_version` stability contract
 
-The document schema is **`1.14`** and evolves under a strict MINOR/MAJOR policy:
+The document schema is **`1.22`** and evolves under a strict MINOR/MAJOR policy
+(the full per-version changelog is the canonical §7 of
+`docs/AGENT_INTROSPECTION_SCHEMA.md`):
 
-- a **MINOR** bump (e.g. `1.13 → 1.14`) is purely **additive** — a new optional
+- a **MINOR** bump (e.g. `1.21 → 1.22`) is purely **additive** — a new optional
   field or a whole new payload array — and leaves every prior reply
   **byte-identical** (new sections are `skip_serializing_if`, so a query that does
-  not use them is unchanged). Adding the four `analyze` query kinds was a sequence
-  of MINOR bumps, each leaving the earlier queries' bytes untouched; `1.11 → 1.12`
-  added the `coverage_readout` section + the standalone `coverage` tool document
-  the same way, `1.12 → 1.13` added the `design_metrics.num_mealy_fsm_modules`
-  count (the Mealy FSM extension, decision `0024`), and `1.13 → 1.14` added the
-  `module_metrics.num_emitted_multi_output_tasks` count (the multi-output task
-  emit-projection, decision `0025`).
+  not use them is unchanged). Adding each `analyze` query kind was a MINOR bump,
+  each leaving the earlier queries' bytes untouched: the **nine** derived queries are
+  `output_support`, `input_reach`, `flop_reset_provenance`, `module_reachability`
+  (the four named in decision `0011`), then `flop_dependencies` (`1.17 → 1.18`),
+  `memory_provenance` (`1.18 → 1.19`), `fsm_provenance` (`1.19 → 1.20`),
+  `node_drivers` (`1.20 → 1.21`), and `node_readers` — the exact transpose of
+  `node_drivers` — (`1.21 → 1.22`). The structured-emission and capability metric
+  counts grew the schema the same way: `1.11 → 1.12` added the `coverage_readout`
+  section + the standalone `coverage` tool document, `1.12 → 1.13` added
+  `design_metrics.num_mealy_fsm_modules` (decision `0024`), `1.13 → 1.14` added
+  `module_metrics.num_emitted_multi_output_tasks` (decision `0025`), and
+  `1.14 → 1.15`/`1.16`/`1.17` added the procedural-mux / `case`-mux / `casez`-mux
+  emit counts.
 - a **MAJOR** bump would be a breaking change to an existing field — none has
   occurred.
 

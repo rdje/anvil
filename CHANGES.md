@@ -1,6 +1,60 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — LIVE-DOC-HYGIENE-BACKFILL.1 — book schema chapter 1.14 → 1.22
+
+**Landed as:** this commit (previous: `e492f3e`, `SEMANTIC-INTROSPECTION-EXPANSION.10b.2`).
+A **docs-only** change (book + a new task tree), task-tree-owned by `.1` of the new
+`LIVE-DOC-HYGIENE-BACKFILL` tree. **DUT byte-identical** (no `src/` touched). Closes the
+book half of the doc-drift flagged across the `SEMANTIC-INTROSPECTION-EXPANSION` lane.
+
+**What changed (why)**
+
+`book/src/api-introspection.md` — the user-facing introspection-schema chapter — was
+**stale at schema `1.14`**, predating the `.15`–`.22` schema bumps (the five new `analyze`
+queries + the structured-emission metric counts). The mdBook is the user's only window
+into the project, so a stale schema chapter is a direct book-doctrine breach. It was
+deliberately left out of the per-query slices (which kept their leaf↔commit mapping clean)
+and flagged for this dedicated backfill.
+
+1. **`book/src/api-introspection.md` → schema `1.22`** — the envelope JSON example
+   (`1.14 → 1.22`), the field-table row (`currently 1.14 → currently 1.22`), and the
+   `## schema_version stability contract` section (`The document schema is 1.14 → 1.22`).
+   The MINOR-bump narrative is rewritten to enumerate the **nine** delivered `analyze`
+   query kinds — `output_support` / `input_reach` / `flop_reset_provenance` /
+   `module_reachability` (decision `0011`'s four), then `flop_dependencies` (`1.17→1.18`),
+   `memory_provenance` (`1.18→1.19`), `fsm_provenance` (`1.19→1.20`), `node_drivers`
+   (`1.20→1.21`), and `node_readers` (`1.21→1.22`) — plus the metric-count bumps
+   (`coverage_readout` `1.11→1.12`, `num_mealy_fsm_modules` `1.12→1.13`,
+   `num_emitted_multi_output_tasks` `1.13→1.14`, the procedural/`case`/`casez` mux counts
+   `1.14→1.17`), with the canonical §7 of `docs/AGENT_INTROSPECTION_SCHEMA.md` named as the
+   authoritative full changelog.
+2. **`book/src/api-tools.md:165`** — a stale `"schema_version": "1.21"` `output_support`
+   JSON example that `.10b.2` missed (it fixed the other two in that file) is now `1.22`.
+   A full `book/src` sweep confirms no remaining non-`1.22` schema example or "current
+   schema" claim.
+3. **New task tree `LIVE-DOC-HYGIENE-BACKFILL`** (`docs/tasks/LIVE-DOC-HYGIENE-BACKFILL.md`
+   + a `docs/TASK_TREE.md` row): `.1` (this slice, book schema-drift) `done`; `.2`
+   (task-tree log integrity — backfill the missing `.8a`/`.8b.1`/`.8b.2`
+   Verification/Commit-Log rows + correct the stale `.5b.2`/`.9` Status labels in
+   `SEMANTIC-INTROSPECTION-EXPANSION.md`) `pending`.
+
+**Validation**
+
+`mdbook build book` clean; `book/src` schema-example sweep clean (all `1.22`);
+`bash scripts/check_doctrines.sh` green (docs commit ⇒ the code-scoped checks are
+scope-exempt; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass). No `src/` touched ⇒
+`cargo check/clippy/fmt/test` unaffected; **DUT byte-identical**.
+
+**Impact**
+
+The book's schema chapter is back in sync with the codebase (schema `1.22`, nine `analyze`
+queries). No behavioural / generated-RTL change. Frontier → `.2` (the task-tree log
+backfill).
+
+**Files touched:** `book/src/api-introspection.md`, `book/src/api-tools.md`,
+`docs/tasks/LIVE-DOC-HYGIENE-BACKFILL.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.10b.2 — node_readers MCP surface + schema 1.22
 
 **Landed as:** this commit (previous: `a2b5f98`, `SEMANTIC-INTROSPECTION-EXPANSION.10b.1`).

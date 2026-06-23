@@ -162,7 +162,7 @@ flop D-cone); `input_reach` → a source (input name, `"flop:<id>"` Q, or
   "arguments": { "seed": 7, "query": "output_support", "target": "o_0" } }
 ```
 ```json
-{ "schema_version": "1.21", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
+{ "schema_version": "1.22", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
   "analysis": { "query": "output_support",
     "results": [ { "target": "o_0", "support_inputs": ["i_1"],
                    "support_flops": [], "support_instance_outputs": [],
