@@ -5,6 +5,167 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — Semantic introspection — `memory_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.7a`
+
+Design-detail leaf for `.7` — the **sixth** derived query, `memory_provenance`:
+*per inferrable memory block, its structural shape plus the support cone of each
+of its four driving ports* — what each of the read address, write address, write
+data, and write enable combinationally depends on. Docs-only (no source). This is
+the **second query beyond decision `0011`'s four named kinds** (after
+`flop_dependencies` `.6`), again under the lane's documented *"further
+derived-query kinds are open-ended breadth"* clause — strictly under decision
+`0011`'s API and the `0004`/`0011` SCHEMA-DERIVED / structure-first ceiling (a
+**relation** over the construction graph, never behaviour). It follows the
+per-query design-detail precedent (`.3a`/`.4a`/`.5a`/`.6a`): no new numbered
+decision record; decision `0011` already governs the surface.
+
+It is the query that **opens the documented opaque-`MemRead`-leaf boundary**. The
+five delivered queries all treat `Node::MemRead` / `Node::FsmOut` as an opaque
+registered leaf that *terminates* the combinational cone (counted in `cone_nodes`,
+recorded in no support list) — the `analyze.rs` module docs name this explicitly:
+*"Surfacing memory/FSM provenance is a recorded future query kind, not a silent
+omission."* `memory_provenance` is that future kind for the **memory** motif: it
+does not recurse *through* the `MemRead` output (its stored contents are a register
+boundary, like a flop `Q`), but it surfaces what drives the memory's **input
+ports** — exactly the cones the opaque leaf hides. (The FSM analog,
+`fsm_provenance`, is the natural sibling `.8`; not in this leaf.)
+
+Grounded in the real `src/ir/types.rs` `Memory` + `MemKind` and
+`src/introspect/analyze.rs` (read fresh for this leaf):
+
+```rust
+pub struct Memory {            // src/ir/types.rs
+    pub id: MemId,             // addressed "mem:<id>"
+    pub addr_width: u32,
+    pub data_width: u32,
+    pub kind: MemKind,         // SinglePort | SimpleDualPort
+    pub we: NodeId,            // write-enable source cone (width 1)
+    pub waddr: NodeId,         // write-address source cone (width addr_width)
+    pub wdata: NodeId,         // write-data source cone (width data_width)
+    pub raddr: NodeId,         // read-address source cone; == waddr for SinglePort
+}
+```
+
+Each of `we`/`waddr`/`wdata`/`raddr` is a **real generated cone** (a `NodeId`,
+dependency-tracked + validated), so each has a well-defined support cone built by
+the **same** `build_cone` machinery `output_support` already uses — no new walker.
+This is the value-add the opaque `MemRead` leaf cannot give: *"what does this
+memory's read address (or write data, etc.) depend on?"* in one query.
+
+### Q1 — result shape: a SIXTH parallel result vec, reusing `SupportCone`
+
+`DerivedAnalysis` gains a sixth `#[serde(default, skip_serializing_if =
+"Vec::is_empty")]` vec, continuing the parallel-vec pattern (`.3a` chose this over
+a tagged `results` enum so prior documents stay byte-identical; each new kind = one
+more skip-if vec the `query` field discriminates — now scaled to six). The five
+prior query documents stay **byte-identical** (the key is omitted unless this is a
+`memory_provenance` analysis):
+
+```rust
+pub memory_provenance: Vec<MemoryProvenance>,   // populated only by memory_provenance
+
+pub struct MemoryProvenance {
+    pub mem: u32,                          // the memory id (addressed "mem:<id>")
+    pub addr_width: u32,                   // structural facts (a projection of Memory)
+    pub data_width: u32,
+    pub kind: String,                      // "single_port" | "simple_dual_port" (MemKind)
+    pub single_port: bool,                 // kind == SinglePort (raddr is the waddr node)
+    pub read_addr_support: SupportCone,    // cone feeding raddr; target "mem:<id>.raddr"
+    pub write_addr_support: SupportCone,   // cone feeding waddr; target "mem:<id>.waddr"
+    pub write_data_support: SupportCone,   // cone feeding wdata; target "mem:<id>.wdata"
+    pub write_enable_support: SupportCone, // cone feeding we;    target "mem:<id>.we"
+}
+```
+
+Reusing the existing, tested `SupportCone` for each port (rather than a new
+per-port struct) is the full-factorization choice: one cone shape, one walker, and
+the agent gets the complete support relation per port (the
+`feedback_api_for_agents_not_humans` completeness rule — ship the whole structured
+relation). Each port cone's `target` is self-describing (`"mem:<id>.<port>"`), so a
+consumer can address the same cone directly via `output_support` if it wants the
+single port (honest framing, exactly as for `flop_dependencies`: no single existing
+query returns the whole memory's port provenance in one call). The structural
+fields (`addr_width`/`data_width`/`kind`/`single_port`) are cheap projection
+context an agent would otherwise cross-reference from `--metrics`.
+
+For a **`SinglePort`** memory, `raddr` *is* the `waddr` node (one shared synchronous
+address), so `read_addr_support == write_addr_support` by construction — documented,
+flagged by `single_port`, not deduplicated (the API ships the complete shape so a
+consumer never special-cases a missing field).
+
+Deferred sub-kinds (recorded, nothing retired): the **FSM** analog
+`fsm_provenance` (the `sel` transition-select cone + encoding/state-count/Mealy
+facts behind the opaque `FsmOut` leaf) is the natural sibling `.8`; a per-memory
+**reach** (which outputs/flops a memory read fans out to — the dual) is a further
+follow-up. The first cut ships the memory **input-port provenance**, which is the
+primitive the others build beside.
+
+### Q2 — derivation: reuse `build_cone` per port (no new walker)
+
+`module_memory_provenance(&Module, target)`:
+1. For each memory in `m.memories` (ascending id), build four `SupportCone`s with
+   the existing `build_cone(m, "mem:<id>.<port>", Some(port_node), fmt)` — the same
+   memoized combinational fan-in DFS `output_support` uses. `we`/`waddr`/`wdata`/
+   `raddr` are plain `NodeId`s (never `None`), so each cone is `Some(node)`.
+2. Project the structural fields (`addr_width`/`data_width`; `kind` →
+   `"single_port"`/`"simple_dual_port"`; `single_port = matches!(kind,
+   SinglePort)`).
+3. Emit one `MemoryProvenance` per memory, **ascending id** (the determinism
+   contract `flop_reset_provenance`/`flop_dependencies` hold by the same sort);
+   each port cone is internally sorted/deduped by `build_cone`.
+
+Pure: no IR field, no generator change (the `coverage_gaps` / `output_support`
+project-don't-recompute precedent). A port cone that itself reaches another memory's
+`MemRead` (or an `FsmOut`) terminates at that opaque leaf exactly as `output_support`
+does — the documented boundary inherited for free, and the reason the analysis is
+finite/acyclic (a memory's port cone never recurses *into* a memory's contents). The
+`fmt` closure (`format_instance_leaf_module` / `format_instance_leaf_design`) is
+needed here because a memory port cone *can* depend on a child-instance output (a
+parent memory addressed by a child's result), unlike `flop_dependencies` which
+reports flop ids only.
+
+### Q3 — target addressing: `"mem:<id>"`
+
+`target` is `"mem:<id>"` — a **new** address vocabulary for this query (the memory
+is the entity), parallel to the `"flop:<id>"` the flop queries use and the module
+name `module_reachability` uses; the natural identifier for a per-memory query.
+- `target = None` ⇒ one entry per memory in `m.memories`, ascending id.
+- `target = Some("mem:<id>")` ⇒ that one memory's entry.
+- any other string, or an out-of-range id ⇒ no entry ⇒ `-32602` at the MCP layer —
+  the established "unknown target vs known-but-empty" contract. The `run_analyze`
+  empty-result guard checks `analysis.memory_provenance.is_empty()` for this kind.
+- a memoryless module + `target = None` ⇒ an empty `memory_provenance` (the honest
+  "no memories" answer, not an error — the `flop_reset_provenance` precedent). Since
+  `memory_prob` is default-off, the default DUT has no memories ⇒ the honest empty
+  answer, and the query is DUT byte-identical regardless.
+
+### Q4 — module-vs-design semantics
+
+`run_analyze` already routes design-vs-module on
+`cfg.effective_hierarchy_depth_range().is_some()`. `module_memory_provenance` is the
+single-module query; `design_memory_provenance(&Design, target)` analyzes the
+**top** module's memories (early-returns an empty analysis when the named top is
+absent), exactly like `design_flop_provenance` / `design_flop_dependencies` —
+per-child-module memory provenance is a future extension, the same "operates on the
+top module" convention all the gate-graph / flop-projection queries hold. The design
+variant uses the `format_instance_leaf_design` fmt so any instance-output support in
+a port cone resolves to `"<instance>.<child-output-port-name>"`.
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.18 → 1.19` (a new `#[serde(default, skip_serializing_if)]` field +
+a new query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv`
+byte-identical — introspect is not in `tests/snapshots.rs`). Pre-split `.7b` →
+`.7b.1` (the pure core in `analyze.rs` + the `MemoryProvenance` type + the sixth
+`memory_provenance: Vec::new()` fill-ins across the existing `DerivedAnalysis`
+literals + lib proofs; **not** added to `supported_query_kinds()` yet) + `.7b.2`
+(the surface: the registry entry + `run_analyze` dispatch land together; `SCHEMA_VERSION
+1.18 → 1.19` + the `"1.18"` test-assertion bumps; the `analyze_schema` enum;
+schema-doc §6.7 + a `1.18 → 1.19` changelog + the row; book `agent-mcp` row + worked
+example + the JSON examples `1.18 → 1.19`; USER_GUIDE + README; a KM card; an
+`anvil-mcp` stdio e2e smoke) — the `.4b`/`.5b`/`.6b` precedent (registry + dispatch in
+one commit so the intermediate commit is coherent).
+
 ## 2026-06-23 — Semantic introspection — `flop_dependencies` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.6a`
 
 Design-detail leaf for `.6` — the **fifth** derived query, `flop_dependencies`:

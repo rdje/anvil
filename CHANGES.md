@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.7a — memory_provenance impl design-detail
+
+**Landed as:** this commit (previous: `fd8aa7c`, `SEMANTIC-INTROSPECTION-EXPANSION.6b.2`).
+A **docs/design-only** change (no `src/`), task-tree-owned by `.7a`. **DUT byte-identical**.
+Opens `.7` — the **sixth** derived `analyze` query, `memory_provenance` (per-inferrable-memory
+port provenance), the **second query beyond decision `0011`'s four named kinds** (after
+`flop_dependencies` `.6`), under the lane's "open-ended breadth" clause.
+
+**What changed (why)**
+
+The five delivered `analyze` queries treat `Node::MemRead` / `Node::FsmOut` as an **opaque
+registered leaf** that *terminates* the combinational support cone — the `analyze.rs` module
+docs name this explicitly as a *"recorded future query kind, not a silent omission."*
+`memory_provenance` is that future kind for the **memory** motif: it does not recurse *through*
+a memory's stored contents (a register boundary, like a flop `Q`), but it surfaces what drives
+the memory's **input ports** — exactly the cones the opaque `MemRead` leaf hides. This design
+leaf pins the shape before any code, per the non-negotiable task-tree-ownership doctrine.
+
+1. **`DEVELOPMENT_NOTES.md`** — a `memory_provenance` design-detail entry (`.7a`) resolving
+   Q1–Q5 grounded in a fresh read of the real `Memory` + `MemKind` IR (`src/ir/types.rs`) and
+   `src/introspect/analyze.rs`:
+   - **Q1 result shape** — a **sixth** parallel vec `memory_provenance: Vec<MemoryProvenance>`
+     on `DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the
+     five prior documents stay byte-identical); `MemoryProvenance { mem, addr_width,
+     data_width, kind, single_port, read_addr_support, write_addr_support, write_data_support,
+     write_enable_support }` **reusing the existing tested `SupportCone`** for each port (one
+     cone shape, one walker — full-factorization), each cone's `target = "mem:<id>.<port>"`.
+     `SinglePort` shares one address node ⇒ `read_addr_support == write_addr_support`, flagged
+     by `single_port`, not deduplicated (ship the complete shape for the agent consumer).
+   - **Q2 derivation** — `build_cone` per port (`we`/`waddr`/`wdata`/`raddr` are plain
+     `NodeId`s, never `None`) over the existing IR graph; pure, no IR/generator change; a port
+     cone reaching another memory's `MemRead`/an `FsmOut` terminates at that opaque leaf for
+     free (finite/acyclic); the `format_instance_leaf_*` fmt closure **is** needed (a memory
+     port cone can depend on a child-instance output).
+   - **Q3 addressing** — `"mem:<id>"` (a new vocabulary, parallel to `"flop:<id>"` / the module
+     name); `None` ⇒ all memories ascending id; unknown/out-of-range ⇒ `-32602`; memoryless +
+     `None` ⇒ empty (default-off `memory_prob` ⇒ default DUT has no memories ⇒ honest empty,
+     DUT byte-identical regardless).
+   - **Q4 module-vs-design** — `module_memory_provenance` + `design_memory_provenance` on the
+     **top** module (early-return empty when absent); the design variant resolves
+     instance-output support to `"<instance>.<child-output-port-name>"`.
+   - **Q5 schema + pre-split** — additive MINOR `1.18 → 1.19`; `DerivedAnalysisDocument`
+     envelope reused. Pre-split `.7b` → `.7b.1` (pure core, not yet in `supported_query_kinds()`)
+     + `.7b.2` (surface: registry + `run_analyze` dispatch + schema bump + `analyze_schema`
+     enum + schema-doc/book/USER_GUIDE/README/KM + e2e smoke).
+   - No new numbered decision (the `.3a`/`.4a`/`.5a`/`.6a` per-query precedent; decision
+     `0011` governs the surface). Deferred sub-kinds (nothing retired): the FSM analog
+     `fsm_provenance` (the `sel` cone behind the opaque `FsmOut` leaf) is the sibling `.8`; a
+     per-memory **reach** is a further follow-up.
+
+2. **`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`** — registered `.7`/`.7a`/`.7b`
+   (+ root child `.7`); `.7a` `done`; pre-split `.7b` → `.7b.1`/`.7b.2`; frontier → `.7b.1`;
+   metadata status + Current Frontier table + Decisions + Verification Log + Commit Log +
+   Changelog updated. **`docs/TASK_TREE.md`** active-tree row updated (frontier `.7b.1`).
+
+**Validation**
+
+Docs/design-only commit — no `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected and
+**DUT byte-identical**. `bash scripts/check_doctrines.sh` green (the code-scoped
+`CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` checks are exempt for a non-code commit;
+`MEMORY-ARCH` + `KNOWLEDGE-MAP` pass).
+
+**Impact**
+
+The next two leaves (`.7b.1` pure core, `.7b.2` surface) are now task-tree-owned and may
+proceed. No user-visible behaviour change yet (design only).
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.6b.2 — flop_dependencies MCP surface + schema 1.18
 
 **Landed as:** this commit (previous: `21a8ee2`, `SEMANTIC-INTROSPECTION-EXPANSION.6b.1`).
