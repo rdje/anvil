@@ -10,11 +10,11 @@ By default that shape is deliberately flat: a `module`, one `assign`
 output drives. Every downstream parser, elaborator, linter, and synth
 tool therefore only ever sees that one structural form. **Structured
 emission** is the lane that lets anvil re-render an *already valid*
-construction in a richer SystemVerilog surface — today a single-gate
-`function`, a `generate for` loop, a `task`, a whole-cone `function`, a
-multi-output `task`, a procedural `if`/`else`, an `if`/`else if` priority
-chain, and a masked `if`/`else if` priority chain, and later nested `generate`
-or an `interface` — so the
+construction in a richer SystemVerilog surface — today, across nine surfaces: a
+single-gate `function`, a `generate for` loop, a `task`, a wider-lane `generate
+for` part-select, a whole-cone `function`, a multi-output `task`, a procedural
+`if`/`else`, an `if`/`else if` priority chain, and a masked `if`/`else if`
+priority chain, and later nested `generate` or an `interface` — so the
 tools have more legal structural variety to ingest,
 and more places to trip over a real bug. (That bug-surfacing purpose is the
 [project's north star](core-idea.md); structured emission adds

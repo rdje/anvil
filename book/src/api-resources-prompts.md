@@ -47,7 +47,7 @@ appear in `resources/list` once cached:
 | `anvil://artifact/<run_id>/sv` | `text/x-systemverilog` | the emitted SystemVerilog | always (any cached artifact) |
 | `anvil://artifact/<run_id>/introspection` | `application/json` | the introspection document for the artifact | always |
 | `anvil://artifact/<run_id>/manifest` | `application/json` | the lane's expected-facts manifest | **microdesign / frontend** lanes only |
-| `anvil://artifact/<run_id>/analysis/<query>` | `application/json` | a derived-relation analysis (`output_support` / `input_reach` / `flop_reset_provenance` / `module_reachability`) | once that `analyze` `query` has run on the artifact |
+| `anvil://artifact/<run_id>/analysis/<query>` | `application/json` | a derived-relation analysis (one of the nine `analyze` queries: `output_support` / `input_reach` / `flop_reset_provenance` / `module_reachability` / `flop_dependencies` / `memory_provenance` / `fsm_provenance` / `node_drivers` / `node_readers`) | once that `analyze` `query` has run on the artifact |
 
 Because artifacts are content-addressed, `resources/read` on an artifact URI
 always returns the same bytes for the same `(seed, knobs)`. This is how an agent

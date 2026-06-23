@@ -140,8 +140,8 @@ pattern — is a handful of lines in a single function.
 - **How It Works** (Core Idea, Algorithm, IR) explains the design
   — read when you want to understand the machinery.
 - **Correctness Guarantees** (Generation by Construction,
-  Synthesizability, Non-Triviality) makes the "always legal" promise
-  explicit.
+  Synthesizability, Non-Triviality, Structural Rules) makes the
+  "always legal" promise explicit.
 - **Motif Catalogue** (Sequential, Signal Sharing, Hierarchy)
   documents each generator motif with the knobs that control it.
 - **Reference** (Knobs, Architecture, Non-Goals) is the look-up

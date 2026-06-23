@@ -1,6 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — LIVE-DOC-DRIFT-FIX.2 — mdBook schema/tool-count/query-list/surface-count drift
+
+**Landed as:** this commit (previous: `d4fc14e`, `LIVE-DOC-DRIFT-FIX.1`).
+A **docs-only** change (mdBook + task-tree files), task-tree-owned by `LIVE-DOC-DRIFT-FIX.2`.
+**DUT byte-identical** (no `src/`; no runnable bash blocks changed ⇒ `tests/book_examples.rs`
+unaffected). Closes the `LIVE-DOC-DRIFT-FIX` tree.
+
+**What changed (why)**
+
+The session-bootstrap "read the mdBook before any code change" gate ran a dedicated mdBook
+deep-read. The book is the user's only window into the project (a top-priority no-drift
+doctrine), and it surfaced six stale spots in `book/src/` — all predating recent feature
+work, none caught by the prior `LIVE-DOC-HYGIENE-BACKFILL` (which scoped only
+`api-introspection.md` + the task-tree logs):
+
+1. **`api-reference.md` schema_version** — the protocol/versioning section stated the current
+   introspection schema as **`1.14`** with a changelog stopping at `num_emitted_multi_output_tasks`.
+   Rewritten to **`1.22`** with the MINOR-bump narrative continued through `1.15`/`1.16`/`1.17`
+   (mux_if/case_mux_if/casez_mux_if counts) and `1.18`–`1.22` (the five later `analyze` query
+   sections: flop_dependencies/memory_provenance/fsm_provenance/node_drivers/node_readers),
+   cross-linking the canonical §7 changelog.
+2. **`api-reference.md` tool count** — the reference-pages table said "the **9** tools" and
+   omitted `coverage`. Corrected to "the **10** tools" in canonical order (matching
+   `api-tools.md`'s "10 tools").
+3. **`api-resources-prompts.md` analysis resource** — the `anvil://artifact/<run_id>/analysis/<query>`
+   row listed only the original four `analyze` queries. Extended to all nine.
+4. **`synthesizability.md` tasks claim** — the subset-exclusion list claimed "No tasks or
+   functions with side effects; only pure `function` if ever used (Phase 4+)", which predates
+   the `task_emit` / `multi_output_task` structured surfaces. Rewritten to state that
+   tasks/functions appear only as behaviour-preserving, side-effect-free combinational
+   emit-projections, cross-linked to `structured-emission.md`.
+5. **`structured-emission.md` intro** — the chapter intro listed 8 surfaces; the chapter has
+   nine numbered surface sections. Added the wider-lane `generate for` part-select (the
+   fourth surface, decision `0015`) so the intro reads "across nine surfaces".
+6. **`introduction.md` "What you'll find"** — the Correctness Guarantees parenthetical omitted
+   the Structural Rules chapter. Added it.
+
+**Validation**
+
+- `mdbook build book` clean; post-fix `book/src` greps find no remaining stale schema/tool-count/
+  query-list/tasks-claim/surface-count/chapter-list spot.
+- `bash scripts/check_doctrines.sh` green (4/4); docs commit ⇒ code-scoped checks exempt.
+- No `src/` touched and no runnable bash code block changed ⇒ DUT byte-identical and
+  `tests/book_examples.rs` unaffected.
+
+**Impact**
+
+The mdBook — the user's primary window into the project — is realigned with the codebase: no
+remaining schema/tool/query/surface drift in the audited chapters.
+
+**Files touched**
+
+- `book/src/api-reference.md`, `book/src/api-resources-prompts.md`, `book/src/synthesizability.md`,
+  `book/src/structured-emission.md`, `book/src/introduction.md`
+- `docs/tasks/LIVE-DOC-DRIFT-FIX.md` (added `.2` leaf; tree closed)
+- `docs/TASK_TREE.md` (index row), `CHANGES.md`, `MEMORY.md`
+
 ## 2026-06-24 — LIVE-DOC-DRIFT-FIX.1 — ROADMAP ninth-surface frontier + TOOLBOX schema/analyze currency
 
 **Landed as:** this commit (previous: `a5afa3b`, `LIVE-DOC-HYGIENE-BACKFILL.2`).

@@ -30,7 +30,7 @@ config, coverage, IR relations). Neither computes anything new — the
 | Page | Covers |
 | --- | --- |
 | Overview & Protocol (this page) | the JSON-RPC envelope, transports, lifecycle methods, the error model, content-addressing, versioning |
-| [Tools](api-tools.md) | the 9 tools: `generate`, `introspect`, `dump_config`, `validate`, `minimize`, `coverage_gaps`, `analyze`, `hunt`, `divergence` |
+| [Tools](api-tools.md) | the 10 tools: `generate`, `introspect`, `dump_config`, `analyze`, `coverage`, `coverage_gaps`, `validate`, `minimize`, `hunt`, `divergence` |
 | [Resources & Prompts](api-resources-prompts.md) | the `anvil://…` resource URIs and the 5 workflow prompts |
 | [Introspection & Analysis Schemas](api-introspection.md) | the `--introspect` document, the `analyze` query result schemas, the wire contract |
 
@@ -181,15 +181,18 @@ Two independent version numbers govern compatibility:
   Reported by `initialize`.
 - **`schema_version`** — the version of the **introspection / analysis
   documents** (`--introspect`, the `introspect`, `analyze`, and `coverage`
-  tools), currently **`1.14`**. It follows a MINOR/MAJOR policy:
-  - a **MINOR** bump (`1.13 → 1.14`) is **additive** — a new optional field or a
+  tools), currently **`1.22`**. It follows a MINOR/MAJOR policy:
+  - a **MINOR** bump (e.g. `1.21 → 1.22`) is **additive** — a new optional field or a
     new payload section, with prior replies left byte-identical (new sections use
     `skip_serializing_if`, so a query that doesn't use them is unchanged). `1.12`
-    added the `coverage_readout` section (the achieved-coverage readout) + the
-    standalone `coverage` tool document; `1.13` added the
-    `design_metrics.num_mealy_fsm_modules` count (the Mealy FSM extension); `1.14`
-    added the `module_metrics.num_emitted_multi_output_tasks` count (the
-    multi-output task emit-projection);
+    added the `coverage_readout` section + the standalone `coverage` tool document;
+    `1.13` added `num_mealy_fsm_modules`; `1.14` added `num_emitted_multi_output_tasks`;
+    `1.15`/`1.16`/`1.17` added the `mux_if` / `case_mux_if` / `casez_mux_if`
+    emit-projection counts; and the five later `analyze` queries each added one
+    payload section — `flop_dependencies` (`1.18`), `memory_provenance` (`1.19`),
+    `fsm_provenance` (`1.20`), `node_drivers` (`1.21`), and `node_readers` (`1.22`).
+    See [Introspection & Analysis Schemas](api-introspection.md) (and §7 of
+    `docs/AGENT_INTROSPECTION_SCHEMA.md`) for the full changelog;
   - a **MAJOR** bump would be a breaking change to an existing field.
 
 Underpinning both is the **`SCHEMA-DERIVED` invariant**: every value the API

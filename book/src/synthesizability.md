@@ -37,8 +37,12 @@ emits:
 - No `initial`. No `final`. No `fork`/`join`. No `wait`. No `#delay`.
 - No `$display`, `$monitor`, `$finish`, `$stop`, or similar.
 - No `real`, `time`, `event`, `class`, `queue`, dynamic arrays.
-- No tasks or functions with side effects; only pure `function` if ever
-  used (Phase 4+).
+- No tasks or functions with side effects. The opt-in structured-emission
+  surfaces may re-render an already-valid combinational cone as a pure
+  `function automatic` or a side-effect-free combinational `task automatic`
+  (called from `always_comb`) — but these are behaviour-preserving emit-time
+  projections, never stateful or side-effecting. See
+  [Structured Emission](structured-emission.md).
 
 Because these are absent from the IR and the emitter, they cannot
 appear in output.
