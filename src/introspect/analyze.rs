@@ -70,8 +70,8 @@
 //! determinism contract the rest of the introspection surface holds.
 
 use crate::ir::{
-    Design, Flop, FlopKind, FlopMux, Fsm, FsmEncoding, InstanceId, MemKind, Memory, Module, Node,
-    NodeId, PortId, ResetKind,
+    Design, Flop, FlopKind, FlopMux, Fsm, FsmEncoding, GateOp, InstanceId, MemKind, Memory, Module,
+    Node, NodeId, PortId, ResetKind,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -162,6 +162,26 @@ pub const QUERY_MEMORY_PROVENANCE: &str = "memory_provenance";
 /// `analyze` tool (`.8b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_FSM_PROVENANCE: &str = "fsm_provenance";
 
+/// The query-kind string for the eighth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.9`): per-node **immediate (1-hop) driver
+/// adjacency**. For each [`Node`] it reports the node's kind, bit width, gate `op`
+/// (for a [`Node::Gate`]), and the list of its direct operand drivers (each a
+/// [`NodeRef`] — operand id + kind + a resolved handle), in **operand order**. It is
+/// the **atomic node-level primitive complementing the transitive
+/// [`QUERY_OUTPUT_SUPPORT`] cone**: where a support cone collapses the whole fan-in to
+/// its boundary leaves (primary inputs / flop `Q`s / instance outputs) and records
+/// neither the interior [`Node::Gate`]s it passed through nor their ops,
+/// `node_drivers` exposes the node-level fan-in graph **one hop at a time** and
+/// surfaces each node's [`GateOp`] — genuinely new information no prior query carries.
+/// An agent can re-issue it for each operand that is itself a `Gate`, walking the DAG
+/// hop by hop and reconstructing any cone itself. The fourth query beyond decision
+/// `0011`'s four named kinds (the lane's "open-ended breadth" clause), under the same
+/// `0004`/`0011` SCHEMA-DERIVED ceiling. Served by [`module_node_drivers`] /
+/// [`design_node_drivers`], dispatched by the MCP `analyze` tool (`.9b.2`); listed in
+/// [`supported_query_kinds`]. Its dual `node_readers` (immediate fan-out) is a natural
+/// future sibling.
+pub const QUERY_NODE_DRIVERS: &str = "node_drivers";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -236,6 +256,12 @@ pub struct DerivedAnalysis {
     /// analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fsm_provenance: Vec<FsmProvenance>,
+    /// The [`QUERY_NODE_DRIVERS`] payload: one [`NodeDrivers`] per IR node. An
+    /// **eighth** parallel vec, same rationale as the prior six: `skip_serializing_if`
+    /// keeps the seven prior query documents byte-identical (the key is omitted unless
+    /// this is a `node_drivers` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_drivers: Vec<NodeDrivers>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -473,6 +499,57 @@ pub struct FsmProvenance {
     pub sel_support: SupportCone,
 }
 
+/// One IR node's **immediate (1-hop) driver adjacency** — the [`QUERY_NODE_DRIVERS`]
+/// payload. A pure projection of one entry of [`Module::nodes`](Module): the node's
+/// kind, bit width, gate `op` (for a [`Node::Gate`]), and the list of its direct
+/// operand [`NodeRef`]s. Unlike a [`SupportCone`] (which collapses the transitive
+/// fan-in to its boundary leaves and never names an interior gate or its op), this is
+/// the **one-hop** relation for **every** node — the atomic primitive the cone queries
+/// are built from.
+///
+/// `drivers` are kept in **operand order** (not sorted, unlike the cone support lists),
+/// because operand order is semantically meaningful (`a - b` ≠ `b - a`; a `Mux`'s
+/// `[sel, a, b]`); it is still deterministic, because the underlying operand `Vec` is.
+/// A leaf node (every variant except `Gate`) has an empty `drivers` and no `op`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeDrivers {
+    /// The node id (its index in [`Module::nodes`](Module); addressed `"node:<id>"`,
+    /// the entity this entry is about).
+    pub node: u32,
+    /// The node's kind: `"primary_input"` | `"constant"` | `"flop_q"` | `"mem_read"` |
+    /// `"fsm_out"` | `"instance_output"` | `"gate"` (the seven [`Node`] variants,
+    /// mapped to stable strings so the wire shape survives the enum gaining variants).
+    pub kind: String,
+    /// For a [`Node::Gate`], its [`GateOp`] as a stable string (e.g. `"and"`, `"mux"`,
+    /// `"slice"`); omitted (`None`) for every leaf node. The base op name only — the
+    /// parameterized variants' params (`Slice { hi, lo }`,
+    /// `ForFold { kind, trip_count, chunk_width }`) are a documented future extension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub op: Option<String>,
+    /// The node's bit width ([`Node::width`]).
+    pub width: u32,
+    /// The node's **immediate** operand drivers, in operand order: one [`NodeRef`] per
+    /// operand of a [`Node::Gate`]; empty for a leaf node.
+    pub drivers: Vec<NodeRef>,
+}
+
+/// A reference to one operand node within a [`NodeDrivers`] entry — the operand's id,
+/// kind, and a resolved handle. A `NodeRef` carries enough to both re-address the
+/// operand (`node` / `"node:<id>"`) and recognise it (`name`) without a second query.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRef {
+    /// The operand node id (addressed `"node:<id>"`).
+    pub node: u32,
+    /// The operand node kind (same vocabulary as [`NodeDrivers::kind`]).
+    pub kind: String,
+    /// A resolved, usable handle for the operand: a primary-input **port name**, a flop
+    /// `Q` `"flop:<id>"`, a memory read `"mem:<id>"`, an FSM output `"fsm:<id>"`, a
+    /// child-instance output `"<instance>.<port>"`, or `"node:<id>"` for an interior
+    /// gate / constant (which has no external handle). Always a usable address string —
+    /// the lane's resolve-handles convention ([`SupportCone`] never records a raw id).
+    pub name: String,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -500,6 +577,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -537,6 +615,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -570,6 +649,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -645,6 +725,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -678,6 +759,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -713,6 +795,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -791,6 +874,7 @@ fn flop_dependencies_with(
         flop_dependencies,
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -826,6 +910,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -891,6 +976,7 @@ fn memory_provenance_with(
         flop_dependencies: Vec::new(),
         memory_provenance,
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -927,6 +1013,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             flop_dependencies: Vec::new(),
             memory_provenance: Vec::new(),
             fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -989,6 +1076,178 @@ fn fsm_provenance_with(
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
         fsm_provenance,
+        node_drivers: Vec::new(),
+    }
+}
+
+/// Compute the `node_drivers` analysis for a single [`Module`]: per-node immediate
+/// (1-hop) driver adjacency (each node's kind, width, gate `op`, and its direct
+/// operand [`NodeRef`]s in operand order).
+///
+/// `target = None` ⇒ one [`NodeDrivers`] per node in [`Module::nodes`](Module), in
+/// ascending node-id (= index) order — the whole node-level fan-in adjacency.
+/// `target = Some("node:<id>")` ⇒ that one node's entry (a **leaf** node yields a
+/// known-but-empty `drivers`, not an error); any other string, or an out-of-range id
+/// (`id >= nodes.len()`), ⇒ no result (→ `-32602` at the MCP layer). Instance-output
+/// operand handles are named `"<instance>.port<id>"` here; use [`design_node_drivers`]
+/// for fully-resolved child port names.
+pub fn module_node_drivers(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    node_drivers_with(m, target, &fmt)
+}
+
+/// Compute the `node_drivers` analysis for the **top** module of a [`Design`],
+/// resolving each instance-output operand handle to its
+/// `"<instance>.<child-output-port-name>"` form. Returns an empty analysis when the
+/// named top module is absent. (Per-child-module node drivers are a future extension;
+/// like the other gate-graph queries this operates on the top module.)
+pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return DerivedAnalysis {
+            query: QUERY_NODE_DRIVERS.to_string(),
+            results: Vec::new(),
+            reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
+            fsm_provenance: Vec::new(),
+            node_drivers: Vec::new(),
+        };
+    };
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    node_drivers_with(top, target, &fmt)
+}
+
+/// Shared driver for [`module_node_drivers`] / [`design_node_drivers`]: a single
+/// one-hop pass over `m.nodes` — no transitive walk / no DFS / no memoization (the
+/// purest projection alongside `flop_reset_provenance`; the `visit` walker is for the
+/// transitive cone queries). Each node maps to a [`NodeDrivers`] whose `drivers` are
+/// its direct operands (a `Gate`'s `operands`, in operand order; empty for a leaf)
+/// resolved through [`node_ref_of`]. Pure: reads `m.nodes` only, no IR/generator change.
+fn node_drivers_with(
+    m: &Module,
+    target: Option<&str>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> DerivedAnalysis {
+    let make = |id: usize, node: &Node| -> NodeDrivers {
+        let (op, drivers) = match node {
+            Node::Gate { op, operands, .. } => (
+                Some(gate_op_str(op).to_string()),
+                operands.iter().map(|&o| node_ref_of(m, o, fmt)).collect(),
+            ),
+            _ => (None, Vec::new()),
+        };
+        NodeDrivers {
+            node: id as u32,
+            kind: node_kind_str(node).to_string(),
+            op,
+            width: node.width(),
+            drivers,
+        }
+    };
+
+    let mut node_drivers = Vec::new();
+    match target {
+        None => {
+            for (id, node) in m.nodes.iter().enumerate() {
+                node_drivers.push(make(id, node));
+            }
+        }
+        Some(t) => {
+            // Only the `"node:<id>"` form is a valid target; anything else (or an
+            // out-of-range id) ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t
+                .strip_prefix("node:")
+                .and_then(|r| r.parse::<usize>().ok())
+            {
+                if let Some(node) = m.nodes.get(id) {
+                    node_drivers.push(make(id, node));
+                }
+            }
+        }
+    }
+    DerivedAnalysis {
+        query: QUERY_NODE_DRIVERS.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers,
+    }
+}
+
+/// The stable string kind of a [`Node`] (mirrors the seven variants).
+fn node_kind_str(node: &Node) -> &'static str {
+    match node {
+        Node::PrimaryInput { .. } => "primary_input",
+        Node::Constant { .. } => "constant",
+        Node::FlopQ { .. } => "flop_q",
+        Node::MemRead { .. } => "mem_read",
+        Node::FsmOut { .. } => "fsm_out",
+        Node::InstanceOutput { .. } => "instance_output",
+        Node::Gate { .. } => "gate",
+    }
+}
+
+/// The stable string name of a [`GateOp`] (base op name only; the parameterized
+/// variants' params are a documented future extension).
+fn gate_op_str(op: &GateOp) -> &'static str {
+    match op {
+        GateOp::And => "and",
+        GateOp::Or => "or",
+        GateOp::Xor => "xor",
+        GateOp::Not => "not",
+        GateOp::Add => "add",
+        GateOp::Sub => "sub",
+        GateOp::Mul => "mul",
+        GateOp::Eq => "eq",
+        GateOp::Neq => "neq",
+        GateOp::Lt => "lt",
+        GateOp::Gt => "gt",
+        GateOp::Le => "le",
+        GateOp::Ge => "ge",
+        GateOp::Mux => "mux",
+        GateOp::CaseMux => "case_mux",
+        GateOp::CasezMux => "casez_mux",
+        GateOp::ForFold { .. } => "for_fold",
+        GateOp::Slice { .. } => "slice",
+        GateOp::Concat => "concat",
+        GateOp::RedAnd => "red_and",
+        GateOp::RedOr => "red_or",
+        GateOp::RedXor => "red_xor",
+        GateOp::Shl => "shl",
+        GateOp::Shr => "shr",
+    }
+}
+
+/// Build a [`NodeRef`] for operand node `id`: its kind plus a resolved handle. A
+/// defensive out-of-bounds id (a well-formed IR never has one, but the read-mostly
+/// surface must not panic) resolves to a `"node:<id>"` ref of kind `"node"`.
+fn node_ref_of(m: &Module, id: NodeId, fmt: &dyn Fn(InstanceId, PortId) -> String) -> NodeRef {
+    let (kind, name) = match m.nodes.get(id as usize) {
+        Some(node @ Node::PrimaryInput { port, .. }) => {
+            (node_kind_str(node), input_port_name(m, *port))
+        }
+        Some(node @ Node::FlopQ { flop, .. }) => (node_kind_str(node), format!("flop:{flop}")),
+        Some(node @ Node::MemRead { mem, .. }) => (node_kind_str(node), format!("mem:{mem}")),
+        Some(node @ Node::FsmOut { fsm, .. }) => (node_kind_str(node), format!("fsm:{fsm}")),
+        Some(node @ Node::InstanceOutput { instance, port, .. }) => {
+            (node_kind_str(node), fmt(*instance, *port))
+        }
+        // A constant / interior gate has no external handle ⇒ address it by node id.
+        Some(node @ (Node::Constant { .. } | Node::Gate { .. })) => {
+            (node_kind_str(node), format!("node:{id}"))
+        }
+        None => ("node", format!("node:{id}")),
+    };
+    NodeRef {
+        node: id,
+        kind: kind.to_string(),
+        name,
     }
 }
 
@@ -1046,6 +1305,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -1111,6 +1371,7 @@ fn support_cones_with(
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -1183,6 +1444,7 @@ fn input_reach_with(
         flop_dependencies: Vec::new(),
         memory_provenance: Vec::new(),
         fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
     }
 }
 
@@ -3174,5 +3436,307 @@ mod tests {
         assert!(design_fsm_provenance(&ghost, None)
             .fsm_provenance
             .is_empty());
+    }
+
+    // ---- node_drivers (`SEMANTIC-INTROSPECTION-EXPANSION.9`) -------------------
+
+    /// `y = (a & b) | c`: a Gate's `drivers` are its operands **in operand order**,
+    /// each classified + resolved (an interior gate ⇒ `"node:<id>"`, an input ⇒ its
+    /// port name); a leaf node has empty `drivers` and no `op`; `None` ⇒ one entry per
+    /// node, ascending id; deterministic.
+    #[test]
+    fn node_drivers_gate_operands_in_order_with_kinds_and_names() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.inputs.push(port(2, "c", 8, Direction::In));
+        m.outputs.push(port(3, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = b
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 2 = c
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a & b
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![3, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 4 = (a&b) | c
+        m.drives.push((3, 4));
+
+        let a = module_node_drivers(&m, None);
+        assert_eq!(a.query, QUERY_NODE_DRIVERS);
+        assert_eq!(a.node_drivers.len(), 5); // one per node
+        for (i, nd) in a.node_drivers.iter().enumerate() {
+            assert_eq!(nd.node, i as u32); // ascending id == index
+        }
+
+        // node 4 = Or((a&b), c): op "or", operands in order [3 (gate), 2 (input c)].
+        let or = &a.node_drivers[4];
+        assert_eq!(or.kind, "gate");
+        assert_eq!(or.op.as_deref(), Some("or"));
+        assert_eq!(or.width, 8);
+        let or_refs: Vec<(u32, &str, &str)> = or
+            .drivers
+            .iter()
+            .map(|r| (r.node, r.kind.as_str(), r.name.as_str()))
+            .collect();
+        assert_eq!(
+            or_refs,
+            vec![(3, "gate", "node:3"), (2, "primary_input", "c")]
+        );
+
+        // node 3 = And(a, b): op "and", operands [0=a, 1=b] with resolved input names.
+        let and = &a.node_drivers[3];
+        assert_eq!(and.op.as_deref(), Some("and"));
+        assert_eq!(
+            and.drivers
+                .iter()
+                .map(|r| r.name.clone())
+                .collect::<Vec<_>>(),
+            vec!["a", "b"]
+        );
+
+        // node 0 = primary input a: a leaf ⇒ empty drivers, no op.
+        let leaf = &a.node_drivers[0];
+        assert_eq!(leaf.kind, "primary_input");
+        assert!(leaf.op.is_none());
+        assert!(leaf.drivers.is_empty());
+
+        // Deterministic.
+        assert_eq!(a, module_node_drivers(&m, None));
+    }
+
+    /// Operand order is preserved for a non-commutative op (a `Mux`'s `[sel, a, b]`),
+    /// the `GateOp` maps to a stable string, and a flop-`Q` operand resolves to
+    /// `"flop:<id>"`.
+    #[test]
+    fn node_drivers_preserves_operand_order_and_resolves_flop_q() {
+        let mut m = Module {
+            name: "seq".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "sel", 1, Direction::In));
+        m.inputs.push(port(3, "a", 8, Direction::In));
+        m.outputs.push(port(4, "y", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 1 }); // 0 = sel
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 8 }); // 1 = a
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 2 = Q
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Mux,
+            operands: vec![0, 1, 2], // sel ? a : Q
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(3),
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((4, 3));
+
+        let one = module_node_drivers(&m, Some("node:3"));
+        assert_eq!(one.node_drivers.len(), 1);
+        let mux = &one.node_drivers[0];
+        assert_eq!(mux.node, 3);
+        assert_eq!(mux.op.as_deref(), Some("mux"));
+        let refs: Vec<(u32, &str, &str)> = mux
+            .drivers
+            .iter()
+            .map(|r| (r.node, r.kind.as_str(), r.name.as_str()))
+            .collect();
+        assert_eq!(
+            refs,
+            vec![
+                (0, "primary_input", "sel"),
+                (1, "primary_input", "a"),
+                (2, "flop_q", "flop:0"),
+            ]
+        );
+    }
+
+    /// Operand handles resolve for the remaining leaf classes: a constant ⇒
+    /// `"node:<id>"` (no external handle), a memory read ⇒ `"mem:<id>"`, an FSM output
+    /// ⇒ `"fsm:<id>"`; each is itself a leaf entry (empty drivers, no op).
+    #[test]
+    fn node_drivers_resolves_constant_mem_and_fsm_operand_handles() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.outputs.push(port(0, "y", 8, Direction::Out));
+        m.nodes.push(Node::Constant { width: 8, value: 5 }); // 0
+        m.nodes.push(Node::MemRead { mem: 2, width: 8 }); // 1
+        m.nodes.push(Node::FsmOut { fsm: 4, width: 8 }); // 2
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Add,
+            operands: vec![0, 1, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3
+        m.drives.push((0, 3));
+
+        let nd = module_node_drivers(&m, None).node_drivers;
+        assert_eq!(nd[0].kind, "constant");
+        assert!(nd[0].op.is_none());
+        assert!(nd[0].drivers.is_empty());
+        assert_eq!(nd[1].kind, "mem_read");
+        assert_eq!(nd[2].kind, "fsm_out");
+
+        let add = &nd[3];
+        assert_eq!(add.op.as_deref(), Some("add"));
+        let refs: Vec<(&str, &str)> = add
+            .drivers
+            .iter()
+            .map(|r| (r.kind.as_str(), r.name.as_str()))
+            .collect();
+        assert_eq!(
+            refs,
+            vec![
+                ("constant", "node:0"),
+                ("mem_read", "mem:2"),
+                ("fsm_out", "fsm:4"),
+            ]
+        );
+    }
+
+    /// `"node:<id>"` resolves to exactly one entry (even a leaf — known-but-empty);
+    /// an out-of-range id or a malformed target ⇒ no entry (→ `-32602` at the MCP
+    /// layer).
+    #[test]
+    fn node_drivers_target_and_unknown() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.outputs.push(port(1, "y", 4, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // 0
+        m.drives.push((1, 0));
+
+        // Resolvable leaf target ⇒ one known-but-empty entry (NOT an error).
+        let one = module_node_drivers(&m, Some("node:0"));
+        assert_eq!(one.node_drivers.len(), 1);
+        assert_eq!(one.node_drivers[0].node, 0);
+        assert!(one.node_drivers[0].drivers.is_empty());
+
+        // Out-of-range id, and malformed / wrong-vocabulary targets ⇒ none.
+        for bad in ["node:99", "node:nope", "node:", "flop:0", "y", "0"] {
+            assert!(
+                module_node_drivers(&m, Some(bad)).node_drivers.is_empty(),
+                "target {bad:?} should resolve to no entry"
+            );
+        }
+    }
+
+    /// The `node_drivers` document omits the other seven query vecs (and a leaf entry
+    /// omits `op`); `output_support` omits `node_drivers` ⇒ prior documents
+    /// byte-identical.
+    #[test]
+    fn node_drivers_document_omits_the_other_query_vecs() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        let v = serde_json::to_value(module_node_drivers(&m, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("node_drivers"));
+        assert!(obj.get("reach_results").is_none());
+        assert!(obj.get("flop_provenance").is_none());
+        assert!(obj.get("module_reachability").is_none());
+        assert!(obj.get("flop_dependencies").is_none());
+        assert!(obj.get("memory_provenance").is_none());
+        assert!(obj.get("fsm_provenance").is_none());
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+                                                                 // The lone leaf node entry omits the `op` key.
+        assert!(v["node_drivers"][0]
+            .as_object()
+            .unwrap()
+            .get("op")
+            .is_none());
+
+        let sup = serde_json::to_value(module_support_cones(&m, None)).unwrap();
+        assert!(sup.as_object().unwrap().get("node_drivers").is_none());
+    }
+
+    /// The design variant resolves an instance-output operand handle to
+    /// `"<instance>.<child-output-port>"` (the module variant falls back to
+    /// `"<instance>.port<id>"`); an absent top ⇒ an empty analysis.
+    #[test]
+    fn design_node_drivers_resolves_instance_output_operand() {
+        let mut child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 1, Direction::In));
+        child.outputs.push(port(1, "o", 1, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 1 });
+        child.drives.push((1, 0));
+
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 1, Direction::In));
+        top.outputs.push(port(1, "y", 1, Direction::Out));
+        top.instances.push(Instance {
+            id: 0,
+            name: "u0".into(),
+            module: "child".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![],
+            param_bindings: vec![],
+        });
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1, // child output "o"
+            width: 1,
+        }); // 0 = u0.o
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 1 }); // 1 = a
+        top.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![1, 0], // a ^ u0.o
+            width: 1,
+            deps: crate::ir::DepSet::new(),
+        }); // 2
+        top.drives.push((1, 2));
+
+        // Module variant: no child def ⇒ "<instance>.port<id>" fallback.
+        let m_xor = &module_node_drivers(&top, Some("node:2")).node_drivers[0];
+        assert_eq!(m_xor.drivers[1].name, "u0.port1");
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let d_xor = &design_node_drivers(&design, Some("node:2")).node_drivers[0];
+        assert_eq!(d_xor.op.as_deref(), Some("xor"));
+        assert_eq!(d_xor.drivers[1].kind, "instance_output");
+        assert_eq!(d_xor.drivers[1].name, "u0.o"); // resolved child output port name
+
+        // Absent top ⇒ empty.
+        let ghost = Design {
+            top: "ghost".into(),
+            modules: vec![],
+        };
+        assert!(design_node_drivers(&ghost, None).node_drivers.is_empty());
     }
 }

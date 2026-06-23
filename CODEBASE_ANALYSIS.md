@@ -1260,10 +1260,23 @@ src/
 │                     `build_cone` support machinery; `"fsm:<id>"` addressing. Not in
 │                     `supported_query_kinds()` yet (the registry entry +
 │                     `run_analyze` dispatch land in `.8b.2`). 8 in-crate proofs;
+│                     DUT byte-identical. **`node_drivers`** (`.9b.1`, the EIGHTH
+│                     derived query): per-node **immediate (1-hop) driver adjacency**
+│                     — `NodeDrivers { node, kind, op: Option<String>, width,
+│                     drivers: Vec<NodeRef> }` + `NodeRef { node, kind, name }`;
+│                     `module_node_drivers`/`design_node_drivers` + the
+│                     `node_drivers_with` driver do a **single one-hop pass** over
+│                     `m.nodes` (no transitive walk — the purest projection alongside
+│                     `flop_reset_provenance`), surfacing each node's `GateOp` (new
+│                     info no cone query carries) + its operands in **operand order**
+│                     (not sorted — order is semantically meaningful) with resolved
+│                     handles; `"node:<id>"` addressing (a leaf ⇒ known-but-empty).
+│                     Not in `supported_query_kinds()` yet (joins with the
+│                     `run_analyze` dispatch in `.9b.2`). 6 in-crate proofs;
 │                     DUT byte-identical. The parallel-vec pattern
-│                     now carries seven query kinds (`results`/`reach_results`/
+│                     now carries eight query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
-│                     `memory_provenance`/`fsm_provenance`), each a
+│                     `memory_provenance`/`fsm_provenance`/`node_drivers`), each a
 │                     `skip_serializing_if` vec the `query` discriminates.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of

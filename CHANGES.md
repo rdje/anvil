@@ -1,9 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.9b.1 — pure node_drivers core
+
+**Landed as:** this commit (previous: `9d2d046`, `SEMANTIC-INTROSPECTION-EXPANSION.9a`).
+A **code change** (`src/introspect/analyze.rs` + `CODEBASE_ANALYSIS.md`), task-tree-owned
+by `.9b.1`. **DUT byte-identical** (`tests/snapshots.rs` untouched; no IR/generator change,
+not wired to any emit path). Implements the pure core of `.9`'s eighth derived `analyze`
+query, `node_drivers`, leaving the MCP registry/dispatch/schema bump to `.9b.2` (the
+`.3b.1`/…/`.8b.1` precedent: the registry entry + `run_analyze` dispatch land together in the
+surface commit so each commit is coherent).
+
+**What changed (why)**
+
+`node_drivers` is the per-node **immediate (1-hop) driver adjacency** — for each IR node its
+kind, width, gate `op` (for a `Gate`), and the list of its direct operand `NodeRef`s in
+operand order. The atomic node-level primitive complementing the transitive `output_support`
+cone: it surfaces each node's `GateOp` and the node-level fan-in graph one hop at a time,
+information no cone query carries.
+
+1. **New types + field** (`src/introspect/analyze.rs`) — `QUERY_NODE_DRIVERS = "node_drivers"`;
+   `NodeDrivers { node, kind, op: Option<String> (#[serde(skip_serializing_if = "Option::is_none")]),
+   width, drivers: Vec<NodeRef> }`; `NodeRef { node, kind, name }`; the EIGHTH parallel vec
+   `node_drivers: Vec<NodeDrivers>` on `DerivedAnalysis` (`#[serde(default,
+   skip_serializing_if = "Vec::is_empty")]` ⇒ the seven prior query documents byte-identical).
+   The 14 existing `DerivedAnalysis` literals gained `node_drivers: Vec::new()` (added by a
+   precise `awk` insert keyed on each `fsm_provenance` trailing field, preserving indentation);
+   the `crate::ir::GateOp` import added.
+2. **Builders + driver** — `module_node_drivers(&Module, Option<&str>)` /
+   `design_node_drivers(&Design, Option<&str>)` + the `node_drivers_with` driver: a **single
+   one-hop pass** over `m.nodes` (no transitive walk / no DFS / no memoization — the `visit`
+   cone walker is untouched), classifying each node and, for a `Gate`, mapping its `operands`
+   (in order) through `node_ref_of`. Helpers `node_kind_str` (the seven `Node` variants →
+   stable strings), `gate_op_str` (every `GateOp` → a stable base-op string; the `Slice`/`ForFold`
+   params a documented future extension), and `node_ref_of` (resolves each operand's handle:
+   input name / `"flop:<id>"` / `"mem:<id>"` / `"fsm:<id>"` / `"<instance>.<port>"` /
+   `"node:<id>"`, with a defensive out-of-bounds guard). `"node:<id>"` addressing: `None` ⇒ all
+   nodes ascending id; a leaf node ⇒ a known-but-empty entry; an out-of-range id / malformed
+   target ⇒ no entry (→ `-32602` at the MCP layer, wired in `.9b.2`).
+3. **`supported_query_kinds()` unchanged** — `node_drivers` is deliberately NOT yet registered
+   (it joins with the `run_analyze` dispatch in `.9b.2`), so the intermediate commit stays
+   coherent (the registry never names a kind the dispatch cannot answer).
+4. **`CODEBASE_ANALYSIS.md`** — the `analyze.rs` block amended (the parallel-vec pattern now
+   carries eight query kinds + the `node_drivers` one-hop-projection description).
+
+**Validation**
+
+`cargo test --lib introspect::analyze` **53/0** (6 new `node_drivers` proofs: gate operands in
+operand order + kinds + resolved names + an interior-gate `"node:<id>"` operand + a leaf entry
+empty/no-op + ascending `None` + determinism; `Mux` operand order + flop-`Q` handle;
+constant/mem_read/fsm_out operand handle resolution; `"node:<id>"` target +
+out-of-range/malformed/wrong-vocabulary ⇒ none; serialization omits the other seven query vecs
++ `output_support` omits `node_drivers`; design instance-output operand resolved + module
+`"u0.port1"` fallback + absent-top empty). `cargo test --lib` **669 passed / 0 failed / 2
+ignored**. `cargo test --test snapshots` **6/6 byte-identical**. `scripts/ram_guard.sh
+--threshold 90 -- cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check`
+clean (exit 0); `cargo check --lib` clean.
+
+**Impact**
+
+The eighth derived query's analysis core is live and lib-tested but not yet reachable from any
+surface (no `--introspect` payload field change, no MCP registry entry) ⇒ DUT and agent-facing
+behaviour both unchanged until `.9b.2`. DUT byte-identical.
+
+**Files touched**
+
+`src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.9a — node_drivers impl design-detail
 
-**Landed as:** this commit (previous: `ce86560`, `SEMANTIC-INTROSPECTION-EXPANSION.8b.2`).
+**Landed as:** `9d2d046` (previous: `ce86560`, `SEMANTIC-INTROSPECTION-EXPANSION.8b.2`).
 A **docs/design-only change** (`DEVELOPMENT_NOTES.md` design-detail entry + the task-tree
 files + live-doc logs) — **no `src/`** ⇒ **DUT byte-identical**. Opens `.9`, the **eighth**
 derived `analyze` query, `node_drivers`, and pre-splits `.9b` → `.9b.1` (pure core) + `.9b.2`
