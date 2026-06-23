@@ -1224,10 +1224,25 @@ src/
 │                     (`module`/`design_flop_dependencies`) + the `analyze_schema`
 │                     enum + schema `1.17 → 1.18` + book/USER_GUIDE/schema-doc/KM + an
 │                     e2e `anvil-mcp` smoke (2 MCP proofs). 6 in-crate proofs;
-│                     DUT byte-identical. The parallel-vec pattern now carries five
-│                     query kinds (`results`/`reach_results`/`flop_provenance`/
-│                     `module_reachability`/`flop_dependencies`), each a
-│                     `skip_serializing_if` vec the `query` discriminates.
+│                     DUT byte-identical. A **sixth** query, `memory_provenance`
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.7b.1`), adds
+│                     `QUERY_MEMORY_PROVENANCE` + `MemoryProvenance { mem,
+│                     addr_width, data_width, kind, single_port, +4 per-port
+│                     `SupportCone`s (raddr/waddr/wdata/we) }` + a sixth
+│                     `DerivedAnalysis.memory_provenance` `skip_serializing_if` vec +
+│                     `module_memory_provenance`/`design_memory_provenance` (the
+│                     per-inferrable-memory port provenance: `build_cone` per port,
+│                     **opening the documented opaque-`MemRead`-leaf boundary** — it
+│                     reports what drives a memory's input ports without recursing
+│                     through its contents) — reusing the `build_cone` support
+│                     machinery; `"mem:<id>"` addressing. `supported_query_kinds()`
+│                     unchanged at `.7b.1` (the registry entry + `run_analyze`
+│                     dispatch land together in `.7b.2`, schema `1.18 → 1.19`). 7
+│                     in-crate proofs; DUT byte-identical. The parallel-vec pattern
+│                     now carries six query kinds (`results`/`reach_results`/
+│                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
+│                     `memory_provenance`), each a `skip_serializing_if` vec the
+│                     `query` discriminates.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

@@ -38,8 +38,12 @@
 //!   (default-off `memory_prob`/`fsm_prob`, so absent from the default DUT).
 //!   Like `FlopQ` they break the combinational path, but the `.2a` cone shape
 //!   has no memory/FSM support list, so they **terminate** the cone (counted in
-//!   `cone_nodes`, recorded in no list). Surfacing memory/FSM provenance is a
-//!   recorded future query kind, not a silent omission.
+//!   `cone_nodes`, recorded in no list). The memory side of that boundary is now
+//!   surfaced by a *separate* query, [`QUERY_MEMORY_PROVENANCE`]
+//!   (`SEMANTIC-INTROSPECTION-EXPANSION.7`): it does not recurse *through* a
+//!   `MemRead` (the stored contents stay a register boundary) but reports the
+//!   support cones of the memory's *input* ports. Surfacing FSM provenance
+//!   (`fsm_provenance`) is the remaining recorded future query kind.
 //!
 //! # Targets and addressing (decision `0011` Q1)
 //!
@@ -61,7 +65,8 @@
 //! determinism contract the rest of the introspection surface holds.
 
 use crate::ir::{
-    Design, Flop, FlopKind, FlopMux, InstanceId, Module, Node, NodeId, PortId, ResetKind,
+    Design, Flop, FlopKind, FlopMux, InstanceId, MemKind, Memory, Module, Node, NodeId, PortId,
+    ResetKind,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -113,6 +118,24 @@ pub const QUERY_MODULE_REACHABILITY: &str = "module_reachability";
 /// [`module_flop_dependencies`] / [`design_flop_dependencies`], dispatched by the
 /// MCP `analyze` tool (`.6b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_FLOP_DEPENDENCIES: &str = "flop_dependencies";
+
+/// The query-kind string for the sixth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.7`): per-inferrable-memory **port
+/// provenance** — for each [`Memory`] block, its structural shape (address/data
+/// width, `kind`, single-port flag) plus the [`SupportCone`] of each of its four
+/// driving ports: the read address (`raddr`), write address (`waddr`), write data
+/// (`wdata`), and write enable (`we`). It is the query that **opens the documented
+/// opaque-`MemRead`-leaf boundary**: the five prior queries terminate the
+/// combinational cone at a [`Node::MemRead`] (recorded in no support list), while
+/// `memory_provenance` reports what drives the memory's *input* ports — without
+/// recursing *through* the memory's stored contents (still a register boundary,
+/// like a flop `Q`). Each port cone is built by the **same** [`build_cone`]
+/// machinery `output_support` uses (one walker — full-factorization). The second
+/// query beyond decision `0011`'s four named kinds (the lane's "open-ended breadth"
+/// clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_memory_provenance`] / [`design_memory_provenance`], dispatched by the
+/// MCP `analyze` tool (`.7b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_MEMORY_PROVENANCE: &str = "memory_provenance";
 
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
@@ -172,6 +195,13 @@ pub struct DerivedAnalysis {
     /// a `flop_dependencies` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flop_dependencies: Vec<FlopDependencies>,
+    /// The [`QUERY_MEMORY_PROVENANCE`] payload: one [`MemoryProvenance`] per
+    /// inferrable memory block. A **sixth** parallel vec, same rationale as the
+    /// prior four: `skip_serializing_if` keeps the five prior query documents
+    /// byte-identical (the key is omitted unless this is a `memory_provenance`
+    /// analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub memory_provenance: Vec<MemoryProvenance>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -321,6 +351,51 @@ pub struct FlopDependencies {
     pub self_dependent: bool,
 }
 
+/// One inferrable memory block's **port provenance** — the
+/// [`QUERY_MEMORY_PROVENANCE`] payload. A pure projection of the [`Memory`] the
+/// generator already built: its structural shape plus the [`SupportCone`] of each
+/// of its four driving ports. It answers *what drives this memory's read address /
+/// write address / write data / write enable?* — opening the boundary the opaque
+/// [`Node::MemRead`] leaf hides from the other queries' cones, without recursing
+/// *through* the memory's stored contents (a register boundary).
+///
+/// Each `*_support` field is built by the **same** [`build_cone`] machinery
+/// `output_support` uses, so a memory port cone classifies its leaves exactly like
+/// an output cone (primary inputs / flop `Q`s / child-instance outputs; opaque
+/// `MemRead`/`FsmOut` terminate it) and each port's `target` is `"mem:<id>.<port>"`.
+/// For a `SinglePort` memory the read and write addresses are the *same* node, so the
+/// two address cones carry **identical support** (only their `target` labels —
+/// `.raddr` vs `.waddr` — differ); `single_port` flags this.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryProvenance {
+    /// The memory id (addressed `"mem:<id>"`, the entity this entry is about).
+    pub mem: u32,
+    /// Address width in bits (`Memory::addr_width`).
+    pub addr_width: u32,
+    /// Data (word) width in bits (`Memory::data_width`).
+    pub data_width: u32,
+    /// `"single_port"` (one shared synchronous read/write address) |
+    /// `"simple_dual_port"` (one write port + one independent read port), from
+    /// [`MemKind`]. Mapped to a stable string so the wire shape survives the enum
+    /// gaining variants.
+    pub kind: String,
+    /// Whether the read and write addresses are the same cone
+    /// (`MemKind::SinglePort`) ⇒ `read_addr_support == write_addr_support`.
+    pub single_port: bool,
+    /// Support cone feeding the **read address** (`Memory::raddr`); cone `target`
+    /// `"mem:<id>.raddr"`.
+    pub read_addr_support: SupportCone,
+    /// Support cone feeding the **write address** (`Memory::waddr`); cone `target`
+    /// `"mem:<id>.waddr"`.
+    pub write_addr_support: SupportCone,
+    /// Support cone feeding the **write data** (`Memory::wdata`); cone `target`
+    /// `"mem:<id>.wdata"`.
+    pub write_data_support: SupportCone,
+    /// Support cone feeding the **write enable** (`Memory::we`); cone `target`
+    /// `"mem:<id>.we"`.
+    pub write_enable_support: SupportCone,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -346,6 +421,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -381,6 +457,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -412,6 +489,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -485,6 +563,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         flop_provenance: Vec::new(),
         module_reachability,
         flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
     }
 }
 
@@ -516,6 +595,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         flop_provenance: Vec::new(),
         module_reachability,
         flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
     }
 }
 
@@ -549,6 +629,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
             flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -625,6 +706,105 @@ fn flop_dependencies_with(
         flop_provenance: Vec::new(),
         module_reachability: Vec::new(),
         flop_dependencies,
+        memory_provenance: Vec::new(),
+    }
+}
+
+/// Compute the `memory_provenance` analysis for a single [`Module`]: the per-memory
+/// port provenance (its structural shape + the support cone of each of its four
+/// driving ports).
+///
+/// `target = None` ⇒ a [`MemoryProvenance`] per memory, in ascending id order.
+/// `target = Some("mem:<id>")` ⇒ that one memory's entry; any other string (or an
+/// out-of-range id) ⇒ no result (→ `-32602` at the MCP layer). A module with no
+/// memories + `target = None` ⇒ an empty `memory_provenance` (the honest "no
+/// memories" answer; `memory_prob` is default-off, so the default DUT hits this).
+/// Instance-output support in a port cone is named `"<instance>.port<id>"` here;
+/// use [`design_memory_provenance`] for fully-resolved child port names.
+pub fn module_memory_provenance(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    memory_provenance_with(m, target, &fmt)
+}
+
+/// Compute the `memory_provenance` analysis for the **top** module of a [`Design`],
+/// resolving each instance-output leaf in a port cone to its
+/// `"<instance>.<child-output-port-name>"` form. Returns an empty analysis when the
+/// named top module is absent. (Per-child-module memory provenance is a future
+/// extension; like `flop_reset_provenance` this operates on the top module.)
+pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return DerivedAnalysis {
+            query: QUERY_MEMORY_PROVENANCE.to_string(),
+            results: Vec::new(),
+            reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
+            memory_provenance: Vec::new(),
+        };
+    };
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    memory_provenance_with(top, target, &fmt)
+}
+
+/// Shared driver for [`module_memory_provenance`] / [`design_memory_provenance`]:
+/// project `m.memories` (ascending id) into [`MemoryProvenance`]s, building each
+/// port's [`SupportCone`] with the **same** [`build_cone`] machinery
+/// `output_support` uses (one walker — full-factorization). The
+/// `we`/`waddr`/`wdata`/`raddr` cones are plain [`NodeId`]s (never `None`), so each
+/// port cone is rooted at `Some(node)`. A `SinglePort` memory's `raddr` *is* its
+/// `waddr` node, so its read/write address cones are identical by construction
+/// (flagged by `single_port`).
+fn memory_provenance_with(
+    m: &Module,
+    target: Option<&str>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> DerivedAnalysis {
+    let mut mems: Vec<&Memory> = m.memories.iter().collect();
+    mems.sort_by_key(|mem| mem.id); // deterministic, independent of vec order
+
+    let make = |mem: &Memory| -> MemoryProvenance {
+        let port_cone = |label: &str, node: NodeId| {
+            build_cone(m, format!("mem:{}.{}", mem.id, label), Some(node), fmt)
+        };
+        let kind = match mem.kind {
+            MemKind::SinglePort => "single_port",
+            MemKind::SimpleDualPort => "simple_dual_port",
+        };
+        MemoryProvenance {
+            mem: mem.id,
+            addr_width: mem.addr_width,
+            data_width: mem.data_width,
+            kind: kind.to_string(),
+            single_port: matches!(mem.kind, MemKind::SinglePort),
+            read_addr_support: port_cone("raddr", mem.raddr),
+            write_addr_support: port_cone("waddr", mem.waddr),
+            write_data_support: port_cone("wdata", mem.wdata),
+            write_enable_support: port_cone("we", mem.we),
+        }
+    };
+
+    let mut memory_provenance = Vec::new();
+    match target {
+        None => memory_provenance.extend(mems.iter().map(|mem| make(mem))),
+        Some(t) => {
+            // Only the `"mem:<id>"` form is a valid target here; anything else
+            // (or an out-of-range id) ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t.strip_prefix("mem:").and_then(|r| r.parse::<u32>().ok()) {
+                if let Some(mem) = mems.iter().find(|mem| mem.id == id) {
+                    memory_provenance.push(make(mem));
+                }
+            }
+        }
+    }
+    DerivedAnalysis {
+        query: QUERY_MEMORY_PROVENANCE.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance,
     }
 }
 
@@ -680,6 +860,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         flop_provenance,
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
     }
 }
 
@@ -743,6 +924,7 @@ fn support_cones_with(
         flop_provenance: Vec::new(),
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
     }
 }
 
@@ -813,6 +995,7 @@ fn input_reach_with(
         flop_provenance: Vec::new(),
         module_reachability: Vec::new(),
         flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
     }
 }
 
@@ -2228,6 +2411,302 @@ mod tests {
         };
         assert!(design_flop_dependencies(&ghost, None)
             .flop_dependencies
+            .is_empty());
+    }
+
+    // --- memory_provenance (`SEMANTIC-INTROSPECTION-EXPANSION.7b.1`) ---
+
+    /// A `SimpleDualPort` memory whose four ports are driven by distinct sources:
+    /// `raddr <- ra`, `waddr <- wa`, `wdata <- wd ^ Q0` (an input + a flop `Q`),
+    /// `we <- const`. Exercises an exact per-port support cone incl. a flop-`Q`
+    /// support and an empty (constant) cone, the structural fields, and the port
+    /// `target` labels.
+    fn dual_port_mem_module() -> Module {
+        let mut m = Module {
+            name: "mem".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "ra", 4, Direction::In));
+        m.inputs.push(port(3, "wa", 4, Direction::In));
+        m.inputs.push(port(4, "wd", 8, Direction::In));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 }); // 0 = ra
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 4 }); // 1 = wa
+        m.nodes.push(Node::PrimaryInput { port: 4, width: 8 }); // 2 = wd
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 3 = Q0
+        m.nodes.push(Node::Constant { width: 1, value: 1 }); // 4 = we const
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![2, 3], // wd ^ Q0
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 5 = wdata cone
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(2), // D = wd (so the flop is well-formed; not under test here)
+            q: 3,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.memories.push(Memory {
+            id: 0,
+            addr_width: 4,
+            data_width: 8,
+            kind: MemKind::SimpleDualPort,
+            we: 4,    // constant ⇒ empty support
+            waddr: 1, // wa
+            wdata: 5, // wd ^ Q0
+            raddr: 0, // ra
+        });
+        m
+    }
+
+    /// Each port's support cone is exact (incl. a flop-`Q` support + an empty
+    /// constant cone), the structural fields project `Memory`, and the cone
+    /// `target`s are `"mem:<id>.<port>"`.
+    #[test]
+    fn memory_provenance_projects_ports_and_support() {
+        let m = dual_port_mem_module();
+        let a = module_memory_provenance(&m, None);
+        assert_eq!(a.query, QUERY_MEMORY_PROVENANCE);
+        // Only the memory_provenance vec is populated.
+        assert!(a.results.is_empty() && a.reach_results.is_empty() && a.flop_provenance.is_empty());
+        assert_eq!(a.memory_provenance.len(), 1);
+
+        let mp = &a.memory_provenance[0];
+        assert_eq!(mp.mem, 0);
+        assert_eq!(mp.addr_width, 4);
+        assert_eq!(mp.data_width, 8);
+        assert_eq!(mp.kind, "simple_dual_port");
+        assert!(!mp.single_port);
+
+        // Read address: depends on `ra` only.
+        assert_eq!(mp.read_addr_support.target, "mem:0.raddr");
+        assert_eq!(mp.read_addr_support.support_inputs, vec!["ra"]);
+        assert!(mp.read_addr_support.support_flops.is_empty());
+
+        // Write address: depends on `wa` only.
+        assert_eq!(mp.write_addr_support.target, "mem:0.waddr");
+        assert_eq!(mp.write_addr_support.support_inputs, vec!["wa"]);
+
+        // Write data: `wd ^ Q0` ⇒ input `wd` + flop 0; one gate deep.
+        assert_eq!(mp.write_data_support.target, "mem:0.wdata");
+        assert_eq!(mp.write_data_support.support_inputs, vec!["wd"]);
+        assert_eq!(mp.write_data_support.support_flops, vec![0]);
+        assert_eq!(mp.write_data_support.cone_depth, 1);
+
+        // Write enable: a constant ⇒ no support source (counted as one cone node).
+        assert_eq!(mp.write_enable_support.target, "mem:0.we");
+        assert!(mp.write_enable_support.support_inputs.is_empty());
+        assert!(mp.write_enable_support.support_flops.is_empty());
+        assert_eq!(mp.write_enable_support.cone_nodes, 1);
+    }
+
+    /// A `SinglePort` memory shares one address node, so the read and write address
+    /// cones carry identical support (only their `target` labels differ), and
+    /// `single_port` is set.
+    #[test]
+    fn memory_provenance_single_port_shares_address() {
+        let mut m = Module {
+            name: "sp".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.inputs.push(port(1, "d", 8, Direction::In));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // 0 = a (shared addr)
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = d
+        m.nodes.push(Node::Constant { width: 1, value: 1 }); // 2 = we
+        m.memories.push(Memory {
+            id: 0,
+            addr_width: 4,
+            data_width: 8,
+            kind: MemKind::SinglePort,
+            we: 2,
+            waddr: 0, // shared with raddr
+            wdata: 1,
+            raddr: 0, // SAME node as waddr
+        });
+
+        let mp = &module_memory_provenance(&m, None).memory_provenance[0];
+        assert_eq!(mp.kind, "single_port");
+        assert!(mp.single_port);
+        // Identical support (same source node), distinct target labels.
+        assert_eq!(mp.read_addr_support.support_inputs, vec!["a"]);
+        assert_eq!(
+            mp.read_addr_support.support_inputs,
+            mp.write_addr_support.support_inputs
+        );
+        assert_eq!(
+            mp.read_addr_support.cone_nodes,
+            mp.write_addr_support.cone_nodes
+        );
+        assert_eq!(mp.read_addr_support.target, "mem:0.raddr");
+        assert_eq!(mp.write_addr_support.target, "mem:0.waddr");
+    }
+
+    /// `target = "mem:<id>"` addresses one memory; an unknown id, a non-`mem:`
+    /// string, or a malformed id yields no result (→ `-32602` at the MCP layer).
+    #[test]
+    fn memory_provenance_target_and_unknown() {
+        let m = dual_port_mem_module();
+        let one = module_memory_provenance(&m, Some("mem:0"));
+        assert_eq!(one.memory_provenance.len(), 1);
+        assert_eq!(one.memory_provenance[0].mem, 0);
+
+        assert!(module_memory_provenance(&m, Some("mem:9"))
+            .memory_provenance
+            .is_empty());
+        assert!(module_memory_provenance(&m, Some("nope"))
+            .memory_provenance
+            .is_empty());
+        assert!(module_memory_provenance(&m, Some("mem:abc"))
+            .memory_provenance
+            .is_empty());
+    }
+
+    /// `target = None` ⇒ one entry per memory in ascending id order, regardless of
+    /// the `m.memories` vec order.
+    #[test]
+    fn memory_provenance_none_yields_all_ascending() {
+        let mut m = Module {
+            name: "two".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 4, Direction::In));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 4 }); // 0 = a
+        m.nodes.push(Node::Constant { width: 8, value: 0 }); // 1 = data const
+        m.nodes.push(Node::Constant { width: 1, value: 0 }); // 2 = we const
+        let mk = |id| Memory {
+            id,
+            addr_width: 4,
+            data_width: 8,
+            kind: MemKind::SinglePort,
+            we: 2,
+            waddr: 0,
+            wdata: 1,
+            raddr: 0,
+        };
+        // Pushed out of order (1 before 0) to prove ascending-id emission.
+        m.memories.push(mk(1));
+        m.memories.push(mk(0));
+
+        let a = module_memory_provenance(&m, None);
+        let ids: Vec<u32> = a.memory_provenance.iter().map(|e| e.mem).collect();
+        assert_eq!(ids, vec![0, 1]);
+    }
+
+    /// A memoryless module + `target = None` ⇒ an empty (not errored)
+    /// `memory_provenance` — the honest "no memories" answer (the default-off
+    /// `memory_prob` case).
+    #[test]
+    fn memoryless_module_yields_empty_memory_provenance() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.drives.push((1, 0));
+        let a = module_memory_provenance(&m, None);
+        assert_eq!(a.query, QUERY_MEMORY_PROVENANCE);
+        assert!(a.memory_provenance.is_empty());
+    }
+
+    /// A `memory_provenance` document serializes `memory_provenance`, omits the
+    /// other five query vecs (`skip_serializing_if`), and keeps `results` an empty
+    /// array — so an `output_support` document (which omits `memory_provenance`)
+    /// stays byte-identical.
+    #[test]
+    fn memory_provenance_document_omits_the_other_query_vecs() {
+        let m = dual_port_mem_module();
+        let v = serde_json::to_value(module_memory_provenance(&m, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("memory_provenance"));
+        assert!(obj.get("reach_results").is_none());
+        assert!(obj.get("flop_provenance").is_none());
+        assert!(obj.get("module_reachability").is_none());
+        assert!(obj.get("flop_dependencies").is_none());
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+
+        let sup = serde_json::to_value(module_support_cones(&m, None)).unwrap();
+        assert!(sup.as_object().unwrap().get("memory_provenance").is_none());
+    }
+
+    /// The design variant projects the **top** module's memories and resolves an
+    /// instance-output leaf in a port cone to `"<instance>.<child-output-port>"`;
+    /// an absent top ⇒ an empty analysis.
+    #[test]
+    fn design_memory_provenance_projects_the_top_module() {
+        // Child: out port "o" driven by input "a".
+        let mut child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 4, Direction::In));
+        child.outputs.push(port(1, "o", 4, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 4 });
+        child.drives.push((1, 0));
+
+        // Top: a memory whose read address is the child instance's output.
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "d", 8, Direction::In));
+        top.instances.push(Instance {
+            id: 0,
+            name: "u0".into(),
+            module: "child".into(),
+            role: InstanceRole::PlannedChild,
+            inputs: vec![],
+            param_bindings: vec![],
+        });
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = d
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1, // child output "o"
+            width: 4,
+        }); // 1 = u0.o
+        top.nodes.push(Node::Constant { width: 1, value: 0 }); // 2 = we
+        top.memories.push(Memory {
+            id: 0,
+            addr_width: 4,
+            data_width: 8,
+            kind: MemKind::SimpleDualPort,
+            we: 2,
+            waddr: 1, // u0.o
+            wdata: 0, // d
+            raddr: 1, // u0.o
+        });
+
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let a = design_memory_provenance(&design, None);
+        assert_eq!(a.memory_provenance.len(), 1);
+        let mp = &a.memory_provenance[0];
+        // The read-address cone's instance leaf resolves to the child port name.
+        assert_eq!(mp.read_addr_support.support_instance_outputs, vec!["u0.o"]);
+        assert_eq!(mp.write_data_support.support_inputs, vec!["d"]);
+
+        // Absent top ⇒ empty.
+        let ghost = Design {
+            top: "ghost".into(),
+            modules: vec![Module {
+                name: "child".into(),
+                ..Module::default()
+            }],
+        };
+        assert!(design_memory_provenance(&ghost, None)
+            .memory_provenance
             .is_empty());
     }
 }

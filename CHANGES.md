@@ -1,6 +1,76 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.7b.1 — pure memory_provenance core
+
+**Landed as:** this commit (previous: `221d746`, `SEMANTIC-INTROSPECTION-EXPANSION.7a`).
+A **code change** (`src/introspect/analyze.rs` only), task-tree-owned by `.7b.1`.
+**DUT byte-identical** (`tests/snapshots.rs` untouched; no IR/generator change; not wired
+to any emit path). Lands the pure core of the **sixth** derived `analyze` query,
+`memory_provenance`; the agent-facing MCP surface follows in `.7b.2`.
+
+**What changed (why)**
+
+Per the `.7a` design, the per-query split lands the pure analysis first (the
+`.4b`/`.5b`/`.6b` precedent), so the registry entry + `run_analyze` dispatch can land
+together in `.7b.2` and every intermediate commit is coherent.
+
+1. **`QUERY_MEMORY_PROVENANCE` + `MemoryProvenance`** — `MemoryProvenance { mem,
+   addr_width, data_width, kind, single_port, read_addr_support, write_addr_support,
+   write_data_support, write_enable_support }`, where each `*_support` field is the
+   existing tested `SupportCone` for that port (one cone shape, one walker —
+   full-factorization), with `target = "mem:<id>.<port>"`. The structural fields are a
+   direct projection of `Memory`; `kind` maps `MemKind` → `"single_port"` /
+   `"simple_dual_port"`; `single_port = matches!(kind, SinglePort)`.
+
+2. **A SIXTH parallel vec** — `DerivedAnalysis.memory_provenance:
+   Vec<MemoryProvenance>` with `#[serde(default, skip_serializing_if = "Vec::is_empty")]`,
+   continuing the parallel-vec pattern: the five prior query documents
+   (`output_support`/`input_reach`/`flop_reset_provenance`/`module_reachability`/
+   `flop_dependencies`) stay **byte-identical** (the key is omitted unless this is a
+   `memory_provenance` analysis). The 10 existing `DerivedAnalysis` struct literals
+   gained `memory_provenance: Vec::new()`.
+
+3. **The builders** — `module_memory_provenance` / `design_memory_provenance` + the
+   shared `memory_provenance_with` driver: project `m.memories` (ascending id) and build
+   each port's cone with the **same** `build_cone` machinery `output_support` uses (the
+   `we`/`waddr`/`wdata`/`raddr` cones are plain `NodeId`s ⇒ `Some(node)`). This **opens
+   the documented opaque-`MemRead`-leaf boundary** — the five prior queries terminate a
+   support cone at a `Node::MemRead`; this query instead reports what drives the memory's
+   *input* ports (without recursing *through* its stored contents — still a register
+   boundary). `target = "mem:<id>"` (a new address vocabulary, parallel to `"flop:<id>"`):
+   `None` ⇒ all memories ascending; unknown/out-of-range ⇒ no entry (→ `-32602` at the
+   MCP layer in `.7b.2`); memoryless ⇒ empty (the default-off `memory_prob` case). The
+   module-level opaque-leaf doc note was updated (memory provenance now surfaced by this
+   separate query; FSM provenance remains the recorded future kind).
+
+4. **Imports + scope** — `crate::ir::{MemKind, Memory}` added to the analyze imports.
+   `supported_query_kinds()` is **unchanged** (the registry entry + dispatch land
+   together in `.7b.2`), so `memory_provenance` is not yet MCP-reachable.
+
+**Validation**
+
+`cargo test --lib introspect::analyze` **39 passed / 0 failed** (7 new proofs:
+SimpleDualPort per-port exact cones incl. a flop-`Q` support + an empty constant `we`
+cone + the structural fields/labels; the SinglePort shared-address identical-support
+case; `"mem:<id>"` target + unknown/out-of-range/malformed ⇒ none; `None` ⇒ all
+memories ascending; memoryless ⇒ empty; serialization omits the other 5 vecs +
+`output_support` omits `memory_provenance`; the design top-module variant with the
+instance-output leaf resolved + absent-top empty). `cargo test --lib` **651 passed /
+0 failed / 2 ignored**. `cargo test --test snapshots` **6/6 byte-identical**.
+`scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings`
+clean; `cargo fmt --all --check` clean; `cargo check --lib` clean.
+
+**Impact**
+
+The pure `memory_provenance` analysis exists and is lib-tested; it is not yet reachable
+over MCP (that, plus the schema `1.18 → 1.19` bump + docs/KM, is `.7b.2`). DUT
+byte-identical — no generated RTL changes.
+
+**Files touched:** `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.7a — memory_provenance impl design-detail
 
 **Landed as:** this commit (previous: `fd8aa7c`, `SEMANTIC-INTROSPECTION-EXPANSION.6b.2`).
