@@ -1,9 +1,74 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.6b.1 — pure flop_dependencies core
+
+**Landed as:** this commit (previous: `f84af48`, `SEMANTIC-INTROSPECTION-EXPANSION.6a`).
+A **code change** (`src/introspect/analyze.rs` + `CODEBASE_ANALYSIS.md`), task-tree-owned
+by `.6b.1`. **DUT byte-identical** (pure post-hoc analysis; not wired to any emit path;
+`tests/snapshots.rs` untouched). The pure core of the **fifth** derived `analyze` query.
+
+**What changed (why)**
+
+The `.6a` design-detail pinned `flop_dependencies` (the register→register dependency
+graph). This slice lands its pure analysis core in `src/introspect/analyze.rs`, lib-tested,
+**not** yet wired into the MCP registry/dispatch (that + the schema bump land together in
+`.6b.2`, the `.3b`/`.4b`/`.5b` precedent that keeps each commit coherent).
+
+1. **`QUERY_FLOP_DEPENDENCIES = "flop_dependencies"`** — the fifth query-kind const (+ a
+   doc block explaining the register-graph-edge = one-register-stage-hop semantics and the
+   "first beyond decision `0011`'s four named kinds" framing).
+
+2. **`FlopDependencies { flop: u32, depends_on_flops: Vec<u32>, driven_flops: Vec<u32>,
+   self_dependent: bool }`** — direct register predecessors (the flop's D-cone
+   `support_flops`), direct successors (the transpose), and the self-feedback marker
+   (`flop ∈ depends_on_flops`). A **fifth** parallel `DerivedAnalysis.flop_dependencies`
+   vec with `#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the four prior
+   query documents stay byte-identical (the key is omitted unless this is a
+   `flop_dependencies` analysis). The 8 existing `DerivedAnalysis` literals gained
+   `flop_dependencies: Vec::new()`; one `BTreeMap` import added.
+
+3. **`module_flop_dependencies` / `design_flop_dependencies` + the `flop_dependencies_with`
+   driver** — reuse the existing `build_cone` support machinery: build each flop's D-cone
+   once (its `support_flops` = predecessors), take the transpose across all flops
+   (successors), set `self_dependent`. The whole register graph is built before filtering,
+   so an explicit `"flop:<id>"` target still gets correct successors (the
+   `input_reach_with` "compute-all-then-filter" shape). `target = None` ⇒ all flops
+   ascending id; `"flop:<id>"` ⇒ that one; unknown/out-of-range/malformed ⇒ none (→
+   `-32602` at the MCP layer); flopless ⇒ empty. The design variant operates on the **top**
+   module (the `flop_reset_provenance` convention). `supported_query_kinds()` is unchanged.
+
+**Validation**
+
+- `cargo test --lib introspect::analyze` **32 passed / 0 failed** — 6 new in-crate proofs:
+  a pipeline+self-feedback-counter module with exact predecessors/successors/`self_dependent`
+  and ascending order; the predecessors⇔successors **transpose invariant** (`B ∈ depends_on(A)
+  ⇔ A ∈ driven(B)`); `"flop:<id>"` target + unknown/out-of-range/malformed ⇒ none +
+  a known-no-predecessor empty-edges entry; flopless ⇒ empty; serialization **omits** the
+  other four query vecs while `output_support` omits `flop_dependencies`; the design
+  top-module variant + absent-top empty.
+- `cargo test --test snapshots` **6/6 byte-identical** — DUT `.sv` unchanged; `analyze.rs`
+  is not in any output path and `flop_dependencies` is omitted from the four prior documents.
+- `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean; `cargo check --lib` clean.
+- `bash scripts/check_doctrines.sh` green (4 doctrines; `CODE-CHANGE-EVIDENCE` +
+  `TASK-TREE-OWNERSHIP` satisfied by the co-staged `CHANGES.md`/`MEMORY.md` + the owning
+  `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`).
+
+**Impact**
+
+DUT byte-identical. The fifth derived query's pure core is in place + proven; the agent-facing
+surface (registry + dispatch + schema `1.17 → 1.18` + book/USER_GUIDE/README/KM + e2e smoke)
+follows in `.6b.2`. `CODEBASE_ANALYSIS.md`'s `analyze.rs` block records the five-query
+parallel-vec pattern. Nothing retired.
+
+**Files touched:** `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.6a — flop_dependencies impl design-detail
 
-**Landed as:** this commit (previous: `715209f`, `STRUCTURED-EMISSION-EXPANSION.19b.3`).
+**Landed as:** `f84af48` (previous: `715209f`, `STRUCTURED-EMISSION-EXPANSION.19b.3`).
 A **docs/design-only** change (no `src/` / `tests/`), task-tree-owned by `.6a`. **DUT
 byte-identical** (no generator code touched). Opens `SEMANTIC-INTROSPECTION-EXPANSION.6`
 — a **fifth** derived `analyze` query, `flop_dependencies`.

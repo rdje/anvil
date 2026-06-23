@@ -64,7 +64,7 @@ use crate::ir::{
     Design, Flop, FlopKind, FlopMux, InstanceId, Module, Node, NodeId, PortId, ResetKind,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 /// The query-kind string for the first derived query: the transitive
 /// combinational fan-in support cone of a target.
@@ -97,6 +97,22 @@ pub const QUERY_FLOP_RESET_PROVENANCE: &str = "flop_reset_provenance";
 /// dispatched by the MCP `analyze` tool (`.5b.2`); listed in
 /// [`supported_query_kinds`].
 pub const QUERY_MODULE_REACHABILITY: &str = "module_reachability";
+
+/// The query-kind string for the fifth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.6`): the per-module **register-to-register
+/// dependency graph** — for each flop, which flops' `Q` feed its `D` cone (its
+/// direct register **predecessors**), which flops' `D` cones its own `Q` feeds (its
+/// direct register **successors**), and whether it feeds itself (a self-feedback
+/// register — a counter/accumulator). The register-level analog of
+/// [`QUERY_MODULE_REACHABILITY`] (a graph over a node class), but reusing the
+/// existing gate-graph support/reach machinery rather than the module table: a
+/// direct register-graph edge `A → B` (`B ∈ depends_on_flops(A)`) means `B`'s `Q`
+/// feeds `A`'s `D` through pure combinational logic (one register-stage hop). The
+/// first query beyond decision `0011`'s four named kinds (the lane's "open-ended
+/// breadth" clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_flop_dependencies`] / [`design_flop_dependencies`], dispatched by the
+/// MCP `analyze` tool (`.6b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_FLOP_DEPENDENCIES: &str = "flop_dependencies";
 
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
@@ -148,6 +164,13 @@ pub struct DerivedAnalysis {
     /// analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub module_reachability: Vec<ModuleReachability>,
+    /// The [`QUERY_FLOP_DEPENDENCIES`] payload: one [`FlopDependencies`] per flop.
+    /// A **fifth** parallel vec, same rationale as `reach_results` /
+    /// `flop_provenance` / `module_reachability`: `skip_serializing_if` keeps the
+    /// four prior query documents byte-identical (the key is omitted unless this is
+    /// a `flop_dependencies` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flop_dependencies: Vec<FlopDependencies>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -267,6 +290,36 @@ pub struct ModuleReachability {
     pub instance_count: usize,
 }
 
+/// One flop's place in a module's **register-to-register dependency graph** — the
+/// [`QUERY_FLOP_DEPENDENCIES`] payload. A pure projection of the existing
+/// support/reach machinery: the cone feeding this flop's `D` (its `support_flops`
+/// are the predecessors) and the transpose (the flops this flop's `Q` reaches are
+/// the successors). Every edge is a **direct** register-graph edge — one
+/// register-stage hop through pure combinational logic — because the underlying
+/// support cone is transitive combinational and stops at every register boundary.
+///
+/// Honest framing: each edge is individually derivable from `output_support` /
+/// `input_reach` on a `"flop:<id>"` target, but no single one of those returns the
+/// whole register graph; per the agent-API audience rule (decision `0011` /
+/// `feedback_api_for_agents_not_humans`) this is the complete register-graph **view**
+/// in one query — a relation over the emitted IR, never behaviour.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlopDependencies {
+    /// The flop id (addressed `"flop:<id>"`, the entity this entry is about).
+    pub flop: u32,
+    /// Direct register **predecessors**: flop ids whose `Q` feeds this flop's `D`
+    /// cone, i.e. this flop's D-cone `support_flops` (sorted, deduplicated).
+    pub depends_on_flops: Vec<u32>,
+    /// Direct register **successors**: flop ids whose `D` cone this flop's `Q`
+    /// feeds, i.e. the transpose of `depends_on_flops` across the module (sorted,
+    /// deduplicated).
+    pub driven_flops: Vec<u32>,
+    /// Whether this flop feeds **itself** (`flop ∈ depends_on_flops`): its `Q`
+    /// reaches its own `D` through pure combinational logic — the structural marker
+    /// of a self-feedback register (a counter / accumulator / running-state flop).
+    pub self_dependent: bool,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -291,6 +344,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             reach_results: Vec::new(),
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -325,6 +379,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             reach_results: Vec::new(),
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -355,6 +410,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             reach_results: Vec::new(),
             flop_provenance: Vec::new(),
             module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -427,6 +483,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         reach_results: Vec::new(),
         flop_provenance: Vec::new(),
         module_reachability,
+        flop_dependencies: Vec::new(),
     }
 }
 
@@ -457,6 +514,116 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         reach_results: Vec::new(),
         flop_provenance: Vec::new(),
         module_reachability,
+        flop_dependencies: Vec::new(),
+    }
+}
+
+/// Compute the `flop_dependencies` analysis for a single [`Module`]: the
+/// register-to-register dependency graph (per flop, its direct register
+/// predecessors / successors / self-feedback flag).
+///
+/// `target = None` ⇒ a [`FlopDependencies`] per flop, in ascending id order.
+/// `target = Some("flop:<id>")` ⇒ that one flop's entry (even if it has no
+/// register predecessor/successor — an empty-edges entry, not an error); any other
+/// string (or an out-of-range id) ⇒ no result (→ `-32602` at the MCP layer). A
+/// module with no flops + `target = None` ⇒ an empty `flop_dependencies` (the
+/// honest "no flops" answer). The whole register graph is always built first (a
+/// flop's successors require every flop's cone), then the requested entries are
+/// emitted — the same "compute-all-then-filter" shape [`input_reach_with`] holds.
+pub fn module_flop_dependencies(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    flop_dependencies_with(m, target, &fmt)
+}
+
+/// Compute the `flop_dependencies` analysis for the **top** module of a
+/// [`Design`]. Returns an empty analysis when the named top module is absent.
+/// (Per-child-module flop dependencies are a future extension; like
+/// `flop_reset_provenance` this operates on the top module.)
+pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return DerivedAnalysis {
+            query: QUERY_FLOP_DEPENDENCIES.to_string(),
+            results: Vec::new(),
+            reach_results: Vec::new(),
+            flop_provenance: Vec::new(),
+            module_reachability: Vec::new(),
+            flop_dependencies: Vec::new(),
+        };
+    };
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    flop_dependencies_with(top, target, &fmt)
+}
+
+/// Shared driver for [`module_flop_dependencies`] / [`design_flop_dependencies`]:
+/// build the whole register graph, then emit the requested [`FlopDependencies`].
+///
+/// Step 1 reuses the **same** cone machinery `output_support` uses: each flop's
+/// `D`-cone `support_flops` are its direct register **predecessors**. Step 2 takes
+/// the transpose of that relation (`B ∈ depends_on(A)` ⇔ `A ∈ driven(B)`) to get
+/// successors — exactly the inversion [`input_reach_with`] performs, restricted to
+/// flop sources/targets — so the two directions cannot drift and there is no second
+/// walker / re-derived boundary rule. `self_dependent` is `flop ∈ depends_on_flops`
+/// (a register whose `Q` feeds its own `D` combinationally). Cost is
+/// `O(flops × cone)`, bounded by module size (a read-only analysis).
+fn flop_dependencies_with(
+    m: &Module,
+    target: Option<&str>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> DerivedAnalysis {
+    let mut flops: Vec<&Flop> = m.flops.iter().collect();
+    flops.sort_by_key(|f| f.id); // deterministic, independent of vec order
+
+    // 1. Predecessors: each flop's D-cone support_flops. 2. Successors: the
+    //    transpose. Sorted sets ⇒ deterministic bytes.
+    let mut predecessors: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    let mut successors: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    for f in &flops {
+        let cone = build_cone(m, format!("flop:{}", f.id), f.d, fmt);
+        let preds: BTreeSet<u32> = cone.support_flops.iter().copied().collect();
+        for &p in &preds {
+            successors.entry(p).or_default().insert(f.id);
+        }
+        predecessors.insert(f.id, preds);
+    }
+
+    let make = |f: &Flop| -> FlopDependencies {
+        let depends_on_flops: Vec<u32> = predecessors
+            .get(&f.id)
+            .map(|s| s.iter().copied().collect())
+            .unwrap_or_default();
+        let driven_flops: Vec<u32> = successors
+            .get(&f.id)
+            .map(|s| s.iter().copied().collect())
+            .unwrap_or_default();
+        let self_dependent = depends_on_flops.contains(&f.id);
+        FlopDependencies {
+            flop: f.id,
+            depends_on_flops,
+            driven_flops,
+            self_dependent,
+        }
+    };
+
+    let mut flop_dependencies = Vec::new();
+    match target {
+        None => flop_dependencies.extend(flops.iter().map(|f| make(f))),
+        Some(t) => {
+            // Only `"flop:<id>"` is a valid target; anything else (or an
+            // out-of-range id) ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t.strip_prefix("flop:").and_then(|r| r.parse::<u32>().ok()) {
+                if let Some(f) = flops.iter().find(|f| f.id == id) {
+                    flop_dependencies.push(make(f));
+                }
+            }
+        }
+    }
+    DerivedAnalysis {
+        query: QUERY_FLOP_DEPENDENCIES.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies,
     }
 }
 
@@ -511,6 +678,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         reach_results: Vec::new(),
         flop_provenance,
         module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
     }
 }
 
@@ -573,6 +741,7 @@ fn support_cones_with(
         reach_results: Vec::new(),
         flop_provenance: Vec::new(),
         module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
     }
 }
 
@@ -642,6 +811,7 @@ fn input_reach_with(
         reach_results,
         flop_provenance: Vec::new(),
         module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
     }
 }
 
@@ -1874,5 +2044,189 @@ mod tests {
             .find(|r| r.module == "a")
             .unwrap();
         assert_eq!(a.instantiates, vec!["b"]);
+    }
+
+    // --- flop_dependencies (`SEMANTIC-INTROSPECTION-EXPANSION.6b.1`) ---
+
+    /// A module with a 2-stage register pipeline (`b → [f0] → [f1] → y`) plus a
+    /// self-feedback counter (`[f2] = f2 ^ 1`). Exercises predecessors,
+    /// successors (the transpose), and `self_dependent` in one shape.
+    fn seq_pipeline_counter() -> Module {
+        let mut m = Module {
+            name: "seq".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "b", 8, Direction::In));
+        m.outputs.push(port(3, "y", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 0 = b
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 1 = Q0
+        m.nodes.push(Node::FlopQ { flop: 1, width: 8 }); // 2 = Q1
+        m.nodes.push(Node::FlopQ { flop: 2, width: 8 }); // 3 = Q2
+        m.nodes.push(Node::Constant { width: 8, value: 1 }); // 4 = 1
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![3, 4], // Q2 ^ 1 — Q2 feeds its own D
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 5
+        let mk = |id, d, q| Flop {
+            id,
+            width: 8,
+            d: Some(d),
+            q,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        };
+        m.flops.push(mk(0, 0, 1)); // D = b
+        m.flops.push(mk(1, 1, 2)); // D = Q0
+        m.flops.push(mk(2, 5, 3)); // D = Q2 ^ 1 (self-feedback)
+        m.drives.push((3, 2)); // y <- Q1
+        m
+    }
+
+    /// Exact predecessors / successors / `self_dependent`, ascending-id order.
+    #[test]
+    fn flop_dependencies_pipeline_and_self_feedback() {
+        let m = seq_pipeline_counter();
+        let a = module_flop_dependencies(&m, None);
+        assert_eq!(a.query, QUERY_FLOP_DEPENDENCIES);
+        assert_eq!(a.flop_dependencies.len(), 3);
+        let ids: Vec<u32> = a.flop_dependencies.iter().map(|e| e.flop).collect();
+        assert_eq!(ids, vec![0, 1, 2]); // ascending id
+
+        let f0 = &a.flop_dependencies[0];
+        assert!(f0.depends_on_flops.is_empty()); // D = b (a primary input)
+        assert_eq!(f0.driven_flops, vec![1]); // Q0 feeds flop 1's D
+        assert!(!f0.self_dependent);
+
+        let f1 = &a.flop_dependencies[1];
+        assert_eq!(f1.depends_on_flops, vec![0]); // D = Q0
+        assert!(f1.driven_flops.is_empty());
+        assert!(!f1.self_dependent);
+
+        let f2 = &a.flop_dependencies[2];
+        assert_eq!(f2.depends_on_flops, vec![2]); // D = Q2 ^ 1
+        assert_eq!(f2.driven_flops, vec![2]);
+        assert!(f2.self_dependent); // a self-feedback register
+    }
+
+    /// `B ∈ depends_on(A)` ⇔ `A ∈ driven(B)` — predecessors and successors are
+    /// exact transposes, so the two directions cannot drift.
+    #[test]
+    fn flop_dependencies_predecessors_and_successors_are_transposes() {
+        let m = seq_pipeline_counter();
+        let a = module_flop_dependencies(&m, None);
+        let by_id: std::collections::HashMap<u32, &FlopDependencies> =
+            a.flop_dependencies.iter().map(|e| (e.flop, e)).collect();
+        for e in &a.flop_dependencies {
+            for &p in &e.depends_on_flops {
+                assert!(
+                    by_id[&p].driven_flops.contains(&e.flop),
+                    "flop {} depends on {p} but {p} does not drive {0}",
+                    e.flop
+                );
+            }
+            for &s in &e.driven_flops {
+                assert!(by_id[&s].depends_on_flops.contains(&e.flop));
+            }
+        }
+    }
+
+    /// `"flop:<id>"` addressing: a resolvable flop ⇒ exactly one entry (its
+    /// successors still correct because the whole graph is built before
+    /// filtering); a known flop with no predecessor ⇒ an empty-edges entry;
+    /// unknown / out-of-range / malformed ⇒ no entry (→ `-32602`).
+    #[test]
+    fn flop_dependencies_target_and_unknown() {
+        let m = seq_pipeline_counter();
+        let one = module_flop_dependencies(&m, Some("flop:2"));
+        assert_eq!(one.flop_dependencies.len(), 1);
+        assert_eq!(one.flop_dependencies[0].flop, 2);
+        assert!(one.flop_dependencies[0].self_dependent);
+        assert_eq!(one.flop_dependencies[0].driven_flops, vec![2]);
+
+        let f0 = module_flop_dependencies(&m, Some("flop:0"));
+        assert_eq!(f0.flop_dependencies.len(), 1);
+        assert!(f0.flop_dependencies[0].depends_on_flops.is_empty());
+
+        assert!(module_flop_dependencies(&m, Some("flop:99"))
+            .flop_dependencies
+            .is_empty());
+        assert!(module_flop_dependencies(&m, Some("nope"))
+            .flop_dependencies
+            .is_empty());
+        assert!(module_flop_dependencies(&m, Some("flop:abc"))
+            .flop_dependencies
+            .is_empty());
+    }
+
+    /// A flopless module ⇒ an empty `flop_dependencies` (the honest "no flops"
+    /// answer, not an error).
+    #[test]
+    fn flopless_module_yields_empty_flop_dependencies() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.drives.push((1, 0));
+        assert!(module_flop_dependencies(&m, None)
+            .flop_dependencies
+            .is_empty());
+    }
+
+    /// A `flop_dependencies` document omits the other four query vecs
+    /// (`skip_serializing_if`), and an `output_support` document omits
+    /// `flop_dependencies` ⇒ the prior documents stay byte-identical.
+    #[test]
+    fn flop_dependencies_document_omits_the_other_query_vecs() {
+        let m = seq_pipeline_counter();
+        let v = serde_json::to_value(module_flop_dependencies(&m, None)).unwrap();
+        let obj = v.as_object().unwrap();
+        assert!(obj.contains_key("flop_dependencies"));
+        assert!(obj.get("reach_results").is_none());
+        assert!(obj.get("flop_provenance").is_none());
+        assert!(obj.get("module_reachability").is_none());
+        assert_eq!(obj["results"].as_array().unwrap().len(), 0); // always present, empty
+
+        let sup = serde_json::to_value(module_support_cones(&m, None)).unwrap();
+        assert!(sup.as_object().unwrap().get("flop_dependencies").is_none());
+    }
+
+    /// The design variant projects the **top** module's register graph; an
+    /// absent top ⇒ an empty analysis.
+    #[test]
+    fn design_flop_dependencies_projects_the_top_module() {
+        let top = seq_pipeline_counter();
+        let child = Module {
+            name: "child".into(),
+            ..Module::default()
+        };
+        let design = Design {
+            top: "seq".into(),
+            modules: vec![top, child],
+        };
+        let a = design_flop_dependencies(&design, None);
+        assert_eq!(a.flop_dependencies.len(), 3);
+        assert_eq!(a.flop_dependencies[2].driven_flops, vec![2]);
+
+        let ghost = Design {
+            top: "ghost".into(),
+            modules: vec![Module {
+                name: "child".into(),
+                ..Module::default()
+            }],
+        };
+        assert!(design_flop_dependencies(&ghost, None)
+            .flop_dependencies
+            .is_empty());
     }
 }

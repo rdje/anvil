@@ -1206,10 +1206,22 @@ src/
 │                     (`None` ⇒ all; unknown ⇒ none). `.5b.2` registers the kind
 │                     in `supported_query_kinds()` with the `run_analyze` dispatch
 │                     and bumps the schema `1.6 → 1.7`; 2 MCP proofs (+ e2e smoke).
-│                     6 in-crate proofs. DUT byte-identical. The parallel-vec
-│                     pattern now carries four query kinds
-│                     (`results`/`reach_results`/`flop_provenance`/`module_reachability`),
-│                     each a `skip_serializing_if` vec the `query` discriminates.
+│                     6 in-crate proofs. DUT byte-identical. A **fifth** query,
+│                     `flop_dependencies` (`SEMANTIC-INTROSPECTION-EXPANSION.6b.1`),
+│                     adds `QUERY_FLOP_DEPENDENCIES` + `FlopDependencies { flop,
+│                     depends_on_flops[], driven_flops[], self_dependent }` + a
+│                     fifth `DerivedAnalysis.flop_dependencies` `skip_serializing_if`
+│                     vec + `module_flop_dependencies`/`design_flop_dependencies`
+│                     (the register→register dependency graph: each flop's D-cone
+│                     `support_flops` are its predecessors, the transpose gives
+│                     successors, `self_dependent` = `flop ∈ depends_on_flops`) —
+│                     reusing the `build_cone` support machinery, not in
+│                     `supported_query_kinds()` yet (joins with the `run_analyze`
+│                     dispatch + schema `1.17 → 1.18` in `.6b.2`). 6 in-crate proofs;
+│                     DUT byte-identical. The parallel-vec pattern now carries five
+│                     query kinds (`results`/`reach_results`/`flop_provenance`/
+│                     `module_reachability`/`flop_dependencies`), each a
+│                     `skip_serializing_if` vec the `query` discriminates.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {
