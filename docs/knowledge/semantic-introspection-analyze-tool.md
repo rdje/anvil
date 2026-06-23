@@ -68,7 +68,9 @@ The dual fan-out query, `input_reach` (schema `1.5`), is
 `flop_reset_provenance` (schema `1.6`), is
 [[semantic-introspection-flop-reset-provenance]]; the design-level query,
 `module_reachability` (schema `1.7`), is
-[[semantic-introspection-module-reachability]].
+[[semantic-introspection-module-reachability]]; the register-to-register
+dependency graph, `flop_dependencies` (schema `1.18`), is
+[[semantic-introspection-flop-dependencies]].
 
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].

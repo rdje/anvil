@@ -1103,7 +1103,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.17"`
+│                     only the envelope metadata (`schema_version` `"1.18"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -1127,7 +1127,11 @@ src/
 │                     1.14→1.15 the `Metrics::num_emitted_mux_if_blocks`
 │                     count (`STRUCTURED-EMISSION-EXPANSION.15b.2`), and
 │                     1.15→1.16 the `Metrics::num_emitted_case_mux_if_chains`
-│                     count (`STRUCTURED-EMISSION-EXPANSION.17b.2a`);
+│                     count (`STRUCTURED-EMISSION-EXPANSION.17b.2a`),
+│                     1.16→1.17 the `Metrics::num_emitted_casez_mux_if_chains`
+│                     count (`STRUCTURED-EMISSION-EXPANSION.19b.2a`), and
+│                     1.17→1.18 the fifth `flop_dependencies` analyze query
+│                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.6b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1215,9 +1219,11 @@ src/
 │                     (the register→register dependency graph: each flop's D-cone
 │                     `support_flops` are its predecessors, the transpose gives
 │                     successors, `self_dependent` = `flop ∈ depends_on_flops`) —
-│                     reusing the `build_cone` support machinery, not in
-│                     `supported_query_kinds()` yet (joins with the `run_analyze`
-│                     dispatch + schema `1.17 → 1.18` in `.6b.2`). 6 in-crate proofs;
+│                     reusing the `build_cone` support machinery. `.6b.2` registers it
+│                     in `supported_query_kinds()` with the `run_analyze` dispatch
+│                     (`module`/`design_flop_dependencies`) + the `analyze_schema`
+│                     enum + schema `1.17 → 1.18` + book/USER_GUIDE/schema-doc/KM + an
+│                     e2e `anvil-mcp` smoke (2 MCP proofs). 6 in-crate proofs;
 │                     DUT byte-identical. The parallel-vec pattern now carries five
 │                     query kinds (`results`/`reach_results`/`flop_provenance`/
 │                     `module_reachability`/`flop_dependencies`), each a

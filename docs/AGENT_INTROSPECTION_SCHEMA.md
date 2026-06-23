@@ -314,8 +314,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance`) |
-| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies`) |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -327,8 +327,9 @@ structure-first boundary is the permanent ceiling.
 
 `DerivedAnalysis` **category groups** (fields owned by `src/introspect/analyze.rs`):
 the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
-`module_reachability` — all four named kinds from decision `0011` are now
-delivered) + **one of four parallel result vecs**, the one the query kind populates
+`module_reachability` — the four named kinds from decision `0011` — plus
+`flop_dependencies`, the **fifth** kind added under the lane's open-ended-breadth
+clause) + **one of five parallel result vecs**, the one the query kind populates
 (the others are empty and, except for the always-present `results`, omitted via
 `skip_serializing_if`):
 
@@ -383,6 +384,24 @@ delivered) + **one of four parallel result vecs**, the one the query kind popula
   `1.6 → 1.7` bump; a `module_reachability` document carries it with `results: []`.
   Unlike the prior three queries, `target` is a **module name** (not a port name or
   `"flop:<id>"`), the natural identifier for a module-level query.
+- **`flop_dependencies: Vec<FlopDependencies>`** (schema `1.18`, `SEMANTIC-INTROSPECTION-EXPANSION.6b.2`)
+  — the `flop_dependencies` payload: the module's **register-to-register dependency
+  graph**. A `FlopDependencies` is, per flop: `flop` (id, addressed `"flop:<id>"`),
+  `depends_on_flops` (direct register **predecessors** — flop ids whose `Q` feeds
+  this flop's `D` cone, i.e. its D-cone `support_flops`), `driven_flops` (direct
+  register **successors** — the transpose across the module), and `self_dependent`
+  (whether `flop ∈ depends_on_flops`: a self-feedback register — a
+  counter/accumulator). It is the register-level analog of `module_reachability` (a
+  graph over a node class), but reuses the `output_support`/`input_reach` cone
+  machinery — a direct register-graph edge `A → B` (`B ∈ depends_on_flops(A)`) means
+  `B`'s `Q` feeds `A`'s `D` through pure combinational logic (one register-stage
+  hop). Each edge is individually derivable from `output_support`/`input_reach` on a
+  `"flop:<id>"` target, but no single one of those returns the whole register graph;
+  per the agent-audience completeness rule this is the complete graph **view** in one
+  query — a relation, never behaviour. `target` is `"flop:<id>"` (omit for every
+  flop). `flop_dependencies` carries the same `skip_serializing_if`, so the prior
+  four documents stay byte-identical across the `1.17 → 1.18` bump; a
+  `flop_dependencies` document carries it with `results: []`.
 
 `target = None` ⇒ all targets/sources/flops/modules (per the agent-audience
 completeness rule); an unknown `query` or `target` is rejected with JSON-RPC
@@ -451,7 +470,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.17"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.18"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -461,7 +480,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.17"`**.
+This document defines **`schema_version = "1.18"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -640,6 +659,20 @@ This document defines **`schema_version = "1.17"`**.
   consumer ignores the new integer key; no field was removed/renamed/retyped; the
   default-`dut` **artifact** (`.sv`) stays byte-identical and determinism is
   preserved. MINOR is an integer, so this is `1.14 → 1.15` (fifteen), not a decimal.
+- **`1.17` → `1.18` (`SEMANTIC-INTROSPECTION-EXPANSION.6b.2`).** Additive MINOR bump:
+  added the **fifth** derived `analyze` query kind `flop_dependencies` — the
+  register-to-register dependency graph (per flop its direct register predecessors
+  `depends_on_flops`, successors `driven_flops`, and a `self_dependent` self-feedback
+  flag), carried by a fifth `DerivedAnalysis.flop_dependencies: Vec<FlopDependencies>`
+  parallel vec (`#[serde(default, skip_serializing_if = "Vec::is_empty")]`). The first
+  query beyond decision `0011`'s four named kinds (the lane's open-ended-breadth clause).
+  SCHEMA-DERIVED (a reuse of the `output_support`/`input_reach` cone machinery — each
+  flop's D-cone `support_flops` are its predecessors, the transpose gives successors — not
+  new computed truth). Backward compatible: the `flop_dependencies` key is
+  `skip_serializing_if`-omitted on every other `analyze` document, so the four prior query
+  documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.17`
+  consumer ignores the new query kind. MINOR is an integer, so this is `1.17 → 1.18`
+  (eighteen), not a decimal.
 - **`1.16` → `1.17` (`STRUCTURED-EMISSION-EXPANSION.19b.2a`).** Additive MINOR bump:
   surfaced the new `Metrics::num_emitted_casez_mux_if_chains` field — the count of
   dynamic-selector `CasezMux` gates the emitter projects as a procedural `always_comb`
@@ -702,5 +735,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.17"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.18"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

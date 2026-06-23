@@ -1,9 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.6b.2 — flop_dependencies MCP surface + schema 1.18
+
+**Landed as:** this commit (previous: `21a8ee2`, `SEMANTIC-INTROSPECTION-EXPANSION.6b.1`).
+A **code change** (`src/mcp/mod.rs` + `src/introspect/{analyze,mod}.rs` + docs/book/KM),
+task-tree-owned by `.6b.2`. **DUT byte-identical** (`tests/snapshots.rs` untouched). Closes
+`.6b`/`.6` ⇒ the **fifth** derived `analyze` query, `flop_dependencies`, is **delivered
+end-to-end**.
+
+**What changed (why)**
+
+The `.6b.1` pure core landed `flop_dependencies` but left it out of the MCP registry/dispatch
+(the `.3b`/`.4b`/`.5b` precedent: registry + dispatch + schema bump land together so each commit
+is coherent). This slice wires the agent-facing surface and bumps the schema.
+
+1. **Registry + dispatch (one commit)** — `flop_dependencies` added to
+   `analyze::supported_query_kinds()` (`src/introspect/analyze.rs`); `run_analyze`
+   (`src/mcp/mod.rs`) branches by query kind (`module_flop_dependencies` /
+   `design_flop_dependencies` in both the module and design paths); the empty-result →
+   `-32602` guard checks `analysis.flop_dependencies` for this kind. The `analyze_schema`
+   `query` enum + `target` description, the `analyze` tool description, and the server
+   `instructions` all cover the fifth kind.
+
+2. **Schema `1.17 → 1.18`** (`src/introspect/mod.rs`) — additive MINOR bump (the new query
+   kind + its parallel vec; `DerivedAnalysisDocument` envelope reused). 11 `"1.17" → "1.18"`
+   test assertions (3 introspect, 8 mcp) + 2 new MCP proofs
+   (`analyze_returns_flop_dependencies_and_caches_it` +
+   `analyze_flop_dependencies_unknown_target_is_invalid_params`).
+
+3. **Docs + KM** — schema-doc §6.7 (the fifth `flop_dependencies` payload + `FlopDependencies`,
+   "one of five parallel result vecs") + the `1.17 → 1.18` changelog + "defines 1.18" / §7 /
+   §10 checklist; `book/src/agent-mcp.md` (analyze tool row + a `flop_dependencies` worked
+   example + the resource line) + `book/src/api-tools.md`; `USER_GUIDE.md` (analyze description
+   + the sv-version row schema ref); `README.md` (`--introspect` schema `1.18` + the analyze
+   sentence + the fifth query); a new `docs/knowledge/semantic-introspection-flop-dependencies.md`
+   KM card + a cross-link from `semantic-introspection-analyze-tool` (`KNOWLEDGE_MAP.md`
+   regenerated `70 → 71` facts / `685` keys); `CODEBASE_ANALYSIS.md` (analyze + schema-history
+   blocks) + `ROADMAP.md` lane status. This slice also **resolved the tracked-lower
+   `agent-mcp.md` analyze-example drift** — the four worked-example envelopes were stale at
+   `schema_version 1.11`; bumped to `1.18` (with the canonical envelope `1.17 → 1.18` and
+   `api-tools.md` 3× `1.17 → 1.18`).
+
+**Validation**
+
+- `cargo test --lib` **644 passed / 0 failed / 2 ignored** (incl. the 2 new MCP proofs + the 6
+  `.6b.1` core proofs). `cargo test --test snapshots` **6/6 byte-identical**.
+- `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings` clean;
+  `cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples`
+  **3/3**; `bash knowledge-map/scripts/check_knowledge_map.sh` in sync; `bash
+  scripts/check_doctrines.sh` green.
+- **End-to-end `anvil-mcp` stdio smoke:** `initialize` → `tools/call analyze
+  {query:"flop_dependencies", seed:7, config:<flop_prob 1.0 dump-config>}` → `schema_version
+  1.18`, `query flop_dependencies`, **32 flops** with real `depends_on_flops` / `driven_flops`
+  / `self_dependent` (flops 0 and 2 are self-feedback registers), `results: []` and the
+  `reach_results` / `module_reachability` keys omitted; an unknown `target: "flop:99999"` →
+  `-32602`.
+
+**Impact**
+
+DUT byte-identical. The fifth derived query — the first beyond decision `0011`'s four named
+kinds — is delivered end-to-end (live + schema-versioned + MCP-dispatched + cached/served as a
+resource + documented + KM-carded + e2e-smoked). The MCP `analyze` tool now answers **five**
+derived queries. The `SEMANTIC-INTROSPECTION-EXPANSION` lane returns to a no-frontier boundary
+(stays `active`; further kinds are open-ended breadth). Nothing retired.
+
+**Files touched:** `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`USER_GUIDE.md`, `README.md`, `docs/knowledge/semantic-introspection-flop-dependencies.md` (new),
+`docs/knowledge/semantic-introspection-analyze-tool.md`, `KNOWLEDGE_MAP.md`, `CODEBASE_ANALYSIS.md`,
+`ROADMAP.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.6b.1 — pure flop_dependencies core
 
-**Landed as:** this commit (previous: `f84af48`, `SEMANTIC-INTROSPECTION-EXPANSION.6a`).
+**Landed as:** `21a8ee2` (previous: `f84af48`, `SEMANTIC-INTROSPECTION-EXPANSION.6a`).
 A **code change** (`src/introspect/analyze.rs` + `CODEBASE_ANALYSIS.md`), task-tree-owned
 by `.6b.1`. **DUT byte-identical** (pure post-hoc analysis; not wired to any emit path;
 `tests/snapshots.rs` untouched). The pure core of the **fifth** derived `analyze` query.

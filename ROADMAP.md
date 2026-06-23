@@ -427,9 +427,16 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    via the instance graph (`module_reachability`, `.5`), as the pure
    `src/introspect/analyze.rs` core + the pure MCP `analyze` tool + the
    `DerivedAnalysisDocument` (schema `1.7`) + book/USER_GUIDE/schema-doc/KM, DUT
-   byte-identical. **No active frontier** — all four named kinds from decision
-   `0011` are delivered; further derived-query kinds are open-ended breadth, not a
-   blocker, none retired. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
+   byte-identical. `.6` **done** (`2026-06-23`) adds a **fifth** derived query,
+   `flop_dependencies` — the **register-to-register dependency graph** (per flop its
+   direct register predecessors/successors + a self-feedback flag; the register-level
+   analog of `module_reachability`, reusing the support/reach cone machinery; schema
+   `1.18`), the first query beyond decision `0011`'s four named kinds, under the lane's
+   open-ended-breadth clause: `.6a` design-detail + `.6b.1` pure core + `.6b.2` surface
+   (registry + `run_analyze` dispatch + `analyze_schema` enum + book/USER_GUIDE/
+   schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical. **No active
+   frontier** — further derived-query kinds remain open-ended breadth, not a blocker,
+   none retired. Extends `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 
 Nothing is retired; all three are tracked task trees, and the
 `IDENTITY-DEEPENING.3b.2b` frontier (cross-module whole-module sequential

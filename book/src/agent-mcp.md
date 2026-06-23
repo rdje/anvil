@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.17",
+  "schema_version": "1.18",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -179,7 +179,7 @@ generate · introspect · analyze · coverage · dump_config · coverage_gaps ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics + the `coverage_readout`) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). Relations, not behaviour. |
 | `coverage` | ✅ pure | Return the DUT `(seed, config)` run's **achieved-coverage readout** — per-knob **and** per-category empirical fire rates (`fires / attempts`) plus the gate-kind / operand-arity / depth histograms (for a hierarchy design, aggregated across child modules). The **read** half of [coverage steering](#coverage-steered-generation): read what was exercised, then steer the next run. SCHEMA-DERIVED from the metrics ANVIL already records — no new truth, no tool spawn. The same readout is also embedded in `introspect`'s `coverage_readout`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
@@ -246,7 +246,7 @@ anvil://audit/log              the append-only validate/minimize/hunt/divergence
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -269,7 +269,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.11",
+  "schema_version": "1.18",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -317,7 +317,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.11",
+  "schema_version": "1.18",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -360,7 +360,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.11",
+  "schema_version": "1.18",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -410,7 +410,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.11",
+  "schema_version": "1.18",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },
@@ -441,6 +441,51 @@ shown are what make the artifact a design:
   `"flop:<id>"`). Served as
   `anvil://artifact/<run_id>/analysis/module_reachability`; an unknown module name →
   `-32602`.
+
+#### `flop_dependencies` — the register-to-register dependency graph
+
+The fifth query kind, `flop_dependencies`, answers *how do this module's registers
+feed each other?* For each flop it returns its direct register **predecessors**
+(`depends_on_flops` — flops whose `Q` reaches its `D` through pure combinational
+logic, one register-stage hop), its direct **successors** (`driven_flops`, the
+transpose), and `self_dependent` (whether it feeds itself — a counter/accumulator).
+It is the register-level analog of `module_reachability`, reusing the
+`output_support` / `input_reach` cone machinery. The `target` is `"flop:<id>"` (omit
+for every flop). Pair it with a sequential DUT (`flop_prob` high) so there are
+registers to relate:
+
+```json
+{ "name": "analyze", "arguments": { "seed": 7, "config": { "flop_prob": 1.0 }, "query": "flop_dependencies" } }
+```
+
+```json
+{
+  "schema_version": "1.18",
+  "lane": "dut",
+  "request": { "seed": 7, "run_id": "…" },
+  "artifact": { "kind": "module", "top": "…" },
+  "analysis": {
+    "query": "flop_dependencies",
+    "flop_dependencies": [
+      { "flop": 0, "depends_on_flops": [], "driven_flops": [1], "self_dependent": false },
+      { "flop": 1, "depends_on_flops": [0], "driven_flops": [], "self_dependent": false },
+      { "flop": 2, "depends_on_flops": [2], "driven_flops": [2], "self_dependent": true }
+    ]
+  }
+}
+```
+
+(flop ids illustrative: flop 0 → flop 1 is a pipeline stage; flop 2 is a
+self-feedback counter.)
+
+- The payload is a fifth `flop_dependencies` array (not `results` / `reach_results`
+  / `flop_provenance` / `module_reachability`), again `skip_serializing_if`, so the
+  prior four replies stay byte-identical across the `1.17 → 1.18` bump.
+- Every datum is derivable from `output_support` / `input_reach` on a `"flop:<id>"`
+  target, but `flop_dependencies` returns the **whole register graph in one query**
+  (the agent-audience completeness rule) — a relation over the IR, never behaviour.
+- Served as `anvil://artifact/<run_id>/analysis/flop_dependencies`; an unknown or
+  out-of-range `"flop:<id>"` → `-32602`.
 
 ### All three lanes, not just DUT
 

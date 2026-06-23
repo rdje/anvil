@@ -648,7 +648,7 @@ exercising adversarial axes that previously fired only by chance
   tools (no vendoring). CI-infra only ⇒ DUT byte-identical. See `USER_GUIDE.md`
   ("Use ANVIL in your CI") and `book/src/recipes.md`.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.17`) for a single-artifact run instead of SystemVerilog
+  (schema `1.18`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
   truth), with a content-addressed `run_id`. Since schema `1.12`
@@ -668,9 +668,11 @@ exercising adversarial axes that previously fired only by chance
   to `dut`, `analyze` answers a derived-relation query over the DUT IR — the
   output **support cone** (`output_support`: what an output depends on), its dual
   fan-out (`input_reach`: what a source reaches), per-flop reset/data
-  provenance (`flop_reset_provenance`), and per-module reachability from the top
+  provenance (`flop_reset_provenance`), per-module reachability from the top
   (`module_reachability`: which modules in a design are reachable via the instance
-  graph), schema `1.17`, unknown query/target ⇒
+  graph), and the per-module register-to-register dependency graph
+  (`flop_dependencies`: each flop's direct register predecessors/successors +
+  self-feedback flag), schema `1.18`, unknown query/target ⇒
   `-32602`, `coverage` (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`) returns
   the DUT run's achieved-coverage readout — per-knob + per-category
   construction-time fire rates + gate/operand/depth histograms, the same
