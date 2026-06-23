@@ -5,6 +5,164 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-23 — Semantic introspection — `node_drivers` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.9a`
+
+Design-detail leaf for `.9` — the **eighth** derived query, `node_drivers`:
+*per IR node, its immediate (1-hop) driver operands* — the node-level fan-in
+adjacency. Docs-only (no source). This is the **fourth query beyond decision
+`0011`'s four named kinds** (after `flop_dependencies` `.6`, `memory_provenance`
+`.7`, and `fsm_provenance` `.8`), again under the lane's documented *"further
+derived-query kinds are open-ended breadth"* clause — strictly under decision
+`0011`'s API and the `0004`/`0011` SCHEMA-DERIVED / structure-first ceiling (a
+**relation** over the construction graph, never behaviour). It follows the
+per-query design-detail precedent (`.3a`/`.4a`/`.5a`/`.6a`/`.7a`/`.8a`): no new
+numbered decision record; decision `0011` already governs the surface.
+
+It is the **atomic node-level primitive complementing the transitive
+`output_support` cone**. `output_support` answers *"what leaves does this output
+ultimately depend on?"* — it walks the whole fan-in and **collapses** the cone to
+its boundary leaves (primary inputs, flop `Q`s, instance outputs), recording neither
+the interior `Gate` nodes it passed through nor their ops. `node_drivers` answers the
+**one-hop** question — *"what immediately drives this node?"* — for **any** node, and
+it records **every** operand (interior gates included) plus, for a `Gate`, its
+`GateOp`. That `GateOp` is **genuinely new information no prior query carries**: the
+seven delivered queries count gates (`cone_nodes`/`cone_depth`) but never name an op.
+An agent can issue `node_drivers` for a node, then re-issue it for each operand that
+is itself a `Gate`, walking the DAG one hop at a time and reconstructing any cone
+itself — the building block under all the cone queries, now first-class.
+
+### Q1 — result shape: an EIGHTH parallel result vec + a `NodeRef` operand struct
+
+A new `NodeDrivers` struct + an EIGHTH parallel vec
+`node_drivers: Vec<NodeDrivers>` on `DerivedAnalysis`, with
+`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the **seven prior
+query documents stay byte-identical** (the key is omitted unless this is a
+`node_drivers` document — the established parallel-vec pattern, rejected: a tagged
+enum that would break the existing wire shapes; reusing `SupportCone`, whose
+leaf-collapsing shape cannot represent interior-gate operands or an op).
+
+```rust
+pub struct NodeDrivers {
+    pub node: u32,             // node id (index into m.nodes), addressed "node:<id>"
+    pub kind: String,          // "primary_input" | "constant" | "flop_q" | "mem_read"
+                               //   | "fsm_out" | "instance_output" | "gate"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub op: Option<String>,    // for a Gate, its GateOp as a stable string; None (omitted) for a leaf
+    pub width: u32,            // Node::width()
+    pub drivers: Vec<NodeRef>, // the immediate operands, in OPERAND ORDER (empty for a leaf node)
+}
+
+pub struct NodeRef {
+    pub node: u32,             // the operand node id ("node:<id>")
+    pub kind: String,          // the operand node kind (same vocabulary as NodeDrivers.kind)
+    pub name: String,          // a resolved handle: input port name | "flop:<id>" | "mem:<id>"
+                               //   | "fsm:<id>" | "<instance>.<port>" | "node:<id>" (interior gate/constant)
+}
+```
+
+The `kind` vocabulary mirrors the seven `Node` variants in `src/ir/types.rs`
+(`PrimaryInput`/`Constant`/`FlopQ`/`MemRead`/`FsmOut`/`InstanceOutput`/`Gate`),
+mapped to stable snake strings so the wire shape survives the enum gaining variants —
+the established `FlopProvenance::reset_kind` / `FsmProvenance::encoding` convention.
+`op` is `#[serde(skip_serializing_if = "Option::is_none")]` (a non-gate node omits
+it, like `ModuleReachability::depth`). The `GateOp` → string mapping is the base op
+name only first-cut (`and`/`or`/`xor`/`not`/`add`/`sub`/`mul`/`eq`/`neq`/`lt`/`gt`/
+`le`/`ge`/`mux`/`case_mux`/`casez_mux`/`for_fold`/`slice`/`concat`/`red_and`/
+`red_or`/`red_xor`/`shl`/`shr`); the parameterized variants' params
+(`Slice { hi, lo }`, `ForFold { kind, trip_count, chunk_width }`) are **not** surfaced
+in the first cut (a documented future extension — they are structural detail orthogonal
+to the 1-hop adjacency this query delivers).
+
+**`drivers` are in OPERAND ORDER, not sorted** — this is the one deliberate departure
+from the cone queries' sorted-vec convention. Operand order is semantically
+meaningful (`a - b` ≠ `b - a`; a `Mux`'s `[sel, a, b]`; a `Slice`'s single source),
+so preserving it is both more useful to an agent and still fully deterministic (the
+IR's operand `Vec` is itself deterministic). The cone queries sort because a *set* of
+support leaves has no inherent order; an operand *list* does.
+
+`NodeRef.name` **resolves each operand to a usable handle** — the lane's
+resolve-handles convention (`output_support` never records a raw node id; it records
+input names / `"flop:<id>"` / `"<instance>.<port>"`). So an agent reading a `Gate`'s
+operands sees immediately that operand 0 is input `"a"`, operand 1 is `"flop:3"`, etc.,
+without a second lookup. Interior gates and constants (which have no external handle)
+resolve to `"node:<id>"`, so `name` is *always* a usable address string; `MemRead`
+resolves to `"mem:<id>"` and `FsmOut` to `"fsm:<id>"` (the same vocabularies
+`memory_provenance`/`fsm_provenance` use), keeping the cross-query addressing uniform.
+
+### Q2 — derivation: a single one-hop pass over `m.nodes` (no transitive walk)
+
+`module_node_drivers(&Module, target)`:
+1. For each node id in `0..m.nodes.len()` (ascending = node id, the determinism
+   contract the other projections hold), classify the node into a `NodeDrivers`:
+   `kind`/`op`/`width` from the variant, and `drivers` = for a `Gate`, one `NodeRef`
+   per entry of its `operands` `Vec` (in order); for every leaf variant, an **empty**
+   `drivers` (and `op = None`).
+2. Each operand's `NodeRef` is built by classifying `m.nodes[operand]` (the same kind
+   mapping) and resolving its `name` via the existing helpers (`input_port_name` for a
+   `PrimaryInput`; `format!("flop:{}", flop)` / `"mem:{}"` / `"fsm:{}"`; the `fmt`
+   closure for an `InstanceOutput`; `format!("node:{}", id)` for a gate/constant).
+
+This is **even more local than `output_support`** — it reads exactly one level of
+operands, with **no DFS, no memoization, no recursion** (the `visit` walker is for the
+transitive cones; `node_drivers` does not call it). Pure: no IR field, no generator
+change (the `coverage_gaps` / `output_support` project-don't-recompute precedent).
+The `fmt` closure (`format_instance_leaf_module` / `format_instance_leaf_design`) is
+needed because an operand can be an `InstanceOutput` (a gate driven by a child-instance
+output), exactly as a cone leaf can. A defensive out-of-bounds operand id (a
+well-formed IR never has one, but the read-mostly surface must not panic) resolves to a
+`"node:<id>"` ref of `kind = "node"` — it never indexes `m.nodes` without a bounds
+check, mirroring `visit`'s `m.nodes.get(n)` guard.
+
+### Q3 — target addressing: `"node:<id>"`
+
+`target` is `"node:<id>"` — a **new** address vocabulary for this query (the node is
+the entity), parallel to `"flop:<id>"` / `"mem:<id>"` / `"fsm:<id>"` and the module
+name `module_reachability` uses; the natural identifier for a per-node query.
+- `target = None` ⇒ one entry per node in `m.nodes`, ascending id — the **whole
+  node-level fan-in adjacency in one query** (the `flop_dependencies` /
+  `module_reachability` complete-graph-view precedent; the agent-API completeness rule,
+  decision `0011` / `feedback_api_for_agents_not_humans`). Bounded by module size — a
+  read-only analysis.
+- `target = Some("node:<id>")` ⇒ that one node's entry. A **leaf** node resolves to
+  exactly one entry with an empty `drivers` — *known-but-empty*, NOT an error (the
+  `output_support` "undriven output still yields one empty cone" contract; the
+  distinction is load-bearing for the `-32602` mapping).
+- any other string, or an out-of-range id (`id >= m.nodes.len()`) ⇒ no entry ⇒
+  `-32602` at the MCP layer — the established "unknown target vs known-but-empty"
+  contract. The `run_analyze` empty-result guard checks `analysis.node_drivers.is_empty()`
+  for this kind.
+- An empty module (no nodes) + `target = None` ⇒ an empty `node_drivers` (the honest
+  "no nodes" answer) — but every real DUT has nodes, so this is only the degenerate
+  case; the query is DUT byte-identical regardless (default-off, not wired to any emit
+  path).
+
+### Q4 — module-vs-design semantics
+
+`run_analyze` already routes design-vs-module on
+`cfg.effective_hierarchy_depth_range().is_some()`. `module_node_drivers` is the
+single-module query; `design_node_drivers(&Design, target)` analyzes the **top**
+module's nodes (early-returns an empty analysis when the named top is absent), exactly
+like `design_flop_provenance` / `design_flop_dependencies` / `design_memory_provenance`
+/ `design_fsm_provenance` — per-child-module node drivers is a future extension, the
+same "operates on the top module" convention all the gate-graph / node-projection
+queries hold. The design variant uses the `format_instance_leaf_design` fmt so any
+`InstanceOutput` operand resolves to `"<instance>.<child-output-port-name>"`.
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.20 → 1.21` (a new `#[serde(default, skip_serializing_if)]` field +
+a new query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv`
+byte-identical — introspect is not in `tests/snapshots.rs`). Pre-split `.9b` →
+`.9b.1` (the pure core in `analyze.rs` + the `NodeDrivers`/`NodeRef` types + the eighth
+`node_drivers: Vec::new()` fill-ins across the existing `DerivedAnalysis` literals +
+lib proofs; **not** added to `supported_query_kinds()` yet) + `.9b.2` (the surface: the
+registry entry + `run_analyze` dispatch land together; `SCHEMA_VERSION 1.20 → 1.21` +
+the `"1.20"` test-assertion bumps; the `analyze_schema` enum; schema-doc §6.7 + a
+`1.20 → 1.21` changelog + the row; book `agent-mcp` row + worked example + the JSON
+examples `1.20 → 1.21` + api-tools; USER_GUIDE + README; a KM card; an `anvil-mcp`
+stdio e2e smoke) — the `.4b`/`.5b`/`.6b`/`.7b`/`.8b` precedent (registry + dispatch in
+one commit so the intermediate commit is coherent).
+
 ## 2026-06-23 — Semantic introspection — `fsm_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.8a`
 
 Design-detail leaf for `.8` — the **seventh** derived query, `fsm_provenance`:

@@ -1,9 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.9a — node_drivers impl design-detail
+
+**Landed as:** this commit (previous: `ce86560`, `SEMANTIC-INTROSPECTION-EXPANSION.8b.2`).
+A **docs/design-only change** (`DEVELOPMENT_NOTES.md` design-detail entry + the task-tree
+files + live-doc logs) — **no `src/`** ⇒ **DUT byte-identical**. Opens `.9`, the **eighth**
+derived `analyze` query, `node_drivers`, and pre-splits `.9b` → `.9b.1` (pure core) + `.9b.2`
+(surface). This is the self-selected PNT next-lane at the `SEMANTIC-INTROSPECTION-EXPANSION`
+no-frontier boundary (`feedback_pick_and_roll_at_no_frontier`).
+
+**What changed (why)**
+
+The lane had delivered seven derived `analyze` queries (`output_support` … `fsm_provenance`,
+schema `1.20`) and sat at a no-frontier boundary. Per the PNT pick-and-roll rule I self-selected
+the next query — `node_drivers` — and opened it with the established design-detail leaf (the
+`.3a`–`.8a` precedent: a DEVELOPMENT_NOTES entry resolving the impl shape, no source, no new
+numbered decision — decision `0011` governs the surface).
+
+`node_drivers` is the **eighth** derived query: per IR node, its **immediate (1-hop) driver
+operands** — the node-level fan-in adjacency. It is the **atomic node-level primitive
+complementing the transitive `output_support` cone**: where the cones collapse a cone to its
+boundary leaves and never surface interior gates or their ops, `node_drivers` exposes the
+node-level fan-in graph one hop at a time **and** surfaces each node's `GateOp` (genuinely new
+information no prior query carries). The **fourth query beyond decision `0011`'s four named
+kinds**, under the lane's "open-ended breadth" clause; its dual `node_readers` (immediate
+fan-out) is a natural future sibling (nothing retired).
+
+1. **`DEVELOPMENT_NOTES.md`** — a new design-detail entry "`node_drivers` impl design-detail —
+   `.9a`" resolving Q1–Q5 grounded in a fresh read of the real `Node`/`GateOp` IR
+   (`src/ir/types.rs`) + `src/introspect/analyze.rs` + `mod.rs` + `src/mcp/mod.rs`:
+   - **Q1 result shape** — an EIGHTH parallel vec `node_drivers: Vec<NodeDrivers>` on
+     `DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the seven
+     prior documents byte-identical) + `NodeDrivers { node, kind, op: Option<String>, width,
+     drivers: Vec<NodeRef> }` + `NodeRef { node, kind, name }`. `op` is omitted for non-gate
+     nodes; `drivers` are in **operand order** (not sorted — operand order is semantically
+     meaningful, and still deterministic); `NodeRef.name` resolves each operand to a usable
+     handle (input name / `"flop:<id>"` / `"mem:<id>"` / `"fsm:<id>"` / `"<instance>.<port>"` /
+     `"node:<id>"`).
+   - **Q2 derivation** — a single one-hop pass over `m.nodes` reading one level of operands
+     (no transitive walk / no DFS / no memoization — even more local than `output_support`); the
+     `fmt` closure resolves an instance-output operand. Pure, no IR/generator change.
+   - **Q3 addressing** — `"node:<id>"`; None ⇒ all nodes ascending id (the complete
+     node-level adjacency in one query); a leaf node ⇒ a known-but-empty entry; unknown /
+     out-of-range ⇒ `-32602`.
+   - **Q4 module-vs-design** — top-module (`module_node_drivers` / `design_node_drivers`),
+     per-child-module a future extension; design variant resolves instance-output operands.
+   - **Q5 schema** — additive MINOR `1.20 → 1.21`; pre-split `.9b` → `.9b.1` / `.9b.2`.
+2. **Task tree** (`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`) — registered `.9`/`.9a`/`.9b`/
+   `.9b.1`/`.9b.2` (and corrected the root `Children` line, which was missing `.8`); `.9a` marked
+   `done`; Current Frontier + metadata refreshed to `.9b.1`; Verification Log + Commit Log +
+   Changelog rows added.
+3. **`docs/TASK_TREE.md`** — the active `SEMANTIC-INTROSPECTION-EXPANSION` row updated (frontier
+   `.9b.1`).
+
+**Validation**
+
+`bash scripts/check_doctrines.sh` green (docs/design commit ⇒ the code-scoped
+`CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` checks are scope-exempt; `MEMORY-ARCH` +
+`KNOWLEDGE-MAP` pass). No `src/` touched ⇒ `cargo check/clippy/fmt/test` unaffected; **DUT
+byte-identical** (`tests/snapshots.rs` untouched). `git diff --check` clean.
+
+**Impact**
+
+Opens the eighth derived query in design only; no behavioural or generated-RTL change. The
+`.9b.1` pure core + `.9b.2` surface follow.
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-23 — SEMANTIC-INTROSPECTION-EXPANSION.8b.2 — fsm_provenance MCP surface + schema 1.20
 
-**Landed as:** this commit (previous: `5499067`, `SEMANTIC-INTROSPECTION-EXPANSION.8b.1`).
+**Landed as:** `ce86560` (previous: `5499067`, `SEMANTIC-INTROSPECTION-EXPANSION.8b.1`).
 A **code change** (`src/mcp/mod.rs` + `src/introspect/{analyze,mod}.rs` + docs/book/KM),
 task-tree-owned by `.8b.2`. **DUT byte-identical** (`tests/snapshots.rs` untouched). Closes
 `.8b`/`.8` ⇒ the **seventh** derived `analyze` query, `fsm_provenance`, is **delivered
