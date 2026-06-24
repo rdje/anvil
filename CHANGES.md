@@ -1,6 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.11b.2 — instance_provenance MCP surface + schema 1.23
+
+**Landed as:** this commit (previous: `a767415`, `SEMANTIC-INTROSPECTION-EXPANSION.11b.1`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.11b.2`. **DUT
+byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
+`tests/snapshots.rs` untouched). Closes `.11b`/`.11` — **`instance_provenance` is delivered
+end-to-end** (the tenth derived `analyze` query). The MCP `analyze` tool now answers **ten**
+derived queries.
+
+**What changed (why)**
+
+Wires the `.11b.1` pure core to the agent-facing surface (the `.4b`–`.10b` precedent: registry +
+dispatch in one commit so the intermediate commit is coherent):
+
+- `src/introspect/analyze.rs`: `QUERY_INSTANCE_PROVENANCE` added to `supported_query_kinds()`
+  (so the registry and dispatch never disagree).
+- `src/mcp/mod.rs` `run_analyze`: branch by kind (`module`/`design_instance_provenance`) in
+  **both** the design and module arms; the empty-result → `-32602` guard checks
+  `analysis.instance_provenance.is_empty()`; the `analyze_schema` `query` enum gains
+  `"instance_provenance"` + the `query`/`target` descriptions + the `analyze` tool description +
+  the server `instructions` cover the tenth kind (a new instance-**name** `target` form). 2 new
+  mcp proofs (`analyze_returns_instance_provenance_and_caches_it` — verifying schema `1.23` +
+  the descent into the child + caching + the other vecs omitted — and
+  `analyze_instance_provenance_unknown_target_is_invalid_params`).
+- `src/introspect/mod.rs`: `SCHEMA_VERSION 1.22 → 1.23` + the doc comment; 16 `"1.22" → "1.23"`
+  schema_version test assertions (3 introspect, 13 mcp).
+
+Docs (the book is the user-facing surface; no drift): schema-doc §6.7 (the tenth
+`instance_provenance` payload + `InstanceProvenance` + "one of ten parallel result vecs") + the
+`1.22 → 1.23` changelog + the "defines 1.23"/§7/checklist; book `agent-mcp` (analyze row + a
+worked example + the resource line + every JSON envelope `1.22 → 1.23`) + `api-tools`
+(query enum/target list) + `api-introspection`/`api-reference`/`api-resources-prompts` (ten
+queries + schema `1.23`); USER_GUIDE (analyze description + sv-version row schema ref); README
+(`--introspect` schema `1.23` + the tenth query); new KM card
+`semantic-introspection-instance-provenance` + a cross-link from
+`semantic-introspection-node-readers` (KNOWLEDGE_MAP regenerated 75 → 76 facts); CODEBASE_ANALYSIS
+(the analyze.rs block now wired + the schema-history `1.22 → 1.23`); ROADMAP lane status (`.11`
+done).
+
+**Validation**
+
+`cargo test --lib` **690 passed / 0 failed / 2 ignored** (incl. the 2 new mcp
+`instance_provenance` proofs). `cargo test --test snapshots` **6/6 byte-identical**.
+`scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings` clean;
+`cargo fmt --all --check` clean; `mdbook build book` clean; `cargo test --test book_examples`
+**3/3**; KNOWLEDGE_MAP regenerated (76 facts) + `check_knowledge_map.sh` in sync;
+`scripts/check_doctrines.sh` green. End-to-end `anvil-mcp` stdio smoke:
+`analyze {query:"instance_provenance", seed:42, hierarchy config}` → schema `1.23`, a `design`
+(top `mod_42_0002`), 2 child instances; instance `u_0` (module `mod_42_0000`, role
+`planned_child`) with 4 child output cones — cone `u_0.o_0` has `support_inputs ["i_1"]` +
+`support_flops [0]` (the **child's** input + flop, proving the cone lives in the child's graph
+across the module boundary), `results: []` + `node_readers` key omitted; unknown
+`instance_provenance` target `no_such_instance` → `-32602`. DUT byte-identical.
+
+**Impact**
+
+The MCP `analyze` tool exposes `instance_provenance` to agents (default-off / DUT byte-identical).
+The `SEMANTIC-INTROSPECTION-EXPANSION` lane returns to a no-active-frontier boundary (stays
+`active`; further derived-query kinds remain open-ended breadth, none retired).
+
+**Files touched**
+
+`src/introspect/analyze.rs` (registry), `src/mcp/mod.rs` (dispatch + guard + `analyze_schema` +
+descriptions + 2 proofs), `src/introspect/mod.rs` (schema `1.23` + assertions),
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`book/src/api-introspection.md`, `book/src/api-reference.md`, `book/src/api-resources-prompts.md`,
+`USER_GUIDE.md`, `README.md`, `docs/knowledge/semantic-introspection-instance-provenance.md`
+(new) + `semantic-introspection-node-readers.md` (cross-link) + `KNOWLEDGE_MAP.md` (regenerated),
+`CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`, the owning
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.11b.1 — pure instance_provenance core
 
 **Landed as:** this commit (previous: `2637185`, `SEMANTIC-INTROSPECTION-EXPANSION.11a`).

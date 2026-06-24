@@ -484,8 +484,23 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    pass transposing each `Gate`'s operands via a `BTreeMap<u32,BTreeSet<u32>>` reader
    index) + `.10b.2` surface (registry + `run_analyze` dispatch + `analyze_schema` enum +
    book/USER_GUIDE/schema-doc/README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
+   `.11` **done** (`2026-06-24`) adds a **tenth** derived query, `instance_provenance` — for
+   each child instance in a design's top, the support cone of each child output port built
+   **inside the child module's own node graph** (schema `1.23`), the **sixth** query beyond
+   decision `0011`'s four named kinds and the **third opaque-leaf boundary-opener** —
+   completing the trilogy with `memory_provenance` (`.7`, `Node::MemRead`) and
+   `fsm_provenance` (`.8`, `Node::FsmOut`) by opening the `Node::InstanceOutput` leaf — and
+   the **first and only derived query that crosses the module boundary** (every prior query
+   lives in one module's node graph), which is exactly why it is **design-only** (a bare
+   `Module` carries the `InstanceOutput` leaves but not the child-definition table needed to
+   descend; the single-module variant is the degenerate no-child-defs case): `.11a`
+   design-detail + `.11b.1` pure core (reusing `build_cone` unchanged with the child as its
+   walked module — `InstanceProvenance { instance, module, role, output_support:
+   Vec<SupportCone> }` reusing `SupportCone`) + `.11b.2` surface (registry + `run_analyze`
+   dispatch + `analyze_schema` enum + schema `1.22 → 1.23` + book/USER_GUIDE/schema-doc/
+   README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
    **No active frontier** — further derived-query kinds (a per-FSM/per-memory reach;
-   per-child-module provenance) remain
+   input-binding chaining; recursive multi-level descent) remain
    open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 

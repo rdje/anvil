@@ -84,7 +84,8 @@ cannot drift.
   default-off: a pure post-hoc projection — the default `anvil` build and
   `--artifact dut` stay byte-identical.
 
-See [[semantic-introspection-node-drivers]], [[semantic-introspection-analyze-tool]],
+See [[semantic-introspection-node-drivers]], [[semantic-introspection-instance-provenance]],
+[[semantic-introspection-analyze-tool]],
 [[semantic-introspection-fsm-provenance]],
 [[semantic-introspection-memory-provenance]],
 [[semantic-introspection-flop-dependencies]],

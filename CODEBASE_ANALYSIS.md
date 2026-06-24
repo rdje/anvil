@@ -1103,7 +1103,7 @@ src/
 │                     `DesignMetrics`). Invariant SCHEMA-DERIVED: zero new
 │                     computed truth — every payload field is a serde
 │                     projection of an existing struct; the new fields are
-│                     only the envelope metadata (`schema_version` `"1.22"`
+│                     only the envelope metadata (`schema_version` `"1.23"`
 │                     — additive MINOR bumps: 1.2→1.3 derived-relation
 │                     analyze surface, 1.3→1.4 `DesignMetrics` sequential
 │                     proof-signature fields, 1.4→1.5/1.6/1.7 the
@@ -1140,7 +1140,12 @@ src/
 │                     kind (`SEMANTIC-INTROSPECTION-EXPANSION.9b.2`), and
 │                     1.21→1.22 the ninth `node_readers` analyze query
 │                     kind — the exact transpose of `node_drivers`
-│                     (`SEMANTIC-INTROSPECTION-EXPANSION.10b.2`);
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.10b.2`), and
+│                     1.22→1.23 the tenth `instance_provenance` analyze
+│                     query kind — per-child-instance descent into the
+│                     child module's graph, the third opaque-leaf
+│                     boundary-opener, design-only
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.11b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1309,10 +1314,12 @@ src/
 │                     degenerate no-child-defs case (instances with empty cones); a
 │                     shared `instance_provenance_analysis` constructor + an
 │                     `instance_role_str` helper; instance-**name** addressing
-│                     (instances sorted by name; unknown ⇒ none). Not yet wired to the
-│                     MCP surface (joins `supported_query_kinds()` + `run_analyze` in
-│                     `.11b.2`, schema `1.22 → 1.23`); 10 in-crate proofs (incl. the
-│                     cross-boundary descent proof); DUT byte-identical. The
+│                     (instances sorted by name; unknown ⇒ none). Wired to the MCP
+│                     surface in `.11b.2`: in `supported_query_kinds()` + the
+│                     `run_analyze` dispatch (`module`/`design_instance_provenance`) +
+│                     the `analyze_schema` enum + schema `1.22 → 1.23`; 10 in-crate
+│                     proofs (incl. the cross-boundary descent proof) + 2 mcp proofs;
+│                     DUT byte-identical. The
 │                     parallel-vec pattern
 │                     now carries ten query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/

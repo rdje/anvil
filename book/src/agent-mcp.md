@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -179,7 +179,7 @@ generate · introspect · analyze · coverage · dump_config · coverage_gaps ·
 | --- | --- | --- |
 | `generate` | ✅ pure | Build the `(seed, config)` artifact for a `lane` (default `dut`), cache it, return its `run_id` + resource URIs. |
 | `introspect` | ✅ pure | Return the versioned introspection document (config echo + metrics + the `coverage_readout`) for that `lane`. |
-| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). `query` = `fsm_provenance`: per generated-encoding FSM its shape + the **support cone of its transition-select `sel` input** (*what drives this FSM's state machine?*). `query` = `node_drivers`: per IR node its **immediate (1-hop) driver adjacency** — kind, width, gate op, and its direct operand drivers in operand order (*what immediately drives this node, and what op is it?*). `query` = `node_readers`: the **exact transpose** — per IR node its immediate (1-hop) **readers** (the nodes that read it), in ascending node-id order (*what immediately reads this node?*). Relations, not behaviour. |
+| `analyze` | ✅ pure | Answer a derived-**relation** query over the DUT `(seed, config)` IR by pure graph traversal. `query` = `output_support` (the default): each target's transitive combinational fan-in **support cone** (*what does this output depend on?*). `query` = `input_reach`: the **dual fan-out** (*what does this source reach?*). `query` = `flop_reset_provenance`: per-flop **reset/data provenance** (*is this register reset-defined, and how is its next state built?*). `query` = `module_reachability`: which modules in a design are **reachable** from the top via the instance graph (*what's in this design's module tree, and what's dead?*). `query` = `flop_dependencies`: the **register-to-register dependency graph** (*how do this module's registers feed each other?*). `query` = `memory_provenance`: per inferrable memory its shape + the **support cone of each of its four ports** (*what drives this memory's read/write address, write data, and write enable?*). `query` = `fsm_provenance`: per generated-encoding FSM its shape + the **support cone of its transition-select `sel` input** (*what drives this FSM's state machine?*). `query` = `node_drivers`: per IR node its **immediate (1-hop) driver adjacency** — kind, width, gate op, and its direct operand drivers in operand order (*what immediately drives this node, and what op is it?*). `query` = `node_readers`: the **exact transpose** — per IR node its immediate (1-hop) **readers** (the nodes that read it), in ascending node-id order (*what immediately reads this node?*). `query` = `instance_provenance` (design-only): for each child instance in the top, its module/role + the **support cone of each child output port built inside the child module's graph** (*what, inside this child, drives each of its outputs?*) — the only query that crosses the module boundary. Relations, not behaviour. |
 | `coverage` | ✅ pure | Return the DUT `(seed, config)` run's **achieved-coverage readout** — per-knob **and** per-category empirical fire rates (`fires / attempts`) plus the gate-kind / operand-arity / depth histograms (for a hierarchy design, aggregated across child modules). The **read** half of [coverage steering](#coverage-steered-generation): read what was exercised, then steer the next run. SCHEMA-DERIVED from the metrics ANVIL already records — no new truth, no tool spawn. The same readout is also embedded in `introspect`'s `coverage_readout`. |
 | `dump_config` | ✅ pure | Return the effective `Config` after validation. |
 | `coverage_gaps` | ✅ pure | Project the already-computed `coverage_gaps` out of a recorded `tool_matrix_report.json` (inline `report` **or** `report_path`) — *what is not yet exercised* — so the agent can steer generation at the dark surfaces. Read-only: no generation, no tool spawn, no recompute. |
@@ -246,7 +246,7 @@ anvil://audit/log              the append-only validate/minimize/hunt/divergence
 anvil://artifact/<run_id>/sv               the emitted SystemVerilog
 anvil://artifact/<run_id>/introspection    the introspection document
 anvil://artifact/<run_id>/manifest         the lane's expected-facts manifest (microdesign / frontend)
-anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance / fsm_provenance / node_drivers / node_readers)
+anvil://artifact/<run_id>/analysis/<query> a derived-relation analysis (output_support / input_reach / flop_reset_provenance / module_reachability / flop_dependencies / memory_provenance / fsm_provenance / node_drivers / node_readers / instance_provenance)
 ```
 
 Because artifacts are content-addressed, `generate` then `resources/read
@@ -269,7 +269,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -317,7 +317,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -360,7 +360,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -410,7 +410,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },
@@ -460,7 +460,7 @@ registers to relate:
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -506,7 +506,7 @@ built by the same machinery `output_support` uses. The `target` is `"mem:<id>"`
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -563,7 +563,7 @@ Pair it with `fsm_prob` high so there is an FSM:
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -622,7 +622,7 @@ every node; a leaf node is a known-but-empty entry, not an error):
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -678,7 +678,7 @@ every node; a node no gate reads is a known-but-empty entry, not an error):
 
 ```json
 {
-  "schema_version": "1.22",
+  "schema_version": "1.23",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -714,6 +714,59 @@ in ascending node-id order. Readers are always gates — only a gate has operand
 - `target = None` returns the **whole node-level fan-out adjacency** in one reply (every
   node, ascending id). Served as `anvil://artifact/<run_id>/analysis/node_readers`; an
   unknown or out-of-range `"node:<id>"` → `-32602`.
+
+#### `instance_provenance` — per-child-instance descent (design-only)
+
+The tenth query kind, `instance_provenance`, is the **third opaque-leaf boundary-opener**.
+Every other query terminates a support cone at a child-instance output — the opaque
+`Node::InstanceOutput` leaf, recorded as `"<instance>.<port>"`. `instance_provenance` opens
+that boundary the way `memory_provenance` opened `MemRead` and `fsm_provenance` opened
+`FsmOut`: for each child instance in a design's top it reports **what, inside the child,
+drives each of the child's outputs** — the support cone of each child output port built
+**inside the child module's own node graph** (in the child's terms: its input ports, its
+flops, its grand-child instance outputs). It is the **only query that crosses the module
+boundary**, which is exactly why it is **design-only**: a bare module carries the
+`InstanceOutput` leaves but not the child module definitions needed to descend. The `target`
+is a child instance **name** (omit for every instance).
+
+```json
+{ "name": "analyze", "arguments": { "seed": 42, "config": { "hierarchy_depth": 1, "num_leaf_modules": 2, "num_child_instances": 2 }, "query": "instance_provenance", "target": "u0" } }
+```
+
+```json
+{
+  "schema_version": "1.23",
+  "artifact": { "kind": "design", "top": "mod_42_0002" },
+  "analysis": {
+    "query": "instance_provenance",
+    "instance_provenance": [
+      {
+        "instance": "u0",
+        "module": "mod_42_0000",
+        "role": "planned_child",
+        "output_support": [
+          { "target": "u0.o_0", "support_inputs": ["i_0", "i_1"], "support_flops": [], "support_instance_outputs": [], "cone_nodes": 3, "cone_depth": 1 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+(shape illustrative: instance `u0` instantiates child `mod_42_0000`; its output `o_0` is, *inside
+that child*, driven by the child's inputs `i_0`/`i_1` — the cone lives in the child's graph.)
+
+- The payload is a tenth `instance_provenance` array (not `results` / … / `node_readers`),
+  again `skip_serializing_if`, so the prior nine replies stay byte-identical across the
+  `1.22 → 1.23` bump.
+- Each cone's `target` is `"<instance>.<child-output-port>"` — the exact name the other
+  queries give that leaf — and its support leaves are **child-internal**. The cone descends
+  exactly one level (a grand-child instance output is a leaf, not recursed); chain by
+  re-querying with the child as a new top.
+- `target = None` returns every child instance in the top. Served as
+  `anvil://artifact/<run_id>/analysis/instance_provenance`; an unknown instance name →
+  `-32602`. The single-module form is the degenerate no-child-definitions case (instances
+  with empty cones).
 
 ### All three lanes, not just DUT
 
