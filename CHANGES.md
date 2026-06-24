@@ -1,9 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.13a — longest_path impl design-detail (the twelfth derived query)
+
+**Landed as:** this commit (previous: `ea28272`, `SEMANTIC-INTROSPECTION-EXPANSION.12b.2`).
+A **docs/design-only** change (no `src/` touched), task-tree-owned by
+`SEMANTIC-INTROSPECTION-EXPANSION.13a`. **DUT byte-identical** (no IR / generator / emit change).
+
+**What.** Opened `.13` — the **twelfth** derived `analyze` query, `longest_path`. The
+design-detail leaf resolves the implementation shape (Q1–Q5) in `DEVELOPMENT_NOTES.md` before any
+code, per the per-query `.3a`–`.12a` precedent. `longest_path` returns, for a target (an output
+port, or a flop `D` cone addressed `"flop:<id>"`), **one representative longest combinational
+fan-in path** — the ordered chain of interior `Gate` nodes (each with its `GateOp`) realizing the
+`output_support` cone's scalar `cone_depth`, terminating at a boundary leaf (a `NodeRef`).
+
+**Why (genuinely new).** It is the **witness for `output_support`'s scalar `cone_depth`** and the
+**transitive complement to `node_drivers` (`.9`)**: `output_support` reports the leaf *set* +
+a scalar depth (collapsing every interior gate); `node_drivers` reports one node's *1-hop*
+operands; neither returns an **ordered transitive chain of interior gates**. `longest_path` does —
+information all eleven prior queries genuinely lacked. It is **structural gate-depth, NOT timing**
+(ANVIL has no delay model — the `0004`/`0011` structure-first ceiling; named `longest_path` not
+`critical_path` to keep that honest), with the provable consistency
+`longest_path(t).depth == output_support(t).cone_depth`.
+
+**Design (pinned in DEVELOPMENT_NOTES `.13a`).**
+- *Q1 result shape:* a TWELFTH parallel vec `longest_path: Vec<LongestPath>` on `DerivedAnalysis`
+  (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the eleven prior documents
+  byte-identical) + `LongestPath { target, depth, path: Vec<PathStep>, leaf: Option<NodeRef> }` +
+  a minimal `PathStep { node, op, width }` (every step a `Gate` ⇒ `op` always present, `kind`
+  implicitly `"gate"` omitted); **reuses the existing `NodeRef`** for the terminal leaf
+  (full-factorization).
+- *Q2 derivation:* two pure passes over the existing graph — a `node_depth` memo (the same
+  recurrence `visit` returns) then a **greedy max-child-depth descent, ties → smallest operand
+  node id** (a total order ⇒ a unique byte-stable path), stopping at the first non-gate (the
+  leaf). No IR field, no generator change (the `coverage_gaps`/`output_support`
+  project-don't-recompute precedent); `O(cone_nodes) + O(depth)`.
+- *Q3 addressing:* the exact `output_support` namespace (output port name / `"flop:<id>"`) ⇒
+  **single-endpoint**, fits `analyze {query, target}` with **no MCP signature change**; `None` ⇒
+  all outputs; resolvable-but-undriven ⇒ known-but-empty; unknown ⇒ `-32602`.
+- *Q4 module-vs-design:* **real in both** (one module's node graph — the `output_support`
+  pattern), only the instance-leaf fmt differs; **not** Design-only/degenerate like `.11`.
+- *Q5 schema:* additive MINOR `1.24 → 1.25` at impl; envelope reused; pre-split `.13b` →
+  `.13b.1` (pure core) + `.13b.2` (surface).
+
+**Validation.** No `src/` touched ⇒ `cargo` unaffected and DUT byte-identical;
+`bash scripts/check_doctrines.sh` green (docs/design commit ⇒ code-scoped `CODE-CHANGE-EVIDENCE` /
+`TASK-TREE-OWNERSHIP` exempt; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass). Backfilled the now-known
+`.12a`/`.12b.1`/`.12b.2` commit hashes (`1933d2a`/`ef16fba`/`ea28272`) into the tree's `Commit:`
+fields.
+
+**Impact.** Docs/design only — opens the next implementation frontier (`.13b.1`). No user-facing
+behaviour change; no CLI/knob/RTL change.
+
+**Files touched.** `DEVELOPMENT_NOTES.md` (the `.13a` design-detail entry),
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` (the `.13`/`.13a`/`.13b`/`.13b.1`/`.13b.2` leaves
++ Children + Metadata + Current Frontier + leaf table + `.12*` hash backfills),
+`docs/TASK_TREE.md` (the index-row frontier), `CHANGES.md` (this entry + the `.12b.2` landed
+hash), `MEMORY.md` (resume pointer).
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.12b.2 — instance_input_bindings MCP surface + schema 1.24
 
-**Landed as:** this commit (previous: `ef16fba`, `SEMANTIC-INTROSPECTION-EXPANSION.12b.1`).
+**Landed as:** `ea28272` (previous: `ef16fba`, `SEMANTIC-INTROSPECTION-EXPANSION.12b.1`).
 A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.12b.2`. **DUT
 byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
 `tests/snapshots.rs` untouched). Closes `.12b`/`.12` — **`instance_input_bindings` is delivered

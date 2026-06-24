@@ -5,6 +5,156 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-24 — Semantic introspection — `longest_path` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.13a`
+
+Design-detail leaf for `.13` — the **twelfth** derived query, `longest_path`: for a target
+(an output port, or a flop `D` cone addressed `"flop:<id>"`), **one representative longest
+combinational fan-in path** — the ordered chain of interior `Gate` nodes (each with its
+`GateOp`) realizing the `output_support` cone's scalar `cone_depth`, terminating at a boundary
+leaf (a `NodeRef`). Docs-only (no source). The **eighth query beyond decision `0011`'s four
+named kinds** (after `flop_dependencies` `.6`, `memory_provenance` `.7`, `fsm_provenance` `.8`,
+`node_drivers` `.9`, `node_readers` `.10`, `instance_provenance` `.11`, and
+`instance_input_bindings` `.12`), again under the lane's documented *"further derived-query
+kinds are open-ended breadth"* clause — strictly under decision `0011`'s API and the
+`0004`/`0011` SCHEMA-DERIVED / structure-first ceiling (a **relation/witness** over the
+construction graph, never behaviour). It follows the per-query design-detail precedent
+(`.3a`–`.12a`): no new numbered decision record; decision `0011` already governs the surface.
+
+**Genuinely-new framing — the witness `output_support` and `node_drivers` do not carry.**
+`output_support` (`.1`) reports the *set* of boundary leaves a target depends on (collapsing
+every interior gate it passes through) plus a *scalar* `cone_depth`; `node_drivers` (`.9`)
+reports a single node's *immediate (1-hop)* operands. Neither returns an **ordered transitive
+chain of interior gates**. `longest_path` returns exactly that: the gate-by-gate chain (with
+each gate's `op`) realizing the deepest fan-in path — a concrete **witness** that proves the
+`cone_depth` claim, and the **transitive complement to `node_drivers`** (one hop → the whole
+longest chain). No prior query carries an ordered transitive path; this is information all
+twelve-so-far queries genuinely lacked.
+
+**Honesty boundary (load-bearing).** It is **structural gate-depth**, NOT a timing critical
+path. ANVIL has no delay model; the "longest" path is the maximum count of `Gate` nodes on any
+fan-in chain (the exact quantity `output_support`'s `cone_depth` already reports), with no
+notion of per-gate delay, wire load, or technology mapping. It is deliberately named
+`longest_path` (not `critical_path`) to keep that honest — the `0004`/`0011` structure-first
+ceiling forbids a behavioural/timing oracle.
+
+**Provable cross-query consistency.** By construction `longest_path(t).depth ==
+output_support(t).cone_depth` for the same target — the path length **is** the cone depth (the
+greedy max-child-depth descent picks, at each gate, the operand whose subtree realizes the max
+depth, so the number of gates on the chosen chain equals the root's gate-depth). The two cannot
+drift; a lib proof asserts the equality on a hand-built module. This is the depth analog of the
+`node_drivers ↔ node_readers` / `output_support ↔ input_reach` duality proofs.
+
+### Q1 — result shape: a TWELFTH parallel result vec + a minimal `PathStep`, reusing `NodeRef`
+
+A new `LongestPath` struct + a TWELFTH parallel vec `longest_path: Vec<LongestPath>` on
+`DerivedAnalysis`, with `#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the
+**eleven prior query documents stay byte-identical** (the key is omitted unless this is a
+`longest_path` document — the established parallel-vec pattern). The terminal leaf **reuses the
+existing `NodeRef`** (`{ node, kind, name }`) — the same resolved-handle type
+`node_drivers`/`node_readers`/`instance_input_bindings` already ship (full-factorization). Each
+interior path step is a minimal new `PathStep { node, op, width }`: every step is a `Gate` by
+construction (the path is the interior-gate chain; the terminal non-gate is the separate
+`leaf`), so `op` is always present and `kind` is implicitly `"gate"` (omitted — the minimal
+shape).
+
+```rust
+pub struct LongestPath {
+    pub target: String,         // the resolved target: an output port name, or "flop:<id>"
+    pub depth: usize,           // gate-depth == path.len() == output_support cone_depth
+    pub path: Vec<PathStep>,    // the interior-gate chain, root → … (toward the leaf); empty iff root is a leaf/undriven
+    pub leaf: Option<NodeRef>,  // the terminal boundary leaf (resolved handle); None iff the target is undriven
+}
+
+pub struct PathStep {
+    pub node: u32,   // the interior Gate node id (re-addressable as "node:<id>")
+    pub op: String,  // its GateOp as a stable string (e.g. "and", "mux", "slice") — every PathStep is a Gate
+    pub width: u32,  // the gate's bit width
+}
+```
+
+`path` is ordered from the target's **driver** (the root gate) toward the leaf; `path[i+1]` is
+the chosen operand of `path[i]`. The `leaf` is the first non-`Gate` node reached — a
+`primary_input` (`name = "<port>"`), `flop_q` (`"flop:<id>"`), `instance_output`
+(`"<instance>.<port>"`), `mem_read` (`"mem:<id>"`), `fsm_out` (`"fsm:<id>"`), or `constant`
+(`"node:<id>"`) — resolved through the **same** `node_ref_of` helper, so the path stops at
+exactly the boundary leaves `build_cone`'s `visit` stops at. For an output driven directly by a
+leaf, `path` is empty and `leaf` is that leaf, `depth = 0`. For an undriven target, `path` is
+empty and `leaf` is `None`, `depth = 0`. (Defensive: a malformed operand-less `Gate` terminates
+the walk as the `leaf` with `kind = "gate"`; well-formed IR never produces one.)
+
+### Q2 — derivation: two pure passes over the existing graph (depth memo + greedy descent)
+
+`module_longest_path(&Module, target)` / `design_longest_path(&Design, target)`:
+1. Resolve `target → (canonical, root: Option<NodeId>)` via the existing `resolve_target` (an
+   output port name → its driving node; `"flop:<id>"` → that flop's `d`; unknown → `None` ⇒ no
+   result — the `output_support` resolver, shared verbatim).
+2. Compute each node's **max gate-depth** with the same memoized post-order DFS `visit` uses
+   (a `node_depth` memo: `0` for a leaf / operand-less gate, `1 + max(child depths)` for a
+   gate) — the recurrence that already *defines* `cone_depth`.
+3. Reconstruct ONE longest path greedily from `root`: while the current node is a `Gate` with
+   ≥1 operand, push a `PathStep`, then descend into the operand of **maximum depth, ties broken
+   by smallest operand node id** (a total order ⇒ a unique, byte-stable path); stop at the first
+   non-gate ⇒ that node is the `leaf`.
+
+A **pure post-hoc** walk of the same node-operand graph `output_support` walks — **no IR field,
+no generator change** (the `coverage_gaps` / `output_support` project-don't-recompute
+precedent). It reuses `resolve_target` (target→root), the depth recurrence (the same value
+`visit` returns), `node_ref_of` (the leaf), and `gate_op_str` (each step's op). Cost is
+`O(cone_nodes)` (the depth memo) `+ O(depth)` (the descent) — the same order as one
+`output_support` cone. The combinational fan-in is a DAG by construction (flops / instances /
+memories / FSMs break every cycle — the same boundaries `visit` stops at), so the descent
+terminates without cycle handling.
+
+### Q3 — target addressing: the same namespace as `output_support` (single-endpoint)
+
+`target` is an **output port name** or `"flop:<id>"` — the **exact `output_support`
+addressing** (the two queries share the `resolve_target` resolver), so `longest_path` is
+**single-endpoint** and fits the existing `analyze {query, target}` tool shape with **no MCP
+signature change** (no second `source` arg — a two-endpoint "witness path between a chosen
+source *and* target" is a recorded future kind, not this leaf).
+- `target = None` ⇒ one `LongestPath` per **output port**, in declaration order (the
+  completeness rule, decision `0011` / `feedback_api_for_agents_not_humans`; the
+  `output_support` precedent).
+- `target = Some("<output port name>")` / `Some("flop:<id>")` ⇒ that one target's longest path.
+  A resolvable-but-**undriven** target ⇒ one result with empty `path` + `leaf: None`,
+  `depth: 0` — *known-but-empty*, NOT an error (the "resolvable target always yields one result"
+  contract; load-bearing for the `-32602` mapping).
+- any other string ⇒ no result ⇒ `-32602` at the MCP layer. The `run_analyze` empty-result
+  guard checks `analysis.longest_path.is_empty()` for this kind.
+
+### Q4 — module-vs-design: real in BOTH (the `output_support` pattern, not Design-only)
+
+Like `output_support`/`input_reach` and **unlike `instance_provenance` (`.11`)**,
+`longest_path` lives in **one module's node graph**, so both variants are real and
+non-degenerate: `module_longest_path(&Module, target)` walks the module's graph with
+`format_instance_leaf_module` (an instance-output leaf names `"<instance>.port<id>"`);
+`design_longest_path(&Design, target)` walks the design's **top** module with
+`format_instance_leaf_design` (instance-output leaves get their resolved child-port names). The
+design variant differs **only** in the instance-leaf naming fmt (the `output_support`
+design-vs-module convention) — no descent into children (the path stops at the instance
+boundary, exactly as the cone does).
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.24 → 1.25` (a new `#[serde(default, skip_serializing_if)]` field + a new
+query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv` byte-identical —
+introspect is not in `tests/snapshots.rs`). Pre-split `.13b` →
+`.13b.1` (the pure core in `analyze.rs` + the `LongestPath` / `PathStep` types + the twelfth
+`longest_path: Vec::new()` fill-ins across the existing `DerivedAnalysis` literals + lib proofs,
+including the **depth == cone_depth consistency proof** [the path length equals `output_support`'s
+scalar depth on a hand-built module], the **deterministic tie-break proof** [two equal-depth
+operands ⇒ the smallest-id branch is taken], the leaf-classification proofs [input / flop-`Q`
+boundary / instance-output / undriven-empty], and the serialization-omits-the-other-eleven-vecs
+proof; **not** added to `supported_query_kinds()` yet) + `.13b.2` (the surface: the registry entry
++ `run_analyze` dispatch land together; `SCHEMA_VERSION 1.24 → 1.25` + the `"1.24"`
+test-assertion bumps; the `analyze_schema` enum; schema-doc §6.7 + a `1.24 → 1.25` changelog + the
+row; book `agent-mcp` row + worked example + the JSON examples `1.24 → 1.25` +
+api-tools/api-introspection/api-reference/api-resources-prompts; USER_GUIDE + README + TOOLBOX; a
+KM card; an `anvil-mcp` stdio e2e smoke) — the `.4b`–`.12b` precedent (registry + dispatch in one
+commit so the intermediate commit is coherent).
+
+---
+
 ## 2026-06-24 — Semantic introspection — `instance_input_bindings` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.12a`
 
 Design-detail leaf for `.12` — the **eleventh** derived query, `instance_input_bindings`:
