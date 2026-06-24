@@ -48,7 +48,7 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION`
   Status: `active`
   Goal: `A first-class, MCP-queryable, SCHEMA-DERIVED derived-RELATION query surface over generated artifacts (what depends on what), derived from existing IR facts — never a behavioral oracle.`
-  Children: `SEMANTIC-INTROSPECTION-EXPANSION.1`, `SEMANTIC-INTROSPECTION-EXPANSION.2`, `SEMANTIC-INTROSPECTION-EXPANSION.3`, `SEMANTIC-INTROSPECTION-EXPANSION.4`, `SEMANTIC-INTROSPECTION-EXPANSION.5`, `SEMANTIC-INTROSPECTION-EXPANSION.6`, `SEMANTIC-INTROSPECTION-EXPANSION.7`, `SEMANTIC-INTROSPECTION-EXPANSION.8`, `SEMANTIC-INTROSPECTION-EXPANSION.9`, `SEMANTIC-INTROSPECTION-EXPANSION.10`, `SEMANTIC-INTROSPECTION-EXPANSION.11`, `SEMANTIC-INTROSPECTION-EXPANSION.12`, `SEMANTIC-INTROSPECTION-EXPANSION.13`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.1`, `SEMANTIC-INTROSPECTION-EXPANSION.2`, `SEMANTIC-INTROSPECTION-EXPANSION.3`, `SEMANTIC-INTROSPECTION-EXPANSION.4`, `SEMANTIC-INTROSPECTION-EXPANSION.5`, `SEMANTIC-INTROSPECTION-EXPANSION.6`, `SEMANTIC-INTROSPECTION-EXPANSION.7`, `SEMANTIC-INTROSPECTION-EXPANSION.8`, `SEMANTIC-INTROSPECTION-EXPANSION.9`, `SEMANTIC-INTROSPECTION-EXPANSION.10`, `SEMANTIC-INTROSPECTION-EXPANSION.11`, `SEMANTIC-INTROSPECTION-EXPANSION.12`, `SEMANTIC-INTROSPECTION-EXPANSION.13`, `SEMANTIC-INTROSPECTION-EXPANSION.14`
 
 - ID: `SEMANTIC-INTROSPECTION-EXPANSION.1`
   Status: `done`
@@ -489,9 +489,63 @@ raw serde projection of `Config`/`Metrics`/`DesignMetrics`.
   Verification: `cargo test --lib 710 passed / 0 failed / 2 ignored (incl. the 2 new mcp longest_path proofs + the 8 .13b.1 core proofs); cargo test --test snapshots 6/6 byte-identical; cargo fmt --all --check clean; scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings clean; mdbook build book clean; cargo test --test book_examples 3/3; KNOWLEDGE_MAP regenerated (78 facts) + check_knowledge_map.sh in sync; scripts/check_doctrines.sh green. End-to-end anvil-mcp stdio smoke: analyze {query:"longest_path", seed:7} → schema 1.25, module (top mod_7_0000), 2 output paths; deepest o_0 depth 2, path ops [not, slice], leaf {node:1, primary_input, "i_1"}; depth == path.len() for every entry; unknown longest_path target no_such_output → -32602. DUT byte-identical.`
   Commit: `this SEMANTIC-INTROSPECTION-EXPANSION.13b.2 commit`
 
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.14`
+  Status: `in-progress`
+  Goal: `The thirteenth derived query — node_reach: for a target node addressed "node:<id>", the TRANSITIVE combinational fan-OUT of that node — the boundary sinks it reaches: the output ports it drives (reaches_outputs) and the flop D cones it feeds (reaches_flops), plus their total (fanout_targets). The TRANSITIVE COMPLEMENT to node_readers (.10) — completing the node-addressed driver/reader × 1-hop/transitive 2×2 matrix (node_drivers .9 = backward 1-hop, node_readers .10 = forward 1-hop, longest_path .13 = backward transitive, node_reach .14 = forward transitive) — and the node-addressed GENERALIZATION of input_reach (.3) that SUBSUMES the recorded per-FSM/per-memory reach candidate (address a MemRead/FsmOut node by kind; nothing retired). Provable cross-query consistency: node_reach("node:<PrimaryInput-of-i>").{reaches_outputs,reaches_flops} == input_reach(i).{reaches_outputs,reaches_flops}. Sinks are output ports + flop Ds only (symmetric with input_reach; an instance-input-only node reaches nothing — chain instance_input_bindings → instance_provenance to cross the boundary). The ninth query beyond decision 0011's four named kinds, under the lane's "open-ended breadth" clause; same SCHEMA-DERIVED / pure-post-hoc / default-off / DUT-byte-identical contract; a new "node_reach" query kind in the analyze registry. Schema 1.25 → 1.26.`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.14a`, `SEMANTIC-INTROSPECTION-EXPANSION.14b`
+  Result: `In progress — .14a design-detail done; .14b (pure core .14b.1 + surface .14b.2) pending.`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.14a`
+  Status: `done`
+  Goal: `Design-detail leaf (no source): ground node_reach in the real Module/Node/Flop IR + the node_readers_with reader-index transpose / driver_of_port / m.drives / m.flops machinery in analyze.rs. Pin the result shape (a THIRTEENTH parallel node_reach: Vec<NodeReach> vec + NodeReach { node, kind, op, width, reaches_outputs, reaches_flops, fanout_targets } — the node-family header [node/kind/op/width, field-for-field with NodeReaders] + the input_reach payload [reaches_outputs/reaches_flops/fanout_targets, field-for-field with ReachResult]; no new leaf-handle type), the derivation (build the reader index by transposing operands [the same pass node_readers_with builds], walk the forward closure of the target node, classify sinks = output ports whose driver ∈ closure + flops whose D ∈ closure; the register boundary is automatic — a flop is not a Gate so contributes no reader edge), "node:<id>" addressing (None ⇒ all nodes ascending id; reaches-nothing ⇒ known-but-empty; unknown/out-of-range ⇒ -32602), module-vs-design (REAL in BOTH — the node_drivers/node_readers/longest_path pattern; no fmt closure needed since sinks are plain names+ids), the node_reach ↔ input_reach consistency invariant, the input_reach-symmetric sink boundary (output ports + flop Ds only; instance-input reach a future extension), and the schema bump (1.25 → 1.26). DEVELOPMENT_NOTES design-detail entry + the .14b impl shape. No new numbered decision (the .3a–.13a per-query precedent; decision 0011 governs the surface).`
+  Acceptance: `A DEVELOPMENT_NOTES design-detail entry resolving the Q-points grounded in the real Module/Node/Flop IR + the analyze.rs node_readers_with/driver_of_port/m.drives/m.flops code; tree split recorded; no source change; docs/workflow self-checks clean.`
+  Result: `Done. DEVELOPMENT_NOTES design-detail entry "node_reach impl design-detail — .14a" resolves all five Q-points (Q1 result shape, Q2 derivation, Q3 "node:<id>" addressing + sink boundary, Q4 real-in-both module-vs-design, Q5 schema bump + pre-split) plus the genuinely-new framing (completes the node-addressed 2×2 matrix — the transitive complement to node_readers, mirroring longest_path's complement to node_drivers; the node-addressed generalization of input_reach that subsumes the per-FSM/per-memory reach candidate), the input_reach-symmetric sink boundary, and the node_reach ↔ input_reach provable consistency, grounded in a fresh read of the Module/Node/Flop IR + the landed node_readers_with reader-index transpose / driver_of_port / node_kind_str / gate_op_str code in analyze.rs. (1) Result shape: NodeReach { node, kind, op: Option<String>, width, reaches_outputs[], reaches_flops[], fanout_targets } + a THIRTEENTH parallel vec node_reach: Vec<NodeReach> on DerivedAnalysis (#[serde(default, skip_serializing_if = "Vec::is_empty")] ⇒ the twelve prior documents byte-identical); node-family header field-for-field with NodeReaders + input_reach payload field-for-field with ReachResult; no new leaf type. (2) Derivation: build the reader index (transpose operands — the node_readers_with pass), forward-closure BFS from the target node, classify sinks (output port driver ∈ closure → reaches_outputs; flop D ∈ closure → reaches_flops); register boundary automatic (a flop is not a Gate ⇒ no reader edge ⇒ the walk never crosses D→Q). Pure post-hoc; no IR field, no generator change. (3) Addressing: "node:<id>" (the node_drivers/node_readers namespace ⇒ NO MCP signature change); None ⇒ all nodes ascending id; reaches-nothing ⇒ known-but-empty; unknown/out-of-range ⇒ -32602. Sink boundary symmetric with input_reach (output ports + flop Ds only; an instance-input-only node reaches nothing; instance-input reach a future extension, nothing retired). (4) Module-vs-design: REAL in both (one module's node graph; no fmt closure — sinks are plain port names + flop ids; missing design top ⇒ empty analysis). (5) Schema: additive MINOR 1.25 → 1.26, envelope reused, DUT byte-identical. Pre-split .14b → .14b.1 (pure core + NodeReach type + the thirteenth node_reach: Vec::new() fill-ins + lib proofs incl. the node_reach ↔ input_reach consistency proof + the register-boundary proof + sink-classification proofs; NOT in supported_query_kinds yet) + .14b.2 (surface: registry + run_analyze dispatch in one commit + schema 1.25 → 1.26 + analyze_schema enum + schema-doc/book/USER_GUIDE/README/TOOLBOX/KM + e2e smoke). Docs/design only — no src/ ⇒ DUT byte-identical; self-checks green.`
+  Verification: `bash scripts/check_doctrines.sh green (docs/design commit ⇒ code-scoped CODE-CHANGE-EVIDENCE / TASK-TREE-OWNERSHIP exempt; MEMORY-ARCH + KNOWLEDGE-MAP pass); no src/ touched ⇒ cargo check/clippy/fmt/test unaffected; DUT byte-identical.`
+  Commit: `this SEMANTIC-INTROSPECTION-EXPANSION.14a commit`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.14b`
+  Status: `pending`
+  Goal: `Implement node_reach per the .14a design: the pure analysis (in analyze.rs), the "node_reach" query kind, the MCP analyze wiring, the schema 1.25 -> 1.26 bump, lib proofs (the node_reach ↔ input_reach consistency proof — a hand-built module where node_reach of an input's PrimaryInput node equals input_reach of that input; the register-boundary proof — a node feeding a flop D records the flop and the walk does not cross into the flop Q's downstream; sink-classification proofs — drives an output / feeds a flop D / reaches-nothing dead node / instance-input-only reaches nothing; the forward closure is transitive [grandchild reach]; target=None ⇒ one per node incl. reaches-nothing; unknown/out-of-range ⇒ none; serialization omits the other twelve query vecs; determinism), and book/USER_GUIDE/schema-doc/README/TOOLBOX/KM closeout. Default-off / DUT byte-identical.`
+  Children: `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`
+  Result: `Pending.`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`
+  Status: `pending`
+  Goal: `The pure node_reach core in src/introspect/analyze.rs: QUERY_NODE_REACH = "node_reach", the NodeReach { node, kind, op: Option<String>, width, reaches_outputs: Vec<String>, reaches_flops: Vec<u32>, fanout_targets: usize } struct, the node_reach: Vec<NodeReach> field on DerivedAnalysis (#[serde(default, skip_serializing_if = "Vec::is_empty")]), and module_node_reach(&Module, Option<&str>) / design_node_reach(&Design, Option<&str>) + the shared node_reach_with(&Module, Option<&str>) driver (build the reader index by transposing operands; forward-closure BFS from the target node over the reader index; classify sinks = output ports whose driver ∈ closure [driver_of_port over m.outputs] + flops whose D ∈ closure [m.flops]; op via gate_op_str, kind via node_kind_str). The existing DerivedAnalysis literals gain node_reach: Vec::new(). Do NOT add to supported_query_kinds() yet (registry + run_analyze dispatch land together in .14b.2). Lib-tested only; not wired to any emit path.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib green incl. the node_reach ↔ input_reach consistency proof + the register-boundary proof + sink-classification proofs (output / flop-D / dead / instance-input-only) + transitive-closure (grandchild) + target=None ⇒ one per node incl. reaches-nothing + unknown/out-of-range ⇒ none + serialization omits the other twelve query vecs + determinism; cargo test --test snapshots 6/6 byte-identical (analyze.rs is not in any output path).`
+  Result: `Pending.`
+
+- ID: `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`
+  Status: `pending`
+  Goal: `Wire node_reach to the surface: add "node_reach" to analyze::supported_query_kinds() AND branch run_analyze by query kind (module/design_node_reach) in the same commit, updating the empty-result → -32602 guard to check node_reach for this kind; bump SCHEMA_VERSION 1.25 -> 1.26 (+ the "1.25" test-assertion updates); add the kind to the analyze_schema enum + refresh the tool/instructions descriptions (the "node:<id>" target form, paired with node_readers/input_reach); schema-doc §6.7 + a 1.25 -> 1.26 changelog + the row; book(agent-mcp) row + worked example + the JSON examples 1.25 -> 1.26 + api-tools/api-introspection/api-reference/api-resources-prompts; USER_GUIDE + README + TOOLBOX; a KM card. Default-off / DUT byte-identical.`
+  Acceptance: `cargo check/clippy(-D warnings)/fmt clean; cargo test --lib + introspect/mcp tests green; the pure MCP analyze tool returns the node_reach relation (cached), unknown target ⇒ -32602; schema_version = 1.26 everywhere + schema doc updated; book/USER_GUIDE/schema-doc/TOOLBOX + a KM fact; snapshots 6/6 byte-identical; mdbook build + book_examples clean; an anvil-mcp stdio e2e smoke (a seed → schema 1.26, a node's reach with the output/flop sinks; unknown target ⇒ -32602); committed through COMMIT.md with the leaf id.`
+  Result: `Pending.`
+
 ## Current Frontier
 
-**No active frontier.** **`.13` (`longest_path`) is closed** (`.13a` design + `.13b.1` pure core +
+**Active: `SEMANTIC-INTROSPECTION-EXPANSION.14b.1` (the `node_reach` pure core).** `.14a`
+(design-detail) is **done** — `node_reach` is pinned as the **thirteenth** derived query: the
+**transitive combinational fan-OUT** of a node addressed `"node:<id>"` (the boundary sinks it
+reaches — `reaches_outputs` output ports + `reaches_flops` flop `D` cones + `fanout_targets`). It
+**completes the node-addressed driver/reader × 1-hop/transitive 2×2 matrix** (`node_drivers` `.9` =
+backward 1-hop, `node_readers` `.10` = forward 1-hop, `longest_path` `.13` = backward transitive,
+`node_reach` `.14` = the missing forward-transitive corner — the **transitive complement to
+`node_readers`**, mirroring how `longest_path` complements `node_drivers`), and is the
+node-addressed **generalization of `input_reach` `.3`** that **subsumes** the recorded
+per-FSM/per-memory reach candidate (address a `MemRead`/`FsmOut` node by `kind`; nothing retired).
+Provable consistency: `node_reach("node:<PrimaryInput-of-i>").{reaches_outputs,reaches_flops} ==
+input_reach(i).{…}`. Sinks are output ports + flop `D`s only (symmetric with `input_reach`).
+Schema `1.25 → 1.26`; SCHEMA-DERIVED / pure-post-hoc / default-off / DUT byte-identical; no new
+numbered decision (decision `0011` governs; the `.3a`–`.13a` per-query precedent). Pre-split
+`.14b` → `.14b.1` (pure core) + `.14b.2` (surface). **Next:** implement `.14b.1`.
+
+| Leaf | Status | Summary |
+| --- | --- | --- |
+| `SEMANTIC-INTROSPECTION-EXPANSION.14a` | `done` | Design-detail (no source) for `node_reach`, the **thirteenth** derived query and the **forward-transitive corner** completing the node-addressed 2×2 matrix (the **transitive complement to `node_readers`**, the node-addressed generalization of `input_reach` subsuming the per-FSM/per-memory reach candidate): pinned the result shape (a thirteenth `node_reach: Vec<NodeReach>` vec + `NodeReach { node, kind, op, width, reaches_outputs, reaches_flops, fanout_targets }` — node-family header field-for-field with `NodeReaders` + `input_reach` payload field-for-field with `ReachResult`; no new leaf type — the twelve prior documents byte-identical), the derivation (transpose operands → reader index [the `node_readers_with` pass], forward-closure BFS from the target node, classify sinks = output ports whose driver ∈ closure + flops whose `D` ∈ closure; register boundary automatic — a flop is not a `Gate` ⇒ no reader edge ⇒ the walk never crosses `D`→`Q`; **no graph mutation, no IR field, no generator change**), `"node:<id>"` addressing (None ⇒ all nodes ascending id; reaches-nothing ⇒ known-but-empty; unknown/out-of-range ⇒ `-32602`; no MCP signature change), **real-in-both** module-vs-design (one module's node graph, no fmt closure — sinks are plain names+ids), the `node_reach ↔ input_reach` provable consistency, and the `input_reach`-symmetric sink boundary (output ports + flop `D`s only; instance-input reach a future extension). Schema `1.25 → 1.26`. No new numbered decision. Pre-split `.14b` → `.14b.1`/`.14b.2`. |
+
+---
+
+**No active frontier** *(superseded — historical, prior to `.14a`)*. **`.13` (`longest_path`) is closed** (`.13a` design + `.13b.1` pure core +
 `.13b.2` surface) — the lane returns to a no-frontier boundary (stays `active`; further kinds —
 a per-FSM/per-memory reach, recursive multi-level instance descent, a two-endpoint witness-path —
 remain open-ended breadth, none retired). `longest_path` returns, for a
@@ -585,6 +639,41 @@ per-FSM/per-memory reach — remain open-ended breadth (none named as a blocker)
 | — | `SEMANTIC-INTROSPECTION-EXPANSION.1` | `done` | Landed decision `0011` — the first-class MCP-queryable SCHEMA-DERIVED derived-relation API + the no-shadow-simulator boundary + the first query (output support cone) + rejected alternatives. Split `.1`/`.2`/future. No source change. |
 
 ## Decisions
+
+- `2026-06-24` (`.14a`, design-detail in `DEVELOPMENT_NOTES.md`): pinned `node_reach`, the
+  **thirteenth** derived query — *for a node addressed `"node:<id>"`, the transitive combinational
+  fan-OUT of that node: the boundary sinks it reaches (`reaches_outputs` output ports +
+  `reaches_flops` flop `D` cones + `fanout_targets`)* — and the **ninth query beyond decision
+  `0011`'s four named kinds** (after `flop_dependencies` `.6`, `memory_provenance` `.7`,
+  `fsm_provenance` `.8`, `node_drivers` `.9`, `node_readers` `.10`, `instance_provenance` `.11`,
+  `instance_input_bindings` `.12`, `longest_path` `.13`), under the lane's "open-ended breadth"
+  clause (decision `0011`'s API + the `0004`/`0011` SCHEMA-DERIVED ceiling; **no new numbered
+  decision**, the `.3a`–`.13a` per-query precedent). It **completes the node-addressed driver/reader
+  × 1-hop/transitive 2×2 matrix** — `node_drivers` `.9` (backward 1-hop), `node_readers` `.10`
+  (forward 1-hop), `longest_path` `.13` (backward transitive), `node_reach` `.14` (the missing
+  forward-transitive corner) — and is the **transitive complement to `node_readers`** (one hop → the
+  whole forward closure), mirroring how `longest_path` is the transitive complement to
+  `node_drivers`. It is the node-addressed **generalization of `input_reach` `.3`** that **subsumes**
+  the recorded per-FSM/per-memory reach candidate (address a `MemRead`/`FsmOut` node by `kind`;
+  **nothing retired** — the per-FSM/per-memory reach is delivered more generally). Result shape: a
+  thirteenth parallel `node_reach: Vec<NodeReach>` vec (`#[serde(default, skip_serializing_if)]` ⇒
+  twelve prior documents byte-identical), `NodeReach { node, kind, op, width, reaches_outputs,
+  reaches_flops, fanout_targets }` (node-family header field-for-field with `NodeReaders` +
+  `input_reach` payload field-for-field with `ReachResult`; **no new leaf type**). Derivation: build
+  the reader index by transposing operands (the `node_readers_with` pass), forward-closure BFS from
+  the target node, classify sinks = output ports whose driver ∈ closure + flops whose `D` ∈ closure;
+  the **register boundary is automatic** (a flop is not a `Gate` ⇒ no reader edge ⇒ the walk never
+  crosses `D`→`Q`); **no graph mutation, no IR field, no generator change** (the `coverage_gaps` /
+  `node_readers` project-don't-recompute precedent). Addressing: `"node:<id>"` (the
+  `node_drivers`/`node_readers` namespace ⇒ **no MCP signature change**; None ⇒ all nodes ascending
+  id; reaches-nothing ⇒ known-but-empty; unknown/out-of-range ⇒ `-32602`). Sink boundary **symmetric
+  with `input_reach`**: output ports + flop `D`s only (an instance-input-only node reaches nothing;
+  chain `instance_input_bindings` → `instance_provenance` to cross the boundary; instance-input reach
+  a future extension). Module-vs-design: **real in both** (one module's node graph; no fmt closure —
+  sinks are plain names+ids; missing design top ⇒ empty analysis). Provable cross-query consistency:
+  `node_reach("node:<PrimaryInput-of-i>").{reaches_outputs,reaches_flops} == input_reach(i).{…}`.
+  Schema `1.25 → 1.26` (additive MINOR). Pre-split `.14b` → `.14b.1` (pure core) + `.14b.2`
+  (surface).
 
 - `2026-06-24` (`.12a`, design-detail in `DEVELOPMENT_NOTES.md`): pinned
   `instance_input_bindings`, the **eleventh** derived query — *for each child instance in a

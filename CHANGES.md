@@ -1,9 +1,51 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.14a — node_reach design-detail (docs-only)
+
+**Landed as:** this commit (previous: `b2fa0cf`, `SEMANTIC-INTROSPECTION-EXPANSION.13b.2`).
+A **docs/design-only** change (no `src/`), task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.14a`.
+**DUT byte-identical** (no source touched). Pins the **thirteenth** derived `analyze` query,
+`node_reach`, before any code — the task-tree-ownership doctrine (no code change without an owning
+leaf first).
+
+**What.** Pinned `node_reach`: for a target node addressed `"node:<id>"`, the **transitive
+combinational fan-OUT** of that node — the boundary sinks it reaches (`reaches_outputs` output ports
++ `reaches_flops` flop `D` cones + `fanout_targets`). Created the `.14` / `.14a` / `.14b` / `.14b.1`
+/ `.14b.2` task-tree leaves, the `.14a` Decisions entry, a `DEVELOPMENT_NOTES.md` design-detail entry
+(Q1 result shape, Q2 derivation, Q3 `"node:<id>"` addressing + sink boundary, Q4 real-in-both
+module-vs-design, Q5 schema bump + pre-split), the new Current-Frontier block, and the
+`docs/TASK_TREE.md` index row.
+
+**Why.** `node_reach` is the **forward-transitive corner** completing the node-addressed
+driver/reader × 1-hop/transitive 2×2 matrix (`node_drivers` `.9` = backward 1-hop, `node_readers`
+`.10` = forward 1-hop, `longest_path` `.13` = backward transitive, `node_reach` `.14` = the missing
+forward-transitive corner) — the **transitive complement to `node_readers`**, mirroring how
+`longest_path` is the transitive complement to `node_drivers`. It is the node-addressed
+**generalization of `input_reach` `.3`** that **subsumes** the recorded per-FSM/per-memory reach
+candidate (address a `MemRead`/`FsmOut` node by `kind`; nothing retired). Provable consistency:
+`node_reach("node:<PrimaryInput-of-i>").{reaches_outputs,reaches_flops} == input_reach(i).{…}`. Sinks
+are output ports + flop `D`s only, symmetric with `input_reach`. Derivation: transpose operands → a
+reader index (the `node_readers_with` pass), forward-closure BFS from the target node, classify sinks
+(output driver ∈ closure → `reaches_outputs`; flop `D` ∈ closure → `reaches_flops`); the register
+boundary is automatic (a flop is not a `Gate` ⇒ no reader edge ⇒ the walk never crosses `D`→`Q`). A
+pure post-hoc projection — no IR field, no generator change. SCHEMA-DERIVED / structure-first
+(decision `0011`; the `.3a`–`.13a` per-query precedent — no new numbered decision). Schema
+`1.25 → 1.26` at impl.
+
+**Validation.** `bash scripts/check_doctrines.sh` green (docs/design commit ⇒ code-scoped
+`CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` exempt; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass). No
+`src/` touched ⇒ `cargo` unaffected; DUT byte-identical.
+
+**Impact.** Pure docs/design + task-tree ownership. Sets up `.14b.1` (pure core) + `.14b.2`
+(surface). No user-visible behaviour change yet.
+
+**Files touched.** `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.13b.2 — longest_path MCP surface + schema 1.25
 
-**Landed as:** this commit (previous: `747d9bf`, `SEMANTIC-INTROSPECTION-EXPANSION.13b.1`).
+**Landed as:** `b2fa0cf` (previous: `747d9bf`, `SEMANTIC-INTROSPECTION-EXPANSION.13b.1`).
 A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.13b.2`. **DUT
 byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
 `tests/snapshots.rs` untouched). **Closes `.13b`/`.13` — `longest_path` delivered end-to-end** (the
