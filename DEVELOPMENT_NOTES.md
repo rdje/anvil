@@ -5,6 +5,160 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-24 — Semantic introspection — `instance_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.11a`
+
+Design-detail leaf for `.11` — the **tenth** derived query, `instance_provenance`:
+*for each child instance in a design's top, the support cone of each of the child
+module's output ports, built **inside the child module's own node graph***. Docs-only
+(no source). This is the **sixth query beyond decision `0011`'s four named kinds**
+(after `flop_dependencies` `.6`, `memory_provenance` `.7`, `fsm_provenance` `.8`,
+`node_drivers` `.9`, and `node_readers` `.10`), again under the lane's documented
+*"further derived-query kinds are open-ended breadth"* clause — strictly under decision
+`0011`'s API and the `0004`/`0011` SCHEMA-DERIVED / structure-first ceiling (a
+**relation** over the construction graph, never behaviour). It follows the per-query
+design-detail precedent (`.3a`–`.10a`): no new numbered decision record; decision
+`0011` already governs the surface.
+
+It is the **third opaque-leaf boundary-opener**, completing the trilogy with
+`memory_provenance` (`.7`, opens the opaque `Node::MemRead` leaf) and `fsm_provenance`
+(`.8`, opens the opaque `Node::FsmOut` leaf): the three opaque leaves the support
+walker (`build_cone`'s `visit`) terminates a cone at are `MemRead`, `FsmOut`, and
+`InstanceOutput`. `memory_provenance`/`fsm_provenance` opened the first two by reporting
+the *parent-side* cones feeding the block's input ports (`raddr`/…/`sel`). `InstanceOutput`
+is the **third**, but it has a richer interior than a memory/FSM: a child instance is a
+whole *sub-module*. So `instance_provenance` opens it the matching way — by reporting,
+for each child output port, **what drives it inside the child module** — making it the
+**first and only derived query that crosses the module boundary** (every prior query lives
+in a single module's node graph). That cross-boundary descent is exactly **why it is
+Design-only** (Q4): a bare `Module` carries the `InstanceOutput` leaves but **not the child
+module definitions** needed to descend; only a `Design` carries `design.modules`, the
+child-definition table.
+
+An agent that saw `"<instance>.<port>"` as an opaque support leaf in `output_support`
+(`.1`) / `input_reach` (`.3`) / the cones of every other query now asks
+`instance_provenance` and learns *what, inside that child, drives that output* — in the
+child's own terms (its input ports, its flops, its grand-child instance outputs). One
+level of descent per query; the agent recurses by re-querying with the child as a new top
+(the `node_drivers`/`node_readers` "one hop at a time" philosophy, lifted to the instance
+level).
+
+### Q1 — result shape: a TENTH parallel result vec, reusing `SupportCone`
+
+A new `InstanceProvenance` struct + a TENTH parallel vec
+`instance_provenance: Vec<InstanceProvenance>` on `DerivedAnalysis`, with
+`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the **nine prior query
+documents stay byte-identical** (the key is omitted unless this is an
+`instance_provenance` document — the established parallel-vec pattern). It **reuses the
+existing `SupportCone`** struct (one cone per child output port) — exactly as
+`memory_provenance`/`fsm_provenance` reuse `SupportCone` for their port cones; one cone
+type for every cone query (full-factorization).
+
+```rust
+pub struct InstanceProvenance {
+    pub instance: String,               // the child instance name (the entity), addressed "<instance>"
+    pub module: String,                 // the child module name this instance instantiates
+    pub role: String,                   // "planned_child" | "parent_cone" (from InstanceRole)
+    pub output_support: Vec<SupportCone>,// one cone per child OUTPUT port, target "<instance>.<child-output-name>",
+                                        //   built INSIDE the child module's node graph (declaration order)
+}
+```
+
+`instance`/`module`/`role` are the structural facts of the instance (the parent already
+records them on `Instance { name, module, role, .. }`; `role` is the `InstanceRole`
+mapped to a stable string, the enum→string convention `FlopProvenance`/`MemoryProvenance`
+hold). Each `SupportCone` in `output_support` has `target = "<instance>.<child-output-port-name>"`
+— **the exact name `format_instance_leaf_design` gives that leaf in every other query** —
+so the provenance ties directly back to the opaque leaf the agent saw; its
+`support_inputs`/`support_flops`/`support_instance_outputs` are **child-internal** (the
+child module's input port names, the child's flop ids, the child's grand-child instance
+outputs). The cones are emitted in the child's output **declaration order** (the
+`output_support` per-output convention).
+
+**Scope boundary (deliberate, the `memory_provenance` precedent of not chaining):** the
+first cut reports the child output cones in the child's own terms only. It does **not**
+map a child-input support leaf back to the parent node that drives it through the
+instance's input bindings (`Instance.inputs: Vec<(PortId, NodeId)>`), and it descends
+**exactly one level** (a grand-child instance output is a `SupportCone` leaf
+`"<grandchild>.<port>"`, not recursed — `build_cone` stops at the child's *own* instance
+boundary, exactly as the top cone stops at the child boundary). Both are natural future
+extensions (input-binding chaining; recursive descent), kept out so the first cut mirrors
+`memory_provenance`/`fsm_provenance` exactly — report the block's cones, let the agent
+chain. Nothing retired.
+
+### Q2 — derivation: descend into the child module, reuse `build_cone` unchanged
+
+`design_instance_provenance(&Design, target)`:
+1. Find the top module (`design.modules` where `name == design.top`); early-return an
+   empty analysis when absent (the `design_*` precedent).
+2. Build a name→module index of `design.modules` (the child-definition table).
+3. For each instance in `top.instances` (sorted by instance **name** for determinism):
+   look up its child `Module` by `instance.module`; for each child **output port** (in
+   the child's `outputs` declaration order), `build_cone(child, "<instance>.<out-name>",
+   driver_of_port(child, out.id), &child_fmt)` where
+   `child_fmt = |i, p| format_instance_leaf_design(design, child, i, p)` resolves the
+   child's **own** grand-child instance leaves. A child module not found in the table ⇒
+   an entry with empty `output_support` (defensive — a malformed design never panics the
+   read-mostly surface).
+
+This **reuses `build_cone` unchanged** — the same walker `output_support` /
+`memory_provenance` / `fsm_provenance` use — only the `Module` it walks changes (the child,
+not the parent). No second walker, no IR field, no generator change (the `coverage_gaps` /
+`output_support` project-don't-recompute precedent). Cost is `O(instances × child-outputs ×
+child-cone)`, bounded by design size (a read-only analysis). It is the first query whose
+`build_cone` argument is a module *other than* the analyzed top — the cross-boundary descent.
+
+### Q3 — target addressing: the instance **name**
+
+`target` is the **child instance name** — a bare name, the `module_reachability`
+(module-name) addressing convention rather than a `"<prefix>:<id>"` form, because the
+instance name is the natural human/agent handle and each query kind owns its own target
+namespace (no collision across kinds).
+- `target = None` ⇒ one `InstanceProvenance` per instance in the top, **ascending instance
+  name** — the whole instance-provenance view in one query (the completeness rule, decision
+  `0011` / `feedback_api_for_agents_not_humans`).
+- `target = Some("<instance-name>")` ⇒ that one instance's entry. A child module with **zero
+  output ports** ⇒ one entry with an empty `output_support` — *known-but-empty*, NOT an error
+  (the `output_support` "resolvable target always yields one result" contract; load-bearing
+  for the `-32602` mapping).
+- any other string (an instance name not in the top) ⇒ no entry ⇒ `-32602` at the MCP layer
+  — the established "unknown target vs known-but-empty" contract. The `run_analyze`
+  empty-result guard checks `analysis.instance_provenance.is_empty()` for this kind.
+
+### Q4 — module-vs-design: the **only Design-only** query
+
+`design_instance_provenance(&Design, target)` is the **real** query (Q2). The
+single-module variant `module_instance_provenance(&Module, target)` is the **degenerate
+"no child definitions" case**: a bare module records its `instances` (name/module/role —
+local structural facts) but carries **no child `Module` bodies to descend into**, so it
+emits one `InstanceProvenance` per instance with an **empty `output_support`** (the exact
+analog of `format_instance_leaf_module`'s `"<instance>.port<id>"` fallback and
+`module_module_reachability`'s degenerate single-node case — the documented "a bare module
+has no child defs" boundary that every design-aware query hits). A leaf DUT module has no
+instances at all, so the common single-artifact DUT run returns an empty analysis; the
+variant exists for MCP-dispatch uniformity (both the design and module `run_analyze` arms
+dispatch every kind) and honesty, not because a bare module can answer the query. This is
+the first kind where the module variant is *structurally unable* to produce the query's
+payload — recorded as the design-only boundary, not a gap.
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.22 → 1.23` (a new `#[serde(default, skip_serializing_if)]` field + a new
+query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv` byte-identical —
+introspect is not in `tests/snapshots.rs`). Pre-split `.11b` →
+`.11b.1` (the pure core in `analyze.rs` + the `InstanceProvenance` type + the tenth
+`instance_provenance: Vec::new()` fill-ins across the existing `DerivedAnalysis` literals +
+lib proofs, including the **cross-boundary descent proof** — a design whose top instantiates
+a child whose output depends on the child's input, asserting the cone lives in the child's
+terms; **not** added to `supported_query_kinds()` yet) + `.11b.2` (the surface: the registry
+entry + `run_analyze` dispatch land together; `SCHEMA_VERSION 1.22 → 1.23` + the `"1.22"`
+test-assertion bumps; the `analyze_schema` enum; schema-doc §6.7 + a `1.22 → 1.23` changelog
++ the row; book `agent-mcp` row + worked example + the JSON examples `1.22 → 1.23` +
+api-tools; USER_GUIDE + README; a KM card; an `anvil-mcp` stdio e2e smoke on a hierarchy
+config) — the `.4b`–`.10b` precedent (registry + dispatch in one commit so the intermediate
+commit is coherent).
+
+---
+
 ## 2026-06-24 — Semantic introspection — `node_readers` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.10a`
 
 Design-detail leaf for `.10` — the **ninth** derived query, `node_readers`:

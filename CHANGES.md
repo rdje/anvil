@@ -1,6 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.11a — instance_provenance impl design-detail
+
+**Landed as:** this commit (previous: `44848a7`, `LIVE-DOC-DRIFT-FIX.2`).
+A **docs/design-only** change (DEVELOPMENT_NOTES + task-tree files), task-tree-owned by
+`SEMANTIC-INTROSPECTION-EXPANSION.11a`. **DUT byte-identical** (no `src/`; no runnable bash
+blocks changed ⇒ `tests/book_examples.rs` unaffected). Opens `.11`, the **tenth** derived
+`analyze` query.
+
+**What changed (why)**
+
+Per the PNT owner directive (continuous lane execution; `feedback_no_self_pause_until_trees_closed`),
+the `SEMANTIC-INTROSPECTION-EXPANSION` lane resumes from its no-frontier boundary with the
+grounded next slice from the prior session's bootstrap codebase deep-read: `instance_provenance`,
+the **tenth** derived query and the **third opaque-leaf boundary-opener**.
+
+The introspection support walker (`build_cone`'s `visit`) terminates a combinational cone at
+three opaque leaves: `Node::MemRead`, `Node::FsmOut`, and `Node::InstanceOutput`. `.7`
+(`memory_provenance`) opened the first, `.8` (`fsm_provenance`) the second — each by reporting
+the parent-side cones feeding the block's input ports. `instance_provenance` opens the **third**,
+but a child instance has a richer interior than a memory/FSM (it is a whole sub-module), so it
+opens the boundary the matching way: it reports, for each child output port, **what drives it
+inside the child module**. That makes it the **first and only derived query that crosses the
+module boundary** (every prior query lives in one module's node graph) — which is exactly why it
+is **Design-only**: a bare `Module` carries the `InstanceOutput` leaves but **not** the child
+module definitions needed to descend; only a `Design` carries `design.modules`.
+
+The `.11a` design-detail (DEVELOPMENT_NOTES "instance_provenance impl design-detail — `.11a`")
+resolves five points grounded in a fresh read of the `Design`/`Module`/`Instance`/`InstanceRole`/
+`Node::InstanceOutput` IR + the landed `build_cone`/`format_instance_leaf_design`/`design_*` code
+in `analyze.rs`:
+
+1. **Result shape** — a TENTH parallel vec `instance_provenance: Vec<InstanceProvenance>` on
+   `DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the nine prior
+   query documents byte-identical), with `InstanceProvenance { instance, module, role,
+   output_support: Vec<SupportCone> }` **reusing `SupportCone`** (one cone per child output port,
+   the `memory_provenance`/`fsm_provenance` cone-reuse precedent). `role` = `InstanceRole` →
+   `"planned_child"`|`"parent_cone"`; each cone `target` = `"<instance>.<child-output-name>"` (the
+   exact name `format_instance_leaf_design` gives that leaf elsewhere) with child-**internal**
+   support leaves.
+2. **Derivation** — descend into the child: index `design.modules` by name; for each top instance,
+   look up its child `Module` and `build_cone` per child output port **inside the child** with the
+   child's own `format_instance_leaf_design` fmt. **Reuses `build_cone` unchanged** — only the
+   `Module` it walks changes (the first query whose walked module is other than the analyzed top);
+   no second walker, no IR field, no generator change.
+3. **Addressing** — the child instance **name** (the `module_reachability` module-name convention;
+   each kind owns its target namespace). None ⇒ all instances ascending name; a child with no
+   outputs ⇒ known-but-empty; an unknown instance ⇒ `-32602`.
+4. **Module-vs-design** — **Design-only**: `design_instance_provenance` is the real query;
+   `module_instance_provenance` is the degenerate no-child-defs case (lists instances with empty
+   cones — the `format_instance_leaf_module` / `module_module_reachability` precedent), present for
+   MCP-dispatch uniformity. The first kind whose module variant is structurally unable to produce
+   the payload — recorded as the design-only boundary, not a gap.
+5. **Schema** — additive MINOR `1.22 → 1.23` at impl; envelope reused; DUT byte-identical.
+
+Scope boundary (future, nothing retired): no input-binding chaining (`Instance.inputs`) + descends
+exactly one level (grand-child outputs are cone leaves). Pre-split `.11b` → `.11b.1` (pure core) +
+`.11b.2` (surface). No new numbered decision (the `.3a`–`.10a` per-query precedent; decision `0011`
+governs the surface).
+
+**Validation**
+
+`bash scripts/check_doctrines.sh` green (docs/design commit ⇒ code-scoped `CODE-CHANGE-EVIDENCE` /
+`TASK-TREE-OWNERSHIP` exempt; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass). No `src/` touched ⇒
+`cargo check/clippy/fmt/test` unaffected. DUT byte-identical.
+
+**Impact**
+
+Documentation/design only; no behaviour change. Sets up `.11b.1` (the pure `instance_provenance`
+core in `src/introspect/analyze.rs`).
+
+**Files touched**
+
+`DEVELOPMENT_NOTES.md` (the `.11a` design-detail entry), `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
+(the `.11`/`.11a`/`.11b`/`.11b.1`/`.11b.2` leaf blocks + Children list + Status/Last-updated header +
+Current Frontier + Decisions + Verification Log + Commit Log rows), `docs/TASK_TREE.md` (the lane's
+frontier row), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — LIVE-DOC-DRIFT-FIX.2 — mdBook schema/tool-count/query-list/surface-count drift
 
 **Landed as:** this commit (previous: `d4fc14e`, `LIVE-DOC-DRIFT-FIX.1`).
