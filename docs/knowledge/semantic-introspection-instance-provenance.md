@@ -82,9 +82,11 @@ which is exactly why it is **design-only**: a bare `Module` carries the
   populates exactly one vec; `query` is the discriminator. `InstanceProvenance`
   **reuses `SupportCone`** (one cone per child output port — the
   `memory_provenance`/`fsm_provenance` cone-reuse precedent).
-- **Scope boundary (future, nothing retired):** no input-binding chaining
-  (`Instance.inputs`); descends exactly one level (a grand-child instance output is
-  a cone leaf, not recursed — chain by re-querying with the child as a new top).
+- **Scope boundary (future, nothing retired):** input-binding chaining
+  (`Instance.inputs`) is the **parent-side dual** query
+  [[semantic-introspection-instance-input-bindings]] (delivered as `.12`); this query
+  descends exactly one level (a grand-child instance output is a cone leaf, not
+  recursed — chain by re-querying with the child as a new top).
 - **Errors / contract:** an unknown `query`, or a child instance name not in the
   top, ⇒ JSON-RPC `-32602`; a child with no output ports is a *known-but-empty*
   entry (empty `output_support`), not an error. SCHEMA-DERIVED / default-off: a pure

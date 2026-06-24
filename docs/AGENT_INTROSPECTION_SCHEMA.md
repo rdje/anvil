@@ -314,8 +314,8 @@ resource.
 | --- | --- |
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
-| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance` / `NodeDrivers` / `NodeReaders` / `InstanceProvenance` / `NodeRef`) |
-| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers`; `node_readers`: `module_node_readers` / `design_node_readers`; `instance_provenance`: `module_instance_provenance` / `design_instance_provenance` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance` / `NodeDrivers` / `NodeReaders` / `InstanceProvenance` / `InstanceInputBindings` / `InstanceInputBinding` / `NodeRef`) |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers`; `node_readers`: `module_node_readers` / `design_node_readers`; `instance_provenance`: `module_instance_provenance` / `design_instance_provenance`; `instance_input_bindings`: `module_instance_input_bindings` / `design_instance_input_bindings` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -330,8 +330,9 @@ the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
 `module_reachability` — the four named kinds from decision `0011` — plus
 `flop_dependencies`, the **fifth** kind, `memory_provenance`, the **sixth**,
 `fsm_provenance`, the **seventh**, `node_drivers`, the **eighth**,
-`node_readers`, the **ninth**, and `instance_provenance`, the **tenth**, all added
-under the lane's open-ended-breadth clause) + **one of ten parallel result vecs**,
+`node_readers`, the **ninth**, `instance_provenance`, the **tenth**, and
+`instance_input_bindings`, the **eleventh**, all added
+under the lane's open-ended-breadth clause) + **one of eleven parallel result vecs**,
 the one the query kind populates (the others are empty and, except for the
 always-present `results`, omitted via `skip_serializing_if`):
 
@@ -515,6 +516,32 @@ always-present `results`, omitted via `skip_serializing_if`):
   with empty cones). Scope boundary (future): no input-binding chaining; descends exactly one
   level (grand-child outputs are cone leaves).
 
+- **`instance_input_bindings: Vec<InstanceInputBindings>`** (schema `1.24`,
+  `SEMANTIC-INTROSPECTION-EXPANSION.12b.2`) — the `instance_input_bindings` payload: the
+  **parent-side dual of `instance_provenance`**. For each child instance in a design's top, the
+  **parent node** driving each of the child's **input** ports — read from the instance's `inputs`
+  binding table (`Instance.inputs: Vec<(PortId, NodeId)>`). Where `instance_provenance` *descends
+  into the child* to report each output's support cone (in the child's terms), this query *ascends
+  to the parent* to report what drives each input (in the parent's terms); chaining the two traces
+  a parent signal across the module boundary through a child output and back. An
+  `InstanceInputBindings` is, per child instance: `instance` (its name, the entity), `module` (the
+  child module it instantiates), `role` (`"planned_child"` | `"parent_cone"`), and
+  `input_bindings` — one `InstanceInputBinding { port, driver }` per **bound** child input port (in
+  ascending child PortId order). `port` is the child input **port name** in a design (or the
+  `"port<id>"` fallback in a bare module); `driver` is the parent node as a `NodeRef` (`node` /
+  `kind` / resolved `name` — a parent input name, a parent `"flop:<id>"`, a sibling
+  `"<sibling>.<port>"`, or a parent `"node:<id>"`), resolved in the parent's graph by the **same**
+  `node_ref_of` helper `node_drivers` uses — a pure read, no IR field, no generator change.
+  `instance_input_bindings` carries the same `skip_serializing_if`, so the prior ten documents stay
+  byte-identical across the `1.23 → 1.24` bump; an `instance_input_bindings` document carries it
+  with `results: []`. `target` is a child instance **name** (omit for every instance); an instance
+  with no data bindings is a known-but-empty entry, an unknown instance name is an error. Unlike
+  `instance_provenance`, the single-module (`module_instance_input_bindings`) variant is
+  **non-degenerate** — the parent driver lives in the bare module's own graph, so it carries real
+  bindings; only the child input port *name* degrades to `"port<id>"`. Scope boundary (the
+  `node_drivers` one-hop precedent): `driver` is the immediate (1-hop) parent node — chain
+  `output_support` / `node_drivers` on `driver.node` for the transitive parent cone.
+
 `target = None` ⇒ all targets/sources/flops/modules/memories/FSMs/nodes/instances (per the
 agent-audience completeness rule); an unknown `query` or `target` is rejected with
 JSON-RPC `-32602`.
@@ -582,7 +609,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.23"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.24"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -592,7 +619,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.23"`**.
+This document defines **`schema_version = "1.24"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -804,6 +831,24 @@ This document defines **`schema_version = "1.23"`**.
   documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.21`
   consumer ignores the new query kind. MINOR is an integer, so this is `1.21 → 1.22`
   (twenty-two), not a decimal.
+- **`1.23` → `1.24` (`SEMANTIC-INTROSPECTION-EXPANSION.12b.2`).** Additive MINOR bump:
+  added the **eleventh** derived `analyze` query kind `instance_input_bindings` — the
+  **parent-side dual of `instance_provenance`**: for each child instance in a design's top, its
+  `module` / `role` + the **parent node** (a `NodeRef`) driving each of the child's **input**
+  ports (read from the instance's `inputs` binding table), carried by an eleventh
+  `DerivedAnalysis.instance_input_bindings: Vec<InstanceInputBindings>` parallel vec
+  (`#[serde(default, skip_serializing_if = "Vec::is_empty")]`). The seventh query beyond
+  decision `0011`'s four named kinds. `instance_provenance` *descends into the child* for each
+  output; `instance_input_bindings` *ascends to the parent* for each input — chaining the two
+  traces a parent signal across the module boundary. SCHEMA-DERIVED (a pure read of
+  `Instance.inputs`, the parent driver resolved via the same `node_ref_of` helper — not new
+  computed truth). Unlike `instance_provenance` (design-only), the single-module variant is
+  **non-degenerate** (the parent driver lives in the bare module's graph; only the child port
+  *name* degrades to `"port<id>"`). Backward compatible: the `instance_input_bindings` key is
+  `skip_serializing_if`-omitted on every other `analyze` document, so the ten prior query
+  documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.23` consumer
+  ignores the new query kind. MINOR is an integer, so this is `1.23 → 1.24` (twenty-four), not a
+  decimal.
 - **`1.22` → `1.23` (`SEMANTIC-INTROSPECTION-EXPANSION.11b.2`).** Additive MINOR bump:
   added the **tenth** derived `analyze` query kind `instance_provenance` — for each child
   instance in a design's top, its `module` / `role` + the support cone of each child output
@@ -927,5 +972,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.23"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.24"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

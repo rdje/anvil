@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.12b.2 — instance_input_bindings MCP surface + schema 1.24
+
+**Landed as:** this commit (previous: `ef16fba`, `SEMANTIC-INTROSPECTION-EXPANSION.12b.1`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.12b.2`. **DUT
+byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
+`tests/snapshots.rs` untouched). Closes `.12b`/`.12` — **`instance_input_bindings` is delivered
+end-to-end** (the eleventh derived `analyze` query, the parent-side dual of `instance_provenance`).
+The MCP `analyze` tool now answers **eleven** derived queries.
+
+**What changed (why)**
+
+Wires the `.12b.1` pure core to the agent-facing surface (the `.4b`–`.11b` precedent: registry +
+dispatch in one commit so the intermediate commit is coherent):
+
+- `src/introspect/analyze.rs`: `QUERY_INSTANCE_INPUT_BINDINGS` added to `supported_query_kinds()`.
+- `src/mcp/mod.rs` `run_analyze`: branch by kind (`module`/`design_instance_input_bindings`) in
+  **both** the design and module arms; the empty-result → `-32602` guard checks
+  `analysis.instance_input_bindings.is_empty()`; the `analyze_schema` `query` enum gains
+  `"instance_input_bindings"` + the `query`/`target` descriptions + the `analyze` tool description
+  + the server `instructions` cover the eleventh kind. 2 new mcp proofs
+  (`analyze_returns_instance_input_bindings_and_caches_it` — schema `1.24` + the resolved
+  parent-driver bindings + caching + the other vecs omitted — and
+  `analyze_instance_input_bindings_unknown_target_is_invalid_params`).
+- `src/introspect/mod.rs`: `SCHEMA_VERSION 1.23 → 1.24` + the doc comment; 17 `"1.23" → "1.24"`
+  schema_version test assertions (3 introspect, 14 mcp).
+
+Docs (the book is the user-facing surface; no drift): schema-doc §6.7 (the eleventh
+`instance_input_bindings` payload + `InstanceInputBindings`/`InstanceInputBinding` + "one of
+eleven parallel result vecs" + the File/Producer rows) + the `1.23 → 1.24` changelog + the
+"defines 1.24"/§7/checklist; book `agent-mcp` (analyze row + a worked example + the resource line
++ every JSON envelope `1.23 → 1.24`) + `api-tools` (query enum/target) + `api-introspection`
+(eleven queries + schema `1.24`) + `api-reference` + `api-resources-prompts`; USER_GUIDE (analyze
+description + sv-version row schema) + README (`--introspect` schema `1.24` + the eleventh query)
++ TOOLBOX (eleven kinds + schema `1.24` — also backfilled the stale `instance_provenance`/`1.22`
+drift); new KM card `semantic-introspection-instance-input-bindings` + a cross-link from
+`semantic-introspection-instance-provenance` (KNOWLEDGE_MAP regenerated 76 → 77 facts);
+CODEBASE_ANALYSIS (the analyze.rs block now wired + schema-history `1.23 → 1.24`); ROADMAP lane
+status (`.12` done).
+
+**Spec-vs-reality correction (found by the e2e smoke).** The `.12b.2` `anvil-mcp` stdio smoke
+revealed that a clocked child's `clk`/`rst_n` **are** bound in `Instance.inputs` (to the parent's
+matching `clk`/`rst_n` `primary_input`) — the `.12a` design wrongly assumed control ports
+propagate purely structurally and never enter the binding table. The **code already reported them
+correctly** (it faithfully reports every `Instance.inputs` entry); only the prose was inaccurate.
+Corrected the `analyze.rs` doc comments, the `.12a` DEVELOPMENT_NOTES entry, the book section, and
+the KM card. This is exactly the spec-vs-reality class of bug the lane's e2e smoke exists to catch
+(cf. `DIFFERENTIAL-SIMULATION.3b.2`'s two-space `"input  logic"` find, Phase 7's modulo find).
+
+**Validation:** `cargo test --lib` 700 passed / 0 failed / 2 ignored (incl. the 2 new mcp proofs +
+the 8 `.12b.1` core proofs); `cargo test --test snapshots` 6/6 byte-identical; `cargo fmt --all
+--check` clean; `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings`
+clean; `mdbook build book` clean; `cargo test --test book_examples` 3/3; KNOWLEDGE_MAP regenerated
+(77 facts) + `check_knowledge_map.sh` in sync; `scripts/check_doctrines.sh` green. End-to-end
+`anvil-mcp` stdio smoke: `analyze {query:"instance_input_bindings", seed:42, hierarchy config}` →
+schema `1.24`, design (top `mod_42_0002`), 2 child instances, 10 total bindings; `u_0` (module
+`mod_42_0000`, `planned_child`) input `clk` ← driver `{node:0, kind:primary_input, name:"clk"}`,
+`results:[]` + `instance_provenance` key omitted; unknown target `no_such_instance` → `-32602`.
+DUT byte-identical.
+
+**Impact:** the eleventh derived query is agent-visible (MCP `analyze` + the cached
+`anvil://artifact/<run_id>/analysis/instance_input_bindings` resource), default-off, schema `1.24`.
+Closes the lane's `.12`; the lane returns to a no-frontier boundary (stays `active`).
+
+**Files touched:** `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`book/src/api-introspection.md`, `book/src/api-reference.md`, `book/src/api-resources-prompts.md`,
+`USER_GUIDE.md`, `README.md`, `TOOLBOX.md`, `DEVELOPMENT_NOTES.md`,
+`docs/knowledge/semantic-introspection-instance-input-bindings.md`,
+`docs/knowledge/semantic-introspection-instance-provenance.md`, `KNOWLEDGE_MAP.md`,
+`CODEBASE_ANALYSIS.md`, `ROADMAP.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.12b.1 — pure instance_input_bindings core
 
-**Landed as:** this commit (previous: `1933d2a`, `SEMANTIC-INTROSPECTION-EXPANSION.12a`).
+**Landed as:** `ef16fba` (previous: `1933d2a`, `SEMANTIC-INTROSPECTION-EXPANSION.12a`).
 A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.12b.1`. **DUT
 byte-identical** (no IR / generator change; `analyze` is a read-mostly post-hoc projection not
 wired to any emit path; `tests/snapshots.rs` untouched). The pure core of the **eleventh**

@@ -1145,7 +1145,12 @@ src/
 │                     query kind — per-child-instance descent into the
 │                     child module's graph, the third opaque-leaf
 │                     boundary-opener, design-only
-│                     (`SEMANTIC-INTROSPECTION-EXPANSION.11b.2`);
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.11b.2`), and
+│                     1.23→1.24 the eleventh `instance_input_bindings`
+│                     analyze query kind — the parent-side dual of
+│                     `instance_provenance` (the parent node driving each
+│                     child input port)
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.12b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1339,11 +1344,12 @@ src/
 │                     bare module's own graph; the contrast with `instance_provenance`) +
 │                     the shared `instance_input_bindings_analysis` constructor;
 │                     instance-**name** addressing (instances sorted by name; bindings
-│                     ascending child PortId). Pure core only — **not** in
-│                     `supported_query_kinds()` yet (registry + dispatch + schema
-│                     `1.23 → 1.24` land in `.12b.2`); 8 in-crate proofs (incl. the
+│                     ascending child PortId). Wired to the MCP surface in `.12b.2`: in
+│                     `supported_query_kinds()` + the `run_analyze` dispatch
+│                     (`module`/`design_instance_input_bindings`) + the `analyze_schema`
+│                     enum + schema `1.23 → 1.24`; 8 in-crate proofs (incl. the
 │                     cross-boundary binding proof + the non-degenerate module-variant
-│                     proof); DUT byte-identical.
+│                     proof) + 2 mcp proofs; DUT byte-identical.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

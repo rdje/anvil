@@ -499,8 +499,22 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    Vec<SupportCone> }` reusing `SupportCone`) + `.11b.2` surface (registry + `run_analyze`
    dispatch + `analyze_schema` enum + schema `1.22 → 1.23` + book/USER_GUIDE/schema-doc/
    README/KM + e2e `anvil-mcp` smoke), DUT byte-identical.
+   `.12` **done** (`2026-06-24`) adds an **eleventh** derived query, `instance_input_bindings` —
+   the **parent-side dual of `instance_provenance` `.11`**: for each child instance in a
+   design's top, the **parent node** (`NodeRef`) driving each child **input** port, read from
+   the instance's `inputs` binding table (schema `1.24`), the **seventh** query beyond decision
+   `0011`'s four named kinds. `.11` descends *into* the child for each output; `.12` ascends to
+   the *parent* for each input — chaining the two traces a parent signal across the module
+   boundary. Unlike `.11` (design-only), `.12`'s single-module variant is **non-degenerate**
+   (the parent driver lives in the bare module's graph; only the child input port *name*
+   degrades to `"port<id>"`): `.12a` design-detail + `.12b.1` pure core (a pure read of
+   `Instance.inputs` — `InstanceInputBindings { instance, module, role, input_bindings }` +
+   `InstanceInputBinding { port, driver: NodeRef }` reusing `NodeRef`) + `.12b.2` surface
+   (registry + `run_analyze` dispatch + `analyze_schema` enum + schema `1.23 → 1.24` +
+   book/USER_GUIDE/schema-doc/README/TOOLBOX/KM + an e2e `anvil-mcp` smoke that found-and-corrected
+   a control-port doc bug), DUT byte-identical.
    **No active frontier** — further derived-query kinds (a per-FSM/per-memory reach;
-   input-binding chaining; recursive multi-level descent) remain
+   recursive multi-level instance descent) remain
    open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 

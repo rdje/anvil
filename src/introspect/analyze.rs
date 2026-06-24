@@ -271,6 +271,7 @@ pub fn supported_query_kinds() -> &'static [&'static str] {
         QUERY_NODE_DRIVERS,
         QUERY_NODE_READERS,
         QUERY_INSTANCE_PROVENANCE,
+        QUERY_INSTANCE_INPUT_BINDINGS,
     ]
 }
 
@@ -739,9 +740,10 @@ pub struct InstanceProvenance {
 ///
 /// **Scope boundary (deliberate, the `node_drivers` one-hop precedent):** the `driver` is the
 /// **immediate (1-hop)** parent node, not its transitive cone — chain [`QUERY_OUTPUT_SUPPORT`] /
-/// [`QUERY_NODE_DRIVERS`] on `driver.node` for the full parent support. Control ports
-/// (`clk`/`rst_n`) are structural and never appear in the instance's `inputs`, so they are
-/// correctly absent.
+/// [`QUERY_NODE_DRIVERS`] on `driver.node` for the full parent support. The query reports
+/// **every** binding in the instance's `inputs` table faithfully — for a clocked child that
+/// includes the control ports (`clk`/`rst_n`), bound to the parent's matching `clk`/`rst_n`
+/// (a `primary_input` driver); the query does not filter them.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstanceInputBindings {
     /// The child instance **name** (the entity this entry is about, addressed `"<instance>"`).
@@ -752,9 +754,10 @@ pub struct InstanceInputBindings {
     /// ([`InstanceRole::ParentCone`]), mapped to a stable string (the shared
     /// [`instance_role_str`] convention) so the wire shape survives the enum gaining variants.
     pub role: String,
-    /// One [`InstanceInputBinding`] per **bound** child input port, in **ascending child PortId**
-    /// order. Empty when the instance binds no data inputs (e.g. a constant-only / output-only
-    /// child). Control ports (`clk`/`rst_n`) are not data bindings and never appear here.
+    /// One [`InstanceInputBinding`] per **bound** child input port (every entry of the instance's
+    /// `inputs` table), in **ascending child PortId** order. Empty only when the instance binds no
+    /// inputs at all. A clocked child's `clk`/`rst_n` bindings are reported alongside its data
+    /// inputs — the query does not filter control ports.
     pub input_bindings: Vec<InstanceInputBinding>,
 }
 
@@ -5067,8 +5070,8 @@ mod tests {
         );
     }
 
-    /// An instance that binds **no** data inputs ⇒ a known-but-empty `input_bindings` (NOT
-    /// `-32602`); control ports never appear here.
+    /// An instance whose `inputs` table is empty ⇒ a known-but-empty `input_bindings` (NOT
+    /// `-32602`).
     #[test]
     fn instance_input_bindings_no_bindings_is_known_but_empty() {
         let child = iib_child("c");

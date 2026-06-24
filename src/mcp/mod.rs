@@ -195,7 +195,8 @@ impl McpServer {
                      IR node its immediate 1-hop readers; instance_provenance \
                      (design-only) = per child instance its module/role + the support \
                      cone of each child output port built inside the child module's \
-                     graph) by \
+                     graph; instance_input_bindings = the parent-side dual, per child \
+                     instance the parent node driving each child input port) by \
                      pure traversal — relations, not behaviour. \
                      Controlled tools: validate \
                      runs the vetted downstream tools (verilator / yosys / \
@@ -360,7 +361,7 @@ impl McpServer {
                                             dump_config). Omit for defaults." },
                 "query": {
                     "type": "string",
-                    "enum": ["output_support", "input_reach", "flop_reset_provenance", "module_reachability", "flop_dependencies", "memory_provenance", "fsm_provenance", "node_drivers", "node_readers", "instance_provenance"],
+                    "enum": ["output_support", "input_reach", "flop_reset_provenance", "module_reachability", "flop_dependencies", "memory_provenance", "fsm_provenance", "node_drivers", "node_readers", "instance_provenance", "instance_input_bindings"],
                     "description": "Derived-relation query kind. output_support (default): each \
                                     target's transitive combinational fan-in support cone. \
                                     input_reach: the dual fan-out — which outputs and flop D-cones \
@@ -385,7 +386,11 @@ impl McpServer {
                                     operand), in ascending node-id order. instance_provenance \
                                     (design-only): for each child instance in the top, its module/role \
                                     + the support cone of each child output port built inside the child \
-                                    module's graph (opening the opaque InstanceOutput leaf). An \
+                                    module's graph (opening the opaque InstanceOutput leaf). \
+                                    instance_input_bindings: the parent-side dual of \
+                                    instance_provenance — for each child instance, its module/role + the \
+                                    parent node (id/kind/handle) driving each child input port (read \
+                                    from the instance's input bindings). An \
                                     unknown kind is rejected with -32602."
                 },
                 "target": {
@@ -400,7 +405,8 @@ impl McpServer {
                                     memory_provenance: \"mem:<id>\" (omit for every memory). \
                                     fsm_provenance: \"fsm:<id>\" (omit for every FSM). \
                                     node_drivers / node_readers: \"node:<id>\" (omit for every \
-                                    node). instance_provenance: a child instance NAME (omit for every \
+                                    node). instance_provenance / instance_input_bindings: a child \
+                                    instance NAME (omit for every \
                                     instance). An \
                                     unknown target is rejected with -32602."
                 }
@@ -549,14 +555,18 @@ impl McpServer {
                                     in the top, its module/role + the support cone of each child output \
                                     port built inside the child module's graph — opening the boundary the \
                                     opaque InstanceOutput leaf hides (the only query that crosses the \
-                                    module boundary). \
+                                    module boundary); \
+                                    query=instance_input_bindings returns the parent-side dual — per child \
+                                    instance, its module/role + the parent node driving each child input \
+                                    port (read from the instance's input bindings), so chaining it with \
+                                    instance_provenance traces a parent signal across the module boundary. \
                                     target = an output port name or \"flop:<id>\" for output_support, a \
                                     source (input name / \"flop:<id>\" Q / \"<instance>.<port>\") for \
                                     input_reach, \"flop:<id>\" for flop_reset_provenance, a module \
                                     name for module_reachability, \"flop:<id>\" for flop_dependencies, \
                                     \"mem:<id>\" for memory_provenance, \"fsm:<id>\" for \
                                     fsm_provenance, \"node:<id>\" for node_drivers / node_readers, or a \
-                                    child instance name for instance_provenance \
+                                    child instance name for instance_provenance / instance_input_bindings \
                                     (omit for all). \
                                     Unknown query/target -> -32602. Cached + exposed as \
                                     anvil://artifact/<run_id>/analysis/<query>.",
@@ -1029,6 +1039,9 @@ impl McpServer {
                 introspect::analyze::QUERY_INSTANCE_PROVENANCE => {
                     introspect::analyze::design_instance_provenance(&design, target)
                 }
+                introspect::analyze::QUERY_INSTANCE_INPUT_BINDINGS => {
+                    introspect::analyze::design_instance_input_bindings(&design, target)
+                }
                 _ => introspect::analyze::design_support_cones(&design, target),
             };
             let doc = introspect::design_document(seed, cfg, &design);
@@ -1063,6 +1076,9 @@ impl McpServer {
                 introspect::analyze::QUERY_INSTANCE_PROVENANCE => {
                     introspect::analyze::module_instance_provenance(&m, target)
                 }
+                introspect::analyze::QUERY_INSTANCE_INPUT_BINDINGS => {
+                    introspect::analyze::module_instance_input_bindings(&m, target)
+                }
                 _ => introspect::analyze::module_support_cones(&m, target),
             };
             let doc = introspect::module_document(seed, cfg, &m);
@@ -1093,6 +1109,9 @@ impl McpServer {
                 introspect::analyze::QUERY_NODE_READERS => analysis.node_readers.is_empty(),
                 introspect::analyze::QUERY_INSTANCE_PROVENANCE => {
                     analysis.instance_provenance.is_empty()
+                }
+                introspect::analyze::QUERY_INSTANCE_INPUT_BINDINGS => {
+                    analysis.instance_input_bindings.is_empty()
                 }
                 _ => analysis.results.is_empty(),
             };
@@ -2167,7 +2186,7 @@ mod tests {
         // A default comb DUT module ⇒ a coverage readout over its roll telemetry.
         let resp = call(&mut s, 1, "coverage", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["lane"], "dut");
         // The readout carries the per-knob + per-category rates and the three
         // construct histograms.
@@ -2225,7 +2244,7 @@ mod tests {
         // A default comb DUT module ⇒ a support cone per output.
         let resp = call(&mut s, 1, "analyze", json!({ "seed": 7 }));
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["analysis"]["query"], "output_support");
         let results = doc["analysis"]["results"].as_array().unwrap();
@@ -2271,7 +2290,7 @@ mod tests {
             json!({ "seed": 7, "query": "input_reach" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "input_reach");
         // input_reach populates reach_results, not results.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2312,7 +2331,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_reset_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "flop_reset_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2362,7 +2381,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "flop_dependencies" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "flop_dependencies");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2413,7 +2432,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "memory_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "memory_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2470,7 +2489,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "fsm_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "fsm_provenance");
         // The other queries' vecs are not populated by this kind.
         assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
@@ -2525,7 +2544,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "node_drivers" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "node_drivers");
         let nds = doc["analysis"]["node_drivers"].as_array().unwrap();
         assert!(!nds.is_empty()); // a real DUT has nodes
@@ -2589,7 +2608,7 @@ mod tests {
             json!({ "seed": 7, "config": cfg_json, "query": "node_readers" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["analysis"]["query"], "node_readers");
         let nrs = doc["analysis"]["node_readers"].as_array().unwrap();
         assert!(!nrs.is_empty()); // a real DUT has nodes
@@ -2737,7 +2756,7 @@ mod tests {
             json!({ "seed": 42, "config": cfg_json, "query": "module_reachability" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["artifact"]["kind"], "design");
         assert_eq!(doc["analysis"]["query"], "module_reachability");
         // module_reachability populates its own vec; the others are empty/omitted.
@@ -2806,7 +2825,7 @@ mod tests {
             json!({ "seed": 42, "config": cfg_json, "query": "instance_provenance" }),
         );
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["artifact"]["kind"], "design");
         assert_eq!(doc["analysis"]["query"], "instance_provenance");
         // instance_provenance populates its own vec; the others are empty/omitted.
@@ -2859,6 +2878,92 @@ mod tests {
             1,
             "analyze",
             json!({ "seed": 42, "config": cfg_json, "query": "instance_provenance", "target": "no_such_instance" }),
+        );
+        assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
+    }
+
+    #[test]
+    fn analyze_returns_instance_input_bindings_and_caches_it() {
+        let mut s = McpServer::new();
+        // A hierarchy config ⇒ a design artifact ⇒ design_instance_input_bindings reads the
+        // top instances' input bindings.
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 42, "config": cfg_json, "query": "instance_input_bindings" }),
+        );
+        let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
+        assert_eq!(doc["schema_version"], "1.24");
+        assert_eq!(doc["artifact"]["kind"], "design");
+        assert_eq!(doc["analysis"]["query"], "instance_input_bindings");
+        // instance_input_bindings populates its own vec; the others are empty/omitted.
+        assert!(doc["analysis"]["results"].as_array().unwrap().is_empty());
+        assert!(doc["analysis"].get("instance_provenance").is_none());
+        assert!(doc["analysis"].get("node_readers").is_none());
+        let iibs = doc["analysis"]["instance_input_bindings"]
+            .as_array()
+            .unwrap();
+        assert!(!iibs.is_empty(), "a hierarchy top instantiates >= 1 child");
+        // Each instance carries its facts; across them at least one child input is bound, and
+        // every binding resolves to a parent node (id + kind + handle).
+        let mut total_bindings = 0;
+        for ib in iibs {
+            assert!(!ib["instance"].as_str().unwrap().is_empty());
+            assert!(!ib["module"].as_str().unwrap().is_empty());
+            let role = ib["role"].as_str().unwrap();
+            assert!(role == "planned_child" || role == "parent_cone");
+            for b in ib["input_bindings"].as_array().unwrap() {
+                assert!(!b["port"].as_str().unwrap().is_empty());
+                assert!(b["driver"]["node"].is_number());
+                assert!(!b["driver"]["kind"].as_str().unwrap().is_empty());
+                assert!(!b["driver"]["name"].as_str().unwrap().is_empty());
+                total_bindings += 1;
+            }
+        }
+        assert!(
+            total_bindings >= 1,
+            "a depth-1 hierarchy routes >= 1 parent source into a child input"
+        );
+        // Cached + served under the instance_input_bindings query key.
+        let run_id = doc["request"]["run_id"].as_str().unwrap().to_string();
+        let read = s
+            .handle(&req(
+                2,
+                "resources/read",
+                json!({ "uri": format!("anvil://artifact/{run_id}/analysis/instance_input_bindings") }),
+            ))
+            .unwrap();
+        let text = read["result"]["contents"][0]["text"].as_str().unwrap();
+        let cached: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(cached["analysis"]["query"], "instance_input_bindings");
+    }
+
+    #[test]
+    fn analyze_instance_input_bindings_unknown_target_is_invalid_params() {
+        let mut s = McpServer::new();
+        let cfg = Config {
+            seed: 42,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 2,
+            ..Config::default()
+        };
+        let cfg_json = serde_json::to_value(&cfg).unwrap();
+        // No instance in the top is named "no_such_instance" ⇒ -32602.
+        let resp = call(
+            &mut s,
+            1,
+            "analyze",
+            json!({ "seed": 42, "config": cfg_json, "query": "instance_input_bindings", "target": "no_such_instance" }),
         );
         assert_eq!(resp["error"]["code"].as_i64(), Some(INVALID_PARAMS));
     }
@@ -3023,7 +3128,7 @@ mod tests {
         );
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["lane"], "frontend");
         assert_eq!(doc["artifact"]["kind"], "frontend");
         assert_eq!(
@@ -3124,7 +3229,7 @@ mod tests {
         let resp = call(&mut s, 2, "introspect", json!({ "seed": 42 }));
         assert_eq!(resp["result"]["isError"], false);
         let doc: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
         assert_eq!(doc["lane"], "dut");
         assert_eq!(doc["request"]["seed"], 42);
         // Matches the introspect surface exactly (same construction-truth).
@@ -3179,7 +3284,7 @@ mod tests {
         let doc: Value =
             serde_json::from_str(doc_resp["result"]["contents"][0]["text"].as_str().unwrap())
                 .unwrap();
-        assert_eq!(doc["schema_version"], "1.23");
+        assert_eq!(doc["schema_version"], "1.24");
     }
 
     #[test]

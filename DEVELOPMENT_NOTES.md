@@ -78,9 +78,12 @@ the **immediate (1-hop)** parent driver `NodeRef`, not its transitive parent con
 that wants the full parent support chains the existing `output_support` / `node_drivers` on
 the returned `driver.node` (`"node:<id>"`) — the "report the ref, let the agent chain"
 philosophy, identical to how `node_drivers` reports operands and lets the agent recurse.
-Control ports (`clk` / `rst_n`) are **not** data bindings — they propagate structurally and
-never appear in `Instance.inputs`, so they are correctly absent (a binding exists iff the
-parent drives that child input with a data node). Nothing retired.
+The query reports **every** entry of the instance's `inputs` binding table faithfully (it
+does not filter): an empirical check during the `.12b.2` e2e smoke confirmed that a clocked
+child's `clk`/`rst_n` **are** bound in `Instance.inputs` (to the parent's matching `clk`/`rst_n`
+`primary_input`), so they appear in `input_bindings` alongside the data inputs — correcting an
+earlier `.12a` assumption that control ports propagate purely structurally and never enter
+`Instance.inputs`. Nothing retired.
 
 ### Q2 — derivation: read `Instance.inputs`, resolve both ends
 

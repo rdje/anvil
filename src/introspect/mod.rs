@@ -51,27 +51,25 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.23` is the
-/// additive (backward-compatible) MINOR bump that adds the **tenth** derived
-/// `analyze` query kind `instance_provenance` — the **third opaque-leaf
-/// boundary-opener** (opens `Node::InstanceOutput`, the sibling of
-/// `memory_provenance`'s `MemRead` + `fsm_provenance`'s `FsmOut`): for each child
-/// instance in a design's top, its module/role + the support cone of each child
-/// output port built **inside the child module's graph**, carried by a tenth
-/// `DerivedAnalysis.instance_provenance` parallel vec
-/// (`SEMANTIC-INTROSPECTION-EXPANSION.11b`; the sixth query beyond decision
-/// `0011`'s four named kinds — the **first and only query that crosses the module
-/// boundary**, hence design-only). It is a SCHEMA-DERIVED projection over the
-/// already-emitted IR (reusing `build_cone` with the child as its walked module, not
-/// new computed truth); the `instance_provenance` key is `skip_serializing_if`-omitted
-/// on every other query document, so the nine prior `analyze` documents and the
-/// default-`dut` **artifact** (`.sv`) stay byte-identical. The prior `1.22` added the
-/// ninth `analyze` query kind `node_readers`
-/// (`SEMANTIC-INTROSPECTION-EXPANSION.10b`); a `1.22` consumer simply ignores the new
-/// query kind. MINOR is an integer, so `1.22 → 1.23` (twenty-three), not a decimal
-/// fraction. See the schema-doc §7 changelog for the full
-/// `1.0 → … → 1.22 → 1.23` history.
-pub const SCHEMA_VERSION: &str = "1.23";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.24` is the
+/// additive (backward-compatible) MINOR bump that adds the **eleventh** derived
+/// `analyze` query kind `instance_input_bindings` — the **parent-side dual of
+/// `instance_provenance`**: for each child instance in a design's top, its
+/// module/role + the **parent node** (`NodeRef`) driving each of the child's
+/// **input** ports (read from the instance's `inputs` binding table), carried by an
+/// eleventh `DerivedAnalysis.instance_input_bindings` parallel vec
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.12b`; the seventh query beyond decision
+/// `0011`'s four named kinds). It is a SCHEMA-DERIVED projection over the
+/// already-emitted IR (a pure read of `Instance.inputs`, the parent driver resolved
+/// via the same `node_ref_of` helper — not new computed truth); the
+/// `instance_input_bindings` key is `skip_serializing_if`-omitted on every other query
+/// document, so the ten prior `analyze` documents and the default-`dut` **artifact**
+/// (`.sv`) stay byte-identical. The prior `1.23` added the tenth `analyze` query kind
+/// `instance_provenance` (`SEMANTIC-INTROSPECTION-EXPANSION.11b`); a `1.23` consumer
+/// simply ignores the new query kind. MINOR is an integer, so `1.23 → 1.24`
+/// (twenty-four), not a decimal fraction. See the schema-doc §7 changelog for the full
+/// `1.0 → … → 1.23 → 1.24` history.
+pub const SCHEMA_VERSION: &str = "1.24";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -514,7 +512,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.23");
+        assert_eq!(doc.schema_version, "1.24");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -655,7 +653,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.23");
+        assert_eq!(doc.schema_version, "1.24");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -698,7 +696,7 @@ mod tests {
         let readout = coverage::module_coverage(&compute(&m));
         let doc = coverage_document(&base, readout.clone());
 
-        assert_eq!(doc.schema_version, "1.23");
+        assert_eq!(doc.schema_version, "1.24");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
                                                              // The payload IS the embedded readout, byte-for-byte.
