@@ -1,9 +1,61 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.15b.1 — pure reach_path core
+
+**Landed as:** this commit (previous: `e0e7b8e`, `SEMANTIC-INTROSPECTION-EXPANSION.15a`).
+A **code** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.15b.1`. **DUT byte-identical**
+(no IR / generator change; `analyze` is read-mostly, default-off; `tests/snapshots.rs` untouched; the
+core is **not wired to any emit path** — `supported_query_kinds()` unchanged, so the MCP `analyze`
+tool still answers thirteen queries until `.15b.2`).
+
+**What.** Landed the pure `reach_path` core in `src/introspect/analyze.rs` (the fourteenth derived
+query):
+- `QUERY_REACH_PATH = "reach_path"` + `ReachPath { node: u32, depth: usize, path: Vec<PathStep>,
+  sink: Option<String> }` (**reusing `PathStep`**; `sink` in the `output_support`/`longest_path`
+  target namespace — an output port name / `"flop:<id>"`; the forward mirror of `LongestPath` with
+  `target → node`, `leaf:NodeRef → sink:String`).
+- the **fourteenth** `DerivedAnalysis.reach_path` `#[serde(default, skip_serializing_if =
+  "Vec::is_empty")]` vec (⇒ the thirteen prior query documents stay byte-identical); the 22 existing
+  `DerivedAnalysis` literals gained `reach_path: Vec::new()` (indentation-preserving script insert
+  after each `node_reach` field).
+- `module_reach_path` / `design_reach_path` + the shared `reach_path_with` driver + `build_reach_path`
+  (greedy forward descent from the entry gate along the max-`gate_reach_height` reader, ties →
+  smallest reader id ⇒ a unique byte-stable path; terminates at `pick_sink`) + the `gate_reach_height`
+  **sink-aware forward-height** memo (`if cont>0 {1+cont} else if drives_sink(g) {1} else {0}`; the
+  gate reader-graph is a DAG ⇒ the recursion terminates) + the `drives_sink` / `pick_sink` helpers +
+  the `reach_path_analysis` constructor.
+- **NOT** added to `supported_query_kinds()` (the registry + `run_analyze` dispatch + schema
+  `1.26 → 1.27` land together in `.15b.2`).
+
+**Why.** `reach_path` is the **forward-transitive witness**: the forward complement to `longest_path`
+(`.13`) and the path-witness for `node_reach` (`.14`). `node_reach` reports *which* boundary sinks a
+node reaches; `reach_path` reports the longest gate-chain *to* one of them — exactly as `longest_path`
+is the chain realizing `output_support`'s scalar `cone_depth`. The register boundary is automatic (a
+flop is not a `Gate` ⇒ no reader edge); structural gate-depth, not timing.
+
+**Validation.** 8 new in-crate proofs: the load-bearing **reach_path↔node_reach consistency proof**
+(on `(a&b)|c` + a dead input `d`: `reach_path(a)` = the 2-gate chain `and → or → "y"`; for every node
+`sink.is_some() ⟺ node_reach.fanout_targets>0`, a present `sink ∈ node_reach`'s sink set,
+`depth==path.len()`); the **register-boundary** proof (`b` feeds flop 0's `D` ⇒ empty path, sink
+`"flop:0"`, no crossing `D→Q`); the **leaf-direct-sink** proof (an input driving an output directly ⇒
+`depth 0`, empty path, sink Some); the **longest-chain** proof (a 1-gate vs 2-gate fan-out ⇒
+`reach_path` picks the 2-gate path while `node_reach` sees both); the **deterministic tie-break**
+proof (smallest reader id + serialized determinism); `None` ⇒ one per node + unknown/out-of-range ⇒
+none; serialization omits the other thirteen query vecs; the design top/absent-top variant.
+`cargo test --lib introspect::analyze` 100/0; `cargo test --lib` 728/0/2 (+8); `cargo test --test
+snapshots` 6/6 byte-identical; `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D
+warnings` clean.
+
+**Impact.** `analyze.rs` only; no behaviour/emit change. DUT byte-identical. Frontier → `.15b.2`
+(surface).
+
+**Files touched.** `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.15a — reach_path design-detail
 
-**Landed as:** this commit (previous: `7803713`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`).
+**Landed as:** `e0e7b8e` (previous: `7803713`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`).
 A **docs/design-only** change (no `src/`), task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.15a`.
 **DUT byte-identical** (no IR / generator / analyze change). **Opens `.15` `reach_path`** — the
 **fourteenth** derived `analyze` query and the **forward-transitive witness**.

@@ -1338,11 +1338,11 @@ src/
 │                     proofs (incl. the cross-boundary descent proof) + 2 mcp proofs;
 │                     DUT byte-identical. The
 │                     parallel-vec pattern
-│                     now carries thirteen query kinds (`results`/`reach_results`/
+│                     now carries fourteen query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
 │                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`/
 │                     `instance_provenance`/`instance_input_bindings`/`longest_path`/
-│                     `node_reach`),
+│                     `node_reach`/`reach_path`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
 │                     **`instance_input_bindings`** (`.12b.1`, the ELEVENTH derived
 │                     query, the **parent-side dual of `instance_provenance`** — the
@@ -1404,6 +1404,28 @@ src/
 │                     (`module`/`design_node_reach`) in both arms + the vec-aware `-32602`
 │                     guard + the `analyze_schema` enum + schema `1.25 → 1.26`; 2 mcp proofs.
 │                     DUT byte-identical.
+│                     **`reach_path`** (`.15b.1`, the FOURTEENTH derived query — the
+│                     **forward-transitive WITNESS**: the forward complement to `longest_path`
+│                     + the path-witness for `node_reach`): for a start node `"node:<id>"`, one
+│                     representative LONGEST combinational fan-OUT path — `ReachPath { node,
+│                     depth, path: Vec<PathStep>, sink: Option<String> }` (**reuses `PathStep`**;
+│                     `sink` in the `output_support`/`longest_path` target namespace — an output
+│                     port name / `"flop:<id>"`; the forward mirror of `LongestPath` with
+│                     `target → node`, `leaf:NodeRef → sink:String`). `module_reach_path` /
+│                     `design_reach_path` + the shared `reach_path_with` driver + `build_reach_path`
+│                     (greedy forward descent along the max-`gate_reach_height` reader, ties →
+│                     smallest reader id ⇒ a unique byte-stable path) + the `gate_reach_height`
+│                     sink-aware forward-height memo (`if cont>0 {1+cont} else if drives_sink(g)
+│                     {1} else {0}`) + the `drives_sink` / `pick_sink` helpers + the
+│                     `reach_path_analysis` constructor. Structural gate-depth NOT timing; the
+│                     register boundary automatic (a flop is not a `Gate`). Provable
+│                     `reach_path(n).sink.is_some() == (node_reach(n).fanout_targets > 0)` +
+│                     `sink ∈ node_reach`'s sink set + `depth == path.len()`. 8 in-crate proofs
+│                     (incl. the reach_path↔node_reach consistency proof + the register-boundary
+│                     proof + the leaf-direct-sink proof + the longest-chain proof + the
+│                     deterministic tie-break proof). **NOT yet wired** to the MCP surface —
+│                     `supported_query_kinds()` unchanged; joins the registry + `run_analyze`
+│                     dispatch + schema `1.26 → 1.27` in `.15b.2`. DUT byte-identical.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

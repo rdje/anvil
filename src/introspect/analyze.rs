@@ -300,6 +300,26 @@ pub const QUERY_LONGEST_PATH: &str = "longest_path";
 /// tool (`.14b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_NODE_REACH: &str = "node_reach";
 
+/// The `reach_path` derived-query kind: for a start node addressed `"node:<id>"`,
+/// one representative **longest combinational fan-out path** — the ordered chain
+/// of interior [`Node::Gate`] nodes from the node *forward* to a boundary **sink**
+/// (an output port, or a flop `D` addressed `"flop:<id>"`). The
+/// **forward-transitive witness**: the forward complement to [`QUERY_LONGEST_PATH`]
+/// (the backward fan-in witness) and the **path-witness for [`QUERY_NODE_REACH`]**
+/// (the forward fan-out *set*) — `node_reach` reports *which* sinks a node reaches,
+/// `reach_path` reports the longest gate-chain *to* one of them, exactly as
+/// `longest_path` is the chain realizing `output_support`'s scalar `cone_depth`.
+/// Single-endpoint `"node:<id>"` (the `node_reach` namespace ⇒ no MCP signature
+/// change); the `sink` is in the `output_support`/`longest_path` target namespace,
+/// so `reach_path(n).sink` chains straight into a follow-up `longest_path` /
+/// `output_support`. Structural gate-depth, **not** timing (the `longest_path`
+/// honesty boundary). The tenth query beyond decision `0011`'s four named kinds
+/// (the lane's "open-ended breadth" clause), under the same `0004`/`0011`
+/// SCHEMA-DERIVED ceiling. Served by [`module_reach_path`] / [`design_reach_path`],
+/// dispatched by the MCP `analyze` tool (`.15b.2`); listed in
+/// [`supported_query_kinds`].
+pub const QUERY_REACH_PATH: &str = "reach_path";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -420,6 +440,14 @@ pub struct DerivedAnalysis {
     /// omitted unless this is a `node_reach` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub node_reach: Vec<NodeReach>,
+    /// The [`QUERY_REACH_PATH`] payload: one [`ReachPath`] per resolved start node — the
+    /// **forward-transitive witness** (one representative longest combinational fan-out gate-chain
+    /// from the node to a boundary sink). A **fourteenth** parallel vec, same rationale as the
+    /// prior twelve (`reach_results` … `node_reach`): `skip_serializing_if` keeps the thirteen
+    /// prior query documents byte-identical (the key is omitted unless this is a `reach_path`
+    /// analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reach_path: Vec<ReachPath>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -944,6 +972,48 @@ pub struct NodeReach {
     pub fanout_targets: usize,
 }
 
+/// One node's representative **longest combinational fan-out path** — the
+/// [`QUERY_REACH_PATH`] payload. For a start node addressed `"node:<id>"`, the ordered chain of
+/// interior [`Node::Gate`] nodes from the node *forward* to a boundary **sink** (an output port,
+/// or a flop `D`), the chain that realizes the node's deepest forward gate-distance to a sink.
+///
+/// It is the **forward mirror of [`LongestPath`]** ([`QUERY_LONGEST_PATH`]): where `longest_path`
+/// walks fan-**in** from a target down to a leaf [`NodeRef`], `reach_path` walks fan-**out** from a
+/// node up to a sink. The queried `target` becomes the queried [`ReachPath::node`]; the terminal
+/// fan-in `leaf: NodeRef` (one IR node) becomes the terminal fan-out [`ReachPath::sink`] — a
+/// `String` in the `output_support`/`longest_path` target namespace, because a fan-out boundary is
+/// an output port (a port, not a node) or a flop `D`-sink (the flop, not the driving gate), and the
+/// target string is exactly how a follow-up `longest_path`/`output_support` re-addresses it.
+///
+/// It is the **path-witness for [`NodeReach`]** ([`QUERY_NODE_REACH`]): `node_reach` reports the
+/// *set* of sinks a node reaches; `reach_path` reports the longest gate-chain *to* one of them,
+/// with the provable consistency `reach_path(n).sink.is_some() == (node_reach(n).fanout_targets >
+/// 0)` and `sink ∈ node_reach(n)`'s sink set. `depth == path.len()` by construction. The
+/// **register boundary is automatic** (the [`NodeReach`] rule): a flop is not a [`Node::Gate`], so
+/// it adds no reader edge — the forward walk records the `"flop:<id>"` sink and never crosses
+/// `D → Q`. It is **structural gate-depth, NOT a timing critical path** (no delay model).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReachPath {
+    /// The start (subject) node id this path is from (its index in [`Module::nodes`](Module);
+    /// addressed `"node:<id>"`).
+    pub node: u32,
+    /// The path's gate-depth: the number of interior `Gate` nodes on it (== `path.len()`). `0` when
+    /// the node drives a boundary sink with no interior gate between (e.g. a primary input feeding
+    /// an output directly), or when the node reaches no sink (then `sink` is `None`).
+    pub depth: usize,
+    /// The interior-gate chain, ordered from the start node *forward* toward the sink. Each step is
+    /// a [`PathStep`] (a [`Node::Gate`] with its op; the **same** step type as [`LongestPath`]).
+    /// `path[i+1]` is the chosen reader of `path[i]` (and `path[0]` a reader of `node`, unless
+    /// `node` is itself a `Gate`, in which case it is `path[0]`). Empty iff the node drives a sink
+    /// directly, or reaches no sink.
+    pub path: Vec<PathStep>,
+    /// The boundary sink the path ends at, in the `output_support`/`longest_path` target namespace:
+    /// an output **port name**, or `"flop:<id>"` for a flop `D` sink. `None` iff the node reaches
+    /// no boundary sink (≡ `node_reach(node).fanout_targets == 0`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sink: Option<String>,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -977,6 +1047,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1020,6 +1091,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1059,6 +1131,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -1140,6 +1213,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1179,6 +1253,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1220,6 +1295,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1304,6 +1380,7 @@ fn flop_dependencies_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1345,6 +1422,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1416,6 +1494,7 @@ fn memory_provenance_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1458,6 +1537,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1526,6 +1606,7 @@ fn fsm_provenance_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1567,6 +1648,7 @@ pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnal
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1636,6 +1718,7 @@ fn node_drivers_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1678,6 +1761,7 @@ pub fn design_node_readers(design: &Design, target: Option<&str>) -> DerivedAnal
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
             node_reach: Vec::new(),
+            reach_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1763,6 +1847,7 @@ fn node_readers_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1873,6 +1958,7 @@ fn instance_provenance_analysis(instance_provenance: Vec<InstanceProvenance>) ->
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -1998,6 +2084,7 @@ fn instance_input_bindings_analysis(
         instance_input_bindings,
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -2174,6 +2261,7 @@ fn longest_path_analysis(longest_path: Vec<LongestPath>) -> DerivedAnalysis {
         instance_input_bindings: Vec::new(),
         longest_path,
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -2311,6 +2399,255 @@ fn node_reach_analysis(node_reach: Vec<NodeReach>) -> DerivedAnalysis {
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach,
+        reach_path: Vec::new(),
+    }
+}
+
+/// Compute the `reach_path` analysis for a single [`Module`]: per-node one representative **longest
+/// combinational fan-out path** — for each node, the ordered interior-`Gate` chain from it forward
+/// to a boundary sink. The forward-transitive **witness** for [`module_node_reach`].
+///
+/// `target = None` ⇒ one [`ReachPath`] per node in [`Module::nodes`](Module), ascending node-id
+/// (= index) order. `target = Some("node:<id>")` ⇒ that one node's path (a node that reaches no
+/// boundary sink yields a known-but-empty path with `sink: None`, not an error); any other string,
+/// or an out-of-range id, ⇒ no result (→ `-32602` at the MCP layer).
+pub fn module_reach_path(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    reach_path_with(m, target)
+}
+
+/// Compute the `reach_path` analysis for the **top** module of a [`Design`]. Returns an empty
+/// analysis when the named top module is absent. (Like [`design_node_reach`] this operates on the
+/// top module; the sinks are plain output-port names + flop ids and `PathStep` carries node ids +
+/// ops, so — unlike `node_drivers`/`node_readers` — no instance-leaf `fmt` closure is needed.)
+pub fn design_reach_path(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return reach_path_analysis(Vec::new());
+    };
+    reach_path_with(top, target)
+}
+
+/// Shared driver for [`module_reach_path`] / [`design_reach_path`]: build the reader index by
+/// transposing the operand relation (the **same** pass [`node_reach_with`] builds), then, per
+/// requested node, build one [`ReachPath`] via [`build_reach_path`]. The per-gate forward-height
+/// memo is shared across all nodes for the `None` (all-nodes) case. Pure: reads `m.nodes` /
+/// `m.outputs` / `m.drives` / `m.flops` only, no IR/generator change.
+fn reach_path_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    // Transpose the operand relation: index[o] = the gate ids that list node o as a direct operand
+    // (the node_reach_with reader index; readers are always gates — only `Gate` has operands).
+    let mut index: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    for (rid, node) in m.nodes.iter().enumerate() {
+        if let Node::Gate { operands, .. } = node {
+            for &o in operands {
+                index.entry(o).or_default().insert(rid as u32);
+            }
+        }
+    }
+    // Sink-aware forward gate-height memo (shared across nodes; the gate reader-graph is a DAG, so
+    // the recurrence terminates).
+    let mut memo: HashMap<NodeId, usize> = HashMap::new();
+
+    let mut reach_path = Vec::new();
+    match target {
+        None => {
+            for id in 0..m.nodes.len() {
+                reach_path.push(build_reach_path(m, id as NodeId, &index, &mut memo));
+            }
+        }
+        Some(t) => {
+            // Only the `"node:<id>"` form is a valid target; anything else (or an out-of-range id)
+            // ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t
+                .strip_prefix("node:")
+                .and_then(|r| r.parse::<usize>().ok())
+            {
+                if id < m.nodes.len() {
+                    reach_path.push(build_reach_path(m, id as NodeId, &index, &mut memo));
+                }
+            }
+        }
+    }
+    reach_path_analysis(reach_path)
+}
+
+/// Build one [`ReachPath`] for start node `start`: greedily descend the forward (reader) graph from
+/// `start`'s **entry gate** along the maximum-[`gate_reach_height`] reader at each step (ties →
+/// smallest reader node id ⇒ a unique byte-stable path), terminating at the gate that drives the
+/// recorded `sink`. The forward mirror of [`build_longest_path`].
+///
+/// Entry-gate selection: if `start` is a [`Node::Gate`] it is its own entry (when it reaches a
+/// sink); if `start` is a leaf, the entry is its highest-`gate_reach_height` reader gate. A node
+/// that reaches no sink — or one that drives a sink directly with no interior gate (e.g. an input
+/// feeding an output) — yields an empty `path`; the latter still records the direct `sink`.
+fn build_reach_path(
+    m: &Module,
+    start: NodeId,
+    reader_index: &BTreeMap<u32, BTreeSet<u32>>,
+    memo: &mut HashMap<NodeId, usize>,
+) -> ReachPath {
+    let is_gate = matches!(m.nodes.get(start as usize), Some(Node::Gate { .. }));
+    // The entry gate to descend from, or `None` when there is no interior-gate path forward.
+    let entry: Option<NodeId> = if is_gate {
+        // A gate is its own entry iff it reaches a sink (`gate_reach_height > 0`).
+        (gate_reach_height(m, start, reader_index, memo) > 0).then_some(start)
+    } else {
+        // A leaf's path is downstream gates only: the highest-forward-height reader gate, ties →
+        // smallest reader id (the `build_longest_path` tie-break, transposed).
+        reader_index
+            .get(&start)
+            .and_then(|rs| {
+                rs.iter()
+                    .copied()
+                    .map(|r| (gate_reach_height(m, r, reader_index, memo), r))
+                    .filter(|&(h, _)| h > 0)
+                    .max_by(|&(ha, ra), &(hb, rb)| ha.cmp(&hb).then_with(|| rb.cmp(&ra)))
+            })
+            .map(|(_, r)| r)
+    };
+
+    let Some(entry) = entry else {
+        // No interior-gate path. `start` may still drive a sink directly (a leaf-to-output/flop
+        // bind with no gate between); `pick_sink` is `None` when it reaches nothing.
+        return ReachPath {
+            node: start,
+            depth: 0,
+            path: Vec::new(),
+            sink: pick_sink(m, start),
+        };
+    };
+
+    // Greedy forward descent from the entry gate.
+    let mut path: Vec<PathStep> = Vec::new();
+    let mut cur = entry;
+    let sink = loop {
+        let h = gate_reach_height(m, cur, reader_index, memo);
+        match m.nodes.get(cur as usize) {
+            Some(Node::Gate { op, width, .. }) => {
+                path.push(PathStep {
+                    node: cur,
+                    op: gate_op_str(op).to_string(),
+                    width: *width,
+                });
+            }
+            // Defensive: the entry and every chosen reader is a `Gate`; a non-gate is malformed IR.
+            _ => break pick_sink(m, cur),
+        }
+        if h <= 1 {
+            // Terminal gate: by construction it drives a sink (`cont == 0 ∧ drives_sink`).
+            break pick_sink(m, cur);
+        }
+        // Continue to the reader gate that realizes the remaining height (`h - 1`), ties →
+        // smallest reader node id (a total order ⇒ unique + byte-stable). Such a reader exists
+        // because `gate_reach_height(cur) == h > 1` came from a reader continuation.
+        let next = reader_index.get(&cur).and_then(|rs| {
+            rs.iter()
+                .copied()
+                .filter(|&r| gate_reach_height(m, r, reader_index, memo) == h - 1)
+                .min()
+        });
+        match next {
+            Some(r) => cur = r,
+            None => break pick_sink(m, cur),
+        }
+    };
+
+    ReachPath {
+        node: start,
+        depth: path.len(),
+        path,
+        sink,
+    }
+}
+
+/// The memoized **sink-aware forward gate-height** of gate `g`: the number of gates on the longest
+/// forward gate-chain from `g` to a gate that drives a boundary sink (inclusive of `g`); `0` ⟺ `g`
+/// reaches no boundary sink (≡ `node_reach(g).fanout_targets == 0`). Recurrence: let `cont` be the
+/// max `gate_reach_height` over `g`'s reader gates; `g`'s height is `1 + cont` when a reader reaches
+/// a sink, else `1` when `g` itself [`drives_sink`], else `0`. (A continuation always wins over the
+/// local sink option — `1 + cont ≥ 2 > 1` — so the descent strictly decreases height.) The gate
+/// reader-graph is a DAG (flops / instances / memories / FSMs are non-`Gate` leaves ⇒ no reader
+/// edge), so the recursion terminates; `g` is always a [`Node::Gate`] (the entry node when a gate,
+/// or a reader, which is always a gate).
+fn gate_reach_height(
+    m: &Module,
+    g: NodeId,
+    reader_index: &BTreeMap<u32, BTreeSet<u32>>,
+    memo: &mut HashMap<NodeId, usize>,
+) -> usize {
+    if let Some(&h) = memo.get(&g) {
+        return h;
+    }
+    // Guard against re-entrancy on a (well-formed-IR-impossible) cycle: a DAG never revisits `g`
+    // mid-recursion, but seeding `0` keeps a malformed cyclic graph terminating + bounded.
+    memo.insert(g, 0);
+    let readers: Vec<u32> = reader_index
+        .get(&g)
+        .map(|rs| rs.iter().copied().collect())
+        .unwrap_or_default();
+    let mut cont = 0usize;
+    for r in readers {
+        cont = cont.max(gate_reach_height(m, r, reader_index, memo));
+    }
+    let h = if cont > 0 {
+        1 + cont
+    } else if drives_sink(m, g) {
+        1
+    } else {
+        0
+    };
+    memo.insert(g, h);
+    h
+}
+
+/// Whether node `n` drives a **boundary sink** directly: it is the driver of some output port, or
+/// it is some flop's `D` input. The forward-walk terminal predicate (the `node_reach` sink set,
+/// node-side).
+fn drives_sink(m: &Module, n: NodeId) -> bool {
+    m.outputs.iter().any(|p| driver_of_port(m, p.id) == Some(n))
+        || m.flops.iter().any(|f| f.d == Some(n))
+}
+
+/// The single representative boundary **sink** node `n` drives, in the `output_support` /
+/// `longest_path` target namespace (so it re-addresses a follow-up query): the
+/// lexicographically-smallest output **port name** with driver `n`, else `"flop:<id>"` for the
+/// smallest flop id whose `D` is `n`, else `None` (n drives no sink). Used for both the terminal
+/// gate and the direct-leaf case.
+fn pick_sink(m: &Module, n: NodeId) -> Option<String> {
+    if let Some(name) = m
+        .outputs
+        .iter()
+        .filter(|p| driver_of_port(m, p.id) == Some(n))
+        .map(|p| p.name.clone())
+        .min()
+    {
+        return Some(name);
+    }
+    m.flops
+        .iter()
+        .filter(|f| f.d == Some(n))
+        .map(|f| f.id)
+        .min()
+        .map(|id| format!("flop:{id}"))
+}
+
+/// Wrap a `reach_path` vec in a [`DerivedAnalysis`] (the `reach_path` query document; every other
+/// result vec empty).
+fn reach_path_analysis(reach_path: Vec<ReachPath>) -> DerivedAnalysis {
+    DerivedAnalysis {
+        query: QUERY_REACH_PATH.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
+        node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
+        node_reach: Vec::new(),
+        reach_path,
     }
 }
 
@@ -2453,6 +2790,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -2524,6 +2862,7 @@ fn support_cones_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -2602,6 +2941,7 @@ fn input_reach_with(
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
         node_reach: Vec::new(),
+        reach_path: Vec::new(),
     }
 }
 
@@ -6361,5 +6701,380 @@ mod tests {
         let a = serde_json::to_string(&module_node_reach(&m, None)).unwrap();
         let b = serde_json::to_string(&module_node_reach(&m, None)).unwrap();
         assert_eq!(a, b);
+    }
+
+    // ---- reach_path (.15b.1): the forward-transitive WITNESS ----
+
+    /// The set of sinks `node_reach(n)` reports, as strings in the `output_support`/`longest_path`
+    /// target namespace (`reaches_outputs` ∪ `{ "flop:<id>" }`) — the set `reach_path(n).sink` must
+    /// be a member of.
+    fn node_reach_sink_set(nr: &NodeReach) -> std::collections::BTreeSet<String> {
+        let mut s: std::collections::BTreeSet<String> =
+            nr.reaches_outputs.iter().cloned().collect();
+        for f in &nr.reaches_flops {
+            s.insert(format!("flop:{f}"));
+        }
+        s
+    }
+
+    /// The headline cross-check: `reach_path` is the forward-chain witness for `node_reach`. On
+    /// `(a&b)|c` (+ a dead input `d`), `reach_path(a)` is the 2-gate chain `and → or → y`, and for
+    /// every node `reach_path(n).sink.is_some() == (node_reach(n).fanout_targets > 0)` and the
+    /// chosen `sink` is a member of `node_reach(n)`'s sink set.
+    #[test]
+    fn reach_path_realizes_node_reach_with_a_forward_chain() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.inputs.push(port(2, "c", 8, Direction::In));
+        m.inputs.push(port(3, "d", 8, Direction::In)); // unused (dead)
+        m.outputs.push(port(4, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = b
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 2 = c
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a & b
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![3, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 4 = (a&b) | c
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 8 }); // 5 = d (dead)
+        m.drives.push((4, 4)); // y <- node 4
+
+        // reach_path(a): the 2-gate forward chain and(3) → or(4) → sink "y".
+        let rp = module_reach_path(&m, Some("node:0"));
+        assert_eq!(rp.query, QUERY_REACH_PATH);
+        assert_eq!(rp.reach_path.len(), 1);
+        let a = &rp.reach_path[0];
+        assert_eq!(a.node, 0);
+        assert_eq!(a.depth, 2);
+        assert_eq!(a.depth, a.path.len()); // depth == path.len()
+        assert_eq!(
+            a.path.iter().map(|s| s.node).collect::<Vec<_>>(),
+            vec![3, 4]
+        );
+        assert_eq!(
+            a.path.iter().map(|s| s.op.as_str()).collect::<Vec<_>>(),
+            vec!["and", "or"]
+        );
+        assert_eq!(a.sink.as_deref(), Some("y"));
+
+        // The dead input reaches no sink ⇒ empty path, sink None.
+        let d = &module_reach_path(&m, Some("node:5")).reach_path[0];
+        assert_eq!(d.depth, 0);
+        assert!(d.path.is_empty());
+        assert!(d.sink.is_none());
+
+        // Cross-check every node: sink.is_some() ⟺ node_reach.fanout_targets > 0, and a present
+        // sink is a member of node_reach's sink set.
+        for id in 0..m.nodes.len() as u32 {
+            let t = format!("node:{id}");
+            let rp = &module_reach_path(&m, Some(&t)).reach_path[0];
+            let nr = &module_node_reach(&m, Some(&t)).node_reach[0];
+            assert_eq!(
+                rp.sink.is_some(),
+                nr.fanout_targets > 0,
+                "node {id}: sink-presence vs node_reach fanout disagree"
+            );
+            if let Some(sink) = &rp.sink {
+                assert!(
+                    node_reach_sink_set(nr).contains(sink),
+                    "node {id}: sink {sink} not in node_reach's sink set"
+                );
+            }
+            assert_eq!(rp.depth, rp.path.len(), "node {id}: depth != path.len()");
+        }
+    }
+
+    /// The **register boundary** is automatic (the `node_reach` rule): a node feeding a flop `D`
+    /// terminates at the `"flop:<id>"` sink and the walk does not cross `D → Q`. `b` feeds flop 0's
+    /// `D` only ⇒ `reach_path(b)` = empty path, sink `"flop:0"`; `Q` feeds `y = a ^ Q` ⇒
+    /// `reach_path(Q)` = the 1-gate chain `xor → y`.
+    #[test]
+    fn reach_path_records_the_flop_d_sink_and_stops_at_the_register_boundary() {
+        let mut m = Module {
+            name: "seq".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "a", 8, Direction::In));
+        m.inputs.push(port(3, "b", 8, Direction::In)); // feeds the flop D only
+        m.outputs.push(port(4, "y", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 8 }); // 1 = b (D side)
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 2 = Q of flop 0
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![0, 2], // a ^ Q
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(1), // D = b
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((4, 3)); // y <- a ^ Q
+
+        // b (node 1): reaches flop 0's D directly, no interior gate ⇒ empty path, sink "flop:0".
+        let b = &module_reach_path(&m, Some("node:1")).reach_path[0];
+        assert_eq!(b.depth, 0);
+        assert!(b.path.is_empty());
+        assert_eq!(b.sink.as_deref(), Some("flop:0"));
+
+        // Q (node 2): the chain xor(3) → y; does not cross back to b's flop.
+        let q = &module_reach_path(&m, Some("node:2")).reach_path[0];
+        assert_eq!(q.depth, 1);
+        assert_eq!(q.path.iter().map(|s| s.node).collect::<Vec<_>>(), vec![3]);
+        assert_eq!(q.path[0].op, "xor");
+        assert_eq!(q.sink.as_deref(), Some("y"));
+
+        // a (node 0): the chain xor(3) → y as well (a ^ Q drives y).
+        let a = &module_reach_path(&m, Some("node:0")).reach_path[0];
+        assert_eq!(a.depth, 1);
+        assert_eq!(a.sink.as_deref(), Some("y"));
+    }
+
+    /// A leaf that drives a boundary sink **directly** (no interior gate) ⇒ `depth 0`, empty `path`,
+    /// `sink` Some — the forward analog of `longest_path`'s 0-depth leaf-driven output.
+    #[test]
+    fn reach_path_leaf_directly_driving_an_output_is_zero_depth() {
+        let mut m = Module {
+            name: "pass".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.drives.push((1, 0)); // y <- a (directly, no gate)
+
+        let a = &module_reach_path(&m, Some("node:0")).reach_path[0];
+        assert_eq!(a.depth, 0);
+        assert!(a.path.is_empty());
+        assert_eq!(a.sink.as_deref(), Some("y"));
+        // Consistent with node_reach (a reaches y).
+        assert!(module_node_reach(&m, Some("node:0")).node_reach[0].fanout_targets > 0);
+    }
+
+    /// The descent picks the **longest** forward chain and `depth == path.len()`. Input `a` fans out
+    /// to a 1-gate path (`not → y1`) and a 2-gate path (`not → not → y2`); `reach_path(a)` follows
+    /// the length-2 path to `y2` (while `node_reach(a)` reaches *both* outputs).
+    #[test]
+    fn reach_path_picks_the_longest_chain_and_depth_equals_path_len() {
+        let mut m = Module {
+            name: "fan".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y1", 8, Direction::Out));
+        m.outputs.push(port(2, "y2", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 1 = ~a  (drives y1; 1-gate path)
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 2 = ~a  (feeds node 3)
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = ~(~a) (drives y2; the 2-gate path a→2→3)
+        m.drives.push((1, 1)); // y1 <- node 1
+        m.drives.push((2, 3)); // y2 <- node 3
+
+        let a = &module_reach_path(&m, Some("node:0")).reach_path[0];
+        assert_eq!(a.depth, 2);
+        assert_eq!(a.depth, a.path.len());
+        assert_eq!(
+            a.path.iter().map(|s| s.node).collect::<Vec<_>>(),
+            vec![2, 3]
+        );
+        assert_eq!(a.sink.as_deref(), Some("y2")); // the LONGER chain's sink, not y1
+                                                   // node_reach sees BOTH outputs (a set), reach_path picks the longest chain (one).
+        let nr = &module_node_reach(&m, Some("node:0")).node_reach[0];
+        assert_eq!(nr.reaches_outputs, vec!["y1", "y2"]);
+        assert!(node_reach_sink_set(nr).contains(a.sink.as_ref().unwrap()));
+    }
+
+    /// The tie-break is **smallest reader node id** (a total order ⇒ byte-stable). Input `a` fans out
+    /// to two equal-length 1-gate paths (`node 1 → y1`, `node 2 → y2`); the entry gate is the
+    /// smaller id (node 1 ⇒ sink `"y1"`). Also asserts serialized determinism.
+    #[test]
+    fn reach_path_tie_break_is_smallest_reader_id() {
+        let mut m = Module {
+            name: "tie".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y1", 8, Direction::Out));
+        m.outputs.push(port(2, "y2", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 1 = ~a (drives y1)
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 2 = ~a (drives y2)
+        m.drives.push((1, 1)); // y1 <- node 1
+        m.drives.push((2, 2)); // y2 <- node 2
+
+        let a = &module_reach_path(&m, Some("node:0")).reach_path[0];
+        assert_eq!(a.depth, 1);
+        assert_eq!(a.path[0].node, 1); // smaller reader id wins the tie
+        assert_eq!(a.sink.as_deref(), Some("y1"));
+
+        let x = serde_json::to_string(&module_reach_path(&m, None)).unwrap();
+        let y = serde_json::to_string(&module_reach_path(&m, None)).unwrap();
+        assert_eq!(x, y);
+    }
+
+    /// `target = None` ⇒ one `ReachPath` per node ascending node-id; an unknown target — a bad
+    /// string or an out-of-range `"node:<id>"` — ⇒ no result (→ `-32602` at the MCP layer).
+    #[test]
+    fn reach_path_none_lists_all_nodes_and_unknown_is_none() {
+        let mut m = Module {
+            name: "n".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 1 = ~a
+        m.drives.push((1, 1)); // y <- ~a
+
+        let all = module_reach_path(&m, None);
+        assert_eq!(all.reach_path.len(), 2);
+        assert_eq!(all.reach_path[0].node, 0);
+        assert_eq!(all.reach_path[1].node, 1);
+        // a (node 0): the 1-gate chain not(1) → y.
+        assert_eq!(all.reach_path[0].sink.as_deref(), Some("y"));
+        assert_eq!(
+            all.reach_path[0]
+                .path
+                .iter()
+                .map(|s| s.node)
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+        // the gate (node 1): its own 1-gate chain → y.
+        assert_eq!(all.reach_path[1].sink.as_deref(), Some("y"));
+
+        assert!(module_reach_path(&m, Some("node:999"))
+            .reach_path
+            .is_empty());
+        assert!(module_reach_path(&m, Some("nope")).reach_path.is_empty());
+    }
+
+    /// A `reach_path` document serializes the `reach_path` key and omits the other thirteen
+    /// `skip_serializing_if` query vecs (`results` is always present); a `node_reach` document omits
+    /// `reach_path`.
+    #[test]
+    fn reach_path_serialization_omits_the_other_query_vecs() {
+        let mut m = Module {
+            name: "s".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        });
+        m.drives.push((1, 1));
+        let json = serde_json::to_string(&module_reach_path(&m, Some("node:0"))).unwrap();
+        assert!(json.contains("\"reach_path\""));
+        for k in [
+            "\"reach_results\"",
+            "\"flop_provenance\"",
+            "\"module_reachability\"",
+            "\"flop_dependencies\"",
+            "\"memory_provenance\"",
+            "\"fsm_provenance\"",
+            "\"node_drivers\"",
+            "\"node_readers\"",
+            "\"instance_provenance\"",
+            "\"instance_input_bindings\"",
+            "\"longest_path\"",
+            "\"node_reach\"",
+        ] {
+            assert!(!json.contains(k), "reach_path doc must omit {k}");
+        }
+        let nr = serde_json::to_string(&module_node_reach(&m, Some("node:0"))).unwrap();
+        assert!(!nr.contains("\"reach_path\""));
+    }
+
+    /// The design variant operates on the named top; an absent top ⇒ an empty analysis.
+    #[test]
+    fn design_reach_path_top_module_and_absent_top() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.outputs.push(port(1, "y", 8, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        top.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 1 = ~a
+        top.drives.push((1, 1)); // y <- ~a
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let rp = design_reach_path(&design, Some("node:0"));
+        assert_eq!(rp.reach_path.len(), 1);
+        assert_eq!(rp.reach_path[0].sink.as_deref(), Some("y"));
+        assert_eq!(rp.reach_path[0].depth, 1);
+
+        let absent = Design {
+            top: "ghost".into(),
+            modules: design.modules.clone(),
+        };
+        let empty = design_reach_path(&absent, None);
+        assert_eq!(empty.query, QUERY_REACH_PATH);
+        assert!(empty.reach_path.is_empty());
     }
 }
