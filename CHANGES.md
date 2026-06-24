@@ -1,9 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.13b.1 — pure longest_path core
+
+**Landed as:** this commit (previous: `fd6739d`, `SEMANTIC-INTROSPECTION-EXPANSION.13a`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.13b.1`. **DUT
+byte-identical** (no IR / generator change; `analyze` is read-mostly, default-off; not wired to
+any emit path; `tests/snapshots.rs` untouched).
+
+**What.** The pure core of the twelfth derived `analyze` query, `longest_path`, in
+`src/introspect/analyze.rs` — **not** yet wired to the MCP surface (that, plus the schema bump,
+lands in `.13b.2`). Added:
+- `QUERY_LONGEST_PATH = "longest_path"` (+ doc) — **not** in `supported_query_kinds()` yet, so the
+  registry and the `run_analyze` dispatch never disagree (they join in `.13b.2`).
+- `LongestPath { target, depth, path: Vec<PathStep>, leaf: Option<NodeRef> }` +
+  `PathStep { node, op, width }` — every `PathStep` is a `Gate` (so `op` is always present, `kind`
+  implicitly `"gate"` omitted); the terminal leaf **reuses the existing `NodeRef`**
+  (full-factorization).
+- The TWELFTH parallel `DerivedAnalysis.longest_path` field
+  (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the eleven prior query documents
+  stay byte-identical).
+- `module_longest_path` / `design_longest_path` + the shared `longest_path_with` driver
+  (enumerates targets exactly like `support_cones_with`) + `build_longest_path` + the `node_depth`
+  helper + the `longest_path_analysis` constructor.
+- `longest_path: Vec::new()` appended to the 20 existing `DerivedAnalysis` literals (an
+  indentation-preserving regex insert: 19 empty-fills + the 1 `instance_input_bindings` shorthand).
+
+**Why / How.** `longest_path` is the **witness for `output_support`'s scalar `cone_depth`** and the
+**transitive complement to `node_drivers` (`.9`)** — the ordered chain of interior gates realizing
+the deepest fan-in path, which no prior query carries (a set or a 1-hop view, never an ordered
+transitive path). The derivation is two pure passes over the existing node graph: (1) a `node_depth`
+memo computing each node's max gate-depth — the **same recurrence `visit` returns as `cone_depth`**
+(so `depth == cone_depth` by construction); (2) a greedy descent from the root that, at each gate,
+descends into the operand of **maximum depth, ties broken by smallest operand node id**
+(`max_by(da.cmp(&db).then_with(|| b.cmp(&a)))` — a total order ⇒ a unique, byte-stable path),
+stopping at the first non-gate (the leaf, via `node_ref_of`). No IR field, no generator change (the
+`coverage_gaps` / `output_support` project-don't-recompute precedent). It is **structural
+gate-depth, NOT timing** (no delay model — the `0004`/`0011` structure-first ceiling).
+
+**Validation.** `cargo test --lib introspect::analyze` 84/0 (the 8 new `longest_path` proofs);
+`cargo test --lib` 708 passed / 0 failed / 2 ignored (exactly +8 from 700); `cargo test --test
+snapshots` 6/6 byte-identical (DUT `.sv` unchanged; `longest_path` omitted from the eleven prior
+documents); `cargo fmt --all --check` clean; `scripts/ram_guard.sh --threshold 90 -- cargo clippy
+--all-targets -- -D warnings` clean. The 8 proofs: the load-bearing **`depth == cone_depth`
+consistency proof**; the **deterministic tie-break proof** (equal-depth operands 2/3 ⇒ descend 2;
+a reversed tie-break would give 3/"b"); the **flop-Q boundary leaf** proof; the **design
+instance-output leaf** proof ("u0.o" vs the bare-module "u0.port1"); undriven ⇒ empty path + leaf
+None; None ⇒ one per output + unknown/bad-flop ⇒ none; serialization omits the other ten skip-vecs;
+determinism.
+
+**Impact.** No user-facing behaviour change yet (the query is not MCP-reachable until `.13b.2`); no
+CLI / knob / RTL change. DUT byte-identical.
+
+**Files touched.** `src/introspect/analyze.rs` (the pure core + types + 20 literal fill-ins + 8
+proofs), `CODEBASE_ANALYSIS.md` (the analyze.rs block — twelve query kinds + a `longest_path`
+block), `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` (the `.13b.1` leaf → done + frontier →
+`.13b.2` + table + Metadata), `docs/TASK_TREE.md` (the index-row frontier), `CHANGES.md` (this
+entry + the `.13a` landed hash), `MEMORY.md` (resume pointer).
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.13a — longest_path impl design-detail (the twelfth derived query)
 
-**Landed as:** this commit (previous: `ea28272`, `SEMANTIC-INTROSPECTION-EXPANSION.12b.2`).
+**Landed as:** `fd6739d` (previous: `ea28272`, `SEMANTIC-INTROSPECTION-EXPANSION.12b.2`).
 A **docs/design-only** change (no `src/` touched), task-tree-owned by
 `SEMANTIC-INTROSPECTION-EXPANSION.13a`. **DUT byte-identical** (no IR / generator / emit change).
 

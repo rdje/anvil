@@ -253,6 +253,36 @@ pub const QUERY_INSTANCE_PROVENANCE: &str = "instance_provenance";
 /// dispatched by the MCP `analyze` tool (`.12b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_INSTANCE_INPUT_BINDINGS: &str = "instance_input_bindings";
 
+/// The query-kind string for the twelfth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.13`): one representative **longest combinational
+/// fan-in path** of a target. For an output port (or a flop `D` cone addressed
+/// `"flop:<id>"`, the **same target namespace as [`QUERY_OUTPUT_SUPPORT`]**), it reports the
+/// ordered chain of interior [`Node::Gate`] nodes — each with its [`GateOp`] — from the
+/// target's driver down to a boundary leaf, the chain that **realizes the
+/// [`SupportCone::cone_depth`] `output_support` already reports as a scalar**. It is the
+/// **witness for that scalar depth** and the **transitive complement to
+/// [`QUERY_NODE_DRIVERS`]**: where `output_support` collapses the whole fan-in to its
+/// boundary leaves (recording neither the interior gates it passed through nor their ops)
+/// and `node_drivers` exposes only a single node's *immediate (1-hop)* operands,
+/// `longest_path` returns the full ordered chain of interior gates realizing the deepest
+/// path — genuinely new information no prior query carries (an ordered transitive path, not
+/// a set or a 1-hop view).
+///
+/// It is **structural gate-depth, NOT a timing critical path**: ANVIL has no delay model, so
+/// the "longest" path is the maximum count of `Gate` nodes on any fan-in chain (the exact
+/// quantity `cone_depth` reports), with no per-gate delay / wire-load / technology-mapping
+/// notion. It is named `longest_path` (not `critical_path`) to keep that honest — the
+/// `0004`/`0011` structure-first ceiling forbids a behavioural/timing oracle. By construction
+/// `longest_path(t).depth == output_support(t).cone_depth` for the same target (the path
+/// length **is** the cone depth — the two cannot drift). The path terminates at exactly the
+/// boundary leaves [`build_cone`]'s [`visit`] stops at (primary input / flop `Q` / instance
+/// output / `MemRead` / `FsmOut` / constant), resolved through the **same** [`node_ref_of`]
+/// helper. The eighth query beyond decision `0011`'s four named kinds (the lane's "open-ended
+/// breadth" clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_longest_path`] / [`design_longest_path`], dispatched by the MCP `analyze` tool
+/// (`.13b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_LONGEST_PATH: &str = "longest_path";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -357,6 +387,13 @@ pub struct DerivedAnalysis {
     /// `instance_input_bindings` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub instance_input_bindings: Vec<InstanceInputBindings>,
+    /// The [`QUERY_LONGEST_PATH`] payload: one [`LongestPath`] per resolved target. A
+    /// **twelfth** parallel vec, same rationale as the prior ten (`reach_results` …
+    /// `instance_input_bindings`): `skip_serializing_if` keeps the eleven prior query
+    /// documents byte-identical (the key is omitted unless this is a `longest_path`
+    /// analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub longest_path: Vec<LongestPath>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -775,6 +812,62 @@ pub struct InstanceInputBinding {
     pub driver: NodeRef,
 }
 
+/// One representative **longest combinational fan-in path** of a target — the
+/// [`QUERY_LONGEST_PATH`] payload. For an output port (or a flop `D` cone `"flop:<id>"`), the
+/// ordered chain of interior [`Node::Gate`] nodes from the target's driver down to a boundary
+/// leaf, the chain that **realizes the [`SupportCone::cone_depth`]** `output_support` reports
+/// as a scalar.
+///
+/// `path` is the interior-gate chain (each a [`PathStep`]), ordered from the **driver** (the
+/// root gate) toward the leaf — `path[i+1]` is the chosen operand of `path[i]`. `leaf` is the
+/// first **non-gate** node reached (a primary input / flop `Q` / instance output / `MemRead` /
+/// `FsmOut` / constant), resolved through the same [`node_ref_of`] helper, so the path stops at
+/// exactly the boundary leaves [`build_cone`]'s [`visit`] stops at. The chain is made unique
+/// (byte-stable) by a deterministic tie-break: at each gate, descend into the operand of
+/// **maximum gate-depth, ties broken by smallest operand node id**.
+///
+/// `depth == path.len() == output_support(target).cone_depth` by construction (the path length
+/// **is** the cone depth). For an output driven directly by a leaf, `path` is empty and `leaf`
+/// is that leaf (`depth = 0`); for an **undriven** target, `path` is empty and `leaf` is `None`
+/// (`depth = 0`). It is **structural gate-depth, NOT a timing critical path** (no delay model).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LongestPath {
+    /// The resolved target this path is for: an output **port name**, or `"flop:<id>"` for a
+    /// flop `D` cone (the [`SupportCone`] / `output_support` target namespace).
+    pub target: String,
+    /// The path's gate-depth: the number of interior `Gate` nodes on it (== `path.len()` ==
+    /// the [`SupportCone::cone_depth`] of the same target). `0` when the driver is itself a leaf
+    /// or the target is undriven.
+    pub depth: usize,
+    /// The interior-gate chain, ordered from the target's driver (root) toward the leaf. Each
+    /// step is a [`PathStep`] (a [`Node::Gate`] with its op). Empty iff the root is itself a
+    /// boundary leaf, or the target is undriven.
+    pub path: Vec<PathStep>,
+    /// The terminal boundary leaf the path ends at, as a resolved [`NodeRef`] (a primary input
+    /// name, a flop `"flop:<id>"`, an instance output `"<instance>.<port>"`, a memory
+    /// `"mem:<id>"`, an FSM `"fsm:<id>"`, or a constant `"node:<id>"`). `None` iff the target is
+    /// **undriven** (no root to walk from).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub leaf: Option<NodeRef>,
+}
+
+/// One interior gate on a [`LongestPath`]. Every step is a [`Node::Gate`] by construction (the
+/// path is the interior-gate chain; the terminal non-gate is the separate [`LongestPath::leaf`]),
+/// so `op` is always present and the node kind is implicitly `"gate"` (omitted — the minimal
+/// shape). The `node` id re-addresses the gate (`"node:<id>"`) for a follow-up
+/// [`QUERY_NODE_DRIVERS`] query.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PathStep {
+    /// The interior gate's node id (its index in [`Module::nodes`](Module); re-addressable as
+    /// `"node:<id>"`).
+    pub node: u32,
+    /// The gate's [`GateOp`] as a stable string (e.g. `"and"`, `"mux"`, `"slice"`) — the
+    /// [`NodeDrivers::op`] vocabulary. Always present (every `PathStep` is a `Gate`).
+    pub op: String,
+    /// The gate's bit width ([`Node::width`]).
+    pub width: u32,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -806,6 +899,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -847,6 +941,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -884,6 +979,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -963,6 +1059,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1000,6 +1097,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1039,6 +1137,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1121,6 +1220,7 @@ fn flop_dependencies_with(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1160,6 +1260,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1229,6 +1330,7 @@ fn memory_provenance_with(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1269,6 +1371,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1335,6 +1438,7 @@ fn fsm_provenance_with(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1374,6 +1478,7 @@ pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnal
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1441,6 +1546,7 @@ fn node_drivers_with(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1481,6 +1587,7 @@ pub fn design_node_readers(design: &Design, target: Option<&str>) -> DerivedAnal
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
+            longest_path: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1564,6 +1671,7 @@ fn node_readers_with(
         node_readers,
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1672,6 +1780,7 @@ fn instance_provenance_analysis(instance_provenance: Vec<InstanceProvenance>) ->
         node_readers: Vec::new(),
         instance_provenance,
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -1795,6 +1904,182 @@ fn instance_input_bindings_analysis(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings,
+        longest_path: Vec::new(),
+    }
+}
+
+/// Compute the `longest_path` analysis for a single [`Module`]: one representative longest
+/// combinational fan-in [`LongestPath`] per resolved target.
+///
+/// `target = None` ⇒ one path per output port, in declaration order (the
+/// [`module_support_cones`] convention). `target = Some("<output port name>")` /
+/// `Some("flop:<id>")` ⇒ that one target's longest path (a resolvable-but-undriven target ⇒
+/// one result with empty `path` + `leaf: None`); any other string ⇒ no result (→ `-32602` at
+/// the MCP layer). Instance-output leaves are named `"<instance>.port<id>"` here; use
+/// [`design_longest_path`] for fully-resolved child port names.
+pub fn module_longest_path(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    longest_path_with(m, target, &fmt)
+}
+
+/// Compute the `longest_path` analysis for the **top** module of a [`Design`], resolving each
+/// terminal instance-output leaf to its `"<instance>.<child-output-port-name>"` form. Returns
+/// an empty analysis when the named top module is absent. (Like the other gate-graph queries
+/// this operates on the top module; per-child-module longest paths are a future extension.)
+pub fn design_longest_path(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return longest_path_analysis(Vec::new());
+    };
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    longest_path_with(top, target, &fmt)
+}
+
+/// Shared driver for [`module_longest_path`] / [`design_longest_path`]: enumerate the requested
+/// target(s) exactly like [`support_cones_with`] (one per output port for `None`, else the one
+/// resolved target), and build each [`LongestPath`] via [`build_longest_path`]. Pure: reads the
+/// existing node graph only, no IR/generator change.
+fn longest_path_with(
+    m: &Module,
+    target: Option<&str>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> DerivedAnalysis {
+    let mut paths: Vec<LongestPath> = Vec::new();
+    match target {
+        None => {
+            // One path per output port, in declaration order (deterministic).
+            for p in &m.outputs {
+                let root = driver_of_port(m, p.id);
+                paths.push(build_longest_path(m, p.name.clone(), root, fmt));
+            }
+        }
+        Some(t) => {
+            // An explicit, resolvable target yields exactly one path; an unresolvable
+            // target yields none (→ `-32602` at the MCP layer).
+            if let Some((canonical, root)) = resolve_target(m, t) {
+                paths.push(build_longest_path(m, canonical, root, fmt));
+            }
+        }
+    }
+    longest_path_analysis(paths)
+}
+
+/// Build one [`LongestPath`] for `target`, rooted at `root` (the driving node, or `None` for
+/// an undriven target ⇒ an empty path with no leaf).
+///
+/// Two pure passes over the existing graph:
+/// 1. [`node_depth`] — the memoized max gate-depth of every node reachable from `root` (the
+///    **same recurrence** [`visit`] returns as `cone_depth`).
+/// 2. A greedy descent from `root`: at each [`Node::Gate`] push a [`PathStep`] and descend into
+///    the operand of **maximum depth, ties broken by smallest operand node id** (a total order ⇒
+///    a unique, byte-stable path); stop at the first non-gate ⇒ that node is the `leaf`.
+///
+/// By construction `path.len() == node_depth(root) == output_support(target).cone_depth`. A
+/// malformed operand-less `Gate` is a path terminus with `leaf: None` (well-formed IR never
+/// produces one).
+fn build_longest_path(
+    m: &Module,
+    target: String,
+    root: Option<NodeId>,
+    fmt: &dyn Fn(InstanceId, PortId) -> String,
+) -> LongestPath {
+    let Some(root) = root else {
+        // Undriven target: nothing to walk.
+        return LongestPath {
+            target,
+            depth: 0,
+            path: Vec::new(),
+            leaf: None,
+        };
+    };
+    // Pass 1: max gate-depth per node (mirrors `visit`'s depth recurrence exactly).
+    let mut depth_memo: HashMap<NodeId, usize> = HashMap::new();
+    node_depth(m, root, &mut depth_memo);
+    // Pass 2: greedy max-depth descent, deterministic tie-break (smallest operand node id).
+    let mut path: Vec<PathStep> = Vec::new();
+    let mut cur = root;
+    let leaf = loop {
+        match m.nodes.get(cur as usize) {
+            Some(Node::Gate {
+                op,
+                operands,
+                width,
+                ..
+            }) => {
+                path.push(PathStep {
+                    node: cur,
+                    op: gate_op_str(op).to_string(),
+                    width: *width,
+                });
+                // Choose the operand with the greatest gate-depth; on a tie, the
+                // SMALLEST node id — a total order, so the path is unique + byte-stable.
+                let next = operands.iter().copied().max_by(|&a, &b| {
+                    let da = depth_memo.get(&a).copied().unwrap_or(0);
+                    let db = depth_memo.get(&b).copied().unwrap_or(0);
+                    da.cmp(&db).then_with(|| b.cmp(&a))
+                });
+                match next {
+                    Some(n) => cur = n,
+                    // Malformed operand-less gate: terminus, no boundary leaf.
+                    None => break None,
+                }
+            }
+            // A boundary leaf (primary input / flop Q / instance output / mem / fsm /
+            // constant): the path stops here, exactly as `visit` stops the cone.
+            Some(_) => break Some(node_ref_of(m, cur, fmt)),
+            // Defensive: a dangling node id (a well-formed IR never has one).
+            None => break None,
+        }
+    };
+    LongestPath {
+        target,
+        depth: path.len(),
+        path,
+        leaf,
+    }
+}
+
+/// The memoized max **gate-depth** of node `n`: `0` for a leaf, `1 + max(child depths)` for a
+/// [`Node::Gate`] — the **same recurrence** [`visit`] returns as `SupportCone::cone_depth`, with
+/// the leaf-collection side effects dropped. Memoization makes a shared DAG node O(1) on revisit;
+/// the combinational fan-in is a DAG by construction (flops / instances / memories / FSMs break
+/// every cycle — the boundaries `visit` stops at), so the recursion terminates.
+fn node_depth(m: &Module, n: NodeId, memo: &mut HashMap<NodeId, usize>) -> usize {
+    if let Some(&d) = memo.get(&n) {
+        return d;
+    }
+    let depth = match m.nodes.get(n as usize) {
+        Some(Node::Gate { operands, .. }) => {
+            let operands = operands.clone();
+            let mut max_child = 0;
+            for op in operands {
+                max_child = max_child.max(node_depth(m, op, memo));
+            }
+            1 + max_child
+        }
+        // A leaf (or a dangling/operand-less node) has gate-depth 0.
+        _ => 0,
+    };
+    memo.insert(n, depth);
+    depth
+}
+
+/// Wrap a `longest_path` result vec in a [`DerivedAnalysis`] (the `query`-discriminated
+/// document; the other eleven payload vecs empty).
+fn longest_path_analysis(longest_path: Vec<LongestPath>) -> DerivedAnalysis {
+    DerivedAnalysis {
+        query: QUERY_LONGEST_PATH.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
+        node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
+        longest_path,
     }
 }
 
@@ -1935,6 +2220,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -2004,6 +2290,7 @@ fn support_cones_with(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -2080,6 +2367,7 @@ fn input_reach_with(
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
     }
 }
 
@@ -5188,6 +5476,319 @@ mod tests {
         };
         let a = serde_json::to_string(&design_instance_input_bindings(&design, None)).unwrap();
         let b = serde_json::to_string(&design_instance_input_bindings(&design, None)).unwrap();
+        assert_eq!(a, b);
+    }
+
+    // ----- longest_path (.13b.1) -----
+
+    /// The load-bearing consistency proof: `longest_path(t).depth ==
+    /// output_support(t).cone_depth`, the path is ordered root→leaf, and the deterministic
+    /// tie-break (smallest operand id) picks the input `"a"` leaf. `y = (a & b) | c`.
+    #[test]
+    fn longest_path_realizes_the_output_support_cone_depth() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.inputs.push(port(2, "c", 8, Direction::In));
+        m.outputs.push(port(3, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = b
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 2 = c
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a & b
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![3, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 4 = (a&b) | c
+        m.drives.push((3, 4)); // y <- node 4
+
+        let lp = module_longest_path(&m, Some("y"));
+        assert_eq!(lp.query, QUERY_LONGEST_PATH);
+        assert_eq!(lp.longest_path.len(), 1);
+        let p = &lp.longest_path[0];
+        assert_eq!(p.target, "y");
+        // depth equals the output_support cone_depth for the same target (cannot drift).
+        let cone = module_support_cones(&m, Some("y"));
+        assert_eq!(p.depth, cone.results[0].cone_depth);
+        assert_eq!(p.depth, 2);
+        // ordered root→leaf: Or (node 4) then And (node 3), each with its op.
+        assert_eq!(p.path.len(), 2);
+        assert_eq!(p.path[0].node, 4);
+        assert_eq!(p.path[0].op, "or");
+        assert_eq!(p.path[0].width, 8);
+        assert_eq!(p.path[1].node, 3);
+        assert_eq!(p.path[1].op, "and");
+        // tie-break at the And (operands [0,1], equal depth) → smallest id 0 = "a".
+        let leaf = p.leaf.as_ref().expect("a driven path has a leaf");
+        assert_eq!(leaf.node, 0);
+        assert_eq!(leaf.kind, "primary_input");
+        assert_eq!(leaf.name, "a");
+    }
+
+    /// The tie-break is **smallest operand node id**, not largest: a root gate with two
+    /// equal-depth operand gates (ids 2 and 3) descends into node 2, and the inner tie (0 vs 1)
+    /// picks input `"a"`. A reversed tie-break would yield node 3 / leaf `"b"`.
+    #[test]
+    fn longest_path_tie_break_picks_the_smallest_operand_id() {
+        let mut m = Module {
+            name: "tie".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.outputs.push(port(9, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = b
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 2 = a & b (depth 1)
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a | b (depth 1)
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![2, 3],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 4 = (a&b) ^ (a|b) (depth 2)
+        m.drives.push((9, 4)); // y <- node 4
+
+        let p = &module_longest_path(&m, Some("y")).longest_path[0];
+        assert_eq!(p.depth, 2);
+        assert_eq!(p.path[0].node, 4); // xor (root)
+        assert_eq!(p.path[1].node, 2); // tie 2 vs 3 (both depth 1) → 2 (smaller)
+        assert_eq!(p.path[1].op, "and");
+        assert_eq!(p.leaf.as_ref().unwrap().name, "a"); // inner tie 0 vs 1 → 0
+    }
+
+    /// The path stops at a register boundary: an output whose deepest chain ends at a flop `Q`
+    /// reports that `Q` as the terminal leaf (`"flop:<id>"`), exactly where `visit` stops the
+    /// cone. `y = a | (Q & Q)`; the `Q` side (depth 2) wins over `a` (depth 0).
+    #[test]
+    fn longest_path_terminates_at_a_flop_q_boundary() {
+        let mut m = Module {
+            name: "seq".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "a", 8, Direction::In));
+        m.outputs.push(port(9, "y", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 0 = a
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 1 = Q of flop 0
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![1, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 2 = Q & Q (depth 1)
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![0, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a | (Q&Q) (depth 2)
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((9, 3)); // y <- node 3
+
+        let p = &module_longest_path(&m, Some("y")).longest_path[0];
+        // depth still equals the output_support cone_depth.
+        assert_eq!(
+            p.depth,
+            module_support_cones(&m, Some("y")).results[0].cone_depth
+        );
+        assert_eq!(p.depth, 2);
+        assert_eq!(p.path[0].node, 3); // or
+        assert_eq!(p.path[1].node, 2); // and (depth 1 > a's depth 0)
+        let leaf = p.leaf.as_ref().unwrap();
+        assert_eq!(leaf.kind, "flop_q");
+        assert_eq!(leaf.name, "flop:0");
+    }
+
+    /// A design `longest_path` resolves a terminal instance-output leaf to its child port name
+    /// (`"u0.o"`); the bare-module variant degrades the unresolvable child port to `"u0.port1"`.
+    #[test]
+    fn design_longest_path_terminates_at_an_instance_output_leaf() {
+        let child = ip_child("c"); // output "o" = port 1
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.outputs.push(port(9, "y", 8, Direction::Out));
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 1,
+            width: 8,
+        }); // 0 = u0.o
+        top.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 1 = io & io (depth 1)
+        top.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        top.drives.push((9, 1)); // y <- node 1
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+
+        let p = &design_longest_path(&design, Some("y")).longest_path[0];
+        assert_eq!(p.depth, 1);
+        assert_eq!(p.path[0].node, 1);
+        let leaf = p.leaf.as_ref().unwrap();
+        assert_eq!(leaf.kind, "instance_output");
+        assert_eq!(leaf.name, "u0.o"); // resolved via the child def
+
+        // The bare-module variant cannot name the child port → "u0.port1".
+        let top_only = &design.modules[0];
+        let pm = &module_longest_path(top_only, Some("y")).longest_path[0];
+        assert_eq!(pm.leaf.as_ref().unwrap().name, "u0.port1");
+    }
+
+    /// A resolvable but **undriven** output yields one result with an empty path + `leaf: None`,
+    /// `depth: 0` — known-but-empty, NOT an error.
+    #[test]
+    fn longest_path_undriven_target_is_known_but_empty() {
+        let mut m = Module {
+            name: "u".into(),
+            ..Module::default()
+        };
+        m.outputs.push(port(0, "y", 8, Direction::Out)); // declared, never driven
+        let lp = module_longest_path(&m, Some("y"));
+        assert_eq!(lp.longest_path.len(), 1);
+        let p = &lp.longest_path[0];
+        assert_eq!(p.target, "y");
+        assert_eq!(p.depth, 0);
+        assert!(p.path.is_empty());
+        assert!(p.leaf.is_none());
+    }
+
+    /// `target = None` ⇒ one `LongestPath` per output in declaration order (incl. an undriven
+    /// one); an unknown target — a bad name or a `"flop:<id>"` with no such flop — ⇒ no result
+    /// (→ `-32602` at the MCP layer).
+    #[test]
+    fn longest_path_none_lists_all_outputs_and_unknown_is_none() {
+        let mut m = Module {
+            name: "two".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "driven", 8, Direction::Out));
+        m.outputs.push(port(2, "undriven", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.drives.push((1, 0)); // driven <- a (a leaf root)
+
+        let all = module_longest_path(&m, None);
+        assert_eq!(all.longest_path.len(), 2);
+        assert_eq!(all.longest_path[0].target, "driven");
+        assert_eq!(all.longest_path[0].depth, 0); // a is a leaf root
+        assert_eq!(all.longest_path[0].leaf.as_ref().unwrap().name, "a");
+        assert!(all.longest_path[0].path.is_empty());
+        assert_eq!(all.longest_path[1].target, "undriven");
+        assert!(all.longest_path[1].leaf.is_none());
+        // unknown targets ⇒ no result.
+        assert!(module_longest_path(&m, Some("nope"))
+            .longest_path
+            .is_empty());
+        assert!(module_longest_path(&m, Some("flop:7"))
+            .longest_path
+            .is_empty());
+    }
+
+    /// A `longest_path` document serializes the `longest_path` key and omits the other ten
+    /// `skip_serializing_if` query vecs (`results` is always present); an `output_support`
+    /// document omits `longest_path`.
+    #[test]
+    fn longest_path_serialization_omits_the_other_query_vecs() {
+        let mut m = Module {
+            name: "s".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        });
+        m.drives.push((1, 1));
+        let json = serde_json::to_string(&module_longest_path(&m, Some("y"))).unwrap();
+        assert!(json.contains("\"longest_path\""));
+        for k in [
+            "\"reach_results\"",
+            "\"flop_provenance\"",
+            "\"module_reachability\"",
+            "\"flop_dependencies\"",
+            "\"memory_provenance\"",
+            "\"fsm_provenance\"",
+            "\"node_drivers\"",
+            "\"node_readers\"",
+            "\"instance_provenance\"",
+            "\"instance_input_bindings\"",
+        ] {
+            assert!(!json.contains(k), "longest_path doc must omit {k}");
+        }
+        let oc = serde_json::to_string(&module_support_cones(&m, Some("y"))).unwrap();
+        assert!(!oc.contains("\"longest_path\""));
+    }
+
+    /// Identical inputs ⇒ identical serialized output (byte-stable).
+    #[test]
+    fn longest_path_is_deterministic() {
+        let mut m = Module {
+            name: "d".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.outputs.push(port(9, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        });
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![2, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        });
+        m.drives.push((9, 3));
+        let a = serde_json::to_string(&module_longest_path(&m, None)).unwrap();
+        let b = serde_json::to_string(&module_longest_path(&m, None)).unwrap();
         assert_eq!(a, b);
     }
 }

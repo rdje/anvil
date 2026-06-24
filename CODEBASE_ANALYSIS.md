@@ -1326,10 +1326,10 @@ src/
 │                     proofs (incl. the cross-boundary descent proof) + 2 mcp proofs;
 │                     DUT byte-identical. The
 │                     parallel-vec pattern
-│                     now carries eleven query kinds (`results`/`reach_results`/
+│                     now carries twelve query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
 │                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`/
-│                     `instance_provenance`/`instance_input_bindings`),
+│                     `instance_provenance`/`instance_input_bindings`/`longest_path`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
 │                     **`instance_input_bindings`** (`.12b.1`, the ELEVENTH derived
 │                     query, the **parent-side dual of `instance_provenance`** — the
@@ -1350,6 +1350,24 @@ src/
 │                     enum + schema `1.23 → 1.24`; 8 in-crate proofs (incl. the
 │                     cross-boundary binding proof + the non-degenerate module-variant
 │                     proof) + 2 mcp proofs; DUT byte-identical.
+│                     **`longest_path`** (`.13b.1`, the TWELFTH derived query — the
+│                     **witness for `output_support`'s scalar `cone_depth`** + the
+│                     **transitive complement to `node_drivers`**): for a target (an
+│                     output port / `"flop:<id>"`, the `output_support` namespace), one
+│                     representative LONGEST combinational fan-in path —
+│                     `LongestPath { target, depth, path: Vec<PathStep { node, op, width }>,
+│                     leaf: Option<NodeRef> }` (every `PathStep` a `Gate`; the terminal
+│                     leaf reuses `NodeRef`). `module_longest_path` / `design_longest_path`
+│                     + the shared `longest_path_with` driver + `build_longest_path` (two
+│                     pure passes — a `node_depth` memo = the recurrence `visit` returns,
+│                     then a greedy max-child-depth descent, ties → smallest operand node
+│                     id ⇒ a unique byte-stable path) + the `node_depth` helper + the
+│                     `longest_path_analysis` constructor. Structural gate-depth NOT timing;
+│                     the provable `longest_path(t).depth == output_support(t).cone_depth`.
+│                     **Not wired to the MCP surface yet** (joins `supported_query_kinds()`
+│                     + the `run_analyze` dispatch + schema `1.24 → 1.25` in `.13b.2`); 8
+│                     in-crate proofs (incl. the depth==cone_depth consistency proof + the
+│                     deterministic tie-break proof). DUT byte-identical.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {
