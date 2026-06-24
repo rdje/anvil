@@ -1,9 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.15a — reach_path design-detail
+
+**Landed as:** this commit (previous: `7803713`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`).
+A **docs/design-only** change (no `src/`), task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.15a`.
+**DUT byte-identical** (no IR / generator / analyze change). **Opens `.15` `reach_path`** — the
+**fourteenth** derived `analyze` query and the **forward-transitive witness**.
+
+**What.** Opened `.15` and landed its design-detail leaf `.15a`:
+- `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`: added `.15` to the root Children; added the
+  `.15` container + `.15a` (done) + `.15b`/`.15b.1`/`.15b.2` (pending) leaf entries; set the Current
+  Frontier to `.15b.1` with the `.15a` summary row; refreshed the Metadata Status + Last-updated.
+- `DEVELOPMENT_NOTES.md`: a design-detail entry resolving Q1–Q5 grounded in the real
+  `Module`/`Node`/`Flop` IR + the `node_reach_with` reader-index transpose / `build_longest_path`
+  greedy descent / `node_depth` memo / `driver_of_port` / `node_ref_of` / `gate_op_str` code in
+  `analyze.rs`.
+
+**Why.** `reach_path` is the **forward complement to `longest_path` (`.13`)** (the backward fan-in
+witness) and the **path-witness for `node_reach` (`.14`)** (the forward fan-out *set*): `node_reach`
+reports *which* boundary sinks a node reaches; `reach_path` reports the longest gate-chain *to* one
+of them — exactly as `longest_path` is the chain realizing `output_support`'s scalar `cone_depth`. It
+completes the {set, witness} × {fan-in, fan-out} square. Single-endpoint `"node:<id>"` (the
+`node_reach` namespace ⇒ no MCP signature change); the `sink` is expressed in the existing
+`output_support`/`longest_path` target namespace (`"o_x"` / `"flop:<id>"`), so `reach_path(n).sink`
+chains straight into `longest_path`/`output_support`. SCHEMA-DERIVED / structure-first (a pure
+forward greedy descent over a sink-aware height memo, not behaviour); provably
+`reach_path(n).sink.is_some() ⟺ node_reach(n).fanout_targets > 0` and `depth == path.len()`.
+
+**Result shape.** A fourteenth parallel `reach_path: Vec<ReachPath>` vec on `DerivedAnalysis`
+(`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the thirteen prior documents
+byte-identical); `ReachPath { node, depth, path: Vec<PathStep>, sink: Option<String> }` —
+**reusing `PathStep`**; the forward mirror of `LongestPath { target, depth, path, leaf }`
+(`target → node`, `leaf:NodeRef → sink:String`); no new leaf/step type. Schema `1.26 → 1.27` at impl
+(`.15b.2`).
+
+**Validation.** Docs/design only ⇒ no `src/` touched ⇒ `cargo` checks unaffected; DUT byte-identical.
+`bash scripts/check_doctrines.sh` green (code-scoped `CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP`
+exempt for a non-code commit; `MEMORY-ARCH` + `KNOWLEDGE-MAP` pass).
+
+**Impact.** Opens the `.15` lane; no behaviour change. Pre-split `.15b` → `.15b.1` (pure core) +
+`.15b.2` (surface). No new numbered decision (decision `0011` governs; the `.3a`–`.14a` precedent).
+
+**Files touched.** `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`, `docs/TASK_TREE.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.14b.2 — node_reach MCP surface + schema 1.26
 
-**Landed as:** this commit (previous: `6eab0bf`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`).
+**Landed as:** `7803713` (previous: `6eab0bf`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`).
 A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`. **DUT
 byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
 `tests/snapshots.rs` untouched). **Closes `.14b`/`.14` — `node_reach` delivered end-to-end** (the

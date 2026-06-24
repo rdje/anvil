@@ -5,6 +5,127 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-24 — Semantic introspection — `reach_path` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.15a`
+
+Design-detail leaf for `.15` — the **fourteenth** derived query, `reach_path`: for a start node
+addressed `"node:<id>"`, one representative **longest combinational fan-OUT path** — the ordered
+chain of interior `Gate` nodes (each a `PathStep` with its `GateOp`) from the node *forward* to a
+boundary **sink** (an output port, or a flop `D` addressed `"flop:<id>"`). Docs-only (no source).
+The **tenth query beyond decision `0011`'s four named kinds** (after `flop_dependencies` `.6`,
+`memory_provenance` `.7`, `fsm_provenance` `.8`, `node_drivers` `.9`, `node_readers` `.10`,
+`instance_provenance` `.11`, `instance_input_bindings` `.12`, `longest_path` `.13`, and `node_reach`
+`.14`), again under the lane's documented *"further derived-query kinds are open-ended breadth"*
+clause — strictly under decision `0011`'s API and the `0004`/`0011` SCHEMA-DERIVED / structure-first
+ceiling (a **relation** over the construction graph, never behaviour). It follows the per-query
+design-detail precedent (`.3a`–`.14a`): no new numbered decision record; decision `0011` already
+governs the surface.
+
+**Genuinely-new framing — it is the forward-transitive WITNESS, the last missing path corner.**
+The introspection surface now pairs two *set* queries with two *witness-path* queries:
+
+| | fan-in (backward) | fan-out (forward) |
+|---|---|---|
+| **transitive SET** | `output_support` `.1`/`.2` | `node_reach` `.14` (which sinks) |
+| **witness PATH** | `longest_path` `.13` (the chain realizing `cone_depth`) | **`reach_path` `.15` ← this** |
+
+`node_reach` answers *which* boundary sinks a node reaches; `reach_path` answers *the longest
+gate-chain to one of them* — exactly as `longest_path` is the gate-chain realizing the scalar
+`output_support.cone_depth`. So `reach_path` is the **forward complement to `longest_path`** and the
+**path-witness for `node_reach`**; it completes the {set, witness} × {fan-in, fan-out} square.
+
+**Q1 — result shape.** A **fourteenth** parallel vec `reach_path: Vec<ReachPath>` on
+`DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the thirteen prior
+query documents stay byte-identical). `ReachPath { node: u32, depth: usize, path: Vec<PathStep>,
+sink: Option<String> }`. It **reuses the existing `PathStep`** (`{ node, op, width }`, every step a
+`Gate` — the `longest_path` step type) and expresses `sink` in the existing
+`output_support`/`longest_path` **target namespace** (an output port name, or `"flop:<id>"`), so no
+new leaf/step type is added. It is the **forward mirror of `LongestPath { target, depth, path, leaf:
+Option<NodeRef> }`**: the queried `target` becomes the queried `node`; the terminal fan-in
+`leaf: NodeRef` (a single IR node) becomes the terminal fan-out `sink: String`. Why `String` not
+`NodeRef`: a fan-out boundary is an output port (a port, not a node) or a flop `D`-sink (the flop,
+not the driving gate) — neither is one IR node, and the target string is precisely how an agent
+re-addresses it for a follow-up `longest_path`/`output_support` query (`reach_path(n).sink` chains
+straight in). `sink: None` ⟺ the node reaches no boundary sink.
+
+**Q2 — derivation (the forward mirror of `build_longest_path`/`node_depth`).** Two pure passes:
+1. Build the **reader index** by transposing operands — the *same* `BTreeMap<u32, BTreeSet<u32>>`
+   pass `node_readers_with`/`node_reach_with` build.
+2. A **sink-aware forward gate-height** memo, `gate_reach_height(g)` = the number of gates on the
+   longest forward gate-chain from gate `g` to a gate that drives a boundary sink (inclusive of
+   `g`); `0` ⟺ `g` reaches no sink (≡ `node_reach(g).fanout_targets == 0`). Recurrence: let
+   `cont = max over reader-gate r of gate_reach_height(r)` (the longest sink-reaching continuation);
+   `gate_reach_height(g) = if cont > 0 { 1 + cont } else if drives_sink(g) { 1 } else { 0 }`.
+   Memoized; the reader graph is a **DAG** — flops / instances / memories / FSMs are non-`Gate`
+   leaves, so they contribute no reader edge (the register boundary that breaks every cycle), hence
+   the recursion terminates. (`cont > 0` always wins over the local `drives_sink` option because a
+   continuation through a reader is `1 + cont ≥ 2 > 1` — so the descent strictly decreases height.)
+
+The greedy **forward descent** from the start node's entry gate (height `h ≥ 1`): push a `PathStep`
+for `cur`; if `h == 1` terminate — `cur` drives a sink (by construction `cont == 0 ∧ drives_sink`),
+record `pick_sink(cur)`; else step to the reader gate `r` with `gate_reach_height(r) == h - 1`,
+**ties broken by smallest reader node id** (a total order ⇒ a unique byte-stable path — the forward
+mirror of `longest_path`'s smallest-operand-id tie-break).
+
+`pick_sink(n)` (the single representative sink a node `n` drives, deterministic): the
+lexicographically-smallest output **port name** whose driver is `n` (`driver_of_port` over
+`m.outputs`), else `"flop:<id>"` for the smallest flop id whose `d == n` (`m.flops`), else `None`.
+The **same** helper answers both the terminal-gate case and the leaf-direct case below.
+
+Start-node handling:
+- **`S` is a `Gate`:** entry gate = `S`, `depth = gate_reach_height(S)`. `0` ⇒ empty path, `sink =
+  None` (reaches nothing — folded into `drives_sink ⊂ gate_reach_height`, so no separate check).
+- **`S` is a leaf** (`PrimaryInput`/`Constant`/`FlopQ`/`MemRead`/`FsmOut`/`InstanceOutput`): the path
+  is downstream gates only. `contH = max over reader-gate r of gate_reach_height(r)`. If `contH > 0`
+  ⇒ entry gate = the reader gate of max height (tie → smallest id), `depth = contH`. Else `S` may
+  **directly** drive a sink (it is some output's driver, or some flop's `D`) ⇒ `depth = 0`, empty
+  `path`, `sink = pick_sink(S)`; else `sink = None`. (A leaf-to-output direct drive — `assign o =
+  i;` — is the forward analog of `longest_path`'s 0-depth undriven case, except here a `sink` is
+  still recorded.)
+
+**No graph mutation, no IR field, no generator change** — `reach_path` reads `m.nodes` /
+`m.outputs` / `m.drives` / `m.flops` + the operand graph only (the exact `node_reach` read set,
+plus the `build_longest_path` descent shape). Pure post-hoc.
+
+**Q3 — addressing + sink boundary.** `"node:<id>"` (the `node_drivers`/`node_readers`/`node_reach`
+namespace ⇒ **no MCP signature change**, single `target`). `None` ⇒ one `ReachPath` per node
+ascending id; a node that reaches no sink ⇒ known-but-empty (`depth 0`, empty `path`, `sink None`);
+a non-`"node:<id>"` target or an out-of-range id ⇒ no result ⇒ `-32602`. The sink boundary is
+**symmetric with `node_reach`/`input_reach`**: output ports + flop `D`s only — *not* child-instance
+inputs (a node feeding only an instance input reaches no sink here; chain `instance_input_bindings`
+→ `instance_provenance` to cross the module boundary).
+
+**Q4 — module-vs-design.** **Real in both** (the `node_reach`/`longest_path` pattern). One module's
+node graph; the sinks are plain output-port names + flop ids and `PathStep` carries node ids + ops,
+so — like `node_reach`, unlike `node_drivers`/`node_readers` — **no instance-leaf `fmt` closure is
+needed**. `design_reach_path` walks the design's top module; a missing top ⇒ empty analysis.
+
+**Q5 — consistency + schema.** Provable cross-query invariants (the witness story):
+- `reach_path(n).depth == reach_path(n).path.len()` (always).
+- `reach_path(n).sink.is_some() ⟺ node_reach(n).fanout_targets > 0` — the **headline cross-check**
+  (a node has a forward path to a sink iff it reaches ≥ 1 sink), the forward analog of
+  `longest_path(t).depth == output_support(t).cone_depth`.
+- the chosen `sink` is a member of `node_reach(n)`'s sink set: `sink ∈ reaches_outputs ∪ { "flop:f"
+  : f ∈ reaches_flops }`.
+- every `path[i]` lists `path[i-1]` (or, for `path[0]`, the start node) as a direct operand — a
+  genuine reader edge; the last `path` gate drives `sink`.
+
+Deliberate **asymmetry vs `longest_path`**: `node_reach` carries no forward *depth* scalar (it is a
+set + count), so `reach_path.depth` has no existing scalar to equate — the witness instead validates
+the `sink`-membership + `sink.is_some() ⟺ fanout_targets > 0` cross-checks. It is **structural
+gate-depth, NOT timing** (no delay model — the `0004`/`0011` structure-first ceiling; the
+`longest_path` honesty boundary). Additive **MINOR** schema bump `1.26 → 1.27`, envelope reused,
+default-off / DUT byte-identical.
+
+Pre-split `.15b` → `.15b.1` (the pure core + the `ReachPath` type + the fourteenth `reach_path:
+Vec::new()` fill-ins + lib proofs incl. the `sink.is_some() ⟺ node_reach.fanout_targets > 0`
+cross-check + the register-boundary + the leaf-start/direct-sink + the deterministic tie-break
+proofs; **not** in `supported_query_kinds()` yet) + `.15b.2` (the surface: registry + `run_analyze`
+dispatch in one commit + schema `1.26 → 1.27` + the `analyze_schema` enum + schema-doc / book /
+USER_GUIDE / README / TOOLBOX / KM + an e2e `anvil-mcp` smoke with a live `reach_path.sink ⟺
+node_reach.fanout` cross-check).
+
+---
+
 ## 2026-06-24 — Semantic introspection — `node_reach` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.14a`
 
 Design-detail leaf for `.14` — the **thirteenth** derived query, `node_reach`: for a target node
