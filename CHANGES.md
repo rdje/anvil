@@ -1,9 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.14b.1 — node_reach pure core
+
+**Landed as:** this commit (previous: `a675263`, `SEMANTIC-INTROSPECTION-EXPANSION.14a`).
+A **code** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`. **DUT
+byte-identical** (no IR / generator change; `analyze.rs` is read-mostly, not wired to any emit
+path; `tests/snapshots.rs` untouched). The pure core of the **thirteenth** derived `analyze`
+query, `node_reach`; **not yet** wired to the MCP surface (that is `.14b.2`).
+
+**What.** Added the pure `node_reach` core to `src/introspect/analyze.rs`:
+- `QUERY_NODE_REACH = "node_reach"`.
+- `NodeReach { node: u32, kind: String, op: Option<String>, width: u32, reaches_outputs:
+  Vec<String>, reaches_flops: Vec<u32>, fanout_targets: usize }` — the node-family header
+  (field-for-field with `NodeReaders`) + the `ReachResult` payload (no new leaf type).
+- The thirteenth `DerivedAnalysis.node_reach` field (`#[serde(default, skip_serializing_if =
+  "Vec::is_empty")]` ⇒ the twelve prior query documents stay byte-identical).
+- `module_node_reach` / `design_node_reach` + the shared `node_reach_with` driver (transpose
+  operands → a reader index — the same pass `node_readers_with` builds; forward-closure BFS from
+  the target node; classify sinks = output ports whose driver ∈ closure via
+  `driver_of_port`/`m.outputs` + flops whose `D` ∈ closure via `m.flops`) + the
+  `node_reach_analysis` constructor.
+- The 21 existing `DerivedAnalysis` literals gained `node_reach: Vec::new()`.
+- `supported_query_kinds()` is **unchanged** — `node_reach` joins it together with the
+  `run_analyze` dispatch in `.14b.2`, so the registry and the dispatch never disagree.
+
+**Why.** `node_reach` is the **transitive complement to `node_readers`** completing the
+node-addressed driver/reader × 1-hop/transitive 2×2 matrix; the node-addressed generalization of
+`input_reach` that **subsumes** the per-FSM/per-memory reach candidate. The register boundary is
+**automatic**: a flop is not a `Gate`, so it contributes no reader edge — the forward walk records
+the flop `D` sink and never crosses into the next stage's `Q`. The design rationale (Q1–Q5) is in
+the `.14a` `DEVELOPMENT_NOTES.md` design-detail entry (this slice is its faithful impl — no new
+design decision).
+
+**Validation.** `cargo test --lib introspect::analyze` 92/0 (incl. the 8 new `node_reach` proofs);
+`cargo test --lib` 718 passed / 0 failed / 2 ignored (exactly +8 from 710); `cargo test --test
+snapshots` 6/6 byte-identical (DUT `.sv` unchanged; `node_reach` omitted from the twelve prior
+documents); `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean
+(under `ram_guard`); `cargo check --lib` clean. The 8 proofs include the **load-bearing
+`node_reach ↔ input_reach` consistency proof** (`node_reach("node:<PrimaryInput-of-i>") ==
+input_reach(i)` for each input + transitivity), the **register-boundary proof** (a node feeding a
+flop `D` reaches the flop, not the downstream output across the register), the **multi-sink
+`fanout_targets == 2` proof**, the **instance-input-only boundary proof** (symmetric with
+`input_reach`), `None`/unknown, serialization-omits-the-other-12, design top/absent, and
+determinism.
+
+**Impact.** Pure analysis core; not on any emit path ⇒ DUT byte-identical. `.14b.2` wires it to
+the MCP surface (registry + dispatch + schema `1.25 → 1.26` + docs/book/KM + e2e smoke).
+
+**Files touched.** `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.14a — node_reach design-detail (docs-only)
 
-**Landed as:** this commit (previous: `b2fa0cf`, `SEMANTIC-INTROSPECTION-EXPANSION.13b.2`).
+**Landed as:** `a675263` (previous: `b2fa0cf`, `SEMANTIC-INTROSPECTION-EXPANSION.13b.2`).
 A **docs/design-only** change (no `src/`), task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.14a`.
 **DUT byte-identical** (no source touched). Pins the **thirteenth** derived `analyze` query,
 `node_reach`, before any code — the task-tree-ownership doctrine (no code change without an owning

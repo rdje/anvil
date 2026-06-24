@@ -283,6 +283,23 @@ pub const QUERY_INSTANCE_INPUT_BINDINGS: &str = "instance_input_bindings";
 /// (`.13b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_LONGEST_PATH: &str = "longest_path";
 
+/// The `node_reach` derived-query kind: for a node addressed `"node:<id>"`, the
+/// **transitive combinational fan-out** of that node — the boundary sinks it
+/// reaches (`reaches_outputs` output ports + `reaches_flops` flop `D` cones).
+/// The **forward-transitive corner** completing the node-addressed driver/reader
+/// × 1-hop/transitive matrix ([`QUERY_NODE_DRIVERS`] = backward 1-hop,
+/// [`QUERY_NODE_READERS`] = forward 1-hop, [`QUERY_LONGEST_PATH`] = backward
+/// transitive): the **transitive complement to `node_readers`**, mirroring how
+/// `longest_path` is the transitive complement to `node_drivers`. The
+/// node-addressed generalization of [`QUERY_INPUT_REACH`] (which is seeded only
+/// at cone-leaf sources), with the provable consistency
+/// `node_reach("node:<PrimaryInput-of-i>") == input_reach(i)`. The ninth query
+/// beyond decision `0011`'s four named kinds (the lane's "open-ended breadth"
+/// clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_node_reach`] / [`design_node_reach`], dispatched by the MCP `analyze`
+/// tool (`.14b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_NODE_REACH: &str = "node_reach";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -395,6 +412,13 @@ pub struct DerivedAnalysis {
     /// analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub longest_path: Vec<LongestPath>,
+    /// The [`QUERY_NODE_REACH`] payload: one [`NodeReach`] per IR node — the transitive
+    /// combinational fan-out (the boundary sinks each node reaches). A **thirteenth** parallel
+    /// vec, same rationale as the prior eleven (`reach_results` … `longest_path`):
+    /// `skip_serializing_if` keeps the twelve prior query documents byte-identical (the key is
+    /// omitted unless this is a `node_reach` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_reach: Vec<NodeReach>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -869,6 +893,56 @@ pub struct PathStep {
     pub width: u32,
 }
 
+/// One node's **transitive combinational fan-out** — the [`QUERY_NODE_REACH`] payload. For a
+/// node addressed `"node:<id>"`, the boundary **sinks** it reaches through pure combinational
+/// logic: the output ports it drives (`reaches_outputs`) and the flops whose `D` cone it feeds
+/// (`reaches_flops`), plus their total (`fanout_targets`). It is the **forward-transitive corner**
+/// completing the node-addressed driver/reader × 1-hop/transitive matrix ([`NodeDrivers`] =
+/// backward 1-hop, [`NodeReaders`] = forward 1-hop, [`LongestPath`] = backward transitive): the
+/// **transitive complement to `node_readers`** (one hop → the whole forward closure), mirroring how
+/// `longest_path` is the transitive complement to `node_drivers`.
+///
+/// `node`/`kind`/`op`/`width` describe the **subject** node (mirroring [`NodeReaders`]
+/// field-for-field, so a `node_reach` entry is visually a `node_readers` entry with the immediate
+/// readers swapped for the transitive reach). `reaches_outputs`/`reaches_flops`/`fanout_targets`
+/// are the [`ReachResult`] payload, field-for-field — `node_reach` is the **node-addressed
+/// generalization of [`QUERY_INPUT_REACH`]** (which is seeded only at cone-leaf sources and
+/// computed by inverting cones), with the provable consistency
+/// `node_reach("node:<PrimaryInput-of-i>").{reaches_outputs, reaches_flops} ==
+/// input_reach(i).{reaches_outputs, reaches_flops}`.
+///
+/// **Boundary (deliberate, symmetric with `input_reach`):** the reach sinks are output ports and
+/// flop `D` cones only — *not* child-instance inputs (the inverse of `input_reach`'s sink set). A
+/// node that only feeds an instance input therefore reaches nothing here; chain
+/// [`QUERY_INSTANCE_INPUT_BINDINGS`] → [`QUERY_INSTANCE_PROVENANCE`] to cross the module boundary.
+/// The **register boundary is automatic**: a flop is not a [`Node::Gate`], so it contributes no
+/// reader edge — the forward walk records the flop `D` sink and never crosses into the next stage's
+/// `Q`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeReach {
+    /// The subject node id (its index in [`Module::nodes`](Module); addressed `"node:<id>"`, the
+    /// entity this entry is about).
+    pub node: u32,
+    /// The subject node's kind (same vocabulary as [`NodeReaders::kind`]).
+    pub kind: String,
+    /// For a [`Node::Gate`] subject, its [`GateOp`] as a stable string; omitted (`None`) for every
+    /// leaf node (the [`NodeReaders::op`] convention).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub op: Option<String>,
+    /// The subject node's bit width ([`Node::width`]).
+    pub width: u32,
+    /// Output **port names** the node combinationally reaches — the outputs whose driving node is
+    /// in the node's forward closure (sorted, deduplicated). The [`ReachResult::reaches_outputs`]
+    /// payload, node-addressed.
+    pub reaches_outputs: Vec<String>,
+    /// Flop ids whose `D` cone the node combinationally reaches — the flops whose `D` node is in
+    /// the node's forward closure (sorted). The [`ReachResult::reaches_flops`] payload,
+    /// node-addressed.
+    pub reaches_flops: Vec<u32>,
+    /// Total fan-out sink count: `reaches_outputs.len() + reaches_flops.len()`.
+    pub fanout_targets: usize,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -901,6 +975,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -943,6 +1018,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -981,6 +1057,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -1061,6 +1138,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1099,6 +1177,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1139,6 +1218,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1222,6 +1302,7 @@ fn flop_dependencies_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1262,6 +1343,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1332,6 +1414,7 @@ fn memory_provenance_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1373,6 +1456,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1440,6 +1524,7 @@ fn fsm_provenance_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1480,6 +1565,7 @@ pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnal
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1548,6 +1634,7 @@ fn node_drivers_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1589,6 +1676,7 @@ pub fn design_node_readers(design: &Design, target: Option<&str>) -> DerivedAnal
             instance_provenance: Vec::new(),
             instance_input_bindings: Vec::new(),
             longest_path: Vec::new(),
+            node_reach: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1673,6 +1761,7 @@ fn node_readers_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1782,6 +1871,7 @@ fn instance_provenance_analysis(instance_provenance: Vec<InstanceProvenance>) ->
         instance_provenance,
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -1906,6 +1996,7 @@ fn instance_input_bindings_analysis(
         instance_provenance: Vec::new(),
         instance_input_bindings,
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -2081,6 +2172,144 @@ fn longest_path_analysis(longest_path: Vec<LongestPath>) -> DerivedAnalysis {
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path,
+        node_reach: Vec::new(),
+    }
+}
+
+/// Compute the `node_reach` analysis for a single [`Module`]: per-node **transitive
+/// combinational fan-out** — for each node, the boundary sinks (output ports + flop `D` cones) it
+/// reaches. The forward-transitive complement to [`module_node_readers`].
+///
+/// `target = None` ⇒ one [`NodeReach`] per node in [`Module::nodes`](Module), ascending node-id
+/// (= index) order. `target = Some("node:<id>")` ⇒ that one node's reach (a node that reaches no
+/// boundary sink yields known-but-empty `reaches_*`, not an error); any other string, or an
+/// out-of-range id, ⇒ no result (→ `-32602` at the MCP layer).
+pub fn module_node_reach(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    node_reach_with(m, target)
+}
+
+/// Compute the `node_reach` analysis for the **top** module of a [`Design`]. Returns an empty
+/// analysis when the named top module is absent. (Like the other gate-graph queries this operates
+/// on the top module; the sinks are plain output-port names + flop ids, so — unlike
+/// `node_drivers`/`node_readers` — no instance-leaf `fmt` closure is needed.)
+pub fn design_node_reach(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return node_reach_analysis(Vec::new());
+    };
+    node_reach_with(top, target)
+}
+
+/// Shared driver for [`module_node_reach`] / [`design_node_reach`]: build the reader index by
+/// transposing the operand relation (the **same** pass [`node_readers_with`] builds), then, per
+/// requested node, walk its **forward closure** over that index and classify the boundary sinks it
+/// reaches — output ports whose driver is in the closure ([`driver_of_port`] over [`Module::outputs`])
+/// and flops whose `D` is in the closure ([`Module::flops`]). The register boundary is automatic: a
+/// flop is not a [`Node::Gate`], so it adds no reader edge — the walk never crosses a flop `D` into
+/// the next stage's `Q`. Pure: reads `m.nodes` / `m.outputs` / `m.drives` / `m.flops` only, no
+/// IR/generator change.
+fn node_reach_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    // Transpose the operand relation: index[o] = the gate ids that list node o as a direct
+    // operand (the node_readers_with reader index).
+    let mut index: BTreeMap<u32, BTreeSet<u32>> = BTreeMap::new();
+    for (rid, node) in m.nodes.iter().enumerate() {
+        if let Node::Gate { operands, .. } = node {
+            for &o in operands {
+                index.entry(o).or_default().insert(rid as u32);
+            }
+        }
+    }
+
+    let make = |id: usize, node: &Node| -> NodeReach {
+        // Forward closure of `id` over the reader index (includes `id` itself, so a node that
+        // directly drives an output / flop-D counts as reaching it).
+        let mut seen: BTreeSet<u32> = BTreeSet::new();
+        seen.insert(id as u32);
+        let mut stack = vec![id as u32];
+        while let Some(n) = stack.pop() {
+            if let Some(readers) = index.get(&n) {
+                for &r in readers {
+                    if seen.insert(r) {
+                        stack.push(r);
+                    }
+                }
+            }
+        }
+        // Classify boundary sinks: output ports + flop D cones whose root node is in the closure.
+        let mut reaches_outputs: BTreeSet<String> = BTreeSet::new();
+        for p in &m.outputs {
+            if let Some(d) = driver_of_port(m, p.id) {
+                if seen.contains(&d) {
+                    reaches_outputs.insert(p.name.clone());
+                }
+            }
+        }
+        let mut reaches_flops: BTreeSet<u32> = BTreeSet::new();
+        for f in &m.flops {
+            if let Some(d) = f.d {
+                if seen.contains(&d) {
+                    reaches_flops.insert(f.id);
+                }
+            }
+        }
+        let reaches_outputs: Vec<String> = reaches_outputs.into_iter().collect();
+        let reaches_flops: Vec<u32> = reaches_flops.into_iter().collect();
+        let fanout_targets = reaches_outputs.len() + reaches_flops.len();
+        let op = match node {
+            Node::Gate { op, .. } => Some(gate_op_str(op).to_string()),
+            _ => None,
+        };
+        NodeReach {
+            node: id as u32,
+            kind: node_kind_str(node).to_string(),
+            op,
+            width: node.width(),
+            reaches_outputs,
+            reaches_flops,
+            fanout_targets,
+        }
+    };
+
+    let mut node_reach = Vec::new();
+    match target {
+        None => {
+            for (id, node) in m.nodes.iter().enumerate() {
+                node_reach.push(make(id, node));
+            }
+        }
+        Some(t) => {
+            // Only the `"node:<id>"` form is a valid target; anything else (or an out-of-range id)
+            // ⇒ no result ⇒ `-32602` at the MCP layer.
+            if let Some(id) = t
+                .strip_prefix("node:")
+                .and_then(|r| r.parse::<usize>().ok())
+            {
+                if let Some(node) = m.nodes.get(id) {
+                    node_reach.push(make(id, node));
+                }
+            }
+        }
+    }
+    node_reach_analysis(node_reach)
+}
+
+/// Wrap a `node_reach` vec in a [`DerivedAnalysis`] (the `node_reach` query document; every other
+/// result vec empty).
+fn node_reach_analysis(node_reach: Vec<NodeReach>) -> DerivedAnalysis {
+    DerivedAnalysis {
+        query: QUERY_NODE_REACH.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
+        node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
+        longest_path: Vec::new(),
+        node_reach,
     }
 }
 
@@ -2222,6 +2451,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -2292,6 +2522,7 @@ fn support_cones_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -2369,6 +2600,7 @@ fn input_reach_with(
         instance_provenance: Vec::new(),
         instance_input_bindings: Vec::new(),
         longest_path: Vec::new(),
+        node_reach: Vec::new(),
     }
 }
 
@@ -5790,6 +6022,343 @@ mod tests {
         m.drives.push((9, 3));
         let a = serde_json::to_string(&module_longest_path(&m, None)).unwrap();
         let b = serde_json::to_string(&module_longest_path(&m, None)).unwrap();
+        assert_eq!(a, b);
+    }
+
+    /// The **load-bearing** consistency proof: for each input port `i`, the forward reach of its
+    /// `PrimaryInput` node equals `input_reach(i)` — the forward walk and the inversion-based
+    /// reach agree. Also proves the reach is **transitive** (input `a`'s 1-hop reader is the inner
+    /// `And`, NOT an output driver; the output driver `Or` is reached at depth 2) and that a
+    /// **dead** node (an unused input) reaches nothing. `y = (a & b) | c`; `d` is unused.
+    #[test]
+    fn node_reach_matches_input_reach_for_each_input_node() {
+        let mut m = Module {
+            name: "comb".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.inputs.push(port(2, "c", 8, Direction::In));
+        m.inputs.push(port(3, "d", 8, Direction::In)); // unused (dead)
+        m.outputs.push(port(4, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = b
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 2 = c
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3 = a & b
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Or,
+            operands: vec![3, 2],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 4 = (a&b) | c
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 8 }); // 5 = d (dead)
+        m.drives.push((4, 4)); // y <- node 4
+
+        // node 0 (a): reaches y transitively (1-hop reader is node 3 = And, not an output driver;
+        // the output driver node 4 = Or is reached at depth 2).
+        let nr = module_node_reach(&m, Some("node:0"));
+        assert_eq!(nr.query, QUERY_NODE_REACH);
+        assert_eq!(nr.node_reach.len(), 1);
+        let a = &nr.node_reach[0];
+        assert_eq!(a.node, 0);
+        assert_eq!(a.kind, "primary_input");
+        assert!(a.op.is_none());
+        assert_eq!(a.reaches_outputs, vec!["y"]);
+        assert!(a.reaches_flops.is_empty());
+        assert_eq!(a.fanout_targets, 1);
+
+        // Consistency: node_reach(PrimaryInput-of-i) == input_reach(i) for each input.
+        for (node_id, name) in [(0u32, "a"), (1, "b"), (2, "c"), (5, "d")] {
+            let viafwd = &module_node_reach(&m, Some(&format!("node:{node_id}"))).node_reach[0];
+            let viainv = &module_input_reach(&m, Some(name)).reach_results[0];
+            assert_eq!(
+                viafwd.reaches_outputs, viainv.reaches_outputs,
+                "outputs mismatch for {name}"
+            );
+            assert_eq!(
+                viafwd.reaches_flops, viainv.reaches_flops,
+                "flops mismatch for {name}"
+            );
+        }
+
+        // Dead node (d, node 5): reaches nothing.
+        let d = &module_node_reach(&m, Some("node:5")).node_reach[0];
+        assert!(d.reaches_outputs.is_empty());
+        assert!(d.reaches_flops.is_empty());
+        assert_eq!(d.fanout_targets, 0);
+    }
+
+    /// The **register boundary** is automatic: a node feeding a flop `D` records the flop as a sink
+    /// and the walk does NOT cross into the flop's `Q` downstream. `b` feeds flop 0's `D`; the flop
+    /// `Q` feeds `y = a ^ Q`. So `b` reaches flop 0 but NOT `y`; `Q` reaches `y` but no flop. Also
+    /// proves consistency with `input_reach` on the `"flop:<id>"` source.
+    #[test]
+    fn node_reach_records_the_flop_d_sink_and_stops_at_the_register_boundary() {
+        let mut m = Module {
+            name: "seq".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "a", 8, Direction::In));
+        m.inputs.push(port(3, "b", 8, Direction::In)); // feeds the flop D only
+        m.outputs.push(port(4, "y", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 0 = a
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 8 }); // 1 = b (D side)
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 2 = Q of flop 0
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Xor,
+            operands: vec![0, 2], // a ^ Q
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 3
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(1), // D = b
+            q: 2,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((4, 3)); // y <- a ^ Q
+
+        // b (node 1): reaches flop 0 (its D), but NOT y (the register breaks the path).
+        let b = &module_node_reach(&m, Some("node:1")).node_reach[0];
+        assert!(
+            b.reaches_outputs.is_empty(),
+            "b must not reach y across the flop"
+        );
+        assert_eq!(b.reaches_flops, vec![0]);
+        assert_eq!(b.fanout_targets, 1);
+
+        // Q (node 2): reaches y, but no flop (the walk does not return from Q to b's flop).
+        let q = &module_node_reach(&m, Some("node:2")).node_reach[0];
+        assert_eq!(q.kind, "flop_q");
+        assert_eq!(q.reaches_outputs, vec!["y"]);
+        assert!(q.reaches_flops.is_empty());
+
+        // Consistency: input_reach("b") (D-side source) == node_reach(b); input_reach("flop:0")
+        // (the Q as a reach source) == node_reach(Q).
+        let irb = &module_input_reach(&m, Some("b")).reach_results[0];
+        assert_eq!(b.reaches_outputs, irb.reaches_outputs);
+        assert_eq!(b.reaches_flops, irb.reaches_flops);
+        let irq = &module_input_reach(&m, Some("flop:0")).reach_results[0];
+        assert_eq!(q.reaches_outputs, irq.reaches_outputs);
+        assert_eq!(q.reaches_flops, irq.reaches_flops);
+    }
+
+    /// A node reaching **both** an output and a flop `D` reports `fanout_targets = 2`. `a` directly
+    /// drives output `y` AND is flop 0's `D`.
+    #[test]
+    fn node_reach_multi_sink_counts_both() {
+        let mut m = Module {
+            name: "multi".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "clk", 1, Direction::In));
+        m.inputs.push(port(1, "rst_n", 1, Direction::In));
+        m.inputs.push(port(2, "a", 8, Direction::In));
+        m.outputs.push(port(3, "y", 8, Direction::Out));
+        m.clock = Some(0);
+        m.reset = Some(1);
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 0 = a
+        m.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 1 = Q (unused downstream)
+        m.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0), // D = a
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        m.drives.push((3, 0)); // y <- a (directly)
+
+        let a = &module_node_reach(&m, Some("node:0")).node_reach[0];
+        assert_eq!(a.reaches_outputs, vec!["y"]);
+        assert_eq!(a.reaches_flops, vec![0]);
+        assert_eq!(a.fanout_targets, 2);
+    }
+
+    /// The sink boundary is **symmetric with `input_reach`**: an instance-input-only node reaches
+    /// nothing (a child input is not a reach sink). Top input `x` feeds only `u0`'s input; `z`
+    /// drives output `y`. `node_reach(x)` is empty; `node_reach(z)` reaches `y`; both agree with
+    /// `input_reach`.
+    #[test]
+    fn node_reach_instance_input_only_node_reaches_nothing() {
+        let child = ip_child("c"); // input "a" = port 0
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "x", 8, Direction::In));
+        top.inputs.push(port(1, "z", 8, Direction::In));
+        top.outputs.push(port(2, "y", 8, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0 = x (feeds instance input only)
+        top.nodes.push(Node::PrimaryInput { port: 1, width: 8 }); // 1 = z (drives y)
+        let mut u0 = ip_instance(0, "u0", "c", InstanceRole::PlannedChild);
+        u0.inputs = vec![(0, 0)]; // child input port 0 <- top node 0 (x)
+        top.instances.push(u0);
+        top.drives.push((2, 1)); // y <- z
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+
+        let x = &design_node_reach(&design, Some("node:0")).node_reach[0];
+        assert!(
+            x.reaches_outputs.is_empty(),
+            "x feeds only an instance input → no sink"
+        );
+        assert!(x.reaches_flops.is_empty());
+        assert_eq!(x.fanout_targets, 0);
+        let z = &design_node_reach(&design, Some("node:1")).node_reach[0];
+        assert_eq!(z.reaches_outputs, vec!["y"]);
+
+        // Agrees with input_reach on the design top.
+        assert!(design_input_reach(&design, Some("x")).reach_results[0]
+            .reaches_outputs
+            .is_empty());
+        assert_eq!(
+            design_input_reach(&design, Some("z")).reach_results[0].reaches_outputs,
+            vec!["y"]
+        );
+    }
+
+    /// `target = None` ⇒ one `NodeReach` per node in ascending node-id order; an unknown target —
+    /// a bad string or an out-of-range `"node:<id>"` — ⇒ no result (→ `-32602` at the MCP layer).
+    #[test]
+    fn node_reach_none_lists_all_nodes_and_unknown_is_none() {
+        let mut m = Module {
+            name: "n".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // 0
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        }); // 1
+        m.drives.push((1, 1)); // y <- ~a
+
+        let all = module_node_reach(&m, None);
+        assert_eq!(all.node_reach.len(), 2);
+        assert_eq!(all.node_reach[0].node, 0);
+        assert_eq!(all.node_reach[1].node, 1);
+        assert_eq!(all.node_reach[1].op.as_deref(), Some("not"));
+        // both reach y.
+        assert_eq!(all.node_reach[0].reaches_outputs, vec!["y"]);
+        assert_eq!(all.node_reach[1].reaches_outputs, vec!["y"]);
+        // unknown targets ⇒ no result.
+        assert!(module_node_reach(&m, Some("node:999"))
+            .node_reach
+            .is_empty());
+        assert!(module_node_reach(&m, Some("nope")).node_reach.is_empty());
+    }
+
+    /// A `node_reach` document serializes the `node_reach` key and omits the other twelve
+    /// `skip_serializing_if` query vecs (`results` is always present); a `longest_path` document
+    /// omits `node_reach`.
+    #[test]
+    fn node_reach_serialization_omits_the_other_query_vecs() {
+        let mut m = Module {
+            name: "s".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.outputs.push(port(1, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::Not,
+            operands: vec![0],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        });
+        m.drives.push((1, 1));
+        let json = serde_json::to_string(&module_node_reach(&m, Some("node:0"))).unwrap();
+        assert!(json.contains("\"node_reach\""));
+        for k in [
+            "\"reach_results\"",
+            "\"flop_provenance\"",
+            "\"module_reachability\"",
+            "\"flop_dependencies\"",
+            "\"memory_provenance\"",
+            "\"fsm_provenance\"",
+            "\"node_drivers\"",
+            "\"node_readers\"",
+            "\"instance_provenance\"",
+            "\"instance_input_bindings\"",
+            "\"longest_path\"",
+        ] {
+            assert!(!json.contains(k), "node_reach doc must omit {k}");
+        }
+        let lp = serde_json::to_string(&module_longest_path(&m, Some("y"))).unwrap();
+        assert!(!lp.contains("\"node_reach\""));
+    }
+
+    /// The design variant operates on the named top; an absent top ⇒ an empty analysis.
+    #[test]
+    fn design_node_reach_top_module_and_absent_top() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.outputs.push(port(1, "y", 8, Direction::Out));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        top.drives.push((1, 0));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let nr = design_node_reach(&design, Some("node:0"));
+        assert_eq!(nr.node_reach.len(), 1);
+        assert_eq!(nr.node_reach[0].reaches_outputs, vec!["y"]);
+
+        let absent = Design {
+            top: "ghost".into(),
+            modules: design.modules.clone(),
+        };
+        let empty = design_node_reach(&absent, None);
+        assert_eq!(empty.query, QUERY_NODE_REACH);
+        assert!(empty.node_reach.is_empty());
+    }
+
+    /// Identical inputs ⇒ identical serialized output (byte-stable).
+    #[test]
+    fn node_reach_is_deterministic() {
+        let mut m = Module {
+            name: "d".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.inputs.push(port(1, "b", 8, Direction::In));
+        m.outputs.push(port(9, "y", 8, Direction::Out));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 8 });
+        m.nodes.push(Node::Gate {
+            op: crate::ir::GateOp::And,
+            operands: vec![0, 1],
+            width: 8,
+            deps: crate::ir::DepSet::new(),
+        });
+        m.drives.push((9, 2));
+        let a = serde_json::to_string(&module_node_reach(&m, None)).unwrap();
+        let b = serde_json::to_string(&module_node_reach(&m, None)).unwrap();
         assert_eq!(a, b);
     }
 }

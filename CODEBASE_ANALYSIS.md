@@ -1332,10 +1332,11 @@ src/
 │                     proofs (incl. the cross-boundary descent proof) + 2 mcp proofs;
 │                     DUT byte-identical. The
 │                     parallel-vec pattern
-│                     now carries twelve query kinds (`results`/`reach_results`/
+│                     now carries thirteen query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
 │                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`/
-│                     `instance_provenance`/`instance_input_bindings`/`longest_path`),
+│                     `instance_provenance`/`instance_input_bindings`/`longest_path`/
+│                     `node_reach`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
 │                     **`instance_input_bindings`** (`.12b.1`, the ELEVENTH derived
 │                     query, the **parent-side dual of `instance_provenance`** — the
@@ -1375,6 +1376,26 @@ src/
 │                     `analyze_schema` enum + schema `1.24 → 1.25`; 8 in-crate proofs (incl.
 │                     the depth==cone_depth consistency proof + the deterministic tie-break
 │                     proof) + 2 mcp proofs. DUT byte-identical.
+│                     **`node_reach`** (`.14b.1`, the THIRTEENTH derived query — the
+│                     **transitive complement to `node_readers`**, completing the
+│                     node-addressed driver/reader × 1-hop/transitive 2×2 matrix; the
+│                     node-addressed generalization of `input_reach` that **subsumes** the
+│                     per-FSM/per-memory reach candidate): for a node addressed `"node:<id>"`,
+│                     the transitive combinational fan-OUT — `NodeReach { node, kind, op,
+│                     width, reaches_outputs, reaches_flops, fanout_targets }` (node-family
+│                     header like `NodeReaders` + the `ReachResult` payload). `module_node_reach`
+│                     / `design_node_reach` + the shared `node_reach_with` driver (transpose
+│                     operands → reader index [the `node_readers_with` pass], forward-closure
+│                     BFS from the target node, classify sinks = output ports whose driver ∈
+│                     closure + flops whose `D` ∈ closure; register boundary automatic — a
+│                     flop is not a `Gate` ⇒ no reader edge) + the `node_reach_analysis`
+│                     constructor. Provable `node_reach("node:<PrimaryInput-of-i>") ==
+│                     input_reach(i)`; sinks output ports + flop `D`s only (symmetric with
+│                     `input_reach`). 8 in-crate proofs (incl. the node_reach↔input_reach
+│                     consistency proof + the register-boundary proof + the instance-input-only
+│                     boundary proof). NOT yet in `supported_query_kinds()` (wired to the MCP
+│                     surface in `.14b.2`: dispatch + `analyze_schema` enum + schema `1.25 →
+│                     1.26`). DUT byte-identical.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {
