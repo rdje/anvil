@@ -5,6 +5,160 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-06-24 — Semantic introspection — `instance_input_bindings` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.12a`
+
+Design-detail leaf for `.12` — the **eleventh** derived query, `instance_input_bindings`:
+*for each child instance in a design's top, the parent node driving each of the child's
+input ports*. Docs-only (no source). This is the **seventh query beyond decision `0011`'s
+four named kinds** (after `flop_dependencies` `.6`, `memory_provenance` `.7`,
+`fsm_provenance` `.8`, `node_drivers` `.9`, `node_readers` `.10`, and `instance_provenance`
+`.11`), again under the lane's documented *"further derived-query kinds are open-ended
+breadth"* clause — strictly under decision `0011`'s API and the `0004`/`0011`
+SCHEMA-DERIVED / structure-first ceiling (a **relation** over the construction graph, never
+behaviour). It follows the per-query design-detail precedent (`.3a`–`.11a`): no new numbered
+decision record; decision `0011` already governs the surface.
+
+It is the **parent-side dual of `instance_provenance` (`.11`)** — the *exact future
+extension `.11a` named and deferred*. `.11`'s `InstanceProvenance` doc recorded its scope
+boundary verbatim: *"it does not map a child-input support leaf back to the parent node that
+drives it through the instance's input bindings (`Instance.inputs: Vec<(PortId, NodeId)>`) …
+a natural future extension."* `.12` is that extension. The two queries now **bracket the
+instance boundary on both sides**:
+
+- `instance_provenance` (`.11`) **descends** into the child: child OUTPUT `"<inst>.<out>"`
+  → its support cone in the child's own terms (which bottoms out at the child's INPUT ports).
+- `instance_input_bindings` (`.12`) **ascends** to the parent: child INPUT `"<inst>.<in>"`
+  → the **parent node** (`NodeRef`) that drives it, resolved in the *parent's* graph.
+
+Chaining `.12 → .11` lets an agent trace a parent signal across the module boundary into a
+child output and back: `.12` says *what the parent feeds each child input*; `.11` says *what
+each child output depends on inside the child*; together they close the cross-boundary loop
+the opaque `Node::InstanceOutput` leaf hides. It is the instance-level analog of the
+`node_drivers` ↔ `node_readers` and `output_support` ↔ `input_reach` dual pairs: `.11`
+walks *inside* for outputs, `.12` walks *outside* for inputs over the **same** instance
+edge set (`Instance.inputs`), so the two cannot drift.
+
+### Q1 — result shape: an ELEVENTH parallel result vec, reusing `NodeRef`
+
+A new `InstanceInputBindings` struct + an ELEVENTH parallel vec
+`instance_input_bindings: Vec<InstanceInputBindings>` on `DerivedAnalysis`, with
+`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the **ten prior query
+documents stay byte-identical** (the key is omitted unless this is an
+`instance_input_bindings` document — the established parallel-vec pattern). Each binding
+**reuses the existing `NodeRef`** struct (the operand-handle type `node_drivers`/`node_readers`
+already ship: `{ node, kind, name }`) for the parent driver — one handle type for every
+"a node, resolved" surface (full-factorization).
+
+```rust
+pub struct InstanceInputBindings {
+    pub instance: String,                    // the child instance name (the entity), addressed "<instance>"
+    pub module: String,                      // the child module name this instance instantiates
+    pub role: String,                        // "planned_child" | "parent_cone" (from InstanceRole)
+    pub input_bindings: Vec<InstanceInputBinding>, // one per bound child INPUT port, ascending child PortId
+}
+
+pub struct InstanceInputBinding {
+    pub port: String,    // the child INPUT port — "<child-input-port-name>" (design) | "port<id>" (bare-module fallback)
+    pub driver: NodeRef, // the PARENT node driving this child input, resolved in the PARENT's graph
+}
+```
+
+`instance`/`module`/`role` are the structural facts of the instance (the parent already
+records them on `Instance { name, module, role, .. }`; `role` is the `InstanceRole` mapped
+to a stable string via the shared `instance_role_str`, the enum→string convention every
+prior kind holds). Each `InstanceInputBinding.driver` is the parent node the child input is
+bound to, resolved through the **same** `node_ref_of` helper `node_drivers` uses — so a
+binding to a parent input shows `name = "<parent-input>"`, a parent flop `Q` shows
+`"flop:<id>"`, a **sibling instance output** shows `"<sibling>.<port>"`, and a parent
+interior gate / constant shows `"node:<id>"`. That parent-side `NodeRef` is exactly the
+"map a child-input back to the parent node" the `.11a` scope boundary named.
+
+**Scope boundary (deliberate, the `node_drivers` one-hop precedent):** the binding reports
+the **immediate (1-hop)** parent driver `NodeRef`, not its transitive parent cone. An agent
+that wants the full parent support chains the existing `output_support` / `node_drivers` on
+the returned `driver.node` (`"node:<id>"`) — the "report the ref, let the agent chain"
+philosophy, identical to how `node_drivers` reports operands and lets the agent recurse.
+Control ports (`clk` / `rst_n`) are **not** data bindings — they propagate structurally and
+never appear in `Instance.inputs`, so they are correctly absent (a binding exists iff the
+parent drives that child input with a data node). Nothing retired.
+
+### Q2 — derivation: read `Instance.inputs`, resolve both ends
+
+`design_instance_input_bindings(&Design, target)`:
+1. Find the top module (`design.modules` where `name == design.top`); early-return an empty
+   analysis when absent (the `design_*` precedent).
+2. Build a name→module index of `design.modules` (the child-definition table — used **only**
+   to *name* the child input port; the driver is parent-side and needs no descent).
+3. For each instance in `top.instances` (sorted by instance **name** for determinism), for
+   each `(child_port_id, parent_node_id)` in `instance.inputs` (sorted by `child_port_id`
+   ascending): resolve `driver = node_ref_of(top, parent_node_id, &top_fmt)` (the top's own
+   `format_instance_leaf_design` fmt, so a child input bound directly to a *sibling*
+   instance output resolves to `"<sibling>.<port>"`), and resolve the child input **port
+   name** by looking up `child_port_id` in the child def's `inputs` (fallback `"port<id>"`
+   when the child def or port is absent — defensive, the malformed-design contract).
+
+This is a **pure read** of `Instance.inputs: Vec<(PortId, NodeId)>` — a field that already
+exists on every instance, populated at construction — plus two existing resolvers
+(`node_ref_of` for the parent end, the child-def `inputs` lookup for the port name). No
+second walker, **no IR field, no generator change** (the `coverage_gaps` /
+`output_support` project-don't-recompute precedent). Cost is
+`O(instances × bound-inputs)` — cheaper than a cone query (no graph walk; one `node_ref_of`
+per binding). It crosses the module boundary in the **opposite** direction from `.11`: `.11`
+walks the child's graph for the value and uses the top only for naming; `.12` keeps the
+value in the **top's** graph and uses the child only for naming.
+
+### Q3 — target addressing: the instance **name**
+
+`target` is the **child instance name** — a bare name (the `instance_provenance` /
+`module_reachability` addressing convention; each query kind owns its own target namespace).
+- `target = None` ⇒ one `InstanceInputBindings` per instance in the top, **ascending
+  instance name** — the whole binding view in one query (the completeness rule, decision
+  `0011` / `feedback_api_for_agents_not_humans`).
+- `target = Some("<instance-name>")` ⇒ that one instance's entry. An instance with **zero
+  data input bindings** (e.g. a constant-only / output-only child) ⇒ one entry with an empty
+  `input_bindings` — *known-but-empty*, NOT an error (the "resolvable target always yields
+  one result" contract; load-bearing for the `-32602` mapping).
+- any other string (an instance name not in the top) ⇒ no entry ⇒ `-32602` at the MCP layer
+  — the established "unknown target vs known-but-empty" contract. The `run_analyze`
+  empty-result guard checks `analysis.instance_input_bindings.is_empty()` for this kind.
+
+### Q4 — module-vs-design: a **non-degenerate** module variant (the contrast with `.11`)
+
+`design_instance_input_bindings(&Design, target)` is the **full** query (Q2). Crucially —
+**unlike `instance_provenance` (`.11`), whose module variant is degenerate-empty** — the
+single-module variant `module_instance_input_bindings(&Module, target)` carries **real
+bindings**: the parent driver is resolved in the *bare module's own graph* (`Instance.inputs`
+and the parent nodes both live in that module — no descent needed), so every binding's
+`driver` `NodeRef` is fully resolved. The **only** thing the bare module cannot do is *name*
+the child input port (that needs the child def), so the module variant falls back to
+`port = "port<id>"` — the exact analog of `format_instance_leaf_module`'s
+`"<instance>.port<id>"` fallback. This is the design's load-bearing asymmetry with `.11`:
+`.11`'s *value* (the child output cone) lives **inside the child** ⇒ a bare module cannot
+produce it (degenerate-empty); `.12`'s *value* (the parent driver) lives **in the parent** ⇒
+a bare module produces it fully, and only the child-input *label* degrades to an id. In
+practice the MCP/introspect surface routes a hierarchy through the `Design` path, so the
+design variant (named ports) is the common one; the module variant is honest and
+**useful**, not a degenerate placeholder.
+
+### Q5 — schema bump + pre-split
+
+Additive MINOR `1.23 → 1.24` (a new `#[serde(default, skip_serializing_if)]` field + a new
+query kind; `DerivedAnalysisDocument` envelope reused unchanged; DUT `.sv` byte-identical —
+introspect is not in `tests/snapshots.rs`). Pre-split `.12b` →
+`.12b.1` (the pure core in `analyze.rs` + the `InstanceInputBindings` / `InstanceInputBinding`
+types + the eleventh `instance_input_bindings: Vec::new()` fill-ins across the existing
+`DerivedAnalysis` literals + lib proofs, including the **cross-boundary binding proof** — a
+design whose top binds a child input to a parent input / sibling instance output, asserting
+the resolved parent `NodeRef`; **and** the non-degenerate module-variant proof; **not** added
+to `supported_query_kinds()` yet) + `.12b.2` (the surface: the registry entry + `run_analyze`
+dispatch land together; `SCHEMA_VERSION 1.23 → 1.24` + the `"1.23"` test-assertion bumps; the
+`analyze_schema` enum; schema-doc §6.7 + a `1.23 → 1.24` changelog + the row; book `agent-mcp`
+row + worked example + the JSON examples `1.23 → 1.24` + api-tools; USER_GUIDE + README; a KM
+card; an `anvil-mcp` stdio e2e smoke on a hierarchy config) — the `.4b`–`.11b` precedent
+(registry + dispatch in one commit so the intermediate commit is coherent).
+
+---
+
 ## 2026-06-24 — Semantic introspection — `instance_provenance` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.11a`
 
 Design-detail leaf for `.11` — the **tenth** derived query, `instance_provenance`:

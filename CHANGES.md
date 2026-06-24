@@ -1,6 +1,62 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.12a — instance_input_bindings impl design-detail
+
+**Landed as:** this commit (previous: `fc790e1`, `SEMANTIC-INTROSPECTION-EXPANSION.11b.2`).
+A **docs/design-only** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.12a`
+(the design-detail leaf opening `.12`). **DUT byte-identical** — no `src/` touched; it
+records the design for the **eleventh** derived `analyze` query before any code, per the
+per-query design-detail precedent (`.3a`–`.11a`) and the doctrine that a task-tree leaf owns a
+change before the edit.
+
+**What changed (why)**
+
+Opens `.12` `instance_input_bindings` — the **parent-side dual of `instance_provenance`
+(`.11`)** and the *exact future extension `.11a` named and deferred*: for each child instance
+in a design's top, the **parent node** (`NodeRef`) driving each of the child's **input** ports,
+read from the existing `Instance.inputs: Vec<(PortId, NodeId)>` (child input port id → parent
+driving node id). `.11` **descends** into the child for each output; `.12` **ascends** to the
+parent for each input — together they bracket the instance boundary on both sides, and chaining
+`.12 → .11` traces a parent signal across the module boundary through a child output and back.
+
+- `DEVELOPMENT_NOTES.md`: a new design-detail entry *"instance_input_bindings impl
+  design-detail — `.12a`"* resolves Q1–Q5 grounded in the real `Instance.inputs` IR + the
+  landed `node_ref_of`/`format_instance_leaf_design`/`instance_role_str` code in `analyze.rs`:
+  - **Q1 result shape:** an ELEVENTH parallel vec `instance_input_bindings:
+    Vec<InstanceInputBindings>` on `DerivedAnalysis` (`#[serde(default, skip_serializing_if)]`
+    ⇒ the ten prior documents byte-identical) + the `InstanceInputBindings { instance, module,
+    role, input_bindings: Vec<InstanceInputBinding> }` and `InstanceInputBinding { port,
+    driver: NodeRef }` structs, **reusing the existing `NodeRef`** for the parent driver.
+  - **Q2 derivation:** a **pure read** of `Instance.inputs` — driver =
+    `node_ref_of(top, parent_node_id, top_fmt)` (parent-side; a child input bound to a sibling
+    instance output resolves to `"<sibling>.<port>"`), the child def used **only** to name the
+    child input port (fallback `"port<id>"`); **no graph walk, no IR field, no generator
+    change** (the `coverage_gaps` project-don't-recompute precedent).
+  - **Q3 addressing:** the child instance **name** (None ⇒ all instances ascending name;
+    bindings ascending child PortId; an instance with no data bindings known-but-empty; unknown
+    ⇒ `-32602`).
+  - **Q4 module-vs-design:** a **NON-degenerate** module variant — the load-bearing contrast
+    with `.11` — the parent driver lives in the bare module's own graph, so the module variant
+    carries real bindings; only the child port *name* degrades to `"port<id>"`.
+  - **Q5 schema:** additive MINOR `1.23 → 1.24`; pre-split `.12b` → `.12b.1` (pure core) +
+    `.12b.2` (surface).
+- `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`: added the `.12`/`.12a`/`.12b`/`.12b.1`/
+  `.12b.2` leaves; updated the tree Status / Last-updated / Children / Current-Frontier (active
+  frontier → `.12b.1`) / leaf table / Decisions / Changelog.
+- `docs/TASK_TREE.md`: the lane row frontier `.12` active → `.12b.1`.
+
+**Validation:** docs/design only ⇒ `cargo` checks unaffected; DUT byte-identical
+(`tests/snapshots.rs` untouched). `scripts/check_doctrines.sh` green (a non-code commit ⇒
+code-scoped `CODE-CHANGE-EVIDENCE` / `TASK-TREE-OWNERSHIP` exempt; `MEMORY-ARCH` +
+`KNOWLEDGE-MAP` pass).
+
+**Impact:** no behaviour change. Establishes task-tree ownership + the resolved design for the
+eleventh derived query before any `src/` edit. Frontier → `.12b.1`.
+
+**Files touched:** `DEVELOPMENT_NOTES.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.11b.2 — instance_provenance MCP surface + schema 1.23
 
 **Landed as:** this commit (previous: `a767415`, `SEMANTIC-INTROSPECTION-EXPANSION.11b.1`).
