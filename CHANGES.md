@@ -1,9 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.14b.2 — node_reach MCP surface + schema 1.26
+
+**Landed as:** this commit (previous: `6eab0bf`, `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.14b.2`. **DUT
+byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
+`tests/snapshots.rs` untouched). **Closes `.14b`/`.14` — `node_reach` delivered end-to-end** (the
+**thirteenth** derived `analyze` query). The MCP `analyze` tool now answers **thirteen** derived
+queries.
+
+**What.** Wired the thirteenth derived query, `node_reach`, to the MCP surface + bumped the
+introspection schema `1.25 → 1.26`:
+- `analyze.rs`: `QUERY_NODE_REACH` added to `supported_query_kinds()` (registry + dispatch never
+  disagree).
+- `src/mcp/mod.rs`: `run_analyze` branches by kind (`module`/`design_node_reach`) in **both** the
+  design and module arms; the unknown-target → `-32602` guard checks `analysis.node_reach`; the
+  `analyze_schema` query enum gains `"node_reach"` + the query/target descriptions (the `"node:<id>"`
+  form, paired with `node_readers`/`input_reach`) + the analyze tool description + the server
+  instructions; 2 new MCP proofs (`analyze_returns_node_reach_and_caches_it`,
+  `analyze_node_reach_unknown_target_is_invalid_params`).
+- `src/introspect/mod.rs`: `SCHEMA_VERSION 1.25 → 1.26` + the doc comment + 19 `"1.25" → "1.26"`
+  schema_version test-assertion bumps (3 introspect + 16 mcp).
+
+**Why.** `node_reach` is the **transitive complement to `node_readers`** completing the
+node-addressed driver/reader × 1-hop/transitive 2×2 matrix, and the node-addressed **generalization
+of `input_reach`**. Single-target `"node:<id>"` addressing, so it fits `analyze {query, target}`
+with no MCP signature change. SCHEMA-DERIVED / structure-first (a pure forward-closure walk, not
+behaviour); provably `node_reach("node:<PrimaryInput-of-i>") == input_reach(i)`.
+
+**Docs.** schema-doc §6.7 (the thirteenth `node_reach` payload + `NodeReach` + "one of thirteen
+parallel result vecs" + the File/Producer rows) + the `1.25 → 1.26` changelog + the version
+statements/checklist; book `agent-mcp` (the analyze table row + a `node_reach` worked example + the
+resource line + every JSON envelope `1.25 → 1.26`) + `api-tools` (query enum/target + JSON examples)
++ `api-introspection` (thirteen queries + schema 1.26) + `api-reference` (1.26 + the thirteenth
+query) + `api-resources-prompts` (thirteen queries); `USER_GUIDE` + `README` + `TOOLBOX` (thirteen
+kinds + schema 1.26); a new KM card `semantic-introspection-node-reach` (+ a cross-link from the
+`node_readers` card; `KNOWLEDGE_MAP` regenerated); `CODEBASE_ANALYSIS` (the analyze.rs block now
+wired + schema-history `1.25 → 1.26`); `ROADMAP` (`.14` done).
+
+**Validation.** `cargo test --lib` 720 passed / 0 failed / 2 ignored (incl. the 2 new mcp
+node_reach proofs + the 8 `.14b.1` core proofs); `cargo test --test snapshots` 6/6 byte-identical;
+`cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean (under
+`ram_guard`); `mdbook build book` clean; `cargo test --test book_examples` 3/3; `KNOWLEDGE_MAP`
+regenerated + `check_knowledge_map.sh` in sync; `scripts/check_doctrines.sh` green. **E2e
+`anvil-mcp` stdio smoke**: `analyze {query:"node_reach", seed:7}` → schema `1.26`, module (top
+`mod_7_0000`), 1674 `node_reach` entries; `fanout_targets == reaches_outputs + reaches_flops` for
+every entry; node 0 (`primary_input`) reaches 30 flop `D`-cones + 0 outputs (the **register
+boundary** in action — registered output paths); `results` empty, `node_readers`/`longest_path`
+omitted; unknown target `node:999999` → `-32602`. **Plus a live cross-check** that
+`node_reach == input_reach` for every primary input (0 mismatches) — no spec-vs-reality bug.
+
+**Impact.** The MCP `analyze` tool answers thirteen derived queries at schema `1.26`. DUT
+byte-identical. The lane returns to a no-frontier boundary (stays `active`).
+
+**Files touched.** `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`book/src/api-introspection.md`, `book/src/api-reference.md`, `book/src/api-resources-prompts.md`,
+`USER_GUIDE.md`, `README.md`, `TOOLBOX.md`, `docs/knowledge/semantic-introspection-node-reach.md`,
+`docs/knowledge/semantic-introspection-node-readers.md`, `KNOWLEDGE_MAP.md`, `CODEBASE_ANALYSIS.md`,
+`ROADMAP.md`, `docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.14b.1 — node_reach pure core
 
-**Landed as:** this commit (previous: `a675263`, `SEMANTIC-INTROSPECTION-EXPANSION.14a`).
+**Landed as:** `6eab0bf` (previous: `a675263`, `SEMANTIC-INTROSPECTION-EXPANSION.14a`).
 A **code** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.14b.1`. **DUT
 byte-identical** (no IR / generator change; `analyze.rs` is read-mostly, not wired to any emit
 path; `tests/snapshots.rs` untouched). The pure core of the **thirteenth** derived `analyze`

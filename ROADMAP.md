@@ -525,8 +525,24 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    Vec<PathStep>, leaf: Option<NodeRef> }` reusing `NodeRef`) + `.13b.2` surface (registry +
    `run_analyze` dispatch + `analyze_schema` enum + schema `1.24 → 1.25` +
    book/USER_GUIDE/schema-doc/README/TOOLBOX/KM + an e2e `anvil-mcp` smoke), DUT byte-identical.
-   **No active frontier** — further derived-query kinds (a per-FSM/per-memory reach;
-   recursive multi-level instance descent; a two-endpoint witness-path) remain
+   `.14` **done** (`2026-06-24`) adds a **thirteenth** derived query, `node_reach` — for a node
+   addressed `"node:<id>"`, its **transitive combinational fan-OUT**: the boundary sinks it reaches
+   (`reaches_outputs` output ports + `reaches_flops` flop `D` cones + `fanout_targets`). The
+   **transitive complement to `node_readers`** completing the node-addressed driver/reader ×
+   1-hop/transitive 2×2 matrix (`node_drivers`/`node_readers`/`longest_path`/`node_reach`), and the
+   node-addressed **generalization of `input_reach`** that **subsumes** the per-FSM/per-memory reach
+   candidate (address a `MemRead`/`FsmOut` node by `kind`; none retired); provably
+   `node_reach("node:<PrimaryInput-of-i>") == input_reach(i)`; sinks output ports + flop `D`s only
+   (symmetric with `input_reach`); the register boundary is automatic (a flop is not a `Gate` ⇒ no
+   reader edge). The **ninth** query beyond decision `0011`'s four named kinds. `.14a` design-detail
+   + `.14b.1` pure core (transpose operands → reader index, forward-closure BFS, classify sinks;
+   `NodeReach { node, kind, op, width, reaches_outputs, reaches_flops, fanout_targets }`) + `.14b.2`
+   surface (registry + `run_analyze` dispatch + `analyze_schema` enum + schema `1.25 → 1.26` +
+   book/USER_GUIDE/schema-doc/README/TOOLBOX/KM + an e2e `anvil-mcp` smoke; the live smoke
+   cross-checked `node_reach == input_reach` for every primary input — no spec-vs-reality bug),
+   DUT byte-identical.
+   **No active frontier** — further derived-query kinds (recursive multi-level instance descent; a
+   two-endpoint witness-path; instance-input reach sinks) remain
    open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 

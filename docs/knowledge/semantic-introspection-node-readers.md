@@ -92,4 +92,5 @@ See [[semantic-introspection-node-drivers]], [[semantic-introspection-instance-p
 [[semantic-introspection-input-reach]],
 [[semantic-introspection-flop-reset-provenance]],
 [[semantic-introspection-module-reachability]],
+[[semantic-introspection-node-reach]] (its transitive forward complement),
 [[semantic-introspection-derived-query-surface]], and [[agent-introspection-schema]].
