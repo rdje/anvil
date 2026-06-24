@@ -1150,7 +1150,13 @@ src/
 │                     analyze query kind — the parent-side dual of
 │                     `instance_provenance` (the parent node driving each
 │                     child input port)
-│                     (`SEMANTIC-INTROSPECTION-EXPANSION.12b.2`);
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.12b.2`), and
+│                     1.24→1.25 the twelfth `longest_path` analyze query
+│                     kind — one representative longest combinational
+│                     fan-in path per target, the gate chain realizing
+│                     `output_support`'s `cone_depth` (the witness for
+│                     the scalar depth; structural gate-depth, not timing)
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.13b.2`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +
@@ -1364,10 +1370,11 @@ src/
 │                     id ⇒ a unique byte-stable path) + the `node_depth` helper + the
 │                     `longest_path_analysis` constructor. Structural gate-depth NOT timing;
 │                     the provable `longest_path(t).depth == output_support(t).cone_depth`.
-│                     **Not wired to the MCP surface yet** (joins `supported_query_kinds()`
-│                     + the `run_analyze` dispatch + schema `1.24 → 1.25` in `.13b.2`); 8
-│                     in-crate proofs (incl. the depth==cone_depth consistency proof + the
-│                     deterministic tie-break proof). DUT byte-identical.
+│                     Wired to the MCP surface in `.13b.2`: in `supported_query_kinds()` +
+│                     the `run_analyze` dispatch (`module`/`design_longest_path`) + the
+│                     `analyze_schema` enum + schema `1.24 → 1.25`; 8 in-crate proofs (incl.
+│                     the depth==cone_depth consistency proof + the deterministic tie-break
+│                     proof) + 2 mcp proofs. DUT byte-identical.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

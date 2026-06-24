@@ -513,8 +513,20 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    (registry + `run_analyze` dispatch + `analyze_schema` enum + schema `1.23 → 1.24` +
    book/USER_GUIDE/schema-doc/README/TOOLBOX/KM + an e2e `anvil-mcp` smoke that found-and-corrected
    a control-port doc bug), DUT byte-identical.
+   `.13` **done** (`2026-06-24`) adds a **twelfth** derived query, `longest_path` — for a target
+   (an output port / `"flop:<id>"`, the `output_support` namespace), one representative **longest
+   combinational fan-in path**: the ordered chain of interior gates (each with its op) realizing
+   `output_support`'s scalar `cone_depth`, terminating at a boundary leaf (`NodeRef`). The
+   **witness for the scalar `cone_depth`** and the **transitive complement to `node_drivers`**;
+   structural gate-depth NOT timing; provably `longest_path(t).depth == output_support(t).cone_depth`;
+   the **eighth** query beyond decision `0011`'s four named kinds. `.13a` design-detail + `.13b.1`
+   pure core (two pure passes — a `node_depth` memo + a greedy max-child-depth descent, ties →
+   smallest operand node id ⇒ a unique byte-stable path; `LongestPath { target, depth, path:
+   Vec<PathStep>, leaf: Option<NodeRef> }` reusing `NodeRef`) + `.13b.2` surface (registry +
+   `run_analyze` dispatch + `analyze_schema` enum + schema `1.24 → 1.25` +
+   book/USER_GUIDE/schema-doc/README/TOOLBOX/KM + an e2e `anvil-mcp` smoke), DUT byte-identical.
    **No active frontier** — further derived-query kinds (a per-FSM/per-memory reach;
-   recursive multi-level instance descent) remain
+   recursive multi-level instance descent; a two-endpoint witness-path) remain
    open-ended breadth, not a blocker, none retired. Extends
    `AGENT-INTROSPECTION-MCP` / `AGENT-MCP-EXPANSION`.
 

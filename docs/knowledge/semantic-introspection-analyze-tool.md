@@ -79,7 +79,9 @@ provenance, `fsm_provenance` (schema `1.20`), is
 driver adjacency, `node_drivers` (schema `1.21`), is
 [[semantic-introspection-node-drivers]]; and its exact transpose, the per-node
 immediate (1-hop) reader adjacency, `node_readers` (schema `1.22`), is
-[[semantic-introspection-node-readers]].
+[[semantic-introspection-node-readers]]; and one representative longest
+combinational fan-in path realizing this cone's `cone_depth`, `longest_path`
+(schema `1.25`), is [[semantic-introspection-longest-path]].
 
 See [[semantic-introspection-derived-query-surface]],
 [[agent-introspection-schema]], and [[agent-mcp-expansion-surface]].

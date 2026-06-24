@@ -1,9 +1,68 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.13b.2 — longest_path MCP surface + schema 1.25
+
+**Landed as:** this commit (previous: `747d9bf`, `SEMANTIC-INTROSPECTION-EXPANSION.13b.1`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.13b.2`. **DUT
+byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
+`tests/snapshots.rs` untouched). **Closes `.13b`/`.13` — `longest_path` delivered end-to-end** (the
+**twelfth** derived `analyze` query). The MCP `analyze` tool now answers **twelve** derived queries.
+
+**What.** Wired the twelfth derived query, `longest_path`, to the MCP surface + bumped the
+introspection schema `1.24 → 1.25`:
+- `analyze.rs`: `QUERY_LONGEST_PATH` added to `supported_query_kinds()` (registry + dispatch never
+  disagree).
+- `src/mcp/mod.rs`: `run_analyze` branches by kind (`module`/`design_longest_path`) in **both** the
+  design and module arms; the unknown-target → `-32602` guard checks `analysis.longest_path`; the
+  `analyze_schema` query enum gains `"longest_path"` + the query/target descriptions (the
+  output-name / `"flop:<id>"` form, paired with `output_support`) + the analyze tool description +
+  the server instructions; 2 new MCP proofs (`analyze_returns_longest_path_and_caches_it`,
+  `analyze_longest_path_unknown_target_is_invalid_params`).
+- `src/introspect/mod.rs`: `SCHEMA_VERSION 1.24 → 1.25` + the doc comment + 18 `"1.24" → "1.25"`
+  schema_version test-assertion bumps (3 introspect + 15 mcp).
+
+**Why.** `longest_path` is the **witness for `output_support`'s scalar `cone_depth`** and the
+**transitive complement to `node_drivers`** — the ordered interior-gate chain realizing the deepest
+fan-in path. Single-endpoint (the `output_support` namespace), so it fits `analyze {query, target}`
+with no MCP signature change. SCHEMA-DERIVED / structure-first (a pure projection, not behaviour);
+**structural gate-depth, NOT timing**; provably `longest_path(t).depth == output_support(t).cone_depth`.
+
+**Docs.** schema-doc §6.7 (the twelfth `longest_path` payload + `LongestPath`/`PathStep` + "one of
+twelve parallel result vecs" + the File/Producer rows) + the `1.24 → 1.25` changelog + the version
+statements/checklist; book `agent-mcp` (the analyze table row + a `longest_path` worked example +
+the resource line + every JSON envelope `1.24 → 1.25`) + `api-tools` (query enum/target + JSON
+examples) + `api-introspection` (twelve queries + schema 1.25) + `api-reference` (1.25 + the twelfth
+query) + `api-resources-prompts` (twelve queries); `USER_GUIDE` + `README` + `TOOLBOX` (twelve kinds
++ schema 1.25); a new KM card `semantic-introspection-longest-path` (+ a cross-link from the
+`output_support`/analyze-tool card; `KNOWLEDGE_MAP` regenerated 77 → 78 facts); `CODEBASE_ANALYSIS`
+(the analyze.rs block now wired + schema-history `1.24 → 1.25`); `ROADMAP` (`.13` done).
+
+**Validation.** `cargo test --lib` 710 passed / 0 failed / 2 ignored (incl. the 2 new MCP proofs +
+the 8 `.13b.1` core proofs); `cargo test --test snapshots` 6/6 byte-identical; `cargo fmt --all
+--check` clean; `scripts/ram_guard.sh --threshold 90 -- cargo clippy --all-targets -- -D warnings`
+clean; `mdbook build book` clean; `cargo test --test book_examples` 3/3; `KNOWLEDGE_MAP`
+regenerated (78 facts) + `check_knowledge_map.sh` in sync; `scripts/check_doctrines.sh` green.
+**End-to-end `anvil-mcp` stdio smoke:** `analyze {query:"longest_path", seed:7}` → schema `1.25`,
+module (top `mod_7_0000`), 2 output paths; deepest `o_0` depth 2, path ops `[not, slice]`, leaf
+`{node:1, kind:"primary_input", name:"i_1"}`; `depth == path.len()` for every entry; unknown
+`no_such_output` → `-32602`. No spec-vs-reality bug.
+
+**Impact.** A new MCP-reachable `analyze` query; default-off / DUT byte-identical; no CLI / knob /
+RTL change. Closes the `.13` leaf (the twelfth derived query); the lane returns to a no-frontier
+boundary (stays `active`).
+
+**Files touched.** `src/introspect/analyze.rs` (registry), `src/mcp/mod.rs` (dispatch + guard +
+schema enum + descriptions + 2 proofs), `src/introspect/mod.rs` (schema 1.25 + assertions),
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/{agent-mcp,api-tools,api-introspection,api-reference,api-resources-prompts}.md`,
+`USER_GUIDE.md`, `README.md`, `TOOLBOX.md`, `docs/knowledge/semantic-introspection-longest-path.md`
+(+ the analyze-tool card cross-link), `KNOWLEDGE_MAP.md` (regenerated),
+`CODEBASE_ANALYSIS.md`, `ROADMAP.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.13b.1 — pure longest_path core
 
-**Landed as:** this commit (previous: `fd6739d`, `SEMANTIC-INTROSPECTION-EXPANSION.13a`).
+**Landed as:** `747d9bf` (previous: `fd6739d`, `SEMANTIC-INTROSPECTION-EXPANSION.13a`).
 A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.13b.1`. **DUT
 byte-identical** (no IR / generator change; `analyze` is read-mostly, default-off; not wired to
 any emit path; `tests/snapshots.rs` untouched).

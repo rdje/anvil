@@ -302,6 +302,7 @@ pub fn supported_query_kinds() -> &'static [&'static str] {
         QUERY_NODE_READERS,
         QUERY_INSTANCE_PROVENANCE,
         QUERY_INSTANCE_INPUT_BINDINGS,
+        QUERY_LONGEST_PATH,
     ]
 }
 
