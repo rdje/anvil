@@ -315,7 +315,7 @@ resource.
 | **JSON** | the introspection **envelope** (`schema_version` / `anvil_version` / `lane` / `request` / `artifact` / `warnings`, §4) with `introspection` replaced by an `analysis` payload |
 | **Source struct** | `DerivedAnalysisDocument { …envelope…, analysis: DerivedAnalysis }` |
 | **File** | `src/introspect/mod.rs` (envelope) + `src/introspect/analyze.rs` (`DerivedAnalysis` / `SupportCone` / `ReachResult` / `FlopProvenance` / `ModuleReachability` / `FlopDependencies` / `MemoryProvenance` / `FsmProvenance` / `NodeDrivers` / `NodeReaders` / `InstanceProvenance` / `InstanceInputBindings` / `InstanceInputBinding` / `LongestPath` / `PathStep` / `NodeReach` / `NodeRef`) |
-| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers`; `node_readers`: `module_node_readers` / `design_node_readers`; `instance_provenance`: `module_instance_provenance` / `design_instance_provenance`; `instance_input_bindings`: `module_instance_input_bindings` / `design_instance_input_bindings`; `longest_path`: `module_longest_path` / `design_longest_path`; `node_reach`: `module_node_reach` / `design_node_reach` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
+| **Producer** | `output_support`: `module_support_cones` / `design_support_cones`; `input_reach`: `module_input_reach` / `design_input_reach`; `flop_reset_provenance`: `module_flop_provenance` / `design_flop_provenance`; `module_reachability`: `module_module_reachability` / `design_module_reachability`; `flop_dependencies`: `module_flop_dependencies` / `design_flop_dependencies`; `memory_provenance`: `module_memory_provenance` / `design_memory_provenance`; `fsm_provenance`: `module_fsm_provenance` / `design_fsm_provenance`; `node_drivers`: `module_node_drivers` / `design_node_drivers`; `node_readers`: `module_node_readers` / `design_node_readers`; `instance_provenance`: `module_instance_provenance` / `design_instance_provenance`; `instance_input_bindings`: `module_instance_input_bindings` / `design_instance_input_bindings`; `longest_path`: `module_longest_path` / `design_longest_path`; `node_reach`: `module_node_reach` / `design_node_reach`; `reach_path`: `module_reach_path` / `design_reach_path` — all pure (`introspect::analyze::*`) over the already-emitted `Module` / `Design`; wrapped by `introspect::derived_analysis_document` |
 | **Serde guarantee** | exact serde projection of `DerivedAnalysis`; `BTreeSet` → sorted `Vec` ⇒ byte-stable |
 
 **Invariant SCHEMA-DERIVED holds.** `DerivedAnalysis` is a pure post-hoc
@@ -331,9 +331,9 @@ the `query` kind (`output_support`, `input_reach`, `flop_reset_provenance`, and
 `flop_dependencies`, the **fifth** kind, `memory_provenance`, the **sixth**,
 `fsm_provenance`, the **seventh**, `node_drivers`, the **eighth**,
 `node_readers`, the **ninth**, `instance_provenance`, the **tenth**,
-`instance_input_bindings`, the **eleventh**, `longest_path`, the **twelfth**, and
-`node_reach`, the **thirteenth**, all added
-under the lane's open-ended-breadth clause) + **one of thirteen parallel result vecs**,
+`instance_input_bindings`, the **eleventh**, `longest_path`, the **twelfth**,
+`node_reach`, the **thirteenth**, and `reach_path`, the **fourteenth**, all added
+under the lane's open-ended-breadth clause) + **one of fourteen parallel result vecs**,
 the one the query kind populates (the others are empty and, except for the
 always-present `results`, omitted via `skip_serializing_if`):
 
@@ -586,6 +586,29 @@ always-present `results`, omitted via `skip_serializing_if`):
   it with `results: []`. `target` is `"node:<id>"` (omit for every node); a node that reaches no
   sink is a known-but-empty entry, an out-of-range / malformed target is an error.
 
+- **`reach_path: Vec<ReachPath>`** (schema `1.27`,
+  `SEMANTIC-INTROSPECTION-EXPANSION.15b.2`) — the `reach_path` payload: per start node, one
+  representative **longest combinational fan-OUT path** — the ordered chain of interior `Gate` nodes
+  from the node *forward* to a boundary **sink**. It is the **forward-transitive witness**: the
+  **forward complement to `longest_path`** (the backward fan-in witness) and the **path-witness for
+  `node_reach`** (the forward fan-out *set*) — `node_reach` reports *which* sinks a node reaches,
+  `reach_path` reports the longest gate-chain *to* one of them, exactly as `longest_path` realizes
+  `output_support`'s scalar `cone_depth`. A `ReachPath` is, per node: `node` (id, `"node:<id>"`),
+  `depth` (the gate count `== path.len()`), `path` (the ordered interior-gate chain, each a
+  `PathStep { node, op, width }` — the **same** step type as `longest_path`), and `sink`
+  (`Option<String>` — the boundary sink in the `output_support`/`longest_path` target namespace: an
+  output port name, or `"flop:<id>"`; `None` iff the node reaches no sink). It is computed by a
+  greedy forward descent over a **sink-aware gate-height memo** along the reader index (the operand
+  transpose), ties broken by smallest reader id ⇒ a unique byte-stable path; the **register boundary
+  is automatic** (a flop is not a `Gate`). Provable consistency:
+  `reach_path(n).sink.is_some() == (node_reach(n).fanout_targets > 0)`, the chosen `sink ∈
+  node_reach(n)`'s sink set, and `depth == path.len()`. It is **structural gate-depth, NOT timing**
+  (the `longest_path` honesty boundary). A pure walk of the existing node graph — no IR field, no
+  generator change. `reach_path` carries the same `skip_serializing_if`, so the prior thirteen
+  documents stay byte-identical across the `1.26 → 1.27` bump; a `reach_path` document carries it with
+  `results: []`. `target` is `"node:<id>"` (omit for every node); a node that reaches no sink is a
+  known-but-empty entry (empty `path`, `sink: null`), an out-of-range / malformed target is an error.
+
 `target = None` ⇒ all targets/sources/flops/modules/memories/FSMs/nodes/instances (per the
 agent-audience completeness rule); an unknown `query` or `target` is rejected with
 JSON-RPC `-32602`.
@@ -653,7 +676,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.26"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.27"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -663,7 +686,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.26"`**.
+This document defines **`schema_version = "1.27"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -875,6 +898,23 @@ This document defines **`schema_version = "1.26"`**.
   documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.21`
   consumer ignores the new query kind. MINOR is an integer, so this is `1.21 → 1.22`
   (twenty-two), not a decimal.
+- **`1.26` → `1.27` (`SEMANTIC-INTROSPECTION-EXPANSION.15b.2`).** Additive MINOR bump:
+  added the **fourteenth** derived `analyze` query kind `reach_path` — the **forward-transitive
+  witness**: for a start node addressed `"node:<id>"`, one representative longest combinational
+  fan-OUT path (the ordered interior-`Gate` chain to a boundary sink — an output port / `"flop:<id>"`,
+  the `output_support`/`longest_path` target namespace), carried by a fourteenth
+  `DerivedAnalysis.reach_path: Vec<ReachPath>` parallel vec (reusing the `longest_path` `PathStep`
+  type). It is the **forward complement to `longest_path`** (the backward fan-in witness) and the
+  **path-witness for `node_reach`** (the forward fan-out *set*): `node_reach` reports *which* sinks a
+  node reaches, `reach_path` the longest gate-chain *to* one of them, exactly as `longest_path`
+  realizes `output_support`'s scalar `cone_depth`. Provable consistency
+  `reach_path(n).sink.is_some() == (node_reach(n).fanout_targets > 0)`, the chosen `sink ∈
+  node_reach(n)`'s sink set, `depth == path.len()`; structural gate-depth, **not** timing; the
+  register boundary is automatic (a flop is not a `Gate`). SCHEMA-DERIVED (a greedy forward descent
+  over a sink-aware gate-height memo — not new computed truth). Backward compatible: the `reach_path`
+  key is `skip_serializing_if`-omitted on every other query document, so the thirteen prior `analyze`
+  documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.26` consumer ignores
+  the new query kind. MINOR is an integer, so this is `1.26 → 1.27` (twenty-seven), not a decimal.
 - **`1.25` → `1.26` (`SEMANTIC-INTROSPECTION-EXPANSION.14b.2`).** Additive MINOR bump:
   added the **thirteenth** derived `analyze` query kind `node_reach` — the **transitive
   combinational fan-OUT** of a node addressed `"node:<id>"`: the boundary sinks it reaches
@@ -1055,5 +1095,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.26"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.27"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

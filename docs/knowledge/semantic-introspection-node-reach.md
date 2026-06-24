@@ -93,8 +93,9 @@ forward graph walk, so it **subsumes the per-FSM/per-memory reach** (address a `
   not an error. SCHEMA-DERIVED / default-off: a pure post-hoc projection — the default `anvil`
   build and `--artifact dut` stay byte-identical.
 
-See [[semantic-introspection-node-readers]] (the 1-hop view this extends transitively),
-[[semantic-introspection-input-reach]] (the cone-leaf-sourced reach this generalizes to any
-node), [[semantic-introspection-longest-path]] (the backward-transitive sibling),
-[[semantic-introspection-analyze-tool]], [[semantic-introspection-derived-query-surface]],
-and [[agent-introspection-schema]].
+See [[semantic-introspection-reach-path]] (the **path-witness** for this set — the longest
+gate-chain to one of these sinks), [[semantic-introspection-node-readers]] (the 1-hop view this
+extends transitively), [[semantic-introspection-input-reach]] (the cone-leaf-sourced reach this
+generalizes to any node), [[semantic-introspection-longest-path]] (the backward-transitive
+sibling), [[semantic-introspection-analyze-tool]],
+[[semantic-introspection-derived-query-surface]], and [[agent-introspection-schema]].

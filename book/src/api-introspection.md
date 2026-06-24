@@ -31,7 +31,7 @@ Every document is a thin, versioned envelope:
 
 ```json
 {
-  "schema_version": "1.26",
+  "schema_version": "1.27",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -58,7 +58,7 @@ Every document is a thin, versioned envelope:
 
 | Field | Meaning |
 | --- | --- |
-| `schema_version` | the document schema version (currently `1.26`) — see [stability](#schema_version-stability-contract) |
+| `schema_version` | the document schema version (currently `1.27`) — see [stability](#schema_version-stability-contract) |
 | `anvil_version` | the generating `anvil` crate version |
 | `lane` | `dut` / `microdesign` / `frontend` |
 | `request` | the echoed `seed` / `lane` / `knobs` plus the content-addressed `run_id` |
@@ -216,15 +216,15 @@ A dead (unreachable) module is reported `reachable: false` with no `depth`.
 
 ## `schema_version` stability contract
 
-The document schema is **`1.26`** and evolves under a strict MINOR/MAJOR policy
+The document schema is **`1.27`** and evolves under a strict MINOR/MAJOR policy
 (the full per-version changelog is the canonical §7 of
 `docs/AGENT_INTROSPECTION_SCHEMA.md`):
 
-- a **MINOR** bump (e.g. `1.25 → 1.26`) is purely **additive** — a new optional
+- a **MINOR** bump (e.g. `1.26 → 1.27`) is purely **additive** — a new optional
   field or a whole new payload array — and leaves every prior reply
   **byte-identical** (new sections are `skip_serializing_if`, so a query that does
   not use them is unchanged). Adding each `analyze` query kind was a MINOR bump,
-  each leaving the earlier queries' bytes untouched: the **thirteen** derived queries are
+  each leaving the earlier queries' bytes untouched: the **fourteen** derived queries are
   `output_support`, `input_reach`, `flop_reset_provenance`, `module_reachability`
   (the four named in decision `0011`), then `flop_dependencies` (`1.17 → 1.18`),
   `memory_provenance` (`1.18 → 1.19`), `fsm_provenance` (`1.19 → 1.20`),
@@ -235,10 +235,14 @@ The document schema is **`1.26`** and evolves under a strict MINOR/MAJOR policy
   dual, the parent node driving each child input port — (`1.23 → 1.24`),
   `longest_path` — one representative longest combinational fan-in path per target,
   the gate chain realizing `output_support`'s `cone_depth` (the witness for the
-  scalar depth) — (`1.24 → 1.25`), and `node_reach` — a node's transitive
+  scalar depth) — (`1.24 → 1.25`), `node_reach` — a node's transitive
   combinational fan-OUT (the output ports + flop `D` cones it reaches; the transitive
   complement to `node_readers`, the node-addressed generalization of `input_reach`) —
-  (`1.25 → 1.26`). The structured-emission and capability metric
+  (`1.25 → 1.26`), and `reach_path` — one representative longest combinational
+  fan-OUT path from a node forward to a boundary sink, the gate chain witnessing one
+  of `node_reach`'s targets (the forward complement to `longest_path`, exactly as
+  `longest_path` realizes `output_support`'s scalar `cone_depth`) — (`1.26 → 1.27`).
+  The structured-emission and capability metric
   counts grew the schema the same way: `1.11 → 1.12` added the `coverage_readout`
   section + the standalone `coverage` tool document, `1.12 → 1.13` added
   `design_metrics.num_mealy_fsm_modules` (decision `0024`), `1.13 → 1.14` added

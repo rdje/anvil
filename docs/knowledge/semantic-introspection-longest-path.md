@@ -91,6 +91,8 @@ an ordered transitive path.
   stay byte-identical.
 
 See [[semantic-introspection-analyze-tool]] (the `output_support` cone whose scalar
-`cone_depth` this witnesses), [[semantic-introspection-node-drivers]] (the 1-hop view this
+`cone_depth` this witnesses), [[semantic-introspection-reach-path]] (the **forward complement**
+— the longest fan-OUT path, the witness this query mirrors),
+[[semantic-introspection-node-drivers]] (the 1-hop view this
 extends transitively), [[semantic-introspection-input-reach]],
 [[semantic-introspection-derived-query-surface]], and [[agent-introspection-schema]].

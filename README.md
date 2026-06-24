@@ -648,7 +648,7 @@ exercising adversarial axes that previously fired only by chance
   tools (no vendoring). CI-infra only ⇒ DUT byte-identical. See `USER_GUIDE.md`
   ("Use ANVIL in your CI") and `book/src/recipes.md`.
 - `anvil --introspect` prints the versioned agent-introspection JSON document
-  (schema `1.26`) for a single-artifact run instead of SystemVerilog
+  (schema `1.27`) for a single-artifact run instead of SystemVerilog
   (`AGENT-INTROSPECTION-MCP`): a thin envelope whose payload is the exact serde
   projection of existing `Config`/`Metrics`/`DesignMetrics` (zero new computed
   truth), with a content-addressed `run_id`. Since schema `1.12`
@@ -710,7 +710,14 @@ exercising adversarial axes that previously fired only by chance
   `node_readers`** completing the node-addressed driver/reader × 1-hop/transitive matrix, and
   the node-addressed generalization of `input_reach` — provably
   `node_reach("node:<PrimaryInput-of-i>") == input_reach(i)`),
-  schema `1.26`, unknown query/target ⇒
+  and per-node longest combinational **fan-OUT path**
+  (`reach_path`: for a node — `"node:<id>"` — one representative longest combinational fan-OUT
+  gate-chain to a boundary sink [an output port / `"flop:<id>"`, the `output_support`/`longest_path`
+  target namespace]; the **forward complement to `longest_path`** and the **path-witness for
+  `node_reach`** — `node_reach` reports *which* sinks, `reach_path` the longest gate-chain *to* one —
+  provably `reach_path(n).sink.is_some() ⇔ node_reach(n).fanout_targets > 0`; structural gate-depth,
+  not timing),
+  schema `1.27`, unknown query/target ⇒
   `-32602`, `coverage` (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`) returns
   the DUT run's achieved-coverage readout — per-knob + per-category
   construction-time fire rates + gate/operand/depth histograms, the same

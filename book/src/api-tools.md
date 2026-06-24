@@ -101,7 +101,7 @@ Schemas](api-introspection.md).
 { "name": "introspect", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.26", "anvil_version": "0.1.0", "lane": "dut",
+{ "schema_version": "1.27", "anvil_version": "0.1.0", "lane": "dut",
   "request": { "seed": 42, "lane": "dut", "knobs": { "…": "Config" },
                "run_id": "ee39c1e3df8192dd" },
   "artifact": { "kind": "module", "top": "mod_42_0000",
@@ -141,7 +141,7 @@ this entry covers the call surface.
 | `seed` | integer ≥ 0 | no | `0` | |
 | `config` | object | no | defaults | DUT lane only |
 | `profile` | string | no | none | a curated knob preset (see [`anvil://catalog/presets`](./api-resources-prompts.md)) |
-| `query` | `"output_support"` \| `"input_reach"` \| `"flop_reset_provenance"` \| `"module_reachability"` \| `"flop_dependencies"` \| `"memory_provenance"` \| `"fsm_provenance"` \| `"node_drivers"` \| `"node_readers"` \| `"instance_provenance"` \| `"instance_input_bindings"` \| `"longest_path"` \| `"node_reach"` | no | `"output_support"` | the relation kind |
+| `query` | `"output_support"` \| `"input_reach"` \| `"flop_reset_provenance"` \| `"module_reachability"` \| `"flop_dependencies"` \| `"memory_provenance"` \| `"fsm_provenance"` \| `"node_drivers"` \| `"node_readers"` \| `"instance_provenance"` \| `"instance_input_bindings"` \| `"longest_path"` \| `"node_reach"` \| `"reach_path"` | no | `"output_support"` | the relation kind |
 | `target` | string | no | all | meaning depends on `query` (below) |
 
 `target` by query: `output_support` → an output port name or `"flop:<id>"` (a
@@ -149,11 +149,14 @@ flop D-cone); `input_reach` → a source (input name, `"flop:<id>"` Q, or
 `"<instance>.<port>"`); `flop_reset_provenance` → `"flop:<id>"`;
 `module_reachability` → a module name; `flop_dependencies` → `"flop:<id>"`;
 `memory_provenance` → `"mem:<id>"`; `fsm_provenance` → `"fsm:<id>"`;
-`node_drivers` / `node_readers` / `node_reach` → `"node:<id>"`; `instance_provenance`
+`node_drivers` / `node_readers` / `node_reach` / `reach_path` → `"node:<id>"`; `instance_provenance`
 (design-only) / `instance_input_bindings` → a child instance name; `longest_path` →
 an output port name or `"flop:<id>"` (the `output_support` namespace); `node_reach` →
 `"node:<id>"` (its transitive combinational fan-OUT — the output ports + flop `D` cones it
-reaches). Omit `target` for *every* element.
+reaches); `reach_path` → `"node:<id>"` (one representative longest combinational fan-OUT
+path from the node forward to a boundary sink — an output port name or `"flop:<id>"` — the
+forward complement to `longest_path` and the path-witness for `node_reach`). Omit `target` for
+*every* element.
 
 **Errors** — an unknown `query` or `target` → protocol error `-32602`.
 
@@ -166,7 +169,7 @@ reaches). Omit `target` for *every* element.
   "arguments": { "seed": 7, "query": "output_support", "target": "o_0" } }
 ```
 ```json
-{ "schema_version": "1.26", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
+{ "schema_version": "1.27", "lane": "dut", "request": { "seed": 7, "run_id": "…" },
   "analysis": { "query": "output_support",
     "results": [ { "target": "o_0", "support_inputs": ["i_1"],
                    "support_flops": [], "support_instance_outputs": [],
@@ -196,7 +199,7 @@ byte-stable; `attempts`/`fires` are the exact integers.
 { "name": "coverage", "arguments": { "seed": 42 } }
 ```
 ```json
-{ "schema_version": "1.26", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
+{ "schema_version": "1.27", "lane": "dut", "request": { "seed": 42, "run_id": "…" },
   "coverage": {
     "knob_fire_rates": { "flop_prob": { "attempts": 295, "fires": 36, "fire_rate": 0.122034 } },
     "category_fire_rates": { "state": { "attempts": 331, "fires": 53, "fire_rate": 0.160121 } },

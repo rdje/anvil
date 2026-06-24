@@ -51,23 +51,23 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.26` is the
-/// additive (backward-compatible) MINOR bump that adds the **thirteenth** derived
-/// `analyze` query kind `node_reach` — the **transitive combinational fan-OUT** of a node
-/// addressed `"node:<id>"`: the boundary sinks it reaches (the output ports it drives +
-/// the flop `D` cones it feeds), carried by a thirteenth `DerivedAnalysis.node_reach`
-/// parallel vec (`SEMANTIC-INTROSPECTION-EXPANSION.14b`; the ninth query beyond decision
-/// `0011`'s four named kinds — the **transitive complement to `node_readers`**, completing
-/// the node-addressed driver/reader × 1-hop/transitive matrix, and the node-addressed
-/// generalization of `input_reach`). It is a SCHEMA-DERIVED projection over the
-/// already-emitted IR (a pure forward-closure walk of the node graph — not new computed
-/// truth); the `node_reach` key is `skip_serializing_if`-omitted on every other query
-/// document, so the twelve prior `analyze` documents and the default-`dut` **artifact**
-/// (`.sv`) stay byte-identical. The prior `1.25` added the twelfth `analyze` query kind
-/// `longest_path` (`SEMANTIC-INTROSPECTION-EXPANSION.13b`); a `1.25` consumer simply ignores
-/// the new query kind. MINOR is an integer, so `1.25 → 1.26` (twenty-six), not a decimal
-/// fraction. See the schema-doc §7 changelog for the full `1.0 → … → 1.25 → 1.26` history.
-pub const SCHEMA_VERSION: &str = "1.26";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.27` is the
+/// additive (backward-compatible) MINOR bump that adds the **fourteenth** derived
+/// `analyze` query kind `reach_path` — the **forward-transitive witness**: for a start node
+/// addressed `"node:<id>"`, one representative LONGEST combinational fan-OUT path (the ordered
+/// interior-`Gate` chain to a boundary sink — an output port / `"flop:<id>"`), carried by a
+/// fourteenth `DerivedAnalysis.reach_path` parallel vec (`SEMANTIC-INTROSPECTION-EXPANSION.15b`;
+/// the tenth query beyond decision `0011`'s four named kinds — the **forward complement to
+/// `longest_path`** and the **path-witness for `node_reach`** — `node_reach` reports *which* sinks,
+/// `reach_path` the longest gate-chain *to* one). It is a SCHEMA-DERIVED projection over the
+/// already-emitted IR (a pure greedy forward descent over a sink-aware gate-height memo — not new
+/// computed truth); the `reach_path` key is `skip_serializing_if`-omitted on every other query
+/// document, so the thirteen prior `analyze` documents and the default-`dut` **artifact**
+/// (`.sv`) stay byte-identical. The prior `1.26` added the thirteenth `analyze` query kind
+/// `node_reach` (`SEMANTIC-INTROSPECTION-EXPANSION.14b`); a `1.26` consumer simply ignores
+/// the new query kind. MINOR is an integer, so `1.26 → 1.27` (twenty-seven), not a decimal
+/// fraction. See the schema-doc §7 changelog for the full `1.0 → … → 1.26 → 1.27` history.
+pub const SCHEMA_VERSION: &str = "1.27";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -510,7 +510,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.26");
+        assert_eq!(doc.schema_version, "1.27");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -651,7 +651,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.26");
+        assert_eq!(doc.schema_version, "1.27");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -694,7 +694,7 @@ mod tests {
         let readout = coverage::module_coverage(&compute(&m));
         let doc = coverage_document(&base, readout.clone());
 
-        assert_eq!(doc.schema_version, "1.26");
+        assert_eq!(doc.schema_version, "1.27");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
                                                              // The payload IS the embedded readout, byte-for-byte.

@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **79** facts · **785** question keys.
+> **80** facts · **799** question keys.
 
 ## Questions → fact
 
@@ -157,6 +157,7 @@
 - "does node_reach keep the other analyze queries byte-identical" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "does node_readers keep the other analyze queries byte-identical" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "does procedural if/else emission change the emitted RTL behaviour" -> [mux-if-emit](docs/knowledge/mux-if-emit.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":1.0,\"comb_mux_encoding_prob\":1.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\"/tmp/mi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/mi.json | tee /tmp/mi.sv | grep -c "__cv" && iverilog -g2012 -o /tmp/mi.vvp /tmp/mi.sv && echo CLEAN'`
+- "does reach_path keep the other analyze queries byte-identical" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "does semantic gate merge ignore endpoint identity" -> [endpoint-identity-boundary](docs/knowledge/endpoint-identity-boundary.md) · 2026-06-05
 - "does sequential module dedup merge modules with memories or FSMs" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
 - "does task emission change the emitted RTL behaviour" -> [combinational-task-emit](docs/knowledge/combinational-task-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
@@ -252,6 +253,7 @@
 - "how do I run the doctrine checks" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "how do I see inside a child instance over MCP" -> [semantic-introspection-instance-provenance](docs/knowledge/semantic-introspection-instance-provenance.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how do I see the deepest dependency chain of an output over MCP" -> [semantic-introspection-longest-path](docs/knowledge/semantic-introspection-longest-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "how do I see the longest forward path a node drives over MCP" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how do I see what a node ultimately drives over MCP" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how do I see what feeds a memory's write data or write enable over MCP" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how do I see what feeds an FSM's sel input over MCP" -> [semantic-introspection-fsm-provenance](docs/knowledge/semantic-introspection-fsm-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
@@ -339,6 +341,7 @@
 - "how is a memory addressed in the analyze tool" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how is a module addressed in the analyze tool" -> [semantic-introspection-module-reachability](docs/knowledge/semantic-introspection-module-reachability.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how is a node_reach target addressed" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "how is a reach_path sink addressed" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "how is acceptance divergence different from --diff-sim" -> [acceptance-divergence](docs/knowledge/acceptance-divergence.md) · 2026-06-17 · reverify: `'cargo test --test divergence_e2e -- --ignored   (tool-gated: with Verilator [+ optionally Yosys] on $PATH, asserts an all-agree real-tool sweep records diverged=false and a synthetic accept/reject pair classifies accept_reject; tool-less ⇒ the portable synthetic test still passes, the real-tool tests skip green)'`
 - "how is acceptance divergence surfaced over MCP" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "how is an ANVIL FSM output Moore vs Mealy" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'`
@@ -396,6 +399,8 @@
 - "is longest_path a timing critical path" -> [semantic-introspection-longest-path](docs/knowledge/semantic-introspection-longest-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "is node_reach consistent with input_reach" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "is node_readers the transpose of node_drivers" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "is reach_path a timing critical path" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "is reach_path consistent with node_reach" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "is slang a downstream tool in ANVIL" -> [slang-adapter](docs/knowledge/slang-adapter.md) · 2026-06-21
 - "is sv2v a downstream tool in ANVIL" -> [sv2v-adapter](docs/knowledge/sv2v-adapter.md) · 2026-06-18
 - "is task-tree ownership of code changes mechanically enforced" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
@@ -432,12 +437,16 @@
 - "should ANVIL expose an MCP server for AI agents" -> [agent-introspection-mcp-lane](docs/decisions/0004-agent-introspection-mcp-lane.md) · 2026-06-14
 - "should I run the full cargo test suite for Knowledge Map docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
 - "should I run the full cargo test suite for memory architecture docs" -> [resource-safe-validation](docs/decisions/0003-resource-safe-validation.md) · 2026-06-04
+- "show me the deepest gate chain a node drives" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the eighth analyze derived query kind" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "the eleventh analyze derived query kind" -> [semantic-introspection-instance-input-bindings](docs/knowledge/semantic-introspection-instance-input-bindings.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the fifth analyze derived query kind" -> [semantic-introspection-flop-dependencies](docs/knowledge/semantic-introspection-flop-dependencies.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
+- "the forward complement to longest_path" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "the fourteenth analyze derived query kind" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the ninth analyze derived query kind" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the node-addressed generalization of input_reach" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the parent-side dual of instance_provenance" -> [semantic-introspection-instance-input-bindings](docs/knowledge/semantic-introspection-instance-input-bindings.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "the path-witness for node_reach" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "the seventh analyze derived query kind" -> [semantic-introspection-fsm-provenance](docs/knowledge/semantic-introspection-fsm-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "the sixth analyze derived query kind" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "the tenth analyze derived query kind" -> [semantic-introspection-instance-provenance](docs/knowledge/semantic-introspection-instance-provenance.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
@@ -544,6 +553,7 @@
 - "what is a NodeDrivers / NodeRef" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "what is a NodeReach" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is a NodeReaders" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "what is a ReachPath" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is a ReachResult" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is a SupportCone" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "what is acceptance divergence hunting" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
@@ -631,6 +641,7 @@
 - "what is the instance_input_bindings query" -> [semantic-introspection-instance-input-bindings](docs/knowledge/semantic-introspection-instance-input-bindings.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the instance_provenance query" -> [semantic-introspection-instance-provenance](docs/knowledge/semantic-introspection-instance-provenance.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the longest combinational fan-in path of a target in ANVIL" -> [semantic-introspection-longest-path](docs/knowledge/semantic-introspection-longest-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "what is the longest combinational fan-out path of an IR node in ANVIL" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the longest_path query" -> [semantic-introspection-longest-path](docs/knowledge/semantic-introspection-longest-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the memory_provenance query" -> [semantic-introspection-memory-provenance](docs/knowledge/semantic-introspection-memory-provenance.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "what is the module dedup proof boundary" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
@@ -643,6 +654,7 @@
 - "what is the node_readers query" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the output-var passthrough form in an emitted task" -> [combinational-task-emit](docs/knowledge/combinational-task-emit.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'`
 - "what is the output_support query" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "what is the reach_path query" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "what is the register-to-register dependency graph in ANVIL" -> [semantic-introspection-flop-dependencies](docs/knowledge/semantic-introspection-flop-dependencies.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "what is the reproducer bundle format" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
 - "what is the second IDENTITY-DEEPENING extension" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
@@ -729,6 +741,7 @@
 - "which introspection schema version adds node_drivers" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds node_reach" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds node_readers" -> [semantic-introspection-node-readers](docs/knowledge/semantic-introspection-node-readers.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "which introspection schema version adds reach_path" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "which introspection schema version adds the analyze surface" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "which knob makes the FSM output depend on the input" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'`
 - "which metric proves mux_arm_duplication_rate fired" -> [signoff-knob-sweep-gate](docs/knowledge/signoff-knob-sweep-gate.md) · 2026-06-15 · reverify: `cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out /tmp/anvil-signoff-knob-sweep-check`
@@ -760,6 +773,7 @@
 - "why does ANVIL ship the masked-AND form instead of sel ==? pattern" -> [casez-mux-if-emit](docs/knowledge/casez-mux-if-emit.md) · 2026-06-23 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/cz.json && python3 -c "import json;c=json.load(open(\"/tmp/cz.json\"));c.update({\"casez_mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":0.0,\"case_mux_prob\":0.0,\"casez_mux_prob\":1.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\"/tmp/czi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/czi.json | tee /tmp/czi.sv | grep -c "else if ((" && iverilog -g2012 -o /tmp/czi.vvp /tmp/czi.sv && echo CLEAN'`
 - "why does exact D equals own Q prove flop equality" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "why does node_reach stop at the register boundary" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
+- "why does reach_path stop at the register boundary" -> [semantic-introspection-reach-path](docs/knowledge/semantic-introspection-reach-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "why does semantic module dedup require matching port ids" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "why does the case-mux-if gate bias case_mux_prob and zero comb_mux_prob" -> [case-mux-if-emit](docs/knowledge/case-mux-if-emit.md) · 2026-06-23 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"case_mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":0.0,\"case_mux_prob\":1.0,\"casez_mux_prob\":0.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\"/tmp/cmi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/cmi.json | tee /tmp/cmi.sv | grep -c "else if (" && iverilog -g2012 -o /tmp/cmi.vvp /tmp/cmi.sv && echo CLEAN'`
 - "why does the casez-mux-if gate bias casez_mux_prob and zero both comb_mux_prob and case_mux_prob" -> [casez-mux-if-emit](docs/knowledge/casez-mux-if-emit.md) · 2026-06-23 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/cz.json && python3 -c "import json;c=json.load(open(\"/tmp/cz.json\"));c.update({\"casez_mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":0.0,\"case_mux_prob\":0.0,\"casez_mux_prob\":1.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\"/tmp/czi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/czi.json | tee /tmp/czi.sv | grep -c "else if ((" && iverilog -g2012 -o /tmp/czi.vvp /tmp/czi.sv && echo CLEAN'`
@@ -1286,6 +1300,15 @@ _ANVIL's analyze tool answers node_readers — per-node immediate (1-hop) reader
 - **evidence:** `src/introspect/analyze.rs (QUERY_NODE_READERS, NodeReaders, DerivedAnalysis.node_readers, module_node_readers/design_node_readers, node_readers_with, the transpose proof node_readers_is_the_exact_transpose_of_node_drivers); src/mcp/mod.rs (run_analyze node_readers dispatch + analyze_schema enum + the 2 mcp proofs); src/introspect/mod.rs (SCHEMA_VERSION = 1.22); docs/AGENT_INTROSPECTION_SCHEMA.md (section 6.7 + the 1.21 -> 1.22 changelog); book/src/agent-mcp.md; docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
 - **reverify:** `cargo test --lib analyze`
 - **source:** [`docs/knowledge/semantic-introspection-node-readers.md`](docs/knowledge/semantic-introspection-node-readers.md)
+
+### semantic-introspection-reach-path
+_ANVIL's analyze tool answers reach_path — a node's longest combinational fan-OUT path to a boundary sink, the forward complement to longest_path / the path-witness for node_reach (schema 1.27)_
+
+- **answers:** what is the reach_path query | how do I see the longest forward path a node drives over MCP | what is the longest combinational fan-out path of an IR node in ANVIL | show me the deepest gate chain a node drives | what is a ReachPath | the forward complement to longest_path | the path-witness for node_reach | the fourteenth analyze derived query kind | which introspection schema version adds reach_path | how is a reach_path sink addressed | does reach_path keep the other analyze queries byte-identical | is reach_path consistent with node_reach | why does reach_path stop at the register boundary | is reach_path a timing critical path
+- **date:** 2026-06-24 · **status:** current
+- **evidence:** `src/introspect/analyze.rs (QUERY_REACH_PATH, ReachPath, DerivedAnalysis.reach_path, module_reach_path/design_reach_path, reach_path_with, build_reach_path, gate_reach_height, drives_sink/pick_sink, reach_path_analysis, the consistency proof reach_path_realizes_node_reach_with_a_forward_chain + the register-boundary proof reach_path_records_the_flop_d_sink_and_stops_at_the_register_boundary + the longest-chain proof reach_path_picks_the_longest_chain_and_depth_equals_path_len + the tie-break proof reach_path_tie_break_is_smallest_reader_id); src/mcp/mod.rs (run_analyze reach_path dispatch + analyze_schema enum + the 2 mcp proofs analyze_returns_reach_path_and_caches_it / analyze_reach_path_unknown_target_is_invalid_params); src/introspect/mod.rs (SCHEMA_VERSION = 1.27); docs/AGENT_INTROSPECTION_SCHEMA.md (section 6.7 + the 1.26 -> 1.27 changelog); book/src/agent-mcp.md; docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`
+- **reverify:** `cargo test --lib analyze`
+- **source:** [`docs/knowledge/semantic-introspection-reach-path.md`](docs/knowledge/semantic-introspection-reach-path.md)
 
 ### semantic-proof-budget
 _Bounded semantic proofs use support, node, and work budgets_

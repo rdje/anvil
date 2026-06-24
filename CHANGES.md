@@ -1,9 +1,71 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.15b.2 — reach_path MCP surface + schema 1.27
+
+**Landed as:** this commit (previous: `03b29a7`, `SEMANTIC-INTROSPECTION-EXPANSION.15b.1`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.15b.2`. **DUT
+byte-identical** (no IR / generator change; `analyze`/`introspect` are read-mostly, default-off;
+`tests/snapshots.rs` untouched). **Closes `.15b`/`.15` — `reach_path` delivered end-to-end** (the
+**fourteenth** derived `analyze` query). The MCP `analyze` tool now answers **fourteen** derived
+queries.
+
+**What.** Wired the fourteenth derived query, `reach_path`, to the MCP surface + bumped the
+introspection schema `1.26 → 1.27`:
+- `analyze.rs`: `QUERY_REACH_PATH` added to `supported_query_kinds()` (registry + dispatch never
+  disagree).
+- `src/mcp/mod.rs`: `run_analyze` branches by kind (`module`/`design_reach_path`) in **both** the
+  design and module arms; the unknown-target → `-32602` guard checks `analysis.reach_path`; the
+  `analyze_schema` query enum gains `"reach_path"` + the query/target descriptions (the `"node:<id>"`
+  form, paired with `node_reach`/`longest_path`) + the analyze tool description + the server
+  instructions; 2 new MCP proofs (`analyze_returns_reach_path_and_caches_it` — incl. a live
+  `reach_path.sink ⟺ node_reach.fanout` cross-check across every node — and
+  `analyze_reach_path_unknown_target_is_invalid_params`).
+- `src/introspect/mod.rs`: `SCHEMA_VERSION 1.26 → 1.27` + the doc comment + 20 `"1.26" → "1.27"`
+  schema_version test-assertion bumps (3 introspect + 17 mcp).
+
+**Why.** `reach_path` is the **forward-transitive witness**: the forward complement to `longest_path`
+and the path-witness for `node_reach`. `node_reach` reports *which* boundary sinks a node reaches;
+`reach_path` reports the longest gate-chain *to* one of them, exactly as `longest_path` realizes
+`output_support`'s scalar `cone_depth`. Single-target `"node:<id>"` addressing, so it fits `analyze
+{query, target}` with no MCP signature change. SCHEMA-DERIVED / structure-first (a greedy forward
+descent over a sink-aware gate-height memo, not behaviour); provably
+`reach_path(n).sink.is_some() == (node_reach(n).fanout_targets > 0)`, `depth == path.len()`.
+
+**Docs.** schema-doc §6.7 (the fourteenth `reach_path` payload + `ReachPath` + "one of fourteen
+parallel result vecs" + the File/Producer rows) + the `1.26 → 1.27` changelog + the version
+statements/checklist; book `agent-mcp` (the analyze table row + a `reach_path` worked example + the
+resource line + every JSON envelope `1.26 → 1.27`) + `api-tools` + `api-introspection` (fourteen
+queries + schema 1.27) + `api-reference` + `api-resources-prompts`; `USER_GUIDE` + `README` +
+`TOOLBOX` (fourteen kinds + schema 1.27); a new KM card `semantic-introspection-reach-path` (+
+cross-links from the `node-reach` / `longest-path` cards; `KNOWLEDGE_MAP` regenerated);
+`CODEBASE_ANALYSIS` (the analyze.rs block now wired + schema-history `1.26 → 1.27`); `ROADMAP` unchanged
+(post-phase capability lane).
+
+**Validation.** `cargo test --lib` 730/0/2 (+2 mcp proofs); `cargo test --test snapshots` 6/6
+byte-identical; `cargo fmt --all --check` clean; `cargo clippy --all-targets -- -D warnings` clean;
+`mdbook build book` clean; `cargo test --test book_examples` 3/3; `KNOWLEDGE_MAP` regenerated +
+`check_knowledge_map.sh` in sync; `scripts/check_doctrines.sh` green. **E2e `anvil-mcp` stdio smoke**:
+seed 7 → schema 1.27, module top `mod_7_0000`, 1674 `reach_path` entries; `depth == path.len()` for
+every entry; node 0 (primary_input) → a 66-gate forward chain ending at sink `flop:1`; the other
+query vecs omitted; unknown `node:999999` → `-32602`; a live cross-check that
+`reach_path.sink.is_some() ⟺ node_reach.fanout_targets > 0` for all 1674 nodes (0 mismatches) — no
+spec-vs-reality bug.
+
+**Impact.** Closes the `.15` lane; the `analyze` tool answers fourteen queries @ schema 1.27. The
+lane returns to a no-frontier boundary (stays `active`). DUT byte-identical.
+
+**Files touched.** `src/introspect/analyze.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `book/src/agent-mcp.md`, `book/src/api-tools.md`,
+`book/src/api-introspection.md`, `book/src/api-reference.md`, `book/src/api-resources-prompts.md`,
+`USER_GUIDE.md`, `README.md`, `TOOLBOX.md`, `docs/knowledge/semantic-introspection-reach-path.md`,
+`docs/knowledge/semantic-introspection-node-reach.md`,
+`docs/knowledge/semantic-introspection-longest-path.md`, `KNOWLEDGE_MAP.md`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.15b.1 — pure reach_path core
 
-**Landed as:** this commit (previous: `e0e7b8e`, `SEMANTIC-INTROSPECTION-EXPANSION.15a`).
+**Landed as:** `03b29a7` (previous: `e0e7b8e`, `SEMANTIC-INTROSPECTION-EXPANSION.15a`).
 A **code** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.15b.1`. **DUT byte-identical**
 (no IR / generator change; `analyze` is read-mostly, default-off; `tests/snapshots.rs` untouched; the
 core is **not wired to any emit path** — `supported_query_kinds()` unchanged, so the MCP `analyze`

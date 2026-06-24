@@ -341,6 +341,7 @@ pub fn supported_query_kinds() -> &'static [&'static str] {
         QUERY_INSTANCE_INPUT_BINDINGS,
         QUERY_LONGEST_PATH,
         QUERY_NODE_REACH,
+        QUERY_REACH_PATH,
     ]
 }
 
