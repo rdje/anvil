@@ -1321,11 +1321,29 @@ src/
 │                     proofs (incl. the cross-boundary descent proof) + 2 mcp proofs;
 │                     DUT byte-identical. The
 │                     parallel-vec pattern
-│                     now carries ten query kinds (`results`/`reach_results`/
+│                     now carries eleven query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
 │                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`/
-│                     `instance_provenance`),
+│                     `instance_provenance`/`instance_input_bindings`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
+│                     **`instance_input_bindings`** (`.12b.1`, the ELEVENTH derived
+│                     query, the **parent-side dual of `instance_provenance`** — the
+│                     future extension `.11a` named): for each child instance in a
+│                     design's top, `InstanceInputBindings { instance, module, role,
+│                     input_bindings: Vec<InstanceInputBinding { port, driver: NodeRef }> }`
+│                     — the parent node driving each child **input** port, read from
+│                     `Instance.inputs` (driver resolved in the **top's** graph via
+│                     `node_ref_of`; child def names the port, fallback `"port<id>"`).
+│                     `design_instance_input_bindings` / `module_instance_input_bindings`
+│                     (the latter **non-degenerate** — the parent driver lives in the
+│                     bare module's own graph; the contrast with `instance_provenance`) +
+│                     the shared `instance_input_bindings_analysis` constructor;
+│                     instance-**name** addressing (instances sorted by name; bindings
+│                     ascending child PortId). Pure core only — **not** in
+│                     `supported_query_kinds()` yet (registry + dispatch + schema
+│                     `1.23 → 1.24` land in `.12b.2`); 8 in-crate proofs (incl. the
+│                     cross-boundary binding proof + the non-degenerate module-variant
+│                     proof); DUT byte-identical.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
 │                     coverage-steered generation. `CoverageReadout {

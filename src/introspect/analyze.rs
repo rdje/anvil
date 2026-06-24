@@ -230,6 +230,29 @@ pub const QUERY_NODE_READERS: &str = "node_readers";
 /// `analyze` tool (`.11b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_INSTANCE_PROVENANCE: &str = "instance_provenance";
 
+/// The query-kind string for the eleventh derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.12`): per-child-instance **input bindings**. For each
+/// child instance in a design's top, it reports the instance's structural facts (name /
+/// instantiated child module / [`InstanceRole`]) plus, for each of the child's **input ports**,
+/// the **parent node** ([`NodeRef`]) that drives it — read directly from the instance's
+/// `inputs: Vec<(PortId, NodeId)>` binding table. It is the **parent-side dual of
+/// [`QUERY_INSTANCE_PROVENANCE`]**: where `instance_provenance` *descends into the child* to
+/// report the support cone of each child **output** (in the child's own terms), this query
+/// *ascends to the parent* to report what drives each child **input** (in the parent's terms).
+/// The two bracket the instance boundary on both sides — chaining `instance_input_bindings →
+/// instance_provenance` traces a parent signal across the module boundary through a child output
+/// and back, closing the loop the opaque [`Node::InstanceOutput`] leaf hides.
+///
+/// Unlike `instance_provenance` (Design-only, because the child output cone lives *inside* the
+/// child), this query's value — the parent driver — lives in the **parent's** node graph, so the
+/// single-module variant [`module_instance_input_bindings`] is **not** degenerate: it resolves
+/// real bindings, and only the child input **port name** (which needs the child definition)
+/// degrades to a `"port<id>"` fallback. The seventh query beyond decision `0011`'s four named
+/// kinds (the lane's "open-ended breadth" clause), under the same `0004`/`0011` SCHEMA-DERIVED
+/// ceiling. Served by [`module_instance_input_bindings`] / [`design_instance_input_bindings`],
+/// dispatched by the MCP `analyze` tool (`.12b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_INSTANCE_INPUT_BINDINGS: &str = "instance_input_bindings";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -326,6 +349,13 @@ pub struct DerivedAnalysis {
     /// `instance_provenance` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub instance_provenance: Vec<InstanceProvenance>,
+    /// The [`QUERY_INSTANCE_INPUT_BINDINGS`] payload: one [`InstanceInputBindings`] per child
+    /// instance in the design's top. An **eleventh** parallel vec, same rationale as the prior
+    /// nine (`reach_results` … `instance_provenance`): `skip_serializing_if` keeps the ten prior
+    /// query documents byte-identical (the key is omitted unless this is an
+    /// `instance_input_bindings` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_input_bindings: Vec<InstanceInputBindings>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -691,6 +721,57 @@ pub struct InstanceProvenance {
     pub output_support: Vec<SupportCone>,
 }
 
+/// One child instance's **input bindings** — the [`QUERY_INSTANCE_INPUT_BINDINGS`] payload, the
+/// **parent-side dual of [`InstanceProvenance`]**. For a child instance in the design's top, its
+/// structural facts plus, for each of the child's bound **input ports**, the **parent node**
+/// ([`NodeRef`]) that drives it through the instance's `inputs` binding table. It answers *what,
+/// in the parent, feeds each of this child's inputs?* — the mirror of `instance_provenance`'s
+/// *what, inside this child, drives each of its outputs?*. An agent that saw `"<instance>.<port>"`
+/// as an opaque support leaf can now (a) ask `instance_provenance` for the child's output cone
+/// and (b) ask `instance_input_bindings` for the parent node behind each child input that cone
+/// bottoms out at — composing the two into a full cross-boundary trace.
+///
+/// Each binding's `driver` is resolved in the **parent's** node graph through the same
+/// [`node_ref_of`] helper `node_drivers` uses, so a binding to a parent input shows
+/// `name = "<parent-input>"`, a parent flop `Q` shows `"flop:<id>"`, a **sibling instance
+/// output** shows `"<sibling>.<port>"`, and a parent interior gate / constant shows
+/// `"node:<id>"`.
+///
+/// **Scope boundary (deliberate, the `node_drivers` one-hop precedent):** the `driver` is the
+/// **immediate (1-hop)** parent node, not its transitive cone — chain [`QUERY_OUTPUT_SUPPORT`] /
+/// [`QUERY_NODE_DRIVERS`] on `driver.node` for the full parent support. Control ports
+/// (`clk`/`rst_n`) are structural and never appear in the instance's `inputs`, so they are
+/// correctly absent.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstanceInputBindings {
+    /// The child instance **name** (the entity this entry is about, addressed `"<instance>"`).
+    pub instance: String,
+    /// The child **module name** this instance instantiates ([`Instance::module`]).
+    pub module: String,
+    /// `"planned_child"` ([`InstanceRole::PlannedChild`]) | `"parent_cone"`
+    /// ([`InstanceRole::ParentCone`]), mapped to a stable string (the shared
+    /// [`instance_role_str`] convention) so the wire shape survives the enum gaining variants.
+    pub role: String,
+    /// One [`InstanceInputBinding`] per **bound** child input port, in **ascending child PortId**
+    /// order. Empty when the instance binds no data inputs (e.g. a constant-only / output-only
+    /// child). Control ports (`clk`/`rst_n`) are not data bindings and never appear here.
+    pub input_bindings: Vec<InstanceInputBinding>,
+}
+
+/// One child input port's binding — a child input port paired with the **parent node** that
+/// drives it (the [`InstanceInputBindings::input_bindings`] element).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstanceInputBinding {
+    /// The child **input port**: its resolved name `"<child-input-port-name>"` in a design
+    /// (looked up in the child definition), or the `"port<id>"` fallback in a bare module (no
+    /// child def to name it) — the [`format_instance_leaf_module`] `"port<id>"` convention.
+    pub port: String,
+    /// The **parent** node driving this child input, resolved in the parent's graph through the
+    /// shared [`node_ref_of`] helper (a parent input name, a parent flop `"flop:<id>"`, a sibling
+    /// instance output `"<sibling>.<port>"`, or a parent `"node:<id>"` interior gate / constant).
+    pub driver: NodeRef,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -721,6 +802,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -761,6 +843,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -797,6 +880,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -875,6 +959,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -911,6 +996,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -949,6 +1035,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1030,6 +1117,7 @@ fn flop_dependencies_with(
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1068,6 +1156,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1136,6 +1225,7 @@ fn memory_provenance_with(
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1175,6 +1265,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1240,6 +1331,7 @@ fn fsm_provenance_with(
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1278,6 +1370,7 @@ pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnal
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1344,6 +1437,7 @@ fn node_drivers_with(
         node_drivers,
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1383,6 +1477,7 @@ pub fn design_node_readers(design: &Design, target: Option<&str>) -> DerivedAnal
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
             instance_provenance: Vec::new(),
+            instance_input_bindings: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1465,6 +1560,7 @@ fn node_readers_with(
         node_drivers: Vec::new(),
         node_readers,
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1572,6 +1668,130 @@ fn instance_provenance_analysis(instance_provenance: Vec<InstanceProvenance>) ->
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance,
+        instance_input_bindings: Vec::new(),
+    }
+}
+
+/// Compute the `instance_input_bindings` analysis for a single [`Module`] — the **non-degenerate**
+/// single-module variant (the contrast with [`module_instance_provenance`]). Each child input's
+/// parent driver lives in **this** module's node graph, so the bindings are fully resolved even
+/// without child definitions; the only thing a bare module cannot do is *name* the child input
+/// port, so each `port` falls back to `"port<id>"` (the [`format_instance_leaf_module`]
+/// convention). A leaf DUT module has no instances ⇒ an empty analysis.
+///
+/// `target = None` ⇒ one entry per instance, ascending instance **name**; bindings ascending
+/// child PortId. `target = Some("<instance-name>")` ⇒ that one instance's entry; any other
+/// string ⇒ no entry (→ `-32602` at the MCP layer).
+pub fn module_instance_input_bindings(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_module(m, inst, port);
+    let mut instances: Vec<&Instance> = m.instances.iter().collect();
+    instances.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut entries = Vec::new();
+    for inst in instances {
+        if let Some(t) = target {
+            if inst.name != t {
+                continue;
+            }
+        }
+        let mut bound: Vec<(PortId, NodeId)> = inst.inputs.clone();
+        bound.sort_by_key(|(p, _)| *p);
+        let input_bindings = bound
+            .into_iter()
+            .map(|(port, node)| InstanceInputBinding {
+                port: format!("port{port}"),
+                driver: node_ref_of(m, node, &fmt),
+            })
+            .collect();
+        entries.push(InstanceInputBindings {
+            instance: inst.name.clone(),
+            module: inst.module.clone(),
+            role: instance_role_str(inst.role).to_string(),
+            input_bindings,
+        });
+    }
+    instance_input_bindings_analysis(entries)
+}
+
+/// Compute the `instance_input_bindings` analysis for the **top** module of a [`Design`] — the
+/// **parent-side dual** of [`design_instance_provenance`]. For each child instance in the top, for
+/// each `(child_port_id, parent_node_id)` in `instance.inputs`, the parent driver is resolved in
+/// the **top's** node graph via [`node_ref_of`] (so a child input bound to a sibling instance
+/// output resolves to `"<sibling>.<port>"`) and the child input **port name** is resolved via the
+/// child definition (fallback `"port<id>"`). The child-definition table is consulted **only** to
+/// name the port — the value (the parent driver) needs no descent. Returns an empty analysis when
+/// the named top module is absent.
+///
+/// `target = None` ⇒ one entry per top instance, ascending instance **name**; bindings ascending
+/// child PortId. `target = Some("<instance-name>")` ⇒ that one instance's entry (an instance with
+/// no data bindings ⇒ a known-but-empty `input_bindings`); any other string ⇒ no entry
+/// (→ `-32602`).
+pub fn design_instance_input_bindings(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return instance_input_bindings_analysis(Vec::new());
+    };
+    // The child-definition table — consulted only to NAME each child input port; the parent
+    // driver is resolved in the top's own graph (no descent).
+    let by_name: HashMap<&str, &Module> = design
+        .modules
+        .iter()
+        .map(|m| (m.name.as_str(), m))
+        .collect();
+    let top_fmt =
+        |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
+    let mut instances: Vec<&Instance> = top.instances.iter().collect();
+    instances.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut entries = Vec::new();
+    for inst in instances {
+        if let Some(t) = target {
+            if inst.name != t {
+                continue;
+            }
+        }
+        let child = by_name.get(inst.module.as_str()).copied();
+        let mut bound: Vec<(PortId, NodeId)> = inst.inputs.clone();
+        bound.sort_by_key(|(p, _)| *p);
+        let input_bindings = bound
+            .into_iter()
+            .map(|(port, node)| {
+                let name = child
+                    .and_then(|c| c.inputs.iter().find(|p| p.id == port))
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| format!("port{port}"));
+                InstanceInputBinding {
+                    port: name,
+                    driver: node_ref_of(top, node, &top_fmt),
+                }
+            })
+            .collect();
+        entries.push(InstanceInputBindings {
+            instance: inst.name.clone(),
+            module: inst.module.clone(),
+            role: instance_role_str(inst.role).to_string(),
+            input_bindings,
+        });
+    }
+    instance_input_bindings_analysis(entries)
+}
+
+/// Wrap an `instance_input_bindings` result vec in a [`DerivedAnalysis`] with every other parallel
+/// result vec empty (the `query` field is the discriminator — the established factoring of the
+/// final literal, like [`instance_provenance_analysis`]).
+fn instance_input_bindings_analysis(
+    instance_input_bindings: Vec<InstanceInputBindings>,
+) -> DerivedAnalysis {
+    DerivedAnalysis {
+        query: QUERY_INSTANCE_INPUT_BINDINGS.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
+        node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
+        instance_input_bindings,
     }
 }
 
@@ -1711,6 +1931,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1779,6 +2000,7 @@ fn support_cones_with(
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -1854,6 +2076,7 @@ fn input_reach_with(
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
         instance_provenance: Vec::new(),
+        instance_input_bindings: Vec::new(),
     }
 }
 
@@ -4714,6 +4937,254 @@ mod tests {
         };
         let a = serde_json::to_string(&design_instance_provenance(&design, None)).unwrap();
         let b = serde_json::to_string(&design_instance_provenance(&design, None)).unwrap();
+        assert_eq!(a, b);
+    }
+
+    // ---- instance_input_bindings (`SEMANTIC-INTROSPECTION-EXPANSION.12b.1`) ----
+
+    /// A child with two named inputs (`ci0` port 0, `ci1` port 1) and one output (`o` port 2).
+    /// `instance_input_bindings` never descends, so the child needs only its port table.
+    fn iib_child(name: &str) -> Module {
+        let mut child = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "ci0", 8, Direction::In));
+        child.inputs.push(port(1, "ci1", 8, Direction::In));
+        child.outputs.push(port(2, "o", 8, Direction::Out));
+        child
+    }
+
+    fn iib_instance(id: u32, name: &str, module: &str, inputs: Vec<(u32, u32)>) -> Instance {
+        Instance {
+            id,
+            name: name.into(),
+            module: module.into(),
+            role: InstanceRole::PlannedChild,
+            inputs,
+            param_bindings: vec![],
+        }
+    }
+
+    /// The load-bearing proof: `instance_input_bindings` reports the **parent** node behind each
+    /// child input — a parent input *and* a sibling instance output, resolved in the top's graph.
+    #[test]
+    fn instance_input_bindings_resolve_the_parent_driver_across_the_boundary() {
+        let child = iib_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // node 0 = parent input a
+        top.nodes.push(Node::InstanceOutput {
+            instance: 0,
+            port: 2,
+            width: 8,
+        }); // node 1 = sibling s0's output o
+        top.instances.push(iib_instance(0, "s0", "c", vec![])); // sibling, a binding source
+                                                                // u0 binds ci0 (port 0) <- parent input a (node 0); ci1 (port 1) <- sibling output (node 1)
+        top.instances
+            .push(iib_instance(1, "u0", "c", vec![(0, 0), (1, 1)]));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+
+        let iib = design_instance_input_bindings(&design, Some("u0")).instance_input_bindings;
+        assert_eq!(iib.len(), 1);
+        assert_eq!(iib[0].instance, "u0");
+        assert_eq!(iib[0].module, "c");
+        assert_eq!(iib[0].role, "planned_child");
+        assert_eq!(iib[0].input_bindings.len(), 2);
+        // ci0 <- parent input "a" (resolved child input name + parent driver)
+        assert_eq!(iib[0].input_bindings[0].port, "ci0");
+        assert_eq!(iib[0].input_bindings[0].driver.name, "a");
+        assert_eq!(iib[0].input_bindings[0].driver.kind, "primary_input");
+        assert_eq!(iib[0].input_bindings[0].driver.node, 0);
+        // ci1 <- sibling instance output "s0.o" (the cross-boundary parent-side handle)
+        assert_eq!(iib[0].input_bindings[1].port, "ci1");
+        assert_eq!(iib[0].input_bindings[1].driver.name, "s0.o");
+        assert_eq!(iib[0].input_bindings[1].driver.kind, "instance_output");
+        assert_eq!(iib[0].input_bindings[1].driver.node, 1);
+    }
+
+    /// The contrast with `instance_provenance` (degenerate-empty module variant): the module
+    /// variant carries **real** bindings (the parent driver lives in the bare module's graph);
+    /// only the child input port *name* degrades to `"port<id>"`.
+    #[test]
+    fn instance_input_bindings_module_variant_is_non_degenerate() {
+        let mut m = Module {
+            name: "m".into(),
+            ..Module::default()
+        };
+        m.inputs.push(port(0, "a", 8, Direction::In));
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // node 0 = a
+        m.instances.push(iib_instance(0, "u0", "c", vec![(0, 0)]));
+
+        let iib = module_instance_input_bindings(&m, None).instance_input_bindings;
+        assert_eq!(iib.len(), 1);
+        assert_eq!(iib[0].input_bindings.len(), 1);
+        // child port name degrades to "port<id>" (no child def) ...
+        assert_eq!(iib[0].input_bindings[0].port, "port0");
+        // ... but the parent driver IS resolved (the non-degenerate property)
+        assert_eq!(iib[0].input_bindings[0].driver.name, "a");
+        assert_eq!(iib[0].input_bindings[0].driver.kind, "primary_input");
+    }
+
+    /// Entries are ordered by ascending instance **name**, and each instance's bindings by
+    /// ascending child **PortId**, independent of the `inputs` vec order.
+    #[test]
+    fn instance_input_bindings_order_instances_by_name_and_bindings_by_port() {
+        let child = iib_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 }); // node 0
+                                                                  // u1 declared first; u0 binds its ports in REVERSE vec order (port 1 then port 0)
+        top.instances.push(iib_instance(0, "u1", "c", vec![(0, 0)]));
+        top.instances
+            .push(iib_instance(1, "u0", "c", vec![(1, 0), (0, 0)]));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let iib = design_instance_input_bindings(&design, None).instance_input_bindings;
+        assert_eq!(
+            iib.iter().map(|e| e.instance.as_str()).collect::<Vec<_>>(),
+            vec!["u0", "u1"] // sorted by name
+        );
+        // u0's bindings sorted by child PortId ⇒ ci0 (port 0) before ci1 (port 1)
+        assert_eq!(
+            iib[0]
+                .input_bindings
+                .iter()
+                .map(|b| b.port.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ci0", "ci1"]
+        );
+    }
+
+    /// An instance that binds **no** data inputs ⇒ a known-but-empty `input_bindings` (NOT
+    /// `-32602`); control ports never appear here.
+    #[test]
+    fn instance_input_bindings_no_bindings_is_known_but_empty() {
+        let child = iib_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances.push(iib_instance(0, "u0", "c", vec![]));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let iib = design_instance_input_bindings(&design, Some("u0")).instance_input_bindings;
+        assert_eq!(iib.len(), 1);
+        assert!(iib[0].input_bindings.is_empty());
+    }
+
+    /// `target = None` ⇒ all instances; `Some(name)` ⇒ that one; an unknown name ⇒ none.
+    #[test]
+    fn instance_input_bindings_target_selects_one_and_unknown_is_none() {
+        let child = iib_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        top.instances.push(iib_instance(0, "u0", "c", vec![(0, 0)]));
+        top.instances.push(iib_instance(1, "u1", "c", vec![(0, 0)]));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        assert_eq!(
+            design_instance_input_bindings(&design, None)
+                .instance_input_bindings
+                .len(),
+            2
+        );
+        let one = design_instance_input_bindings(&design, Some("u1")).instance_input_bindings;
+        assert_eq!(one.len(), 1);
+        assert_eq!(one[0].instance, "u1");
+        assert!(design_instance_input_bindings(&design, Some("nope"))
+            .instance_input_bindings
+            .is_empty());
+    }
+
+    /// An absent top module ⇒ an empty analysis (the `design_*` precedent).
+    #[test]
+    fn instance_input_bindings_absent_top_is_empty() {
+        let ghost = Design {
+            top: "missing".into(),
+            modules: vec![iib_child("c")],
+        };
+        assert!(design_instance_input_bindings(&ghost, None)
+            .instance_input_bindings
+            .is_empty());
+    }
+
+    /// An `instance_input_bindings` document serializes `instance_input_bindings` and omits the
+    /// ten `skip_serializing_if` sibling vecs; an `output_support` document omits this one.
+    #[test]
+    fn instance_input_bindings_serialization_omits_the_other_query_vecs() {
+        let child = iib_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        top.instances.push(iib_instance(0, "u0", "c", vec![(0, 0)]));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let json = serde_json::to_string(&design_instance_input_bindings(&design, None)).unwrap();
+        assert!(json.contains("\"instance_input_bindings\""));
+        for k in [
+            "\"reach_results\"",
+            "\"flop_provenance\"",
+            "\"module_reachability\"",
+            "\"flop_dependencies\"",
+            "\"memory_provenance\"",
+            "\"fsm_provenance\"",
+            "\"node_drivers\"",
+            "\"node_readers\"",
+            "\"instance_provenance\"",
+        ] {
+            assert!(
+                !json.contains(k),
+                "instance_input_bindings doc must omit {k}"
+            );
+        }
+        let oc = serde_json::to_string(&design_support_cones(&design, None)).unwrap();
+        assert!(!oc.contains("\"instance_input_bindings\""));
+    }
+
+    /// Identical inputs ⇒ identical serialized output (byte-stable).
+    #[test]
+    fn instance_input_bindings_is_deterministic() {
+        let child = iib_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.inputs.push(port(0, "a", 8, Direction::In));
+        top.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        top.instances.push(iib_instance(0, "u1", "c", vec![(0, 0)]));
+        top.instances
+            .push(iib_instance(1, "u0", "c", vec![(1, 0), (0, 0)]));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let a = serde_json::to_string(&design_instance_input_bindings(&design, None)).unwrap();
+        let b = serde_json::to_string(&design_instance_input_bindings(&design, None)).unwrap();
         assert_eq!(a, b);
     }
 }

@@ -1,9 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.12b.1 — pure instance_input_bindings core
+
+**Landed as:** this commit (previous: `1933d2a`, `SEMANTIC-INTROSPECTION-EXPANSION.12a`).
+A **code + docs** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.12b.1`. **DUT
+byte-identical** (no IR / generator change; `analyze` is a read-mostly post-hoc projection not
+wired to any emit path; `tests/snapshots.rs` untouched). The pure core of the **eleventh**
+derived `analyze` query, `instance_input_bindings` — **not** yet wired to the MCP surface (the
+registry entry + `run_analyze` dispatch + the schema bump land together in `.12b.2`, the
+`.4b`–`.11b` precedent).
+
+**What changed (why)**
+
+`instance_input_bindings` is the **parent-side dual of `instance_provenance` (`.11`)** — the
+exact future extension `.11a` named: for each child instance in a design's top, the **parent
+node** (`NodeRef`) driving each child **input** port, read from the existing
+`Instance.inputs: Vec<(PortId, NodeId)>`.
+
+- `src/introspect/analyze.rs`:
+  - `QUERY_INSTANCE_INPUT_BINDINGS = "instance_input_bindings"` (with the doc comment naming
+    the parent-side-dual relationship + the non-degenerate-module-variant property).
+  - `InstanceInputBindings { instance, module, role, input_bindings: Vec<InstanceInputBinding> }`
+    + `InstanceInputBinding { port: String, driver: NodeRef }` — **reusing the existing
+    `NodeRef`** for the parent driver (full-factorization).
+  - the **eleventh** parallel vec `instance_input_bindings: Vec<InstanceInputBindings>` on
+    `DerivedAnalysis` (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the ten prior
+    query documents stay byte-identical); the 19 existing `DerivedAnalysis` literals gained
+    `instance_input_bindings: Vec::new()`.
+  - `module_instance_input_bindings(&Module, Option<&str>)` / `design_instance_input_bindings(
+    &Design, Option<&str>)` + the `instance_input_bindings_analysis` constructor. The driver is
+    resolved in the **top's** graph via the shared `node_ref_of` (a child input bound to a sibling
+    instance output resolves to `"<sibling>.<port>"`); the child def is consulted **only** to name
+    the child input port (fallback `"port<id>"`). Instances ascending **name**; bindings ascending
+    child **PortId**. The module variant is **NON-degenerate** (the load-bearing contrast with
+    `module_instance_provenance`): the parent driver lives in the bare module's own graph, so it
+    carries real bindings — only the child port *name* degrades to `"port<id>"`.
+  - **`supported_query_kinds()` is unchanged** — `instance_input_bindings` joins the registry
+    together with the `run_analyze` dispatch in `.12b.2` so the intermediate commit is coherent.
+  - 8 new in-crate proofs: the cross-boundary binding proof (child input `ci0` → parent input
+    `"a"`; `ci1` → sibling instance output `"s0.o"`), the non-degenerate module-variant proof
+    (real driver `"a"`, port `"port0"`), instances-by-name + bindings-by-PortId ordering, a
+    no-bindings known-but-empty instance, instance-name target + None + unknown, serialization
+    omitting the other ten query vecs, absent-top empty, determinism.
+- `CODEBASE_ANALYSIS.md`: the analyze.rs block now records **eleven** query kinds + the
+  `instance_input_bindings` core description.
+
+**Validation:** `cargo test --lib introspect::analyze` 76/0 (incl. the 8 new proofs);
+`cargo test --lib` 698 passed / 0 failed / 2 ignored; `cargo test --test snapshots` 6/6
+byte-identical (DUT `.sv` unchanged; the new vec is omitted from the ten prior documents);
+`cargo fmt --all --check` clean; `scripts/ram_guard.sh --threshold 90 -- cargo clippy
+--all-targets -- -D warnings` clean; `cargo check --lib` clean. DUT byte-identical.
+
+**Impact:** the pure derived-relation core for the eleventh query is in place and lib-proven;
+no agent-visible surface change yet (default-off, not in the registry). Frontier → `.12b.2`.
+
+**Files touched:** `src/introspect/analyze.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.12a — instance_input_bindings impl design-detail
 
-**Landed as:** this commit (previous: `fc790e1`, `SEMANTIC-INTROSPECTION-EXPANSION.11b.2`).
+**Landed as:** `1933d2a` (previous: `fc790e1`, `SEMANTIC-INTROSPECTION-EXPANSION.11b.2`).
 A **docs/design-only** change, task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.12a`
 (the design-detail leaf opening `.12`). **DUT byte-identical** — no `src/` touched; it
 records the design for the **eleventh** derived `analyze` query before any code, per the
