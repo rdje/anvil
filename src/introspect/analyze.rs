@@ -70,8 +70,8 @@
 //! determinism contract the rest of the introspection surface holds.
 
 use crate::ir::{
-    Design, Flop, FlopKind, FlopMux, Fsm, FsmEncoding, GateOp, InstanceId, MemKind, Memory, Module,
-    Node, NodeId, PortId, ResetKind,
+    Design, Flop, FlopKind, FlopMux, Fsm, FsmEncoding, GateOp, Instance, InstanceId, InstanceRole,
+    MemKind, Memory, Module, Node, NodeId, PortId, ResetKind,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
@@ -203,6 +203,33 @@ pub const QUERY_NODE_DRIVERS: &str = "node_drivers";
 /// tool (`.10b.2`); listed in [`supported_query_kinds`].
 pub const QUERY_NODE_READERS: &str = "node_readers";
 
+/// The query-kind string for the tenth derived query
+/// (`SEMANTIC-INTROSPECTION-EXPANSION.11`): per-child-instance **provenance**. For each
+/// child instance in a design's top, it reports the instance's structural facts
+/// (name / instantiated child module / [`InstanceRole`]) plus the [`SupportCone`] of each
+/// of the child module's **output ports**, **built inside the child module's own node
+/// graph**. It is the **third opaque-leaf boundary-opener**, completing the trilogy with
+/// [`QUERY_MEMORY_PROVENANCE`] (opens [`Node::MemRead`]) and [`QUERY_FSM_PROVENANCE`] (opens
+/// [`Node::FsmOut`]): the three opaque leaves the support walker ([`build_cone`]'s
+/// [`visit`]) terminates a cone at are `MemRead`, `FsmOut`, and [`Node::InstanceOutput`].
+/// `memory_provenance`/`fsm_provenance` opened the first two by reporting the *parent-side*
+/// cones feeding the block's input ports; a child instance is a whole *sub-module*, so this
+/// query opens the `InstanceOutput` boundary the matching way — by reporting **what drives
+/// each child output inside the child** (its child input ports, its child flops, its
+/// grand-child instance outputs). That makes it the **first and only derived query that
+/// crosses the module boundary** (every prior query lives in one module's node graph), which
+/// is exactly why it is **Design-only**: a bare [`Module`] carries the `InstanceOutput`
+/// leaves but not the child module definitions needed to descend, so only a [`Design`]
+/// (carrying `design.modules`) can answer it; [`module_instance_provenance`] is the
+/// degenerate no-child-definitions case (instances with empty cones). Each child output cone
+/// is built by the **same** [`build_cone`] machinery `output_support` uses — only the
+/// [`Module`] it walks changes (the child, not the analyzed top) — full-factorization. The
+/// sixth query beyond decision `0011`'s four named kinds (the lane's "open-ended breadth"
+/// clause), under the same `0004`/`0011` SCHEMA-DERIVED ceiling. Served by
+/// [`module_instance_provenance`] / [`design_instance_provenance`], dispatched by the MCP
+/// `analyze` tool (`.11b.2`); listed in [`supported_query_kinds`].
+pub const QUERY_INSTANCE_PROVENANCE: &str = "instance_provenance";
+
 /// Every derived-query kind the MCP `analyze` tool answers today. The tool
 /// rejects any `query` not in this set with `-32602`. A kind appears here
 /// **only once its `run_analyze` dispatch is wired**, so the registry and the
@@ -291,6 +318,13 @@ pub struct DerivedAnalysis {
     /// byte-identical (the key is omitted unless this is a `node_readers` analysis).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub node_readers: Vec<NodeReaders>,
+    /// The [`QUERY_INSTANCE_PROVENANCE`] payload: one [`InstanceProvenance`] per child
+    /// instance in the design's top. A **tenth** parallel vec, same rationale as the prior
+    /// eight (`reach_results` … `node_readers`): `skip_serializing_if` keeps the nine prior
+    /// query documents byte-identical (the key is omitted unless this is an
+    /// `instance_provenance` analysis).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instance_provenance: Vec<InstanceProvenance>,
 }
 
 /// The transitive **combinational** fan-in support of one target (an output
@@ -620,6 +654,42 @@ pub struct NodeReaders {
     pub readers: Vec<NodeRef>,
 }
 
+/// One child instance's **provenance** — the [`QUERY_INSTANCE_PROVENANCE`] payload. For a
+/// child instance in the design's top, its structural facts plus the [`SupportCone`] of each
+/// of the child module's output ports, **built inside the child module's own node graph**. It
+/// answers *what, inside this child, drives each of its outputs?* — opening the boundary the
+/// opaque [`Node::InstanceOutput`] leaf hides from the other queries' cones (which stop at the
+/// instance boundary and record `"<instance>.<port>"` as a leaf).
+///
+/// Each cone in `output_support` is built by the **same** [`build_cone`] machinery
+/// `output_support` uses — only the [`Module`] it walks is the child, not the analyzed top —
+/// so it classifies its leaves exactly like an output cone, but in the **child's** terms (the
+/// child module's input port names, the child's flop ids, the child's grand-child instance
+/// outputs). Each cone's `target` is `"<instance>.<child-output-port-name>"` — the exact name
+/// [`format_instance_leaf_design`] gives that leaf elsewhere — tying the provenance back to the
+/// opaque leaf the other queries surface.
+///
+/// **Scope boundary (deliberate, the `memory_provenance` "report cones, let the agent chain"
+/// precedent):** it does not map a child-input support leaf back to the parent node that drives
+/// it through the instance's input bindings, and it descends **exactly one level** (a grand-child
+/// instance output is a [`SupportCone`] leaf, not recursed). Both are future extensions.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InstanceProvenance {
+    /// The child instance **name** (the entity this entry is about, addressed `"<instance>"`).
+    pub instance: String,
+    /// The child **module name** this instance instantiates ([`Instance::module`]).
+    pub module: String,
+    /// `"planned_child"` ([`InstanceRole::PlannedChild`]) | `"parent_cone"`
+    /// ([`InstanceRole::ParentCone`]), mapped to a stable string so the wire shape survives the
+    /// enum gaining variants.
+    pub role: String,
+    /// One [`SupportCone`] per child **output port**, in the child's output declaration order,
+    /// each built **inside the child module's graph** with `target =
+    /// "<instance>.<child-output-port-name>"`. Empty when the child module is not found in the
+    /// design (defensive) or has no output ports.
+    pub output_support: Vec<SupportCone>,
+}
+
 /// Compute the output-support analysis for a single [`Module`].
 ///
 /// `target = None` ⇒ a cone per output port. Instance-output leaves are named
@@ -649,6 +719,7 @@ pub fn design_support_cones(design: &Design, target: Option<&str>) -> DerivedAna
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -688,6 +759,7 @@ pub fn design_input_reach(design: &Design, target: Option<&str>) -> DerivedAnaly
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -723,6 +795,7 @@ pub fn design_flop_provenance(design: &Design, target: Option<&str>) -> DerivedA
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     flop_provenance_with(top, target)
@@ -800,6 +873,7 @@ pub fn design_module_reachability(design: &Design, target: Option<&str>) -> Deri
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -835,6 +909,7 @@ pub fn module_module_reachability(m: &Module, target: Option<&str>) -> DerivedAn
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -872,6 +947,7 @@ pub fn design_flop_dependencies(design: &Design, target: Option<&str>) -> Derive
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -952,6 +1028,7 @@ fn flop_dependencies_with(
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -989,6 +1066,7 @@ pub fn design_memory_provenance(design: &Design, target: Option<&str>) -> Derive
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1056,6 +1134,7 @@ fn memory_provenance_with(
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -1094,6 +1173,7 @@ pub fn design_fsm_provenance(design: &Design, target: Option<&str>) -> DerivedAn
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1158,6 +1238,7 @@ fn fsm_provenance_with(
         fsm_provenance,
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -1195,6 +1276,7 @@ pub fn design_node_drivers(design: &Design, target: Option<&str>) -> DerivedAnal
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1260,6 +1342,7 @@ fn node_drivers_with(
         fsm_provenance: Vec::new(),
         node_drivers,
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -1298,6 +1381,7 @@ pub fn design_node_readers(design: &Design, target: Option<&str>) -> DerivedAnal
             fsm_provenance: Vec::new(),
             node_drivers: Vec::new(),
             node_readers: Vec::new(),
+            instance_provenance: Vec::new(),
         };
     };
     let fmt = |inst: InstanceId, port: PortId| format_instance_leaf_design(design, top, inst, port);
@@ -1379,6 +1463,122 @@ fn node_readers_with(
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers,
+        instance_provenance: Vec::new(),
+    }
+}
+
+/// Compute the `instance_provenance` analysis for a single [`Module`] — the **degenerate
+/// "no child definitions" case**. A bare module records its `instances` (name / module /
+/// role) but carries no child [`Module`] bodies to descend into, so each instance gets one
+/// [`InstanceProvenance`] with an **empty** `output_support` (the
+/// [`format_instance_leaf_module`] "no child def" / [`module_module_reachability`] degenerate
+/// precedent). A leaf DUT module has no instances, so a single-artifact DUT run returns an
+/// empty analysis; the real, cone-bearing query is [`design_instance_provenance`].
+///
+/// `target = None` ⇒ one entry per instance, in ascending instance **name** order.
+/// `target = Some("<instance-name>")` ⇒ that one instance's entry; any other string ⇒ no
+/// entry (→ `-32602` at the MCP layer).
+pub fn module_instance_provenance(m: &Module, target: Option<&str>) -> DerivedAnalysis {
+    let mut instances: Vec<&Instance> = m.instances.iter().collect();
+    instances.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut entries = Vec::new();
+    for inst in instances {
+        if let Some(t) = target {
+            if inst.name != t {
+                continue;
+            }
+        }
+        entries.push(InstanceProvenance {
+            instance: inst.name.clone(),
+            module: inst.module.clone(),
+            role: instance_role_str(inst.role).to_string(),
+            output_support: Vec::new(),
+        });
+    }
+    instance_provenance_analysis(entries)
+}
+
+/// Compute the `instance_provenance` analysis for the **top** module of a [`Design`] — the
+/// real query. For each child instance in the top, look up its child [`Module`] in
+/// `design.modules` and build the [`SupportCone`] of each of the child's output ports **inside
+/// the child module's own node graph** (reusing [`build_cone`] unchanged, with the child's own
+/// [`format_instance_leaf_design`] fmt resolving the child's grand-child instance leaves).
+/// Returns an empty analysis when the named top module is absent; a child module not found in
+/// the design table yields an entry with empty `output_support` (defensive — never panics on a
+/// malformed design).
+///
+/// `target = None` ⇒ one entry per top instance, ascending instance **name**.
+/// `target = Some("<instance-name>")` ⇒ that one instance's entry (a child with no output
+/// ports ⇒ a known-but-empty `output_support`); any other string ⇒ no entry (→ `-32602`).
+pub fn design_instance_provenance(design: &Design, target: Option<&str>) -> DerivedAnalysis {
+    let Some(top) = design.modules.iter().find(|m| m.name == design.top) else {
+        return instance_provenance_analysis(Vec::new());
+    };
+    // The child-definition table — the descent boundary a bare module cannot cross.
+    let by_name: HashMap<&str, &Module> = design
+        .modules
+        .iter()
+        .map(|m| (m.name.as_str(), m))
+        .collect();
+    let mut instances: Vec<&Instance> = top.instances.iter().collect();
+    instances.sort_by(|a, b| a.name.cmp(&b.name));
+    let mut entries = Vec::new();
+    for inst in instances {
+        if let Some(t) = target {
+            if inst.name != t {
+                continue;
+            }
+        }
+        let mut output_support = Vec::new();
+        if let Some(child) = by_name.get(inst.module.as_str()).copied() {
+            // Walk the CHILD's graph; its own instance-output leaves resolve through the
+            // child's `format_instance_leaf_design`. `build_cone` is reused unchanged — only
+            // the module it walks changes (the child, not the analyzed top).
+            let child_fmt =
+                |i: InstanceId, p: PortId| format_instance_leaf_design(design, child, i, p);
+            for out in &child.outputs {
+                output_support.push(build_cone(
+                    child,
+                    format!("{}.{}", inst.name, out.name),
+                    driver_of_port(child, out.id),
+                    &child_fmt,
+                ));
+            }
+        }
+        entries.push(InstanceProvenance {
+            instance: inst.name.clone(),
+            module: inst.module.clone(),
+            role: instance_role_str(inst.role).to_string(),
+            output_support,
+        });
+    }
+    instance_provenance_analysis(entries)
+}
+
+/// Wrap an `instance_provenance` result vec in a [`DerivedAnalysis`] with every other parallel
+/// result vec empty (the `query` field is the discriminator — the established factoring of the
+/// final literal, like the `*_with` drivers).
+fn instance_provenance_analysis(instance_provenance: Vec<InstanceProvenance>) -> DerivedAnalysis {
+    DerivedAnalysis {
+        query: QUERY_INSTANCE_PROVENANCE.to_string(),
+        results: Vec::new(),
+        reach_results: Vec::new(),
+        flop_provenance: Vec::new(),
+        module_reachability: Vec::new(),
+        flop_dependencies: Vec::new(),
+        memory_provenance: Vec::new(),
+        fsm_provenance: Vec::new(),
+        node_drivers: Vec::new(),
+        node_readers: Vec::new(),
+        instance_provenance,
+    }
+}
+
+/// The stable string name of an [`InstanceRole`] (mirrors its two variants).
+fn instance_role_str(role: InstanceRole) -> &'static str {
+    match role {
+        InstanceRole::PlannedChild => "planned_child",
+        InstanceRole::ParentCone => "parent_cone",
     }
 }
 
@@ -1509,6 +1709,7 @@ fn flop_provenance_with(m: &Module, target: Option<&str>) -> DerivedAnalysis {
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -1576,6 +1777,7 @@ fn support_cones_with(
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -1650,6 +1852,7 @@ fn input_reach_with(
         fsm_provenance: Vec::new(),
         node_drivers: Vec::new(),
         node_readers: Vec::new(),
+        instance_provenance: Vec::new(),
     }
 }
 
@@ -4225,5 +4428,291 @@ mod tests {
             modules: vec![],
         };
         assert!(design_node_readers(&ghost, None).node_readers.is_empty());
+    }
+
+    // ---- instance_provenance (`SEMANTIC-INTROSPECTION-EXPANSION.11b.1`) ----
+
+    /// A combinational child: input `"a"` (port 0) → output `"o"` (port 1) `= a`.
+    fn ip_child(name: &str) -> Module {
+        let mut child = Module {
+            name: name.into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 8, Direction::In));
+        child.outputs.push(port(1, "o", 8, Direction::Out));
+        child.nodes.push(Node::PrimaryInput { port: 0, width: 8 });
+        child.drives.push((1, 0));
+        child
+    }
+
+    fn ip_instance(id: u32, name: &str, module: &str, role: InstanceRole) -> Instance {
+        Instance {
+            id,
+            name: name.into(),
+            module: module.into(),
+            role,
+            inputs: vec![],
+            param_bindings: vec![],
+        }
+    }
+
+    /// The load-bearing proof: `instance_provenance` **descends into the child module** — the
+    /// reported cone lives in the *child's* terms (its input port "a"), not the parent's.
+    #[test]
+    fn instance_provenance_descends_into_the_child_module() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+
+        let ip = design_instance_provenance(&design, None).instance_provenance;
+        assert_eq!(ip.len(), 1);
+        assert_eq!(ip[0].instance, "u0");
+        assert_eq!(ip[0].module, "c");
+        assert_eq!(ip[0].role, "planned_child");
+        assert_eq!(ip[0].output_support.len(), 1);
+        let cone = &ip[0].output_support[0];
+        assert_eq!(cone.target, "u0.o"); // tied to the InstanceOutput leaf name
+        assert_eq!(cone.support_inputs, vec!["a"]); // the CHILD's input — cone is in the child
+        assert!(cone.support_flops.is_empty());
+        assert!(cone.support_instance_outputs.is_empty());
+        assert_eq!(cone.cone_nodes, 1); // just the child's input node
+        assert_eq!(cone.cone_depth, 0);
+    }
+
+    /// Entries are ordered by ascending instance **name**, independent of `instances` vec order.
+    #[test]
+    fn instance_provenance_orders_instances_by_name() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u1", "c", InstanceRole::PlannedChild));
+        top.instances
+            .push(ip_instance(1, "u0", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let ip = design_instance_provenance(&design, None).instance_provenance;
+        assert_eq!(
+            ip.iter().map(|e| e.instance.as_str()).collect::<Vec<_>>(),
+            vec!["u0", "u1"]
+        );
+    }
+
+    /// A child with **no output ports** ⇒ a known-but-empty `output_support` (NOT `-32602`).
+    #[test]
+    fn instance_provenance_child_with_no_outputs_is_known_but_empty() {
+        let mut child = Module {
+            name: "c".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "a", 8, Direction::In)); // no outputs
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let ip = design_instance_provenance(&design, Some("u0")).instance_provenance;
+        assert_eq!(ip.len(), 1);
+        assert!(ip[0].output_support.is_empty());
+    }
+
+    /// A `ParentCone` helper instance maps to the `"parent_cone"` role string.
+    #[test]
+    fn instance_provenance_maps_the_parent_cone_role() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "h0", "c", InstanceRole::ParentCone));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let ip = design_instance_provenance(&design, None).instance_provenance;
+        assert_eq!(ip[0].role, "parent_cone");
+    }
+
+    /// `target = None` ⇒ all instances; `Some(name)` ⇒ that one; an unknown name ⇒ none.
+    #[test]
+    fn instance_provenance_target_selects_one_and_unknown_is_none() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        top.instances
+            .push(ip_instance(1, "u1", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        assert_eq!(
+            design_instance_provenance(&design, None)
+                .instance_provenance
+                .len(),
+            2
+        );
+        let one = design_instance_provenance(&design, Some("u1")).instance_provenance;
+        assert_eq!(one.len(), 1);
+        assert_eq!(one[0].instance, "u1");
+        assert!(design_instance_provenance(&design, Some("nope"))
+            .instance_provenance
+            .is_empty());
+    }
+
+    /// The single-module variant is the degenerate "no child definitions" case: instances are
+    /// listed with empty cones; a leaf module (no instances) ⇒ an empty analysis.
+    #[test]
+    fn module_instance_provenance_is_the_degenerate_no_child_defs_case() {
+        let mut m = Module {
+            name: "bare".into(),
+            ..Module::default()
+        };
+        m.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        let ip = module_instance_provenance(&m, None).instance_provenance;
+        assert_eq!(ip.len(), 1);
+        assert_eq!(ip[0].instance, "u0");
+        assert_eq!(ip[0].module, "c");
+        assert!(ip[0].output_support.is_empty()); // no child def to descend into
+
+        let leaf = Module {
+            name: "leaf".into(),
+            ..Module::default()
+        };
+        assert!(module_instance_provenance(&leaf, None)
+            .instance_provenance
+            .is_empty());
+    }
+
+    /// An absent top module ⇒ an empty analysis.
+    #[test]
+    fn design_instance_provenance_absent_top_is_empty() {
+        let ghost = Design {
+            top: "ghost".into(),
+            modules: vec![],
+        };
+        assert!(design_instance_provenance(&ghost, None)
+            .instance_provenance
+            .is_empty());
+    }
+
+    /// The child cone classifies the child's **own** register boundary: a child output fed by a
+    /// child flop `Q` records that child flop, with the cone stopping at the clock edge.
+    #[test]
+    fn instance_provenance_child_cone_records_child_flop_boundary() {
+        let mut child = Module {
+            name: "c".into(),
+            ..Module::default()
+        };
+        child.inputs.push(port(0, "clk", 1, Direction::In));
+        child.inputs.push(port(1, "rst_n", 1, Direction::In));
+        child.inputs.push(port(2, "a", 8, Direction::In));
+        child.outputs.push(port(3, "o", 8, Direction::Out));
+        child.clock = Some(0);
+        child.reset = Some(1);
+        child.nodes.push(Node::PrimaryInput { port: 2, width: 8 }); // 0 = a
+        child.nodes.push(Node::FlopQ { flop: 0, width: 8 }); // 1 = Q
+        child.flops.push(Flop {
+            id: 0,
+            width: 8,
+            d: Some(0),
+            q: 1,
+            reset_val: 0,
+            reset_kind: ResetKind::Async,
+            kind: FlopKind::ZeroDefault,
+            mux: FlopMux::None,
+        });
+        child.drives.push((3, 1)); // o <- Q
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let ip = design_instance_provenance(&design, Some("u0")).instance_provenance;
+        let cone = &ip[0].output_support[0];
+        assert_eq!(cone.target, "u0.o");
+        assert_eq!(cone.support_flops, vec![0]); // cone stops at the child's flop Q
+        assert!(cone.support_inputs.is_empty()); // "a" feeds the flop D, not the output cone
+    }
+
+    /// An `instance_provenance` document serializes `instance_provenance` and omits the eight
+    /// `skip_serializing_if` sibling vecs; an `output_support` document omits `instance_provenance`.
+    #[test]
+    fn instance_provenance_serialization_omits_the_other_query_vecs() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u0", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let json = serde_json::to_string(&design_instance_provenance(&design, None)).unwrap();
+        assert!(json.contains("\"instance_provenance\""));
+        for k in [
+            "\"reach_results\"",
+            "\"flop_provenance\"",
+            "\"module_reachability\"",
+            "\"flop_dependencies\"",
+            "\"memory_provenance\"",
+            "\"fsm_provenance\"",
+            "\"node_drivers\"",
+            "\"node_readers\"",
+        ] {
+            assert!(!json.contains(k), "instance_provenance doc must omit {k}");
+        }
+        let oc = serde_json::to_string(&design_support_cones(&design, None)).unwrap();
+        assert!(!oc.contains("\"instance_provenance\""));
+    }
+
+    /// Identical inputs ⇒ identical serialized output (byte-stable).
+    #[test]
+    fn instance_provenance_is_deterministic() {
+        let child = ip_child("c");
+        let mut top = Module {
+            name: "top".into(),
+            ..Module::default()
+        };
+        top.instances
+            .push(ip_instance(0, "u1", "c", InstanceRole::PlannedChild));
+        top.instances
+            .push(ip_instance(1, "u0", "c", InstanceRole::PlannedChild));
+        let design = Design {
+            top: "top".into(),
+            modules: vec![top, child],
+        };
+        let a = serde_json::to_string(&design_instance_provenance(&design, None)).unwrap();
+        let b = serde_json::to_string(&design_instance_provenance(&design, None)).unwrap();
+        assert_eq!(a, b);
     }
 }

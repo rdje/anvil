@@ -1,6 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.11b.1 — pure instance_provenance core
+
+**Landed as:** this commit (previous: `2637185`, `SEMANTIC-INTROSPECTION-EXPANSION.11a`).
+A **code** change scoped to `src/introspect/analyze.rs` (+ a `CODEBASE_ANALYSIS.md` amend),
+task-tree-owned by `SEMANTIC-INTROSPECTION-EXPANSION.11b.1`. **DUT byte-identical** (no IR /
+generator change; `analyze.rs` is not wired to any emit path; `tests/snapshots.rs` untouched).
+Implements the `.11a` design — the pure `instance_provenance` analysis core.
+
+**What changed (why)**
+
+`src/introspect/analyze.rs` gains the tenth derived query's pure core (the third
+opaque-leaf boundary-opener; `.11a` design):
+
+- `QUERY_INSTANCE_PROVENANCE = "instance_provenance"` (const + doc; **not** added to
+  `supported_query_kinds()` yet — the registry entry + `run_analyze` dispatch land together in
+  `.11b.2` so the intermediate commit is coherent, the `.4b`–`.10b` precedent).
+- `InstanceProvenance { instance: String, module: String, role: String, output_support:
+  Vec<SupportCone> }` — **reusing the existing `SupportCone`** (one cone per child output port,
+  the `memory_provenance`/`fsm_provenance` cone-reuse precedent). `role` is the `InstanceRole`
+  mapped to `"planned_child"`/`"parent_cone"` via a new `instance_role_str` helper; each cone's
+  `target` is `"<instance>.<child-output-port-name>"` — the exact name
+  `format_instance_leaf_design` gives that leaf in every other query.
+- The **tenth** parallel vec `instance_provenance: Vec<InstanceProvenance>` on `DerivedAnalysis`
+  (`#[serde(default, skip_serializing_if = "Vec::is_empty")]` ⇒ the nine prior query documents
+  stay byte-identical). The 18 existing `DerivedAnalysis` literals gained `instance_provenance:
+  Vec::new()` (a guarded script insert after each `node_readers` field, the `.10b.1` precedent).
+- `design_instance_provenance(&Design, target)` — the **real** query: index `design.modules` by
+  name; for each top instance (sorted by instance **name**), look up its child `Module` and
+  `build_cone` per child output port **inside the child** with the child's own
+  `format_instance_leaf_design` fmt. **Reuses `build_cone` unchanged** — only the `Module` it
+  walks changes (the child, not the analyzed top — the first query whose walked module is other
+  than the top). No second walker, no IR field, no generator change.
+- `module_instance_provenance(&Module, target)` — the degenerate "no child definitions" case: a
+  bare module lists its instances (name/module/role) with **empty** `output_support` (the
+  `format_instance_leaf_module` / `module_module_reachability` degenerate precedent), present for
+  MCP-dispatch uniformity. A leaf DUT module has no instances ⇒ an empty analysis.
+- A small shared `instance_provenance_analysis(vec)` constructor factors the final
+  `DerivedAnalysis` literal (the established `*_with`-driver factoring idiom).
+
+Addressing: `target = None` ⇒ all instances ascending name; `Some("<instance-name>")` ⇒ that one
+(a child with no outputs ⇒ a known-but-empty `output_support`); an unknown name ⇒ no entry (→
+`-32602` at the MCP layer, wired in `.11b.2`). Scope boundary (future, nothing retired): no
+input-binding chaining + descends exactly one level (grand-child outputs are cone leaves).
+
+**Validation**
+
+`cargo test --lib introspect::analyze` **68 passed / 0 failed** (10 new proofs: the load-bearing
+**cross-boundary descent** proof — a design whose top instantiates child `u0` of module `c` whose
+output `o = a` (its input); `design_instance_provenance` reports instance `u0` / module `c` / role
+`planned_child` / one cone `target "u0.o"` with `support_inputs ["a"]` — the **child's** input,
+proving the cone lives in the child's graph; instances sorted by name; a child with no outputs ⇒
+known-but-empty; the `parent_cone` role; instance-name target + None-all + unknown ⇒ none; the
+degenerate `module_instance_provenance`; absent-top ⇒ empty; a child-flop-boundary cone records the
+child's flop `Q`; serialization omits the eight `skip_serializing_if` sibling vecs + `output_support`
+omits `instance_provenance`; determinism). `cargo test --lib` **688 passed / 0 failed / 2 ignored**.
+`cargo test --test snapshots` **6/6 byte-identical** (DUT `.sv` unchanged; `instance_provenance`
+omitted from the nine prior documents). `scripts/ram_guard.sh --threshold 90 -- cargo clippy
+--all-targets -- -D warnings` clean; `cargo fmt --all --check` clean; `cargo check --lib` clean.
+
+**Impact**
+
+No behaviour change (default-off / DUT byte-identical; the core is not yet reachable — `.11b.2`
+wires the registry + MCP `run_analyze` dispatch + schema `1.22 → 1.23`).
+
+**Files touched**
+
+`src/introspect/analyze.rs` (the const + struct + tenth vec + 18 fill-ins +
+`module_instance_provenance`/`design_instance_provenance`/`instance_provenance_analysis`/
+`instance_role_str` + the `Instance`/`InstanceRole` import + 10 proofs), `CODEBASE_ANALYSIS.md`
+(the `analyze.rs` block now lists ten query kinds), `CHANGES.md`, `MEMORY.md`, the owning
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.11a — instance_provenance impl design-detail
 
 **Landed as:** this commit (previous: `44848a7`, `LIVE-DOC-DRIFT-FIX.2`).

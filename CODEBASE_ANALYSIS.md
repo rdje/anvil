@@ -1294,10 +1294,30 @@ src/
 │                     `run_analyze` dispatch (`module`/`design_node_readers`) + the
 │                     `analyze_schema` enum + schema `1.21 → 1.22`; 5 in-crate proofs
 │                     (incl. the transpose proof) + 2 mcp proofs; DUT
-│                     byte-identical. The parallel-vec pattern
-│                     now carries nine query kinds (`results`/`reach_results`/
+│                     byte-identical. **`instance_provenance`** (`.11b.1`, the TENTH
+│                     derived query, the THIRD opaque-leaf boundary-opener — opens
+│                     `Node::InstanceOutput`, the sibling of `.7`'s `MemRead` + `.8`'s
+│                     `FsmOut`): for each child instance in a design's top,
+│                     `InstanceProvenance { instance, module, role,
+│                     output_support: Vec<SupportCone> }` — the support cone of each
+│                     child output port built **inside the child module's graph** by
+│                     reusing `build_cone` unchanged (only the walked `Module` changes:
+│                     the child, not the top — the **first query that crosses the module
+│                     boundary**, hence **Design-only**). `design_instance_provenance`
+│                     descends via the `design.modules` name index +
+│                     `format_instance_leaf_design`; `module_instance_provenance` is the
+│                     degenerate no-child-defs case (instances with empty cones); a
+│                     shared `instance_provenance_analysis` constructor + an
+│                     `instance_role_str` helper; instance-**name** addressing
+│                     (instances sorted by name; unknown ⇒ none). Not yet wired to the
+│                     MCP surface (joins `supported_query_kinds()` + `run_analyze` in
+│                     `.11b.2`, schema `1.22 → 1.23`); 10 in-crate proofs (incl. the
+│                     cross-boundary descent proof); DUT byte-identical. The
+│                     parallel-vec pattern
+│                     now carries ten query kinds (`results`/`reach_results`/
 │                     `flop_provenance`/`module_reachability`/`flop_dependencies`/
-│                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`),
+│                     `memory_provenance`/`fsm_provenance`/`node_drivers`/`node_readers`/
+│                     `instance_provenance`),
 │                     each a `skip_serializing_if` vec the `query` discriminates.
 │   └── coverage.rs   (`COVERAGE-STEERED-GENERATION.2b`, decision `0023`). The
 │                     achieved-coverage **readout** — the read half of
