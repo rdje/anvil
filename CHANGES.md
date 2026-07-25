@@ -1,6 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-25 — EVIDENCE-BANK-DURABILITY.1 — open tree: closure artifacts live in volatile /tmp
+
+**Landed as:** this commit (previous: `4bb1822`, `SEMANTIC-INTROSPECTION-EXPANSION.15b.2`).
+A **docs-only** change (no `src/` / `tests/` / `examples/` touched) ⇒ **DUT byte-identical**;
+`tests/snapshots.rs` untouched. Pure-docs commits are exempt from the code-change task-tree
+doctrine (`docs/TASK_TREE.md` "ANVIL Adoption Scope"), but this commit *creates* a tree, so it is
+owned by its own registration leaf `EVIDENCE-BANK-DURABILITY.1` — the
+`ROADMAP-FOLLOWUP-OWNERSHIP.1` / `CAPABILITY-LANE-OWNERSHIP.1` precedent.
+
+**What.** Opened a new `active` task tree, `EVIDENCE-BANK-DURABILITY`
+(`docs/tasks/EVIDENCE-BANK-DURABILITY.md` + a row in `docs/TASK_TREE.md`), recording a
+session-bootstrap observation and a design-first `.1` frontier.
+
+**Why (the observation).** Ramp-up re-read the full live-doc set and then checked the banked
+evidence those docs cite:
+- `ls -d /tmp/anvil-*` → **0 directories**;
+- `du -sh target/tmp` (the `SIGNOFF-SURFACE-EXPANSION.2` Verilator JSON-AST parity corpus) → **0**;
+- `grep -rhoE '/tmp/anvil-[A-Za-z0-9_.-]+'` over `README.md`, `ROADMAP.md`, `USER_GUIDE.md`,
+  `CODEBASE_ANALYSIS.md`, `TOOLBOX.md`, `book/src/*.md`, `docs/tasks/*.md` → **77 distinct cited
+  paths**.
+
+So **every** phase-closing artifact (`-phase1-real-r21`, `-phase2-share-r1`,
+`-phase3-structured-r4`, `-phase4-hierarchy-r87`, `-phase5-p1`, `-phase5b-p1`, `-phase6-p1`,
+`-phase6-fsm-p1`, `-microdesign-parity-phase7-yosys-p1`, `-frontend-parity-phase8-yosys-p1`) and
+every structured-surface gate bank (`-function-emit-gate-r1` … `-casez-mux-if-gate-r1`,
+`-sv-version-gate-upopt-r1`, `-signoff-knob-sweep-r1`) is cited by an absolute path in **volatile
+`/tmp`** and is **absent from this machine**.
+
+**Scope of the claim.** This is **not** a claim that any closure was wrong. Per
+`DOCTRINE_ENFORCEMENT.md` §3 the strongest archetype is the **oracle (re-run)**, and every one of
+these gates remains a re-runnable command — the numbers were real when recorded. The defect is in
+the **evidence architecture**: the artifact a reader is pointed at is unreachable, so re-verifying
+a closure means re-*deriving* it, which is precisely the archaeology
+`knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md` §0 exists to eliminate. It is also a partial
+regression against `LIVE-DOC-PATH-HYGIENE.1`, which rewrote local **repo** paths to
+repo-root-relative form but left the `/tmp` **evidence** citations absolute and volatile.
+
+**Frontier.** `.2` is design-first (an ADR), because the fix is a policy choice before it is an
+edit: cite the re-runnable gate command / commit a small per-bank digest under `docs/evidence/` /
+move banks to a stable non-`/tmp` location / explicitly demote `/tmp` paths to breadcrumbs. Writing
+77 path rewrites before choosing the mechanism would be the expensive wrong order.
+
+**Validation.** Docs-only. `bash scripts/check_doctrines.sh` → all 4 registered doctrines PASS
+(`MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`, `TASK-TREE-OWNERSHIP`);
+`scripts/check_memory_architecture.sh` green with `MEMORY.md` at 21 lines (cap 60). Full
+`SESSION_BOOTSTRAP.md` §4 sanity sweep on the unchanged tree, all under
+`scripts/ram_guard.sh --threshold 90` (host peak ≈15% used, far below the 90% abort line):
+`cargo check --all-targets` clean; **`cargo test` exit 0** — `pipeline` **125/0** (894s),
+`snapshots` **6/6** (the byte-identical contract holds), `sv_version` 2/0, `slang_e2e` 1/0/1,
+`sv2v_e2e` 1/0/1, `sv_version_downstream` 0/0/3 (tool-gated), doc-tests 0;
+`cargo clippy --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean. Docs/code
+alignment spot-checked on the most recently changed surface: `SCHEMA_VERSION = "1.27"` and
+`supported_query_kinds()` = 14 kinds in `src/introspect/`, matching README/book/TOOLBOX. No phase
+label moved in `ROADMAP.md`.
+
+**Files touched.** `docs/tasks/EVIDENCE-BANK-DURABILITY.md` (new), `docs/TASK_TREE.md` (one row),
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-06-24 — SEMANTIC-INTROSPECTION-EXPANSION.15b.2 — reach_path MCP surface + schema 1.27
 
 **Landed as:** this commit (previous: `03b29a7`, `SEMANTIC-INTROSPECTION-EXPANSION.15b.1`).
