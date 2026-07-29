@@ -1,6 +1,67 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp
+
+**Landed as:** this commit (previous: `6d9a318`, `VOLUME-DATA-LOCALITY.1`).
+A **code** change owned by leaf `VOLUME-DATA-LOCALITY.2`. It changes *where bytes land*, never
+which bytes are generated ⇒ **DUT byte-identical**, `tests/snapshots.rs` **6/6**.
+
+**What.** New `src/paths.rs` — the single resolver for ANVIL's own working data — plus
+`pub mod paths` in `lib.rs`. `sandbox_root()` resolves, first match wins:
+
+1. `$ANVIL_SANDBOX_ROOT` (non-empty) — verbatim;
+2. `<project root>/.cache/anvil-sandbox`, the root being the nearest ancestor of the CWD carrying a
+   `.git` or `Cargo.toml` marker (`find_project_root`, nearest wins);
+3. `<CWD>/.cache/anvil-sandbox` when no marker exists.
+
+It never returns the OS temp directory. `ValidateOptions::default()` is rewired onto it, so
+`validate` / `minimize` / `hunt` / `divergence` — over both the CLI and MCP — all inherit the fix
+from one place rather than each growing its own path policy
+(`feedback_full_factorization`). `src/ir/compact.rs`'s `ANVIL_DUMP_BISIM_SV` debug dump likewise
+moves off the hardcoded `/tmp/anvil-bisim-merged.sv` and now prints the path it wrote.
+
+**Why.** The `.1` audit found this as the single production violation of the owner's §13
+data-locality policy: with the checkout on a 4TB SSD (`/dev/disk5s1`) and the OS temp dir on the
+boot volume, **every** downstream-tool run wrote its generated SV and tool output to a different
+physical volume — and to a location the OS purges without warning, which is precisely how the
+`EVIDENCE-BANK-DURABILITY` banks evaporated.
+
+**The constraint that shaped the design.** ANVIL is distributed (release binaries + a composite
+GitHub Action running `anvil hunt` in other people's CI), so "under the ANVIL repo root" is not
+expressible in a shipped binary — an external user has no ANVIL checkout. The rule that generalizes
+is *the current project's own volume, derived at runtime*, which is also why nothing absolute is
+persisted (§12): the resolver recomputes from the current root on every call, so moving the
+checkout across volumes changes nothing. Rejected: a build-time `env!("CARGO_MANIFEST_DIR")` root
+(bakes the build machine's path into the shipped binary — the exact §12 breach); an XDG/home cache
+(off-volume by definition); refusing to run without an explicit root (hostile to the zero-config CI
+case the Action exists for).
+
+**Validation.** Five new resolver unit tests: never-under-the-OS-temp-dir, lands-under-the-project
+-root, marker walk-up, nearest-marker-wins, and the env override. The first compares against
+`std::env::temp_dir()` itself rather than the literal `/tmp` — on macOS the temp dir is a per-user
+`/var/folders/…` path, so a `"/tmp"` grep would have missed most real off-volume writes.
+**Measured end-to-end:** a real `downstream::validate(7, …)` with Verilator 5.x and Yosys installed
+now reports `sandbox = <repo>/.cache/anvil-sandbox/anvil-validate-d8420426e78b2d05` with `ok = true`
+and both tools `success = true`; previously that path was under the OS temp dir on another volume.
+`.cache/` is already gitignored, so sandboxes never pollute `git status` (confirmed). Gates:
+`cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`,
+`mdbook build book` all clean; full `cargo test` under `scripts/ram_guard.sh --threshold 90` →
+**exit 0**, `tests/snapshots.rs` **6/6 byte-identical**.
+
+**Book/doc sync folded in here** rather than deferred to the tree's docs leaf, because the change
+made existing documentation wrong the moment it landed: both
+`"sandbox": "/tmp/anvil-validate-…"` examples in `book/src/api-tools.md` now show the on-volume
+path, the book gained a "Where the sandbox lands" note, and `USER_GUIDE.md` gained a section
+documenting the resolution order and `ANVIL_SANDBOX_ROOT`.
+
+**Impact.** The one user-facing off-volume default is gone. No generator change; no phase labels
+moved. Frontier → `.3` (the 13 test-fixture sites).
+
+**Files touched.** `src/paths.rs` (new), `src/lib.rs`, `src/downstream/mod.rs`,
+`src/ir/compact.rs`, `book/src/api-tools.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/VOLUME-DATA-LOCALITY.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — VOLUME-DATA-LOCALITY.1 — register + audit: off-volume project data
 
 **Landed as:** this commit (previous: `0f4d484`, `BOOK-LANE-COVERAGE.3`).

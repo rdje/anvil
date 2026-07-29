@@ -348,6 +348,24 @@ src/
 │                     depth. `streamed_matches_reference` proves the
 │                     byte-identity against serde itself.
 │
+├── paths.rs          The single resolver for where ANVIL writes its own
+│                     working data (`VOLUME-DATA-LOCALITY.2`).
+│                     `sandbox_root()` resolves `$ANVIL_SANDBOX_ROOT` →
+│                     `<marker-walked project root>/.cache/anvil-sandbox`
+│                     → `<CWD>/.cache/anvil-sandbox`, and **never** the OS
+│                     temp dir (a different filesystem volume whenever the
+│                     checkout lives on a mounted disk, and silently
+│                     purged). `find_project_root` walks ancestors for a
+│                     `.git` / `Cargo.toml` marker, nearest wins. Consumed
+│                     by `ValidateOptions::default()` (so `validate` /
+│                     `minimize` / `hunt` / `divergence`, CLI **and** MCP,
+│                     all inherit it) and by the env-gated bisim debug dump
+│                     in `ir/compact.rs`. Portability constraint: ANVIL is
+│                     distributed (release binaries + composite Action), so
+│                     an external user has no ANVIL checkout — hence the
+│                     runtime marker-walk with a CWD fallback rather than a
+│                     baked-in repo path.
+│
 ├── mem_guard.rs      Opt-in internal RAM/RSS self-governor
 │                     (`WORKLOAD-MEMORY-SAFETY.4`). Pure decision
 │                     `evaluate(&MemLimits, &MemSample) → Option<AbortReason>`

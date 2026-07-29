@@ -1166,8 +1166,10 @@ pub struct ValidateOptions {
     /// is already in the danger zone; a child tool's own RSS balloon is the job
     /// of the external `scripts/ram_guard.sh` wrapper.
     pub mem_limits: MemLimits,
-    /// Sandbox root under which a fresh per-run subdirectory is created. The
-    /// MCP adapter fixes this to the OS temp dir; tests pass a controlled path.
+    /// Sandbox root under which a fresh per-run subdirectory is created.
+    /// Defaults to [`crate::paths::sandbox_root`] — the project's own volume,
+    /// derived at runtime and overridable via `ANVIL_SANDBOX_ROOT`, never the
+    /// OS temp dir (`VOLUME-DATA-LOCALITY.2`). Tests pass a controlled path.
     pub sandbox_root: PathBuf,
     /// Keep the sandbox directory after the run (default: remove it).
     pub keep_sandbox: bool,
@@ -1182,7 +1184,9 @@ impl Default for ValidateOptions {
                 max_rss_mb: 0,
                 ram_abort_pct: 0,
             },
-            sandbox_root: std::env::temp_dir(),
+            // On the project's own volume, derived at runtime — never
+            // the OS temp dir (`VOLUME-DATA-LOCALITY.2`).
+            sandbox_root: crate::paths::sandbox_root(),
             keep_sandbox: false,
         }
     }

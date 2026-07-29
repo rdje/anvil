@@ -2086,6 +2086,22 @@ sandbox. Omit `--out` and findings are reported in the JSON without on-disk
 bundles (the MCP `hunt` tool always omits the bundle and serves each reproducer
 as an `anvil://artifact/<run_id>/…` resource instead).
 
+#### Where ANVIL writes its working data
+
+Sandboxes and other ANVIL-owned scratch always land on **your project's own
+filesystem volume**, never in the OS temp directory. The location resolves in
+this order:
+
+1. `$ANVIL_SANDBOX_ROOT`, if set — used verbatim;
+2. `<project root>/.cache/anvil-sandbox`, where the project root is the nearest
+   ancestor of the current directory containing a `.git` or `Cargo.toml` marker;
+3. `<current directory>/.cache/anvil-sandbox`, if no marker is found.
+
+The OS temp directory is deliberately excluded: it sits on a different volume
+whenever the project lives on a mounted disk, and it is purged without warning,
+which silently destroys artifacts you meant to keep. Sandboxes are removed after
+each run regardless; the setting controls *which volume* the work happens on.
+
 ### Use ANVIL in your CI (the GitHub Action)
 
 ANVIL ships a **drop-in composite GitHub Action** (`CI-PACKAGING-DISTRIBUTION`,
@@ -2243,9 +2259,9 @@ It exposes three MCP primitives:
   of a recorded `tool_matrix_report.json` (inline `report` or `report_path`) so
   the agent can target *unexercised* surfaces — read-only, no recompute, no
   spawn. The controlled tools run only ANVIL's vetted downstream invocations
-  (`verilator` / `yosys` / `iverilog` / `sv2v` / `slang`, a fixed allow-list), in a
-  sandboxed temp dir, RAM-guarded, with no arbitrary shell and an audit log of
-  every call.
+  (`verilator` / `yosys` / `iverilog` / `sv2v` / `slang`, a fixed allow-list), in an
+  auto-removed sandbox on the project's own volume, RAM-guarded, with no
+  arbitrary shell and an audit log of every call.
   `minimize` shrinks the input `(seed, knobs)` (seed held fixed); it never
   mutates or repairs RTL.
 - **Resources** — `anvil://catalog/knobs`, `anvil://catalog/lanes`,

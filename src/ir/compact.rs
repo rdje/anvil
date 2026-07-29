@@ -3162,9 +3162,16 @@ mod tests {
         // both Yosys modes, and Icarus. Default no-op; re-bank with
         //   ANVIL_DUMP_BISIM_SV=1 cargo test --lib \
         //     merge_bisimilar_flops_merges_mutual_swap_registers
-        // then lint /tmp/anvil-bisim-merged.sv with the three tools.
+        // then lint the printed path with the three tools. The dump lands on
+        // the project's own volume via `crate::paths` — never `/tmp`, which is
+        // a different volume for a checkout on an external disk and is purged
+        // behind your back (`VOLUME-DATA-LOCALITY.2`).
         if std::env::var("ANVIL_DUMP_BISIM_SV").is_ok() {
-            std::fs::write("/tmp/anvil-bisim-merged.sv", crate::emit::to_sv(&m)).unwrap();
+            let dir = crate::paths::sandbox_root();
+            std::fs::create_dir_all(&dir).unwrap();
+            let path = dir.join("anvil-bisim-merged.sv");
+            std::fs::write(&path, crate::emit::to_sv(&m)).unwrap();
+            eprintln!("ANVIL_DUMP_BISIM_SV: wrote {}", path.display());
         }
     }
 

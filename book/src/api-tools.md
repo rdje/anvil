@@ -258,12 +258,22 @@ vetted tools on it; return structured per-tool reports + an overall verdict.
 `exit_code`, `stdout_log`/`stderr_log`, `error`), the overall `ok`, and a
 `declined` reason if the RAM guard stopped early. Yosys `both` yields two entries.
 
+> **Where the sandbox lands.** ANVIL writes its working data on **your
+> project's own filesystem volume**, never the OS temp directory: it uses
+> `$ANVIL_SANDBOX_ROOT` if you set it, otherwise
+> `<project root>/.cache/anvil-sandbox`, where the root is the nearest
+> ancestor holding a `.git` or `Cargo.toml` marker (falling back to the
+> current directory). A temp directory would sit on a different volume
+> whenever the project lives on a mounted disk, and is purged behind your
+> back — which is fatal for an artifact you intended to keep. The
+> directory is removed after each run unless you ask to keep it.
+
 ```json
 { "name": "validate", "arguments": { "seed": 42, "tools": ["verilator", "yosys"] } }
 ```
 ```json
 { "run_id": "3f1c…", "lane": "dut", "kind": "module", "top": "mod_42_0000",
-  "sandbox": "/tmp/anvil-validate-3f1c…",
+  "sandbox": ".cache/anvil-sandbox/anvil-validate-3f1c…",
   "tools": [ { "tool": "verilator", "success": true, "exit_code": 0, "error": null },
              { "tool": "yosys-without-abc", "success": true, "exit_code": 0, "error": null } ],
   "ok": true, "declined": null }
@@ -366,7 +376,7 @@ classified `divergences` (each `{ kind, tools }` with `kind` =
 ```
 ```json
 { "run_id": "3f1c…", "lane": "dut", "kind": "module", "top": "mod_42_0000",
-  "sandbox": "/tmp/anvil-validate-3f1c…",
+  "sandbox": ".cache/anvil-sandbox/anvil-validate-3f1c…",
   "verdicts": [ { "tool": "verilator", "verdict": "accept", "exit_code": 0 },
                 { "tool": "yosys-without-abc", "verdict": "accept", "exit_code": 0 },
                 { "tool": "yosys-with-abc", "verdict": "accept", "exit_code": 0 } ],

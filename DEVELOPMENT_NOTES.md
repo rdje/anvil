@@ -5,6 +5,35 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-29 — ANVIL's working data leaves the OS temp dir — `VOLUME-DATA-LOCALITY.2`
+
+The owner's §13 data-locality policy forbids ANVIL-owned data defaulting off the project's
+filesystem volume. `ValidateOptions::default()` set `sandbox_root: std::env::temp_dir()`, so every
+`validate` / `minimize` / `hunt` / `divergence` run — CLI and MCP alike — wrote generated SV and
+tool output to the boot disk while the checkout lived on an external SSD.
+
+The fix is one resolver (`src/paths.rs::sandbox_root`), not a policy re-implemented per call site
+(`feedback_full_factorization`). Resolution order: `$ANVIL_SANDBOX_ROOT` → the nearest ancestor
+carrying a `.git`/`Cargo.toml` marker, suffixed `.cache/anvil-sandbox` → the same suffix under CWD.
+
+**The constraint that shaped it:** ANVIL is *distributed* — release binaries and a composite GitHub
+Action run `anvil hunt` inside other people's projects, where no ANVIL checkout exists. So "put it
+under the ANVIL repo root" is not expressible in a shipped binary; the rule that generalizes is
+*the current project's own volume, derived at runtime*. That is also why nothing absolute is ever
+persisted (§12): the resolver recomputes from the current root on every call, so moving the
+checkout — even across volumes — changes nothing.
+
+Rejected: a build-time `env!("CARGO_MANIFEST_DIR")` root (bakes the build machine's path into the
+shipped binary — the exact §12 breach); an XDG/home cache (off-volume by definition); and refusing
+to run without an explicit root (hostile to the zero-config CI use case the Action exists for).
+
+Gotcha for anyone auditing this: `std::env::temp_dir()` on macOS is a per-user `/var/folders/…`
+path, not `/tmp`, so grepping for the literal `"/tmp"` finds only *some* of the off-volume writes.
+The `paths::tests::sandbox_root_is_never_the_os_temp_dir` guard compares against `temp_dir()`
+itself for that reason. Note also that `/tmp/x`-style literals in the CLI *parse* tests write
+nothing to disk and are not violations — a future sweep should not "fix" them and mistake the churn
+for compliance.
+
 ## 2026-07-29 — Non-DUT `--out` filenames come from builder truth — `LANE-OUT-FILENAME.1`
 
 Gotcha made structural: `run_non_dut_lane` derived the `--out` filename stem by re-parsing the

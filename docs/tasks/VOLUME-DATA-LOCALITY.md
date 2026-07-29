@@ -56,6 +56,14 @@ lower risk because they are not user-facing:
 written to disk; they only assert flag parsing. Leave them, or switch
 them for readability only, never as a policy fix.
 
+**Checked and clean (do not re-derive).** `HuntRequest::bundle_root` is
+`Option<PathBuf>` defaulting to `None` — a reproducer bundle is written
+only where the user explicitly points `--out`, so the hunt lane has **no**
+off-volume default of its own; it inherits the sandbox fix through
+`ValidateOptions`. Likewise `anvil --out DIR` (generation) is always
+caller-supplied. The sandbox root really was the single production
+default.
+
 ### The design tension this tree must resolve
 
 ANVIL is **distributed** (tagged release binaries + a composite GitHub
@@ -119,7 +127,7 @@ so it is surfaced, not performed. Recorded in `.4`.
   Commit: `VOLUME-DATA-LOCALITY.1 — register + audit: off-volume project data`
 
 - ID: `VOLUME-DATA-LOCALITY.2`
-  Status: `pending`
+  Status: `done`
   Goal: the shared **sandbox-root resolver** + rewire the production
         default. Proposed resolution order (design-first, record in the
         ADR): explicit `ANVIL_SANDBOX_ROOT` override → else a
@@ -134,8 +142,36 @@ so it is surfaced, not performed. Recorded in `.4`.
         incl. the override and the marker-walk; sandbox still removed
         after a run unless `keep_sandbox`; DUT byte-identical
         (`tests/snapshots.rs` 6/6); full gate green.
-  Verification: `pending`
-  Commit: `pending`
+  Verification: New `src/paths.rs` (+ `pub mod paths` in `lib.rs`):
+        `sandbox_root()` = `$ANVIL_SANDBOX_ROOT` → marker-walked project
+        root → CWD, each suffixed `.cache/anvil-sandbox`; never
+        `temp_dir()`. `ValidateOptions::default()` rewired onto it (so
+        validate / minimize / hunt / divergence, CLI **and** MCP, all
+        inherit); `ir/compact.rs`'s `ANVIL_DUMP_BISIM_SV` dump moved off
+        the hardcoded `/tmp/anvil-bisim-merged.sv` and now prints the
+        path it wrote. 5 resolver unit tests (never-under-temp-dir,
+        lands-under-project-root, marker walk-up, nearest-marker-wins,
+        env-override) — all green.
+        **Measured end-to-end (the REJECT→PASS):** a real
+        `downstream::validate(7, …)` with Verilator 5.x + Yosys installed
+        now reports
+        `sandbox = <repo>/.cache/anvil-sandbox/anvil-validate-d8420426e78b2d05`
+        with `ok = true` and both tools `success = true` — previously
+        this landed under the OS temp dir on a different volume.
+        `.cache/` is already gitignored, so the sandbox never pollutes
+        `git status` (confirmed). Gate: `cargo check --all-targets`,
+        `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all
+        --check`, `mdbook build book` all clean; full `cargo test` under
+        `scripts/ram_guard.sh --threshold 90` → **exit 0**
+        (`tests/snapshots.rs` **6/6 byte-identical** — the change moves
+        bytes, never generates different ones).
+        Book/doc sync folded in here rather than deferred to `.5`,
+        because the change made two `book/src/api-tools.md` examples
+        (`"sandbox": "/tmp/anvil-validate-…"`) wrong on landing: both
+        updated, plus a "Where the sandbox lands" note in the book and a
+        matching `USER_GUIDE.md` section documenting the resolution order
+        and `ANVIL_SANDBOX_ROOT`.
+  Commit: `VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp`
 
 - ID: `VOLUME-DATA-LOCALITY.3`
   Status: `pending`
@@ -168,7 +204,12 @@ so it is surfaced, not performed. Recorded in `.4`.
         where sandboxes land), `TOOLBOX.md`, and the book chapters that
         mention sandbox paths (`book/src/api-tools.md` shows a
         `"sandbox": "/tmp/anvil-validate-…"` example that will become
-        wrong).
+        wrong). **Narrowed after `.2`:** the two `api-tools.md` examples,
+        the book's "Where the sandbox lands" note, and the
+        `USER_GUIDE.md` resolution-order section already landed *in* `.2`
+        (book-sync doctrine — they became wrong the moment `.2` landed).
+        Remaining here: `TOOLBOX.md` + a sweep for any other doc
+        implying an OS-temp sandbox.
   Acceptance: no live doc or book page shows an off-volume sandbox as
         current behaviour; `mdbook build` + `book_examples` green.
   Verification: `pending`
@@ -178,10 +219,9 @@ so it is surfaced, not performed. Recorded in `.4`.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `VOLUME-DATA-LOCALITY.2` | `pending` | The production default is the only user-facing violation; fixing it first removes the actual off-volume writes. It also establishes the resolver `.3` reuses. |
-| 2 | `VOLUME-DATA-LOCALITY.3` | `pending` | Test fixtures, once the resolver exists. |
-| 3 | `VOLUME-DATA-LOCALITY.4` | `pending` | ADR after the shape is proven in code (the resolution order is easier to justify once tested). |
-| 4 | `VOLUME-DATA-LOCALITY.5` | `pending` | Docs/book last, describing landed behaviour. |
+| 1 | `VOLUME-DATA-LOCALITY.3` | `pending` | Test fixtures + temporary workspaces onto the resolver, now that it exists and is proven. 13 sites; `cargo test` should write nothing off-volume, verified by a residue census after a full run. |
+| 2 | `VOLUME-DATA-LOCALITY.4` | `pending` | ADR `0031` + amend `0030`, now that the resolution order is proven in code rather than proposed. |
+| 3 | `VOLUME-DATA-LOCALITY.5` | `pending` | **Narrowed** — the `book/src/api-tools.md` examples and the `USER_GUIDE.md` section landed in `.2` (they went stale the moment `.2` landed). What remains: `TOOLBOX.md` and a sweep for any other doc implying an OS-temp sandbox. |
 
 ## Decisions
 
@@ -212,6 +252,7 @@ so it is surfaced, not performed. Recorded in `.4`.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `VOLUME-DATA-LOCALITY.2` | 5 new `paths` unit tests green (incl. `sandbox_root_is_never_the_os_temp_dir`, which compares against `temp_dir()` itself — on macOS that is a per-user `/var/folders/…` path, so a `"/tmp"` grep would have missed it); real `validate(7)` with Verilator + Yosys → `sandbox = <repo>/.cache/anvil-sandbox/anvil-validate-d8420426e78b2d05`, `ok = true`, both tools `success = true`; `.cache/` gitignored ⇒ no `git status` pollution; `cargo check --all-targets` + `clippy -D warnings` + `fmt --check` + `mdbook build book` clean; full `cargo test` under `ram_guard --threshold 90` exit 0 with `tests/snapshots.rs` 6/6 byte-identical | `done` — the one production off-volume default is gone |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.1` | `df -h` on the repo vs `/private/tmp` → `/dev/disk5s1` vs `/dev/disk3s1s1` (off-volume confirmed); `grep -rn "temp_dir()" src/ tests/ scripts/` → 15 sites classified (a) 1 production, (b) 1 debug dump, (c) 13 test/workspace, plus (d) non-violating parse literals; old-checkout inspection read-only (`git merge-base --is-ancestor ecda0e7 HEAD` → true; caches identical); `scripts/check_doctrines.sh` 4/4 PASS | `done` — tree registered; docs-only ⇒ DUT byte-identical |
 
 ## Commit Log
@@ -219,6 +260,7 @@ so it is surfaced, not performed. Recorded in `.4`.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `VOLUME-DATA-LOCALITY.1` | `VOLUME-DATA-LOCALITY.1 — register + audit: off-volume project data` | docs-only |
+| `VOLUME-DATA-LOCALITY.2` | `VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp` | code + book/doc sync; moves where bytes land, never which bytes ⇒ DUT byte-identical |
 
 ## Changelog
 

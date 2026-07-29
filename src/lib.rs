@@ -93,6 +93,13 @@ pub mod metrics;
 /// oracle). Deliberately not threaded through the gate-level circuit
 /// IR (`ir`).
 pub mod microdesign;
+/// Where ANVIL writes its own working data (`VOLUME-DATA-LOCALITY.2`).
+/// The single resolver for sandbox / scratch roots: an explicit
+/// `ANVIL_SANDBOX_ROOT`, else a marker-walked project root, else the
+/// current directory — **never** the OS temp dir, which is a different
+/// filesystem volume from a checkout on an external disk (and is
+/// silently purged). See `src/paths.rs`.
+pub mod paths;
 /// Phase 9 multi-artifact umbrella (`PHASE-9-MULTI-ARTIFACT-UMBRELLA`).
 /// Unifies the **plumbing** across the three delivered artifact lanes
 /// — DUT RTL (Phases 1–6), oracle-backed micro-design (Phase 7,
