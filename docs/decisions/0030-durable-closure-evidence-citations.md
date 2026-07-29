@@ -10,11 +10,16 @@ answers:
   - "do banked tool_matrix reports survive reboot"
   - "why does a cited /tmp/anvil path not exist"
   - "what goes in docs/evidence"
+  - "how do I bank a new evidence digest"
+  - "can I add a bank to the grandfathered list"
+  - "what is the EVIDENCE-CITATIONS doctrine"
+  - "why is the grandfathered evidence list frozen"
+  - "where should a tool_matrix bank be written"
 date: 2026-07-29
 status: current
 tags: [evidence, durability, docs, doctrine, process]
-evidence: docs/tasks/EVIDENCE-BANK-DURABILITY.md; CHANGES.md
-reverify: "grep -rhoE '/tmp/anvil-[A-Za-z0-9_.-]+' README.md ROADMAP.md USER_GUIDE.md CODEBASE_ANALYSIS.md TOOLBOX.md book/src/*.md docs/tasks/*.md | sort -u | wc -l  (77 raw strings / 73 canonical banks at decision time; all pre-0030, all breadcrumbs)"
+evidence: docs/tasks/EVIDENCE-BANK-DURABILITY.md; docs/evidence/README.md; docs/evidence/INVENTORY.md; CHANGES.md
+reverify: "bash scripts/check_evidence_citations.sh   (every cited bank is digest-backed under docs/evidence/ or classified in its frozen inventory; the 2026-07-30 amendment replaced this ADR's original /tmp-path grep, which VOLUME-DATA-LOCALITY.5 rendered moot by stripping every /tmp/ prefix)"
 ---
 
 # 0030 - Closure evidence is cited through committed digests; bare `/tmp` paths are historical breadcrumbs
@@ -161,3 +166,68 @@ explicitly allowed absolute `/tmp` evidence paths.
 - Standards: `MEMORY_ARCHITECTURE.md` §2 (durability properties),
   `DOCTRINE_ENFORCEMENT.md` §3 (oracle vs evidence archetypes),
   `knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md` §0 (no archaeology)
+
+---
+
+## Amendment — `2026-07-30` (`EVIDENCE-BANK-DURABILITY.3`)
+
+*The original Context / Decision / Rejected-alternatives text above is
+unchanged (`MEMORY_ARCHITECTURE.md` §10: supersede, do not mutate). This
+amendment records what mechanization found, and narrows exactly one clause.*
+
+**What changed under the decision.** `0030` point 3 specified that the check key
+on a bare **`/tmp/anvil-*`** path. Between this ADR and its implementation,
+`VOLUME-DATA-LOCALITY.5` swept every `/tmp/` prefix out of the live docs, so
+that discriminator no longer exists anywhere in the tree. What a document cites
+today is a bare **`anvil-<name>`** token — a shape ANVIL also uses for binaries
+(`anvil-mcp`), directories (`anvil-sandbox`), Action inputs (`anvil-bin`),
+negative-control fixtures, and English prose (`anvil-emitted`). There is no
+lexical rule separating `anvil-cf-sweep` (a bank) from `anvil-hunt-bundles`
+(not one).
+
+**The mechanism is unchanged: the committed per-bank digest.** Only the
+*recognition* rule is restated, and it is restated as classification rather than
+pattern-matching, because a check that must guess which prose tokens are claims
+is the wrong archetype — it can only fail by ignoring a real bank or by crying
+wolf on prose, and a gate that cries wolf gets disabled.
+
+1. **Three buckets, fail-closed.** Every `anvil-<name>` token in scope is
+   classified exactly once: **digest-backed** (`docs/evidence/<token>.md`
+   exists and is schema-valid — the forward path, unbounded), **grandfathered**
+   (`docs/evidence/INVENTORY.md` §1), or **not evidence** (§2). An unclassified
+   token is a breach.
+
+2. **§1 is frozen; §2 is not.** The check pins §1's entry count *and* the
+   SHA-256 of its sorted membership. The asymmetry is **semantic, not
+   convenience**: §1 is the set of banks that existed before this ADR — a
+   historical fact that cannot grow, since you cannot retroactively acquire
+   pre-`0030` evidence. Left unpinned it would be the obvious escape hatch
+   ("just grandfather it") and the doctrine would be decorative. §2 is a living
+   vocabulary and legitimately grows under review.
+
+3. **Scan set by exclusion, not enumeration.** Every tracked `*.md` except the
+   append-only history (`CHANGES.md`, `DEVELOPMENT_NOTES.md` — decision `0031`
+   forbids retro-editing them), the generated `KNOWLEDGE_MAP.md`, and
+   `docs/evidence/` itself (which must name the tokens it classifies — the
+   policy-document principle `NO-BOOT-VOLUME-REFS` already uses). This replaces
+   `0030`'s hand-listed set: an enumerated list goes stale silently, which is
+   precisely how the `/tmp` citations survived `LIVE-DOC-PATH-HYGIENE.1`.
+
+4. **Banks are written under `.cache/anvil-sandbox/<bank>/`** — on-volume
+   (decision `0031`), gitignored. The digest is the only tracked artifact.
+
+**Classification cross-check.** The inventory derived from today's tree yields
+**10 phase-closing / 15 surface-gate / 47 focused-smoke** grandfathered banks —
+identical to this ADR's own `(a) 10 / (b) 15 / (c) 47` audit, reached
+independently over a *broader* scan set. The count differs, 72 here vs the
+ADR's 73 canonical banks, only in variant handling (line-wrap and
+trailing-punctuation fragments are separate tokens to a mechanical check).
+
+**`.4` is narrowed by this amendment.** `0030` scheduled a per-document sweep
+labelling pre-`0030` citations as historical breadcrumbs. That assumed a visible
+`/tmp/` prefix to label; with the prefix gone there is nothing in the prose to
+mark, and 73 in-line labels would be noise. The breadcrumb record now has one
+durable home — `INVENTORY.md` §1, which states per bank that the artifact is
+gone and that the re-verification path is the named gate command at the recorded
+commit. `.4` therefore reduces to a normative pointer from the affected live
+docs to that file.

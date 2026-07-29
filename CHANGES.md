@@ -1,6 +1,89 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EVIDENCE-BANK-DURABILITY.3 — mechanize decision 0030: the EVIDENCE-CITATIONS doctrine
+
+**Landed as:** this commit (previous: `1827d5b`, `CARGO-TMPDIR-SWEEP-REGRESSION.2`).
+`docs/evidence/` + 2 scripts + registry + the `0030` amendment; no generator code ⇒
+**DUT byte-identical**. Driver **5/5 → 6/6**.
+
+**The decision this leaf had to make.** `0030` point 3 specified a check keying on a bare
+`/tmp/anvil-*` path. Between the ADR and its implementation, `VOLUME-DATA-LOCALITY.5` stripped
+every `/tmp/` prefix in the tree, so that discriminator no longer exists. What a live document
+cites today is a bare `anvil-<name>` token — a shape ANVIL also uses for binaries (`anvil-mcp`,
+232 occurrences), directories (`anvil-sandbox`, 109), Action inputs (`anvil-bin`), negative-control
+fixtures, and plain English (`anvil-emitted`). **No lexical rule separates `anvil-cf-sweep` (a
+bank) from `anvil-hunt-bundles` (not one).** Recorded as a dated amendment to `0030` — original
+Context/Decision text untouched (`MEMORY_ARCHITECTURE.md` §10: supersede, do not mutate).
+
+**So the check classifies; it does not guess.** A gate that must infer which prose tokens are
+claims can only be wrong in one of two directions — silently ignoring a real uncited bank, or
+crying wolf on prose — and a gate that cries wolf gets disabled. Every `anvil-<name>` token in
+scope is classified **exactly once**, and an unclassified token is a breach (**fail-closed**):
+
+1. **digest-backed** — `docs/evidence/<token>.md` exists and is schema-valid. The forward path;
+   grows without limit.
+2. **grandfathered** — `docs/evidence/INVENTORY.md` §1, a pre-`0030` bank whose artifact is gone.
+3. **not evidence** — §2: binaries, directories, fixtures, prose.
+
+**§1 is pinned; §2 is not — and the asymmetry is semantic, not convenience.** §1's membership is
+a *historical fact*: the set of banks that existed before `0030`. It cannot legitimately grow,
+because you cannot retroactively acquire pre-`0030` evidence. Left unpinned it would be the
+obvious escape hatch — "just grandfather it" — and the doctrine would be decorative. So the check
+pins both its entry count (72) and the SHA-256 of its sorted membership; widening it means editing
+`check_evidence_citations.sh` in the same reviewed commit. §2 is a living vocabulary and grows
+under review.
+
+**Scan set by exclusion, not enumeration.** Every tracked `*.md` except the append-only history
+(`CHANGES.md`, `DEVELOPMENT_NOTES.md` — decision `0031`), the generated `KNOWLEDGE_MAP.md`, and
+`docs/evidence/` itself (which must name the tokens it classifies — the policy-document principle
+`NO-BOOT-VOLUME-REFS` already uses). A new live doc is therefore in scope automatically. `0030`'s
+hand-listed set is replaced: an enumerated list goes stale silently, which is exactly how the
+`/tmp` citations survived `LIVE-DOC-PATH-HYGIENE.1`.
+
+**Shipped.** `docs/evidence/README.md` (the digest schema + the whole add-a-bank workflow);
+`docs/evidence/INVENTORY.md` (the derived, frozen classification — 72 grandfathered + 20
+not-evidence); `scripts/evidence_digest.sh` (derives a digest from a `tool_matrix_report.json`,
+failing loudly on a missing field rather than emitting blanks — a signoff artifact with a silently
+wrong number is worse than none); `scripts/check_evidence_citations.sh`; the registry line;
+`DOCTRINE_ENFORCEMENT.md` §10 row.
+
+**Validation — four negative controls, each applied then reverted.** NC1 a new
+`anvil-brandnew-gate-r9` citation with no digest → **exit 1**. NC2 appending that name to the
+frozen §1, i.e. the escape hatch → **exit 1** (count + SHA pin). NC3 a digest missing required
+fields → **exit 1**. NC4 a schema-valid digest → **exit 0**, citation admitted. Baseline and
+post-cleanup both 0. Driver **6/6**.
+
+**Cross-check worth recording.** The inventory derived mechanically from today's tree classifies
+the grandfathered banks as **10 phase-closing / 15 surface-gate / 47 focused-smoke** — *identical*
+to decision `0030`'s own hand audit, reached independently over a broader scan set. (72 vs the
+ADR's 73 canonical banks differs only in variant handling: line-wrap and trailing-punctuation
+fragments are separate tokens to a mechanical check.)
+
+**The gate caught its own author a third time.** Writing the NC1 fixture token into this tree's
+verification row made the check fail — correctly, since that row is a scanned document. It went
+into §2 as a fixture, which is precisely why §2 must be growable while §1 is frozen. Re-running
+confirmed the §1 pin was untouched (72, same SHA), so the fix provably widened only the unpinned
+bucket.
+
+**Also fixed here (drift, one line).** `README.md`'s doctrine-registry line still listed 4
+doctrines; the driver has had 5 since `VOLUME-DATA-LOCALITY.7` and now has 6. Refreshed to name
+all six with their owning decisions.
+
+**`0030`'s KM front matter refreshed.** Its `reverify` was the `/tmp`-path grep the sweep rendered
+moot; it now runs the real check. Five new `answers:` keys route the new questions
+(“how do I bank a new evidence digest”, “can I add a bank to the grandfathered list”, …).
+`KNOWLEDGE_MAP.md` regenerated: 83 facts / **827** question keys (was 822).
+
+**No phase labels changed.** Phases 0–9 remain `done`.
+
+**Files touched.** `docs/evidence/README.md` (new), `docs/evidence/INVENTORY.md` (new),
+`scripts/evidence_digest.sh` (new), `scripts/check_evidence_citations.sh` (new),
+`scripts/check_doctrines.sh`, `DOCTRINE_ENFORCEMENT.md`, `README.md`,
+`docs/decisions/0030-durable-closure-evidence-citations.md`,
+`docs/tasks/EVIDENCE-BANK-DURABILITY.md`, `docs/TASK_TREE.md`, `KNOWLEDGE_MAP.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — CARGO-TMPDIR-SWEEP-REGRESSION.2 — repair the 10 mangled `target/tmp` citations
 
 **Landed as:** this commit (previous: `610ac88`, `CARGO-TMPDIR-SWEEP-REGRESSION.1`).

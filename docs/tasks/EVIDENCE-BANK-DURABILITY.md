@@ -140,26 +140,54 @@ evidence citations absolute and volatile.
   Commit: `EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations`
 
 - ID: `EVIDENCE-BANK-DURABILITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: mechanize the 0030 contract: `docs/evidence/README.md` (digest
         schema), `scripts/evidence_digest.sh` (derive a digest from a
         `tool_matrix_report.json`), `scripts/check_evidence_citations.sh`
-        (structural: a live-doc `/tmp/anvil-*` citation must be
-        grandfathered or digest-matched) + `check_doctrines.sh` registry
-        line + the frozen grandfathered list under `docs/evidence/`.
-  Acceptance: driver reports the new check PASS on the current tree;
-        a synthetic new bare `/tmp/anvil-*` citation makes it FAIL.
-  Verification: `pending`
-  Commit: `pending`
+        + `check_doctrines.sh` registry line + the frozen grandfathered
+        list under `docs/evidence/`.
+        **Recognition rule restated (0030 amendment `2026-07-30`):** the ADR
+        keyed on a bare `/tmp/anvil-*` path, but `VOLUME-DATA-LOCALITY.5`
+        removed every `/tmp/` prefix, so the citation form is now a bare
+        `anvil-<name>` token — a shape ANVIL also uses for binaries, dirs,
+        Action inputs and prose. The check therefore **classifies** rather
+        than pattern-matches, and fails closed.
+  Acceptance: driver reports the new check PASS on the current tree; a
+        synthetic new uncited bank makes it FAIL; widening the frozen
+        grandfathered list makes it FAIL; a malformed digest makes it FAIL;
+        a schema-valid digest admits the citation.
+  Verification: Driver **6/6 PASS** (`EVIDENCE-CITATIONS` registered).
+        Four negative controls, each applied then reverted:
+        **NC1** a new `anvil-brandnew-gate-r9` citation in `README.md` with no
+        digest → **exit 1**; **NC2** appending that name to the frozen
+        `INVENTORY.md` §1 — the "just grandfather it" escape hatch → **exit 1**
+        (count + SHA-256 pin); **NC3** a digest missing required fields →
+        **exit 1**; **NC4** a schema-valid digest → **exit 0**, the citation
+        admitted. Baseline and post-cleanup both exit 0.
+        Classification cross-check: the inventory derived from today's tree
+        yields **10 / 15 / 47** phase-closing / surface-gate / focused-smoke
+        grandfathered banks — **identical to decision `0030`'s own audit**,
+        reached independently over a broader scan set (72 vs 73 canonical
+        differs only in variant handling, which a mechanical check counts
+        separately). Docs + shell only, no `src/`/`tests/` ⇒ DUT byte-identical.
+  Commit: `EVIDENCE-BANK-DURABILITY.3 — mechanize decision 0030: the EVIDENCE-CITATIONS doctrine`
 
 - ID: `EVIDENCE-BANK-DURABILITY.4`
   Status: `pending`
-  Goal: the live-doc sweep per 0030: label pre-0030 `/tmp/anvil-*`
-        citations as historical breadcrumbs — a normative note per
-        affected top-level live doc and book chapter; `docs/tasks/*.md`
-        covered by one note in `docs/TASK_TREE.md` (layer-B history).
-  Acceptance: every live-doc closure claim either cites a digest, carries
-        its re-runnable command, or is covered by a breadcrumb note.
+  Goal: **RE-SCOPED `2026-07-30`** (0030 amendment). The original goal was a
+        per-document sweep labelling pre-0030 `/tmp/anvil-*` citations as
+        historical breadcrumbs. That assumed a visible `/tmp/` prefix to
+        label; `VOLUME-DATA-LOCALITY.5` removed it, so there is nothing in
+        the prose to mark and 73 in-line labels would be noise. The
+        breadcrumb record now has one durable home — `docs/evidence/INVENTORY.md`
+        §1, which states per bank that the artifact is gone and that
+        re-verification is the named gate command at the recorded commit.
+        `.4` reduces to: a short normative pointer from each affected
+        top-level live doc + book chapter to that file, and one note in
+        `docs/TASK_TREE.md` covering `docs/tasks/*.md` (layer-B history).
+  Acceptance: a reader who meets a bare `anvil-<bank>` citation in any live
+        doc can reach, in one hop, the statement that pre-0030 banks are
+        gone and how to re-verify.
   Verification: `pending`
   Commit: `pending`
 
@@ -218,9 +246,9 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `EVIDENCE-BANK-DURABILITY.3` | `pending` | The 0030 contract exists; mechanizing it (digest schema + helper + doctrine check) must precede the `.4` sweep so the sweep lands already gated. **Owner re-steer (`2026-07-29`):** a PGEN-reported mdBook gap (no microdesign/frontend lane chapters) takes the frontier first; `.3` resumes after that unit. |
-| 2 | `EVIDENCE-BANK-DURABILITY.4` | `pending` | The breadcrumb sweep, once the check exists to hold it in place. |
-| 3 | `EVIDENCE-BANK-DURABILITY.5` | `pending` (deferred) | Opportunistic: first post-0030 gate run banks its digest. |
+| 1 | `EVIDENCE-BANK-DURABILITY.3` | `done` | Mechanized `2026-07-30`; `EVIDENCE-CITATIONS` is live in the driver (6/6). |
+| 2 | `EVIDENCE-BANK-DURABILITY.4` | `pending` | **Current frontier.** Re-scoped to a pointer-per-doc now that the inventory carries the breadcrumb record. |
+| 3 | `EVIDENCE-BANK-DURABILITY.5` | `pending` | Bank the first real digest from an actual gate re-run — the end-to-end proof that the `.3` chain works on real output rather than on fixtures. |
 
 ## Decisions
 
@@ -256,6 +284,7 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 | --- | --- | --- | --- |
 | `2026-07-25` | (tree opened) | `ls -d /tmp/anvil-*` → 0 dirs; `du -sh target/tmp` → 0; `grep -rhoE '/tmp/anvil-[…]'` over the live-doc set → 77 distinct cited paths | observation recorded; tree opened |
 | `2026-07-25` | `EVIDENCE-BANK-DURABILITY.1` | `scripts/check_doctrines.sh` 4/4 PASS; `check_memory_architecture.sh` green (`MEMORY.md` 21 lines / cap 60); bootstrap sweep on the unchanged tree under `ram_guard --threshold 90`: `cargo check --all-targets` clean, `cargo test` exit 0 (pipeline 125/0, snapshots 6/6), `clippy -D warnings` clean, `fmt --check` clean | `done` — observation recorded, tree registered; docs-only ⇒ DUT byte-identical |
+| `2026-07-30` | `EVIDENCE-BANK-DURABILITY.3` | Driver **6/6 PASS**. 4 negative controls, applied+reverted: new uncited bank → exit 1; widening the frozen §1 (the escape hatch) → exit 1; malformed digest → exit 1; schema-valid digest → exit 0. Classification cross-check **10/15/47 == decision `0030`'s own audit**, reached independently. `mdbook build` n/a (no book change). Docs + shell only ⇒ DUT byte-identical. | `done` — the contract is mechanical; a new bank cannot land uncited |
 | `2026-07-29` | `EVIDENCE-BANK-DURABILITY.2` | Re-measured the `.1` observation on the current tree (exact recorded command → 77 raw strings, reproduced); classified 73 canonical banks into (a) 10 / (b) 15 / (c) 47 / (d) 1; decision `0030` written + `INDEX.md` row; `scripts/check_doctrines.sh` 4/4 PASS (docs-only leaf, no tool run needed per tree Blockers) | `done` — ADR landed; mechanism = committed per-bank digest; frontier → `.3` (after the owner-steered mdBook-lanes unit) |
 
 ## Commit Log
@@ -264,6 +293,7 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 | --- | --- | --- |
 | `EVIDENCE-BANK-DURABILITY.1` | `EVIDENCE-BANK-DURABILITY.1 — open tree: closure artifacts live in volatile /tmp` | docs-only; no `src/` touched ⇒ DUT byte-identical |
 | `EVIDENCE-BANK-DURABILITY.2` | `EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations` | docs-only; decision record + tree update ⇒ DUT byte-identical |
+| `EVIDENCE-BANK-DURABILITY.3` | `EVIDENCE-BANK-DURABILITY.3 — mechanize decision 0030: the EVIDENCE-CITATIONS doctrine` | `docs/evidence/{README,INVENTORY}.md` + 2 scripts + registry + the `0030` amendment; no generator code ⇒ DUT byte-identical |
 
 ## Changelog
 
@@ -273,3 +303,12 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
   pre-0030 citations demoted to breadcrumbs; `.3`/`.4`/`.5` implementation
   leaves defined). Frontier paused after `.2` for an owner-steered unit
   (PGEN-reported mdBook lane-chapter gap); resumes at `.3`.
+- `2026-07-30`: `.3` done — `EVIDENCE-CITATIONS` is live (driver 6/6). The
+  decision the leaf had to make: `0030`'s `/tmp/anvil-*` discriminator no
+  longer exists, so the check **classifies** every `anvil-<name>` token into
+  digest-backed / grandfathered / not-evidence and fails closed, rather than
+  guessing which prose tokens are claims. The frozen §1 is pinned by count and
+  membership SHA-256 — without that pin "just grandfather it" would make the
+  whole doctrine decorative. Recorded as a dated amendment to `0030`
+  (original text untouched: supersede, do not mutate). `.4` narrowed
+  accordingly; `.5` promoted from deferred to the real end-to-end proof.

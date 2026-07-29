@@ -5,6 +5,42 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — A gate that must guess is the wrong gate — `EVIDENCE-BANK-DURABILITY.3`
+
+Decision `0030` specified an evidence check keyed on a bare `/tmp/anvil-*` path. By the time it
+was implemented that discriminator had been swept out of the tree, and what remained was a bare
+`anvil-<name>` token — the same shape ANVIL uses for its binaries (`anvil-mcp`), its working
+directory (`anvil-sandbox`), its Action inputs (`anvil-bin`), and ordinary English prose
+(`anvil-emitted`). The obvious move is a cleverer pattern: require backticks, require a `-r<N>`
+suffix, exclude a stop-list of prefixes. Every version of that is a **heuristic**, and a heuristic
+gate fails in one of exactly two directions: it misses a real uncited bank (silent, which is the
+failure the doctrine exists to prevent), or it fires on prose (loud, and a gate that cries wolf
+gets `--no-verify`'d and then deleted).
+
+The move that actually works is to stop inferring. Require every token to be **classified**, and
+treat unclassified as a breach. The check then states a fact about the tree instead of an opinion
+about text, which is the difference between the structural and the "evidence" archetype in
+`DOCTRINE_ENFORCEMENT.md` §3. The cost is an inventory file; the benefit is that the check is
+never wrong, only ever out of date — and being out of date is what makes it fail, loudly, on the
+commit that introduced the gap.
+
+**The subtle part is which list gets frozen.** An allow-list is only safe if widening it is
+*harder than doing the right thing*. So: the grandfathered list is pinned by entry count **and**
+membership SHA-256, because its membership is a historical fact — the banks that existed before
+`0030` — and a historical fact cannot grow. Unpinned, "just add it to grandfathered" is a
+one-line bypass of the entire doctrine. The not-evidence list is deliberately *not* pinned,
+because ANVIL genuinely acquires new binaries and directories, and freezing that would generate
+friction with no safety payoff. Same file, two sections, opposite rigidity — and the asymmetry is
+justified by what each set *means*, not by how often we expect to touch it. If you cannot state
+why a list is frozen in one sentence about its semantics, it is probably frozen for the wrong
+reason.
+
+**Corollary, learned three times in two days:** run `scripts/check_doctrines.sh` *after*
+`git add`. `git grep` and `git ls-files` see tracked content only, so a brand-new file's contents
+are invisible to every structural check until it is staged. All three of this tree's self-catches
+(`DOCTRINE_ENFORCEMENT.md` at `VOLUME-DATA-LOCALITY.7`, the tree file at
+`CARGO-TMPDIR-SWEEP-REGRESSION.1`, the fixture token here) were the same blind spot.
+
 ## 2026-07-29 — A path-prefix sweep must be anchored, or it eats relative paths — `CARGO-TMPDIR-SWEEP-REGRESSION.1`
 
 `MEMORY.md` already carries the hazard *"never mass-rewrite strings across docs whose subject is

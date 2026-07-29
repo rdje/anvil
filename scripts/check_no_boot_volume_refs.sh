@@ -25,6 +25,10 @@
 #      real, reverted incident proved the danger: a blanket sweep once rewrote
 #      decision 0030's own reverify command from `ls -d /tmp/anvil-*` to
 #      `ls -d anvil-*`, i.e. into nonsense.
+#      This covers docs/evidence/ for the same reason: the evidence inventory
+#      has to say WHY the grandfathered banks are unrecoverable, and that reason
+#      IS "they lived under /tmp, which is purged". Strip the string and the
+#      record stops explaining itself.
 #
 #   2. APPEND-ONLY HISTORY. Owner directive (2026-07-29): "NO, no history
 #      rewrite, no at all. Keep it raw, keep honest, so that people can follow
@@ -49,7 +53,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
 # Paths whose boot-volume strings are deliberate (see the rationale above).
-ALLOW_RE='^(CHANGES\.md|DEVELOPMENT_NOTES\.md|MEMORY\.md|KNOWLEDGE_MAP\.md|DOCTRINE_ENFORCEMENT\.md|scripts/check_no_boot_volume_refs\.sh|docs/decisions/(0002|0030|0031)-|docs/decisions/INDEX\.md|docs/tasks/(EVIDENCE-BANK-DURABILITY|VOLUME-DATA-LOCALITY|CARGO-TMPDIR-SWEEP-REGRESSION)\.md|docs/TASK_TREE\.md|\.github/workflows/)'
+ALLOW_RE='^(CHANGES\.md|DEVELOPMENT_NOTES\.md|MEMORY\.md|KNOWLEDGE_MAP\.md|DOCTRINE_ENFORCEMENT\.md|scripts/check_(no_boot_volume_refs|evidence_citations)\.sh|docs/evidence/|docs/decisions/(0002|0030|0031)-|docs/decisions/INDEX\.md|docs/tasks/(EVIDENCE-BANK-DURABILITY|VOLUME-DATA-LOCALITY|CARGO-TMPDIR-SWEEP-REGRESSION)\.md|docs/TASK_TREE\.md|\.github/workflows/)'
 
 # The banned shapes: OS temp dirs on every platform this repo runs on.
 #   /tmp/…            Unix temp
