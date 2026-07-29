@@ -1,6 +1,42 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — BOOK-LANE-COVERAGE.1 — register: mdBook lane-chapter gap (PGEN report)
+
+**Landed as:** this commit (previous: `98e31e1`, `EVIDENCE-BANK-DURABILITY.2`).
+A **docs-only** change ⇒ **DUT byte-identical**; `tests/snapshots.rs` untouched.
+
+**What.** Opened `BOOK-LANE-COVERAGE` (`docs/tasks/BOOK-LANE-COVERAGE.md` + `docs/TASK_TREE.md`
+row) on an owner-relayed report from **PGEN** (the downstream consumer the microdesign/frontend
+lanes were built for): the mdBook documents the DUT lane thoroughly but has **no chapter for the
+microdesign or frontend lanes** — two of three artifact lanes are invisible on the owner's review
+surface. Session audit confirms: book mentions exist only in `introduction.md` (three-lane list),
+`faq.md` (two bullets), and the MCP/API reference chapters (`lane` arg, scoped knobs,
+`anvil://catalog/lanes`); no chapter covers what either lane emits, the oracle-backed
+expected-facts design, CLI usage, manifest fields, or the parity gates. This confirms the owner's
+lockstep concern: the drift is **coverage-shaped** — Phases 7–8 landed two whole lanes without lane
+chapters. Also recorded the consumer-reported first-contact result as KM card
+`docs/knowledge/pgen-first-contact-parser-gap.md`: ANVIL output exposed a previously-unknown
+`case`/`endcase` gap in PGEN's `grammars/rtl_frontend.ebnf` within minutes (consumer-reported,
+owner-relayed; lane unspecified — no repo-side claim of which artifact triggered it). While
+grounding the chapters, both lanes were run live (microdesign seed 7, frontend seed 0), which
+exposed a real `--out` filename bug (frontend writes `child_0.sv` instead of the documented
+`acc_0.sv`) — owned by the sibling tree `LANE-OUT-FILENAME` (next commit), so the chapters document
+corrected behavior.
+
+**Why.** Registration-before-work precedent; the book is the owner's only project window and must
+not drift (book doctrine).
+
+**Validation.** Docs-only. Audit greps recorded in the tree; `scripts/check_doctrines.sh` 4/4
+PASS; KM regenerated (+6 keys from the new card).
+
+**Impact.** No generator change; no phase moves. Frontier: `LANE-OUT-FILENAME` fix, then `.2`
+microdesign chapter, `.3` frontend chapter.
+
+**Files touched.** `docs/tasks/BOOK-LANE-COVERAGE.md` (new),
+`docs/knowledge/pgen-first-contact-parser-gap.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-07-29 — EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations
 
 **Landed as:** this commit (previous: `ecda0e7`, `EVIDENCE-BANK-DURABILITY.1`).

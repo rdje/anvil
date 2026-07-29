@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **81** facts · **807** question keys.
+> **82** facts · **813** question keys.
 
 ## Questions → fact
 
@@ -66,6 +66,8 @@
 - "can self-holding flops merge" -> [reset-defined-self-hold-flop-identity](docs/knowledge/reset-defined-self-hold-flop-identity.md) · 2026-06-05
 - "can semantic gate merge target non-gate nodes" -> [combinational-semantic-endpoint-fold](docs/knowledge/combinational-semantic-endpoint-fold.md) · 2026-06-05
 - "can the ANVIL MCP server generate microdesign or frontend artifacts" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
+- "case endcase missing from a consumer grammar" -> [pgen-first-contact-parser-gap](docs/knowledge/pgen-first-contact-parser-gap.md) · 2026-07-29
+- "did ANVIL find a parser bug" -> [pgen-first-contact-parser-gap](docs/knowledge/pgen-first-contact-parser-gap.md) · 2026-07-29
 - "do I need a task tree before changing code" -> [task-tree-and-commit-doctrine](docs/decisions/0001-task-tree-and-commit-doctrine.md) · 2026-06-04
 - "do banked tool_matrix reports survive reboot" -> [durable-closure-evidence-citations](docs/decisions/0030-durable-closure-evidence-citations.md) · 2026-07-29 · reverify: `grep -rhoE '/tmp/anvil-[A-Za-z0-9_.-]+' README.md ROADMAP.md USER_GUIDE.md CODEBASE_ANALYSIS.md TOOLBOX.md book/src/*.md docs/tasks/*.md | sort -u | wc -l  (77 raw strings / 73 canonical banks at decision time; all pre-0030, all breadcrumbs)`
 - "do downstream tools enforce IEEE 1800 version acceptance" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
@@ -180,6 +182,7 @@
 - "does verilator --language reject newer SystemVerilog constructs" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "does verilator 5.046 differentiate 1800-2012 1800-2017 1800-2023" -> [sv-version-first-upopt-soft-packed-union](docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md) · 2026-06-16 · reverify: `'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'`
 - "does whole-module sequential equivalence retire the combinational module dedup" -> [identity-deepening-whole-module-sequential-equivalence](docs/decisions/0008-identity-deepening-whole-module-sequential-equivalence.md) · 2026-06-15
+- "has ANVIL found a real bug in a downstream consumer" -> [pgen-first-contact-parser-gap](docs/knowledge/pgen-first-contact-parser-gap.md) · 2026-07-29
 - "how are ANVIL presets defined" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "how are ANVIL's doctrines enforced" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "how are ANVIL's doctrines mechanically enforced" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
@@ -434,6 +437,7 @@
 - "is there an API reference for anvil" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
 - "is there an MCP hunt tool" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
 - "is there an adapter trait or registry for downstream tools" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
+- "is there evidence ANVIL exposes real tool gaps" -> [pgen-first-contact-parser-gap](docs/knowledge/pgen-first-contact-parser-gap.md) · 2026-07-29
 - "must every ANVIL feature be exposed over MCP" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "repo-root-relative paths in ANVIL docs" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
 - "should ANVIL docs use absolute paths" -> [live-doc-path-portability](docs/decisions/0002-live-doc-path-portability.md) · 2026-06-04
@@ -475,6 +479,7 @@
 - "what counts as an acceptance divergence finding" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
 - "what cross-cutting acceptance criterion do the usability lanes share" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
 - "what depends on input X in an ANVIL module" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
+- "what did PGEN find with ANVIL" -> [pgen-first-contact-parser-gap](docs/knowledge/pgen-first-contact-parser-gap.md) · 2026-07-29
 - "what did the reset-all memory probe show" -> [memory-identity-boundary](docs/knowledge/memory-identity-boundary.md) · 2026-06-05
 - "what doctrines does ANVIL mechanically check" -> [doctrine-enforcement-adoption](docs/decisions/0026-doctrine-enforcement-adoption.md) · 2026-06-22
 - "what doctrines does the driver check" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
@@ -761,6 +766,7 @@
 - "which saw_* facts does the sv-version gate require" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
 - "which scenarios does the sv-version sweep run" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check`
 - "which tools accept the ANVIL union soft overlay" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'`
+- "who consumes the microdesign and frontend lanes" -> [pgen-first-contact-parser-gap](docs/knowledge/pgen-first-contact-parser-gap.md) · 2026-07-29
 - "why a SystemVerilog version capability gate" -> [sv-version-targeting](docs/decisions/0009-sv-version-targeting.md) · 2026-06-15
 - "why a cone function over nested generate or a multi-output task" -> [structured-emission-fifth-surface-cone-function](docs/decisions/0016-structured-emission-fifth-surface-cone-function.md) · 2026-06-17
 - "why a masked (sel & care_mask) == value comparison instead of ==?" -> [structured-emission-ninth-surface-casez-mux-masked-priority-chain](docs/decisions/0029-structured-emission-ninth-surface-casez-mux-masked-priority-chain.md) · 2026-06-23
@@ -1168,6 +1174,14 @@ _N-flop CDC synchronizer is config-selectable_
 - **date:** 2026-06-05 · **status:** current
 - **evidence:** `src/gen/multi_clock.rs; src/config.rs; src/metrics.rs; src/bin/tool_matrix.rs; book/src/sequential.md; book/src/knobs.md`
 - **source:** [`docs/knowledge/n-flop-cdc-synchronizer.md`](docs/knowledge/n-flop-cdc-synchronizer.md)
+
+### pgen-first-contact-parser-gap
+_First-contact consumer result: ANVIL output exposed a missing case/endcase production in PGEN's parser within minutes_
+
+- **answers:** has ANVIL found a real bug in a downstream consumer | did ANVIL find a parser bug | what did PGEN find with ANVIL | is there evidence ANVIL exposes real tool gaps | case endcase missing from a consumer grammar | who consumes the microdesign and frontend lanes
+- **date:** 2026-07-29 · **status:** current
+- **evidence:** `Owner-relayed consumer report (2026-07-29), recorded in docs/tasks/BOOK-LANE-COVERAGE.md; the reproducer lives in PGEN's repository (grammars/rtl_frontend.ebnf), not in this one`
+- **source:** [`docs/knowledge/pgen-first-contact-parser-gap.md`](docs/knowledge/pgen-first-contact-parser-gap.md)
 
 ### post-phase-followup-frontier-closed
 _The five 2026-06-05 post-phase follow-up trees are closed_
