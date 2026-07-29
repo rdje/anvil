@@ -1,6 +1,46 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — CARGO-TMPDIR-SWEEP-REGRESSION.2 — repair the 10 mangled `target/tmp` citations
+
+**Landed as:** this commit (previous: `610ac88`, `CARGO-TMPDIR-SWEEP-REGRESSION.1`).
+Live docs + book + task-tree history only; no generator code ⇒ **DUT byte-identical**.
+**Closes the `CARGO-TMPDIR-SWEEP-REGRESSION` tree.**
+
+**What.** All 10 citations of the never-existent `target.cache/anvil-sandbox/<name>` now name the
+directory the harness actually writes — `target/tmp/<name>`, Cargo's `CARGO_TARGET_TMPDIR`, read by
+`tests/frontend_parity.rs:1220` through `env!`. Across 8 files: `README.md`, `ROADMAP.md`,
+`USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `book/src/ir.md`, and the layer-B verification rows in
+`docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`, `docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md` (×3), and
+`docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`.
+
+**Restored, not re-authored.** The corrected value in every file is byte-identical to its pre-sweep
+text at `4bb1822`, verified per file by diffing the extracted `target/tmp/…` token sets — so this is
+provably an inversion of the sweep, not a fresh guess at where the artifacts went. The three
+task-tree rows are historical verification records and were restored verbatim with no editorializing.
+The three genuinely user-facing spots (`README.md`, `USER_GUIDE.md`, `book/src/ir.md`) additionally
+name `CARGO_TARGET_TMPDIR`, so a reader who has overridden `CARGO_TARGET_DIR` is not sent to the
+wrong place — the one thing the original text left implicit.
+
+**Residue census.** `git grep -nE '[A-Za-z0-9_]\.cache/anvil-sandbox'` → **0 citations remaining**.
+Six occurrences of the mangled string survive on purpose, in the five records that *describe* the
+defect (`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `docs/TASK_TREE.md`, and the tree file) —
+the same principle that keeps `/tmp` in the policy documents: a record of a wrong string has to quote
+the wrong string.
+
+**Validation.** `mdbook build book` exit 0; `cargo test --test book_examples` **3/3** in 87.06s under
+`ram_guard --threshold 90` (the load-bearing byte-identical book-runnable contract — no bash block
+changed, prose only). `scripts/check_doctrines.sh` **5/5 PASS**, including the `.1` anchor now
+accepting `target/tmp/…` as the on-volume path it is. No `src/`/`tests/`/`examples/` touched.
+
+**No phase labels changed.** Phases 0–9 remain `done`; this tree corrected how Phase 7/8's evidence
+directory is *named*, never whether it was earned.
+
+**Files touched.** `README.md`, `ROADMAP.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+`book/src/ir.md`, `docs/tasks/SIGNOFF-SURFACE-EXPANSION.md`,
+`docs/tasks/PHASE-7-ORACLE-MICRODESIGN.md`, `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`,
+`docs/tasks/CARGO-TMPDIR-SWEEP-REGRESSION.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — CARGO-TMPDIR-SWEEP-REGRESSION.1 — anchor the boot-volume check to absolute paths
 
 **Landed as:** this commit (previous: `0d094b2`, `VOLUME-DATA-LOCALITY.7`).

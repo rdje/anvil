@@ -2028,7 +2028,8 @@ full frontend manifest scope:
 Seed/Top/PackageConstants/TopParams/TopLocalparams/Instances/
 GenerateBranches. In the current local evidence, it is clean across the
 5 reproducibility seeds and writes artifacts under
-`target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`.
+`target/tmp/frontend-parity-signoff-verilator-json` — Cargo's
+`CARGO_TARGET_TMPDIR`, so it follows `CARGO_TARGET_DIR` if you override it.
 
 ## Agent introspection and the MCP server
 

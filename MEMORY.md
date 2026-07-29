@@ -8,9 +8,9 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`CARGO-TMPDIR-SWEEP-REGRESSION.1`** — `NO-BOOT-VOLUME-REFS` anchored to absolute paths (driver still 5/5). Session history: `git log --oneline` (do not re-narrate it here).
-- active_work_unit: **`CARGO-TMPDIR-SWEEP-REGRESSION`** → frontier leaf **`.2`** (`pending`): repair the 10 live-doc paths that `VOLUME-DATA-LOCALITY.5` mangled from `target/tmp/<name>` into the never-existent `target.cache/anvil-sandbox/<name>`; the table of all 10 with their correct values is in the tree file. `.1` unblocked it.
-- next_action: land `.2`, then per PNT: **`EVIDENCE-BANK-DURABILITY.3`** (mechanize decision `0030` — `docs/evidence/` digest schema + `scripts/evidence_digest.sh` + `check_evidence_citations.sh`; **re-scope `.4` first**: its breadcrumb sweep is now largely moot since `VOLUME-DATA-LOCALITY.5` stripped the `/tmp/` prefixes, so the citation form to check is now a bare `anvil-<bank>` name and `.4` becomes "cite a digest or the re-runnable command"); or **`CAPABILITY-BREADTH-EXPANSION.1`** (SV up-opt breadth ADR); or a fifteenth derived `analyze` query.
+- latest_commit: **`CARGO-TMPDIR-SWEEP-REGRESSION.2`** — closes that tree; every cited evidence directory now exists and `NO-BOOT-VOLUME-REFS` states the actual rule (absolute paths only), driver 5/5. Session history: `git log --oneline` (do not re-narrate it here).
+- active_work_unit: **none open.** Closed this session: `CARGO-TMPDIR-SWEEP-REGRESSION` (a `VOLUME-DATA-LOCALITY.5` sweep regression: 10 live-doc paths pointed at a directory that never existed).
+- next_action: pick per PNT. Best candidates: **`EVIDENCE-BANK-DURABILITY.3`** (mechanize decision `0030` — `docs/evidence/` digest schema + `scripts/evidence_digest.sh` + `check_evidence_citations.sh`; **note the citation form changed**: `VOLUME-DATA-LOCALITY.5` stripped the `/tmp/` prefixes, so what a live doc now cites is a bare `anvil-<bank>` name, and `.4`'s breadcrumb sweep re-scopes to "cite a digest or the re-runnable command"); or **`CAPABILITY-BREADTH-EXPANSION.1`** (SV up-opt breadth ADR); or a fifteenth derived `analyze` query.
 - in_flight_uncommitted: none. Tree clean, self-checks green, resume pointer current.
 - blockers: none.
 

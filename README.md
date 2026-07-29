@@ -1659,7 +1659,9 @@ exercising adversarial axes that previously fired only by chance
   enforces all 7 Phase-8 manifest categories, and is
   verified clean across the same 5 reproducibility seeds
   with artifacts in
-  `target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`.
+  `target/tmp/frontend-parity-signoff-verilator-json`
+  (Cargo's `CARGO_TARGET_TMPDIR`, so it follows
+  `CARGO_TARGET_DIR` if you override it).
   `slang` is not required and was not present in the
   local tool environment. ANVIL now ships **three**
   complementary lanes: the DUT lane

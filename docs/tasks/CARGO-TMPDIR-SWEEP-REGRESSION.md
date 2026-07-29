@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `CARGO-TMPDIR-SWEEP-REGRESSION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Quality / live-doc + doctrine-check precision (no phase reopened)
 - Created: `2026-07-29`
 - Last updated: `2026-07-29`
@@ -87,7 +87,7 @@ the start of a path.**
 ## Task Tree
 
 - ID: `CARGO-TMPDIR-SWEEP-REGRESSION`
-  Status: `active`
+  Status: `done`
   Goal: repair the sweep regression and the check gap that hid it.
   Children: `CARGO-TMPDIR-SWEEP-REGRESSION.1`, `CARGO-TMPDIR-SWEEP-REGRESSION.2`
 
@@ -115,21 +115,37 @@ the start of a path.**
   Commit: `CARGO-TMPDIR-SWEEP-REGRESSION.1 — anchor the boot-volume check to absolute paths`
 
 - ID: `CARGO-TMPDIR-SWEEP-REGRESSION.2`
-  Status: `pending`
+  Status: `done`
   Goal: restore the 10 mangled citations to the directory the harness writes,
         naming `CARGO_TARGET_TMPDIR` in the user-facing docs so a reader who
         overrides `CARGO_TARGET_DIR` is not misled.
   Acceptance: `grep -rnE '[A-Za-z0-9_]\.cache/anvil-sandbox'` → 0 tracked
-        occurrences; driver 5/5; `mdbook build book` clean.
-  Verification: `pending`
-  Commit: `pending`
+        citations; driver 5/5; `mdbook build book` clean.
+  Verification: All 10 restored across 8 files. **Restored, not re-authored:**
+        per file, the extracted `target/tmp/…` token set is byte-identical to
+        its pre-sweep text at `4bb1822` (8/8 MATCH), so the edit is provably
+        an inversion of the sweep rather than a fresh guess. The three
+        task-tree rows are layer-B verification history and were restored
+        verbatim; `README.md` / `USER_GUIDE.md` / `book/src/ir.md`
+        additionally name `CARGO_TARGET_TMPDIR`. Residue census:
+        `git grep -nE '[A-Za-z0-9_]\.cache/anvil-sandbox'` → **0 citations**
+        (6 occurrences remain on purpose in the five records that *describe*
+        the defect — a record of a wrong string must quote it, the same
+        principle that keeps `/tmp` in the policy documents).
+        `mdbook build book` exit 0; `cargo test --test book_examples`
+        **3/3** in 87.06s under `ram_guard --threshold 90`;
+        `scripts/check_doctrines.sh` **5/5 PASS**. No `src/`/`tests/`
+        touched ⇒ DUT byte-identical.
+  Commit: `CARGO-TMPDIR-SWEEP-REGRESSION.2 — repair the 10 mangled target/tmp citations`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `CARGO-TMPDIR-SWEEP-REGRESSION.1` | `done` | The check must accept the correct text before `.2` can write it; landing `.2` first would need `--no-verify`, which defeats the gate. |
-| 2 | `CARGO-TMPDIR-SWEEP-REGRESSION.2` | `pending` | **Current frontier.** The doc repair, now that the gate holds it in place. |
+| 2 | `CARGO-TMPDIR-SWEEP-REGRESSION.2` | `done` | The doc repair, once the gate held it in place. |
+
+**No frontier — tree CLOSED `2026-07-29`.** Both leaves done: the guard states the actual rule, and every citation names a directory that exists.
 
 ## Decisions
 
@@ -168,6 +184,7 @@ the start of a path.**
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `CARGO-TMPDIR-SWEEP-REGRESSION.2` | 10/10 citations restored across 8 files; per-file token-set diff vs pre-sweep `4bb1822` **8/8 MATCH** (an inversion of the sweep, not a re-guess); residue census → **0 citations** (6 defect-describing occurrences retained on purpose); `mdbook build book` exit 0; `cargo test --test book_examples` **3/3** in 87.06s under `ram_guard --threshold 90`; `scripts/check_doctrines.sh` **5/5 PASS**. No `src/`/`tests/` touched ⇒ DUT byte-identical. | `done` — every cited artifact directory now exists |
 | `2026-07-29` | `CARGO-TMPDIR-SWEEP-REGRESSION.1` | 9 negative controls (6 must-FAIL absolute forms → exit 1; 3 must-PASS relative forms → exit 0), each injected into `README.md` and reverted. Narrowing proof by old-vs-new offender-set diff: identical (0 files) after the allow-list filter, and identical repo-wide including allow-listed files ⇒ nothing previously caught is now tolerated. `scripts/check_doctrines.sh` **5/5 PASS**. No `src/`/`tests/` touched ⇒ DUT byte-identical (no `cargo` run warranted; the changed artifact is a shell check, and its oracle is the negative controls above). | `done` — the guard now states the actual rule: a boot-volume path is absolute |
 
 ## Commit Log
@@ -175,9 +192,16 @@ the start of a path.**
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `CARGO-TMPDIR-SWEEP-REGRESSION.1` | `CARGO-TMPDIR-SWEEP-REGRESSION.1 — anchor the boot-volume check to absolute paths` | doctrine script + standard + tree registration; no generator code ⇒ DUT byte-identical |
+| `CARGO-TMPDIR-SWEEP-REGRESSION.2` | `CARGO-TMPDIR-SWEEP-REGRESSION.2 — repair the 10 mangled target/tmp citations` | live docs + book + layer-B history; no generator code ⇒ DUT byte-identical |
 
 ## Changelog
 
 - `2026-07-29`: Created from a session-bootstrap deep-dive that found 10
   live-doc paths pointing at a directory that has never existed, and the
   doctrine check unable to distinguish the correct text from a breach.
+- `2026-07-29`: Tree CLOSED. `.1` anchored `NO-BOOT-VOLUME-REFS` to absolute
+  paths (9 negative controls both directions; narrows false positives only),
+  `.2` restored all 10 citations byte-identically to their pre-sweep values.
+  The lasting output is not the ten strings but the recorded rule now in
+  `DEVELOPMENT_NOTES.md`: **a gate written from a sweep's own search string
+  inherits that sweep's blind spot** — write the check from the property.

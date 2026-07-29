@@ -618,7 +618,9 @@ sessions.
   Seed/Top/PackageConstants/TopParams/TopLocalparams/
   Instances/GenerateBranches. The local gate is clean
   across the same 5 reproducibility seeds; artifacts land
-  in `target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`.
+  in `target/tmp/frontend-parity-signoff-verilator-json`
+  (Cargo's `CARGO_TARGET_TMPDIR`, so it follows
+  `CARGO_TARGET_DIR` if you override it).
   `slang` is not required for this path and was not present
   in the local tool environment. The DUT lane stays
   byte-identical by construction (`frontend` is never

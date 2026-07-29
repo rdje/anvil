@@ -2436,7 +2436,7 @@ Verilator's specialized child modules and direct package/top
 parameter declarations, enforces `ParityScope::all()` across all 7
 Phase-8 categories, and is verified clean across the 5 reproducibility
 seeds with artifacts in
-`target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`. `slang` remains
+`target/tmp/frontend-parity-signoff-verilator-json`. `slang` remains
 optional and was not present in the local tool environment.
 
 **Notable during closure:** Phase 8's parity gate came back
