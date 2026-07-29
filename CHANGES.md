@@ -1,6 +1,114 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination
+
+**Landed as:** this commit (previous: `74b101b`, `EMIT-SURFACE-INTERACTION-GATE.0`).
+Docs-only — one decision record + task-tree/live-doc sync; no code ⇒ **DUT byte-identical**.
+
+**What.** The design ADR the tree's `.1` leaf owed:
+[`docs/decisions/0032-emit-surface-interaction-gate.md`](docs/decisions/0032-emit-surface-interaction-gate.md).
+It answers the four questions `.1` was opened to answer, and each answer is backed by a
+measurement taken before it was written down, not by reasoning alone.
+
+**The finding that reshaped the leaf.** The tree opened on "the preset covers 4 of 9 surfaces."
+The measurement is worse, and it is the pivot of the whole decision:
+
+```
+$ anvil --seed 1 --profile structured-emission-max --introspect
+num_emitted_combinational_functions 796
+num_emitted_generate_loops            0
+num_emitted_combinational_tasks       0
+num_emitted_cone_functions            0
+```
+
+The preset sets four surfaces to `1.0` and **emits one**. Reproduced on seeds 1/2/3
+(796 / 1057 / 917 functions; every other surface exactly `0`). The mechanism is the interaction of
+mutual exclusion with the fixed pass order: at `prob = 1.0`, `function_emit` runs second and claims
+**every** admissible gate — a superset of `generate_loop`'s `{N{x}}` `Concat`s, `task_emit`'s
+candidates, `multi_output_task`'s members, `cone_function`'s roots and interiors, and `mux_if`'s
+2:1 `Mux`es. Each later pass then correctly finds nothing left. Three of the preset's four surfaces
+are **inert**, and its description ("all-on is safe and behaviour-preserving") is true and
+misleading in the same sentence.
+
+Setting *all eight* to `1.0` does not fix it: measured, exactly **3** live surfaces on 12/12
+modules (`function_emit` + `case_mux_if` + `casez_mux_if` — the last two surviving only because
+`CaseMux`/`CasezMux` are outside `function_emit`'s admissible set). Saturation maximises *coverage*
+and minimises *diversity*, and diversity is what ANVIL is for.
+
+**The fix, measured.** All eight at an intermediate `0.25` over a selector-rich comb-only shape
+puts **8 distinct surfaces in 20 of 24 modules** (7 in the other 4), and the corpus is
+downstream-clean with **zero warnings** on every column the sibling gates use: Verilator
+`--lint-only` 24/24, Yosys `synth -noabc` 24/24, Yosys `synth -noabc; abc -fast; opt -fast` 24/24,
+`iverilog -g2012` 24/24. The floor holds on all three construction strategies (`sequential` 6/8,
+`shuffled` 8/8, `interleaved` 7/8). `0.25` is chosen because it maximises the **least-represented**
+surface's count — mean min-across-surfaces over seeds 1–5 is 73.8 at `0.25` vs 51.4 / 70.2 / 37.0
+at `0.15` / `0.35` / `0.50`.
+
+**What the ADR decides.**
+
+- **(a) A 3 + 1 sweep**, not one scenario: three universal comb-only scenarios (one per
+  construction strategy, all eight at `0.25`, full four-tool plan) plus one **saturation** scenario
+  at `1.0` — the configuration where every later pass sees a *full* sibling set and must skip, the
+  exact inverse of today's always-empty case. One scenario would under-sample: the per-module
+  surface floor varies by strategy.
+- **(b) Co-occurrence proven metric-keyed**, by projection. All nine per-module `emitted_*`
+  booleans already exist in `ModuleReport` (`src/bin/tool_matrix.rs:364-471`), so the gate derives
+  `distinct_emit_surfaces` from them and lights `saw_multi_surface_emit_interaction` (≥ 2, the
+  invariant's robust floor) and `saw_all_emit_surfaces_in_one_module` (≥ 8, measured reachable on
+  all three strategies with margin). No new identifier token, no new IR truth — the decision `0028`
+  precedent.
+- **(c) `soft_union` joins as its own Verilator-only 2023 scenario.** It is disjoint by target type
+  (`Slice` is excluded from every other surface's candidate set), so it adds a ninth *emitted*
+  surface and **zero** exclusion pressure — while costing the Yosys and Icarus columns
+  (decision `0010`). Folding it into the universal three would trade the gate's strongest evidence
+  for nothing. Measured: nine surfaces stacked is Verilator-clean under `--language 1800-2023`,
+  8/8 modules genuinely emitting `union soft`, 6/8 also carrying all eight others.
+- **(d) Five interaction risks named and ranked**, reasoned from source so a gate failure lands
+  against a prediction. Four are predicted-and-measured clean. The fifth is a **latent trap** (see
+  below) and gets its own leaf.
+- **(e) `structured-emission-max` redefined** as maximal surface *diversity* at `0.25`, with the
+  three selector-shape knobs raised so the procedural surfaces have candidates (the
+  `deep-hierarchy` precedent for a preset setting structural knobs).
+
+**Audit result: the exclusion matrix is complete.** Read pass-by-pass from all nine `annotate_*`
+sources, the matrix is lower-triangular with no hole — every pass excludes exactly its
+predecessors. Recorded as a table in the ADR. This proves the *predicates* are right; only the gate
+proves the *emitted SV*.
+
+**Latent trap found, and split out as new leaf `.4`.** `cone_function` is the only pass that does
+more than mark: an absorbed interior gate loses its module `wire` and its inline `assign`. That is
+sound against all eight siblings (absorption requires a **global** use count of `1`; a cone root
+keeps its wire; sibling-marked gates are never absorbed; the three later passes exclude roots ∪
+interiors). But the soundness rests on `compute_use_counts` counting every consumer, and it does
+not: it omits `Memory.we/waddr/wdata/raddr` and `Fsm.sel`, which the emitter renders by wire name
+(`src/emit/sv.rs:928-931`). A gate consumed once by a cone edge and once by a memory port would
+read as single-use, be absorbed, and have its wire deleted out from under the memory block.
+Unreachable **today** — and only by accident of module shape: `build_memory_leaf` and
+`build_fsm_block` (`src/gen/module.rs:125,248`) are the generator's only `Memory`/`Fsm` sites and
+both build **gate-free** modules. Confirmed empirically (`--memory-prob 1.0
+--cone-function-emit-prob 1.0`, 40 modules, no undeclared-identifier failure). `.4` hardens the
+census; it is a provable no-op on every currently-constructible module.
+
+**Probe hygiene, recorded because it nearly produced a false finding.** The first pass of the
+combined probe used `verilator --lint-only -Wall` and failed 24/24 on `UNUSEDSIGNAL`. A negative
+control with **all eight surfaces off** failed 23/24 on the same shape — the warnings were an
+artifact of the ad-hoc shape config, not of surface stacking. `-Wall` is not this repo's acceptance
+bar; `src/downstream/mod.rs:154` runs bare `--lint-only`. Reaching for the negative control before
+the conclusion is what kept "the surfaces conflict" out of the record.
+
+**Validation.** Docs-only leaf, so per decision `0003` the check set is focused rather than a full
+`cargo test`: `scripts/check_doctrines.sh` green after staging, `mdbook build book` exit 0, and the
+ten measurements above, each re-runnable from the commands recorded in the ADR and the tree's
+Verification Log.
+
+**No phase labels changed.** Design only; nothing implemented, no surface semantics or default
+touched.
+
+**Files touched.** `docs/decisions/0032-emit-surface-interaction-gate.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/EMIT-SURFACE-INTERACTION-GATE.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.0 — register: nine emit surfaces, never proven together
 
 **Landed as:** this commit (previous: `756713c`, `EVIDENCE-BANK-DURABILITY.4`).

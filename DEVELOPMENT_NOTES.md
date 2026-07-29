@@ -5,6 +5,105 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — "All knobs on" is not "all surfaces emitted" — `EMIT-SURFACE-INTERACTION-GATE.1`
+
+The nine emit-projections are mutually exclusive on a gate and run in a fixed order. Those two
+facts have a consequence nobody had measured: **turning every knob to `1.0` makes the earliest
+pass swallow the candidate sets of all the later ones.**
+
+```
+$ anvil --seed 1 --profile structured-emission-max --introspect
+num_emitted_combinational_functions 796
+num_emitted_generate_loops            0
+num_emitted_combinational_tasks       0
+num_emitted_cone_functions            0
+```
+
+A preset whose name promises maximal structured emission, which sets four surfaces to `1.0`,
+emits **one**. `function_emit` runs second at `prob = 1.0` and claims every admissible gate — a
+superset of `generate_loop`'s `{N{x}}` `Concat`s, `task_emit`'s candidates,
+`multi_output_task`'s members, `cone_function`'s roots and interiors, and `mux_if`'s 2:1 `Mux`es.
+Every later pass then correctly finds nothing left. Setting all *eight* to `1.0` gives 3 live
+surfaces, not 8 (`CaseMux`/`CasezMux` survive only because they are outside `function_emit`'s
+admissible set).
+
+The general rule, worth carrying to any future pass in this family:
+
+> **Under mutual exclusion with a fixed pass order, probability is not intensity — it is
+> *priority*.** Raising every probability together does not raise every surface together; it
+> hands the whole gate graph to whichever pass runs first. Maximal *coverage* (what fraction of
+> gates carry some projection) and maximal *diversity* (how many distinct shapes appear at once)
+> are **opposed**, and only diversity is what ANVIL wants.
+
+The calibration that follows is a **max-min**, not a maximum: pick the probability that maximises
+the *least-represented* surface's count. Measured on the default shape over seeds 1–5, the mean
+of the per-seed minimum across the eight surfaces is 51.4 / **73.8** / 70.2 / 37.0 at
+`0.15` / `0.25` / `0.35` / `0.50`. `0.25` wins, and at that value 20 of 24 modules carry all
+eight surfaces at once, downstream-clean on Verilator + both Yosys modes + Icarus with zero
+warnings.
+
+Consequence for the lane: a tenth surface must not simply be appended to the preset at `1.0`. It
+has to be added at the shared intermediate probability, and the max-min recalibrated — otherwise
+it either starves or starves its neighbours depending on where it lands in the order.
+
+Full reasoning, the complete exclusion-matrix audit, and the per-strategy floors are in decision
+[`0032`](docs/decisions/0032-emit-surface-interaction-gate.md).
+
+## 2026-07-30 — Absorption needs a *complete* consumer census, and ours is not — `EMIT-SURFACE-INTERACTION-GATE.1`
+
+Eight of the nine emit-projections only ever *mark* a gate. `cone_function` also **absorbs**: an
+interior gate folded into a cone loses its module `wire` and its inline `assign` and lives only
+inside the emitted function. It is the one pass that can make another gate's name disappear, so
+it is the one pass whose soundness argument is not "I skipped it" but "nothing else was reading
+it."
+
+That argument is `use_count == 1`, computed by `cone_function_emit::compute_use_counts`. The
+census counts gate operands, output drives, flop `D`/mux refs, and instance inputs. It does
+**not** count `Memory.we/waddr/wdata/raddr` or `Fsm.sel` — and the emitter renders those by wire
+name (`src/emit/sv.rs:928-931`). A gate consumed once by a cone edge *and* once by a memory port
+reads as single-use, gets absorbed, and its declaration vanishes out from under the memory block.
+
+It cannot happen today, and the reason is worth stating precisely because it is not a designed
+invariant: `build_memory_leaf` and `build_fsm_block` (`src/gen/module.rs:125,248`) are the
+generator's only `Memory`/`Fsm` construction sites, and both build **gate-free** modules whose
+memory/FSM ports are `PrimaryInput` nodes. So a `Memory` and a `Gate` never coexist in one
+module. Confirmed empirically: `--memory-prob 1.0 --cone-function-emit-prob 1.0` over 40 modules
+produces no undeclared-identifier failure.
+
+> **A safety property that holds by accident of shape, rather than by a stated rule, is a trap
+> with a timer on it.** The day someone lets a memory live in a module with combinational logic —
+> a perfectly reasonable capability increment — this detonates silently, as a downstream tool
+> rejecting a name that used to be declared. The census is cheap to complete and completing it is
+> a provable no-op today, so there is no reason to leave it armed.
+
+Generalised: **any pass that suppresses a declaration must enumerate every consumer kind the IR
+has, not every consumer kind it happens to have met.** The census belongs next to the `Module`
+struct's consumer-bearing fields, so adding a field forces a decision about it. Hardening leaf:
+`EMIT-SURFACE-INTERACTION-GATE.4`.
+
+## 2026-07-30 — Run the negative control before you name the finding — `EMIT-SURFACE-INTERACTION-GATE.1`
+
+The first combined-surface probe linted with `verilator --lint-only -Wall` and failed **24/24**
+on `UNUSEDSIGNAL`. That is exactly the shape of a real finding: eight surfaces stacked, every
+module rejected. The negative control — the same ad-hoc shape config with **all eight surfaces
+off** — failed **23/24** with the identical warning. The warnings were dead intermediate gates
+produced by hand-picked shape knobs, and had nothing to do with the surfaces.
+
+Two things this cost nothing to learn and would have cost a lot to get wrong:
+
+- **`-Wall` is not this repo's acceptance bar.** `src/downstream/mod.rs:154` runs bare
+  `--lint-only`, and every banked surface gate was proven against that. Reproducing the repo's
+  *actual* invocation is part of reproducing the repo's result; the sibling focus configs
+  (`fn_shape`, `caseif_shape`) also fail `-Wall` on their own banked-clean shapes.
+- **A hand-picked shape config is not a vetted one.** The existing focus configs were calibrated
+  per surface; inventing a merged shape reintroduces every calibration question at once. The
+  combined gate should derive its shape from the measured-clean configuration, and `.3` pins the
+  final numbers against the real gate rather than against this probe.
+
+This is the fourth instance of the standing gotcha in `MEMORY.md` — *the fixture agrees with you;
+the tool does not* — in its negative-control form: **before a surprising result becomes a
+finding, run the configuration in which it should not appear.**
+
 ## 2026-07-30 — BRE intervals inside `grep -E`, and why fixtures would not have caught it — `EVIDENCE-BANK-DURABILITY.5`
 
 `scripts/evidence_digest.sh` reported `coverage_gaps: **2907 gap(s)**` for a report whose

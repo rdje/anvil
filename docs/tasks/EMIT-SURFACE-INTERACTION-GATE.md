@@ -93,10 +93,11 @@ them live simultaneously.
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE`
   Status: `active`
-  Children: `.1` (design), `.2` (preset + drift test), `.3` (the combined gate)
+  Children: `.1` (design), `.2` (preset + drift test), `.3` (the combined gate),
+            `.4` (harden the cone-absorption consumer census — opened by `.1`)
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.1`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: design ADR — decide (a) whether the combined gate is one scenario with all
         eight on or a small sweep, (b) how co-occurrence is *proven* from metrics
         without a new token, (c) whether `soft_union_slice_prob` joins (it is
@@ -106,28 +107,66 @@ them live simultaneously.
         other passes' per-gate marking, which is the one pair that does not merely
         skip but *suppresses another gate's module wire*.
   Acceptance: a `docs/decisions/00NN-*.md` with Context / Decision / Consequences.
+  Delivered: [`docs/decisions/0032-emit-surface-interaction-gate.md`](../decisions/0032-emit-surface-interaction-gate.md).
+        (a) a 3 + 1 sweep — three universal comb-only scenarios (one per construction
+        strategy) with all eight surfaces at `0.25`, plus one saturation scenario at
+        `1.0`; (b) a derived `distinct_emit_surfaces` count projected from the nine
+        `ModuleReport.emitted_*` booleans that already exist (the decision `0028`
+        metric-keyed precedent — no new token); (c) `soft_union` joins as a separate
+        Verilator-only `--sv-version 2023` scenario, kept out of the universal three
+        so they retain their Yosys + Icarus columns; (d) five interaction risks
+        reasoned through from source, four predicted-and-measured clean, one
+        (`compute_use_counts` omits `Memory`/`Fsm` consumers) split out as `.4`.
+        Plus the pivotal measurement: `--profile structured-emission-max` sets four
+        surfaces and emits **one**.
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.2`
   Status: `pending`
   Goal: make `--profile structured-emission-max` set every non-version-gated
-        surface, plus a test asserting the preset covers exactly the intended knob
-        set so a tenth surface cannot silently omit itself.
+        surface **at `0.25`** (decision `0032` (e) — all-at-`1.0` is measured to emit
+        one surface), raise the three selector-shape knobs so the procedural surfaces
+        have candidates, correct the preset description, and add a test asserting the
+        preset covers exactly the intended knob set so a tenth surface cannot silently
+        omit itself. Also correct the two user-facing statements that describe the
+        preset (`USER_GUIDE.md:363`, `README.md:875`) and the Knowledge Map `reverify`
+        line for `knob-presets-and-cli-flags`, which pins the old four-knobs-at-`1.0`
+        expectation.
   Acceptance: preset ↔ knob-list test green; `--dump-config --profile
-        structured-emission-max` shows all eight; default path byte-identical.
+        structured-emission-max` shows all eight; a single module under the preset
+        carries ≥ 2 distinct emitted surfaces; default path byte-identical.
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.3`
   Status: `pending`
-  Goal: the repo-owned combined gate + coverage fact + banked digest.
-  Acceptance: `coverage_gaps = []`, all tool columns clean, co-occurrence fact lit,
+  Goal: the repo-owned combined gate + coverage facts + banked digest, per decision
+        `0032` (a)/(b)/(c): `--emit-surface-interaction-gate`, the derived
+        `distinct_emit_surfaces`, and the facts
+        `saw_multi_surface_emit_interaction` (≥ 2),
+        `saw_all_emit_surfaces_in_one_module` (≥ 8), and
+        `saw_all_nine_emit_surfaces_in_one_module` (the 2023 scenario).
+  Acceptance: `coverage_gaps = []`, all tool columns clean, co-occurrence facts lit,
         digest committed under `docs/evidence/`.
+
+- ID: `EMIT-SURFACE-INTERACTION-GATE.4`
+  Status: `pending`
+  Goal: harden `cone_function_emit::compute_use_counts` to count `Memory`
+        (`we`/`waddr`/`wdata`/`raddr`) and `Fsm` (`sel`) consumers. Today the census
+        omits them, so a gate consumed once by a cone edge and once by a memory port
+        would read as single-use, be absorbed, and have its module wire deleted out
+        from under the memory block. Unreachable today only because
+        `build_memory_leaf` / `build_fsm_block` construct gate-free modules — an
+        accident of shape, not a stated invariant.
+  Acceptance: the census counts both; a regression test pins that a gate feeding a
+        memory port is never absorbed; `tests/snapshots.rs` untouched (a provable
+        no-op on every currently-constructible module ⇒ DUT byte-identical).
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.1` | `pending` | **Current frontier.** Design-first, per the lane's own cadence: every structured-emission increment in this repo landed as ADR → impl → gate → docs. |
-| 2 | `.2` | `pending` | Cheap, self-contained, and makes the preset honest independently of the gate. |
-| 3 | `.3` | `pending` | The gate + the digest. |
+| 1 | `.2` | `pending` | **Current frontier.** Cheap, self-contained, and makes the preset honest independently of the gate — and decision `0032` (e) pins exactly what it must set. |
+| 2 | `.3` | `pending` | The gate + the digest. Uses the same `0.25` config the preset adopts, so the gate is literally a proof of the preset. |
+| 3 | `.4` | `pending` | The absorption-census hardening. Byte-identical today; ordered last because it is a latent-trap fix, not a blocker for `.2`/`.3`. |
+| — | `.1` | `done` | Design ADR landed as decision `0032`. |
 
 ## Decisions
 
@@ -136,13 +175,30 @@ them live simultaneously.
   existing ones. Cross-referenced from that tree instead.
 - `2026-07-30`: Agent-picked under the owner's standing autonomy directive
   (`MEMORY.md` standing directives, `2026-07-30`) rather than surfaced as a question.
+- `2026-07-30` (`.1`, decision `0032`): the gate is a **3 + 1 sweep** at an
+  intermediate probability, not one all-at-`1.0` scenario — because all-at-`1.0` is
+  measured to collapse to 3 live surfaces (the first pass in the fixed order claims
+  every gate its candidate set overlaps). `0.25` is adopted for both the gate and the
+  preset; it maximises the *least-represented* surface's count (max-min over seeds
+  1–5).
+- `2026-07-30` (`.1`, decision `0032`): the preset's meaning is pinned as maximal
+  surface **diversity**, not maximal saturation of one surface — the two are opposed
+  under mutual exclusion, and the current preset picks the wrong one.
 
 ## Open Questions
 
-- Does `cone_function` absorption interact safely with a `multi_output_task` member
-  or a `mux_if` output var when both are live? `.1` must reason this through from
-  the source before the gate runs, so a failure is a *prediction confirmed*, not a
-  surprise.
+- ~~Does `cone_function` absorption interact safely with a `multi_output_task` member
+  or a `mux_if` output var when both are live?~~ **Resolved at `.1`** (decision `0032`
+  §6 + (d)): yes, on both counts — absorption requires a *global* use count of `1`, a
+  `multi_output_task` member is `sibling_marked` (so never a root or interior), and a
+  `mux_if`-marked `Mux` is excluded from the cone pass which runs before it. Predicted
+  clean from source, then measured clean (215 multi-output tasks co-existing with 131
+  cone functions and 138 `mux_if` blocks in one 24-module corpus, four tool columns
+  clean).
+- **New, opened by `.1`:** should `.4`'s consumer census be factored into a shared
+  `ir::use_counts` helper rather than living privately in `cone_function_emit.rs`? Any
+  future absorbing pass needs the identical census
+  (`feedback_full_factorization`).
 
 ## Blockers
 
@@ -153,14 +209,28 @@ them live simultaneously.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-07-30` | (tree opened) | Measured: 8/8 focus configs set exactly one `_emit_prob = 1.0`; the `structured-emission-max` preset sets 4 of 9 | observation recorded; tree registered |
+| `2026-07-30` | `.1` | Source audit of all nine `annotate_*` exclusion predicates | exclusion matrix is complete and lower-triangular — every pass excludes exactly its predecessors; no hole |
+| `2026-07-30` | `.1` | `anvil --seed {1,2,3} --profile structured-emission-max --introspect` | preset sets 4 surfaces, emits **1** — 796 / 1057 / 917 combinational functions, every other surface exactly `0` |
+| `2026-07-30` | `.1` | All eight `*_emit_prob = 1.0`, comb-only selector-rich shape, 12 modules | exactly **3** live surfaces on 12/12 modules (saturation collapse); clean on Verilator + both Yosys modes + Icarus |
+| `2026-07-30` | `.1` | All eight at `0.25`, same shape, 24 modules | **8** distinct surfaces in 20/24 modules, 7 in 4/24; clean 24/24 on Verilator `--lint-only`, Yosys without-abc, Yosys with-abc, and `iverilog -g2012`, **zero warnings** |
+| `2026-07-30` | `.1` | Same, per construction strategy (12 modules each) | per-module surface floor `sequential` 6 / `shuffled` 8 / `interleaved` 7; max `8` on all three |
+| `2026-07-30` | `.1` | Probability calibration, default shape, seeds 1–5 | `0.25` maximises the min per-surface count (mean min 73.8 vs 51.4 / 70.2 / 37.0 at `0.15` / `0.35` / `0.50`) |
+| `2026-07-30` | `.1` | Nine surfaces under `--sv-version 2023 --soft-union-slice-prob 1.0`, 8 modules | Verilator-clean under `--language 1800-2023`; 8/8 genuinely emit `union soft`; 6/8 also carry all eight other surfaces |
+| `2026-07-30` | `.1` | Negative control: the same shape with **all** surfaces off, `-Wall` | 23/24 fail `UNUSEDSIGNAL` — the `-Wall` failures were a shape artifact, not surface stacking; the repo's bar is bare `--lint-only` (`src/downstream/mod.rs:154`) |
+| `2026-07-30` | `.1` | `--memory-prob 1.0 --cone-function-emit-prob 1.0`, 40 modules | no undeclared-identifier failure — the `compute_use_counts` gap is unreachable today because `build_memory_leaf` / `build_fsm_block` construct gate-free modules; recorded as `.4` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `.1` | `EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination` | Docs-only design leaf; delivers `docs/decisions/0032-emit-surface-interaction-gate.md` and opens `.4` |
 
 ## Changelog
 
 - `2026-07-30`: Created from a source-level observation that the nine emit
   projections' mutual-exclusion invariant has no end-to-end gate, and that
   `--profile structured-emission-max` covers 4 of 9 surfaces.
+- `2026-07-30` (`.1`): design ADR landed as decision `0032`. The opening observation
+  strengthened from measurement — the preset does not merely cover 4 of 9, it emits
+  **1 of 9** — and a fourth leaf `.4` opened for a latent `cone_function` absorption
+  trap found while reasoning the interaction risks through from source.
