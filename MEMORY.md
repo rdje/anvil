@@ -8,9 +8,9 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`VOLUME-DATA-LOCALITY.7`** — closes the `VOLUME-DATA-LOCALITY` tree; `check_doctrines.sh` now **5/5** with the new `NO-BOOT-VOLUME-REFS` gate. Session history: `git log --oneline` (do not re-narrate it here).
-- active_work_unit: **none open.** Closed this session: `VOLUME-DATA-LOCALITY`, `BOOK-LANE-COVERAGE`, `LANE-OUT-FILENAME`.
-- next_action: pick per PNT. Best candidates: **`EVIDENCE-BANK-DURABILITY.3`** (mechanize decision `0030` — `docs/evidence/` digest schema + `scripts/evidence_digest.sh` + `check_evidence_citations.sh`; **re-scope `.4` first**: its breadcrumb sweep is now largely moot since `VOLUME-DATA-LOCALITY.5` removed the `/tmp` citations, so it becomes "cite a digest or the re-runnable command"); or **`CAPABILITY-BREADTH-EXPANSION.1`** (SV up-opt breadth ADR); or a fifteenth derived `analyze` query.
+- latest_commit: **`CARGO-TMPDIR-SWEEP-REGRESSION.1`** — `NO-BOOT-VOLUME-REFS` anchored to absolute paths (driver still 5/5). Session history: `git log --oneline` (do not re-narrate it here).
+- active_work_unit: **`CARGO-TMPDIR-SWEEP-REGRESSION`** → frontier leaf **`.2`** (`pending`): repair the 10 live-doc paths that `VOLUME-DATA-LOCALITY.5` mangled from `target/tmp/<name>` into the never-existent `target.cache/anvil-sandbox/<name>`; the table of all 10 with their correct values is in the tree file. `.1` unblocked it.
+- next_action: land `.2`, then per PNT: **`EVIDENCE-BANK-DURABILITY.3`** (mechanize decision `0030` — `docs/evidence/` digest schema + `scripts/evidence_digest.sh` + `check_evidence_citations.sh`; **re-scope `.4` first**: its breadcrumb sweep is now largely moot since `VOLUME-DATA-LOCALITY.5` stripped the `/tmp/` prefixes, so the citation form to check is now a bare `anvil-<bank>` name and `.4` becomes "cite a digest or the re-runnable command"); or **`CAPABILITY-BREADTH-EXPANSION.1`** (SV up-opt breadth ADR); or a fifteenth derived `analyze` query.
 - in_flight_uncommitted: none. Tree clean, self-checks green, resume pointer current.
 - blockers: none.
 
@@ -24,6 +24,7 @@
 ## Operating gotchas (earned the hard way — do not relearn)
 - **Never clear `.cache/anvil-sandbox` while a test run is in flight.** It is the live sandbox root now, so clearing it deletes running tests' working dirs *and* their stdout/stderr capture files — surfacing as a `book_examples` failure with **empty** output. Clear before or after, never during. A failure with no captured output at all ⇒ suspect the harness's scratch before the code.
 - **Never mass-rewrite strings across docs whose *subject* is that string.** A blanket `/tmp` sweep once turned decision `0030`'s own `reverify` into the meaningless `ls -d anvil-*`. Always allow-list the policy/history documents first.
+- **Anchor a path-prefix rewrite to a path start.** The same sweep, applied unanchored, also fired *inside* `target/tmp/…` (Cargo's `CARGO_TARGET_TMPDIR`, on-volume) and minted 10 paths to a directory that never existed. A wrong path that looks plausible survives review. And a gate built from the sweep's own search string shares its blind spot — write the check from the property ("a boot-volume path is absolute"), not the string.
 - `verilator -Wall` on a fixed-filename dump always fails `DECLFILENAME` — pass `-Wno-DECLFILENAME`; it is a filename artifact, not a defect.
 
 ## Lane invariants (all lanes)

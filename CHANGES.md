@@ -1,6 +1,66 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — CARGO-TMPDIR-SWEEP-REGRESSION.1 — anchor the boot-volume check to absolute paths
+
+**Landed as:** this commit (previous: `0d094b2`, `VOLUME-DATA-LOCALITY.7`).
+Doctrine script + standard + tree registration; no generator code ⇒ **DUT byte-identical**.
+
+**Why.** A session-bootstrap deep-dive found 10 live-doc paths pointing at
+`target.cache/anvil-sandbox/<name>` — a directory that has never existed. Root cause, pinned with
+`git show`: `VOLUME-DATA-LOCALITY.5`'s Rule B rewrote the substring `/tmp/` to
+`.cache/anvil-sandbox/`, which is correct for an **absolute** boot-volume path but wrong when
+`/tmp/` is a segment of a longer *relative* path. The ten victims were all `target/tmp/<name>` —
+Cargo's `CARGO_TARGET_TMPDIR`, which lives inside the checkout and is therefore already on the
+project volume, i.e. exactly what decision `0031` asks for. `tests/frontend_parity.rs:1220` reads it
+through `env!("CARGO_TARGET_TMPDIR")`, so the correct text is re-derivable from source.
+
+**Why the check had to move first.** `NO-BOOT-VOLUME-REFS` used `BANNED_RE='/tmp/|/private/tmp|/var/folders'`,
+which matches `/tmp/` at *any* position — including inside `target/tmp/`. So the guard could neither
+catch the sweep that produced the mangled paths nor accept their repair: writing the correct text
+would have failed the pre-commit hook. The imprecision that caused the regression and the
+imprecision that blocks its fix are the same one.
+
+**What.** `BANNED_RE` becomes `(^|[^A-Za-z0-9_.-])(/tmp/|/private/tmp|/var/folders)` — a banned
+shape counts only where a path can start: at line start, or after a character that cannot continue
+a path. `~` is deliberately excluded from the continuation set, so `~/tmp/…` (the home directory, on
+the boot volume) still counts. The script header documents the anchor as load-bearing beside the
+existing allow-list rationale, and `DOCTRINE_ENFORCEMENT.md` §10's registry row now states it.
+
+**Rejected: adding `target/tmp` to `ALLOW_RE`.** The allow-list exempts whole *files*, so it would
+have blanket-exempted `README.md` and friends from the doctrine to fix one substring, and would need
+re-doing for every future repo-relative path containing `/tmp/`. The anchor states the actual rule —
+"a boot-volume path is absolute" — once.
+
+**Validation.** Nine negative controls, both directions, each injected into `README.md` and reverted:
+must-FAIL `/tmp/anvil-negctl`, `` `/tmp/anvil-negctl` ``, `TMPDIR=/tmp/anvil-negctl`,
+`~/tmp/anvil-negctl`, `/private/tmp/anvil-negctl`, `/var/folders/ab/cd` → all exit 1; must-PASS
+`target/tmp/anvil-negctl`, `./tmp/anvil-negctl`, `../tmp/anvil-negctl` → all exit 0. Proof the change
+narrows false positives and nothing else: the offender set under the old and new regexes is
+byte-identical on the current tree (0 files each), and repo-wide — allow-listed files included — no
+tracked file changes verdict. `scripts/check_doctrines.sh` **5/5 PASS**.
+
+**Impact.** The doctrine is unchanged in force and more precise in reach. The 10 mangled citations
+are repaired by `.2`; this leaf only makes that repair landable.
+
+**The gate caught its own author again.** This tree file must quote `/tmp/` to describe the defect,
+so the hook flagged it — the documented policy-document case, already applied to
+`docs/tasks/VOLUME-DATA-LOCALITY.md`; it is now allow-listed for the same reason. Worth recording as
+a workflow fact: a manual `bash scripts/check_doctrines.sh` **passed** beforehand because the file
+was still untracked and `git grep` sees only tracked files. **Run the driver after `git add`, not
+before**, or a new file's content is invisible to it. (The first such self-catch was
+`DOCTRINE_ENFORCEMENT.md` at `VOLUME-DATA-LOCALITY.7`.)
+
+**Also fixed here (index drift, one cell).** `docs/TASK_TREE.md`'s `VOLUME-DATA-LOCALITY` row still
+read `active` while the tree file's `Status:` reads `done` and its changelog records "Tree CLOSED".
+Corrected to `done` in the same edit that adds the new row — the `LIVE-DOC-TASK-TREE-INDEX-ALIGNMENT`
+class, found by the same bootstrap pass. A full per-file `Status:`-vs-index audit found no other
+disagreement.
+
+**Files touched.** `scripts/check_no_boot_volume_refs.sh`, `DOCTRINE_ENFORCEMENT.md`,
+`docs/tasks/CARGO-TMPDIR-SWEEP-REGRESSION.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — VOLUME-DATA-LOCALITY.7 — doctrine check: nothing points at the boot volume
 
 **Landed as:** this commit (previous: `bdb6b0a`, `VOLUME-DATA-LOCALITY.5`).

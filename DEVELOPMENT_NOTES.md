@@ -5,6 +5,30 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-29 — A path-prefix sweep must be anchored, or it eats relative paths — `CARGO-TMPDIR-SWEEP-REGRESSION.1`
+
+`MEMORY.md` already carries the hazard *"never mass-rewrite strings across docs whose subject is
+that string"*. This is its sibling, and it cost us ten live-doc paths: **never mass-rewrite a path
+prefix without anchoring it to the start of a path.**
+
+`VOLUME-DATA-LOCALITY.5` rewrote `/tmp/` → `.cache/anvil-sandbox/`. Correct for `/tmp/foo`. Applied
+unanchored, it also fired inside `target/tmp/foo` — Cargo's `CARGO_TARGET_TMPDIR` — yielding
+`target.cache/anvil-sandbox/foo`, a directory that has never existed. The mangled form is *plausible*
+(it contains the real sandbox subdir), which is exactly why review did not catch it: a wrong path
+that looks like a right path reads as a right path.
+
+The deeper lesson is about the guard, not the sweep. `NO-BOOT-VOLUME-REFS` used the same unanchored
+substring, so it was **blind to the damage in both directions** — it could not flag the mangled
+paths (they no longer contain `/tmp/`), and it would have rejected the correct repair (which does).
+A check built from the same imprecision as the operation it guards cannot catch that operation's
+mistakes. When a sweep and its gate share a pattern, they share the pattern's blind spot; write the
+gate from the *property* ("a boot-volume path is absolute"), not from the sweep's search string.
+
+Concretely: `(^|[^A-Za-z0-9_.-])(/tmp/|…)`. `~` stays out of the continuation class so `~/tmp/…`
+still counts as boot-volume. Rejected the alternative of allow-listing `target/tmp`, because
+`ALLOW_RE` exempts whole files — it would have traded a one-substring bug for a
+whole-document exemption, and needed repeating for every future relative path containing `/tmp/`.
+
 ## 2026-07-29 — The sandbox root is now inside the repo: don't clear it mid-run — `VOLUME-DATA-LOCALITY.3`
 
 New operational hazard created by moving ANVIL's working data on-volume, learned the hard way in
