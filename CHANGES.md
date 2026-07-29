@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EVIDENCE-BANK-DURABILITY.5 — bank the first real digest; fix the deriver it exposed
+
+**Landed as:** this commit (previous: `45cb334`, `EVIDENCE-BANK-DURABILITY.3`).
+First `docs/evidence/` digest + a real gate run + two tool fixes; no generator code ⇒
+**DUT byte-identical**. Driver **6/6**.
+
+**Taken before `.4`, deliberately.** `.5` was scheduled last and marked deferred. Running it
+first is the end-to-end proof that `.3`'s chain works on **real output rather than on fixtures**,
+and it hands `.4` a live worked example to point at. Recorded in the tree's frontier table.
+
+**The run.** `tool_matrix --case-mux-if-gate --yosys-mode both --iverilog-compile` under
+`ram_guard --threshold 90`, against Verilator 5.046 + Yosys 0.64 + Icarus, writing to
+`.cache/anvil-sandbox/anvil-case-mux-if-gate-r2` (on-volume, gitignored, per the `0030`
+amendment): **3 scenarios / 12 modules, `coverage_gaps = []`, 12/0 on Verilator, both Yosys
+modes, and Icarus compile**, `saw_case_mux_if_emit` lit. Digest at
+`docs/evidence/anvil-case-mux-if-gate-r2.md`, cited from `README.md` beside the r1 breadcrumb —
+so the README now shows both citation regimes side by side: a pre-`0030` bank whose artifact is
+gone, and its digest-backed successor.
+
+**FOUND-AND-FIXED on first real use: the deriver reported `coverage_gaps: **2907 gap(s)**` for
+an EMPTY array.** Root cause: the empty-array branch was written
+`grep -qE '^  "coverage_gaps": \[\],\{0,1\}$'` — a **BRE interval inside `grep -E`**, where
+`\{` is a *literal* brace. It could never match, so control fell through to the multi-line
+fallback, whose `awk` never found a terminating `  ]` (the array had closed on the same line) and
+counted quoted strings to end-of-file. The `sed` extractors in the same script were correct
+because `sed` *is* BRE — which is precisely why every other number came out right and the error
+was silent. Replaced with one `awk` extractor that fails loudly when the field is absent, plus
+`scripts/evidence_digest.sh --self-test` (empty ⇒ 0, two gaps ⇒ 2, absent ⇒ fatal) so the class is
+an oracle rather than a memory: **self-test PASS**.
+
+This is the `.5` value proposition in one incident: a hand-written fixture would probably have
+been shaped to match whatever the author assumed. The real report was not, and a signoff artifact
+carrying a confidently wrong number is exactly the aspirational claim `COMMIT.md` forbids.
+
+**Second bug, in `.3`'s check.** Citing a digest by its **path** —
+`docs/evidence/anvil-case-mux-if-gate-r2.md`, the most natural form and a live link — yielded the
+token `anvil-case-mux-if-gate-r2.md`, which never resolved against `docs/evidence/<token>.md`. The
+check rejected the very citation style the mechanism wants to encourage. It now normalizes a
+trailing `.md`. All four `.3` negative controls re-run green afterwards, plus a fifth proving a
+path-cited *malformed* digest still fails.
+
+**Also added** the decision-`0030`-required "coverage facts lit" section to the digest, and
+corrected `date` to the derivation date (`commit` already carries the code identity).
+
+**No phase labels changed.** Phases 0–9 remain `done`; this re-banks one surface gate's evidence,
+it does not re-open the surface.
+
+**Files touched.** `docs/evidence/anvil-case-mux-if-gate-r2.md` (new — the first digest),
+`docs/evidence/README.md`, `scripts/evidence_digest.sh`, `scripts/check_evidence_citations.sh`,
+`README.md`, `docs/tasks/EVIDENCE-BANK-DURABILITY.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`,
+`MEMORY.md`.
+
 ## 2026-07-30 — EVIDENCE-BANK-DURABILITY.3 — mechanize decision 0030: the EVIDENCE-CITATIONS doctrine
 
 **Landed as:** this commit (previous: `1827d5b`, `CARGO-TMPDIR-SWEEP-REGRESSION.2`).

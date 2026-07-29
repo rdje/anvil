@@ -8,9 +8,9 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`EVIDENCE-BANK-DURABILITY.3`** — the `EVIDENCE-CITATIONS` doctrine is live; driver **6/6**. Session history: `git log --oneline` (do not re-narrate it here).
-- active_work_unit: **`EVIDENCE-BANK-DURABILITY`** → frontier **`.4`** (`pending`, re-scoped `2026-07-30`): a one-hop pointer from each affected live doc + book chapter to `docs/evidence/INVENTORY.md` §1, which now carries the breadcrumb record. Then **`.5`**: bank the first real digest from an actual gate re-run (the end-to-end proof).
-- next_action: land `.4`, then `.5` (run a real surface gate → `scripts/evidence_digest.sh` → commit the digest; Verilator 5.046 + Yosys 0.64 + iverilog are present). After that, per PNT: **`CAPABILITY-BREADTH-EXPANSION.1`** (SV up-opt breadth ADR) or a fifteenth derived `analyze` query.
+- latest_commit: **`EVIDENCE-BANK-DURABILITY.5`** — first `docs/evidence/` digest banked from a real gate run (`anvil-case-mux-if-gate-r2`, 12/0 all columns, `coverage_gaps=[]`); driver **6/6**. Session history: `git log --oneline` (do not re-narrate it here).
+- active_work_unit: **`EVIDENCE-BANK-DURABILITY`** → **`.4` is the only open leaf** (re-scoped `2026-07-30`): a one-hop pointer from each affected live doc + book chapter to `docs/evidence/INVENTORY.md` §1 (the breadcrumb record). `README.md` already carries the worked example from `.5`. `.3`/`.5` done.
+- next_action: land `.4` (closes the tree). Then per PNT: **`CAPABILITY-BREADTH-EXPANSION.1`** (SV up-opt breadth ADR) or a fifteenth derived `analyze` query.
 - in_flight_uncommitted: none. Tree clean, self-checks green, resume pointer current.
 - blockers: none.
 
@@ -24,6 +24,8 @@
 ## Operating gotchas (earned the hard way — do not relearn)
 - **Never clear `.cache/anvil-sandbox` while a test run is in flight.** It is the live sandbox root now, so clearing it deletes running tests' working dirs *and* their stdout/stderr capture files — surfacing as a `book_examples` failure with **empty** output. Clear before or after, never during. A failure with no captured output at all ⇒ suspect the harness's scratch before the code.
 - **Never mass-rewrite strings across docs whose *subject* is that string.** A blanket `/tmp` sweep once turned decision `0030`'s own `reverify` into the meaningless `ls -d anvil-*`. Always allow-list the policy/history documents first.
+- **The fixture agrees with you; the tool does not.** Three independent instances now (`DIFFERENTIAL-SIMULATION.3b.2` two-space `input  logic`; `PHASE-7 .2c.2b.1` `rem_euclid` vs `%`; `EVIDENCE-BANK-DURABILITY.5` a deriver reporting *2907 gaps* for an empty array). Run a new tool against **real** output before trusting it — a hand-made fixture is shaped by the same assumption as the parser.
+- **`grep -E` uses ERE: the interval is `{0,1}`, NOT `\{0,1\}`.** `sed` is BRE and wants the backslashes. This repo's scripts mix both dialects; the escaped form inside `grep -E` matches a literal brace and silently never fires. An extractor must die on a missing field, never fall through to something plausible.
 - **A doctrine check must classify, never guess.** `EVIDENCE-CITATIONS` requires every `anvil-<name>` token to be in one of three buckets and fails closed on an unknown one; a heuristic would either miss a real uncited bank or cry wolf on prose, and a gate that cries wolf gets deleted. Its grandfathered list is pinned by count+SHA **because its membership is a historical fact** — unpinned, "just grandfather it" bypasses the doctrine in one line.
 - **Run `scripts/check_doctrines.sh` AFTER `git add`.** `git grep`/`git ls-files` see tracked content only, so a new file's contents are invisible to every structural check until staged. Three self-catches in two days were all this blind spot.
 - **Anchor a path-prefix rewrite to a path start.** The same sweep, applied unanchored, also fired *inside* `target/tmp/…` (Cargo's `CARGO_TARGET_TMPDIR`, on-volume) and minted 10 paths to a directory that never existed. A wrong path that looks plausible survives review. And a gate built from the sweep's own search string shares its blind spot — write the check from the property ("a boot-volume path is absolute"), not the string.

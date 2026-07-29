@@ -192,13 +192,42 @@ evidence citations absolute and volatile.
   Commit: `pending`
 
 - ID: `EVIDENCE-BANK-DURABILITY.5`
-  Status: `pending` (deferred, opt-in)
-  Goal: bank a `docs/evidence/` digest opportunistically the next time a
-        gate actually re-runs. Explicitly NOT a mass re-run of historical
-        gates (tree non-goal).
-  Acceptance: the first post-0030 gate run lands with its digest.
-  Verification: `pending`
-  Commit: `pending`
+  Status: `done`
+  Goal: bank a `docs/evidence/` digest from a real gate re-run. **Promoted
+        from deferred `2026-07-30`** and taken BEFORE `.4`: a real run is the
+        end-to-end proof that the `.3` chain works on real output rather than
+        on fixtures, and it gives `.4` a live worked example to point at.
+        Explicitly NOT a mass re-run of historical gates (tree non-goal) —
+        one gate, one digest.
+  Acceptance: the first post-0030 gate run lands with its digest, and the
+        `EVIDENCE-CITATIONS` check admits its citation via the digest bucket.
+  Verification: Ran `tool_matrix --case-mux-if-gate --yosys-mode both
+        --iverilog-compile` for real under `ram_guard --threshold 90` against
+        Verilator 5.046 + Yosys 0.64 + Icarus: **3 scenarios / 12 modules,
+        `coverage_gaps = []`, 12/0 Verilator + both Yosys modes + Icarus**,
+        `saw_case_mux_if_emit` lit. Digest banked at
+        `docs/evidence/anvil-case-mux-if-gate-r2.md`; cited from `README.md`
+        beside the r1 breadcrumb; check reports **1 digest** and PASSes.
+        **FOUND-AND-FIXED a real bug in `scripts/evidence_digest.sh` on its
+        first real use** — it rendered `coverage_gaps: **2907 gap(s)**` for an
+        EMPTY array. Root cause: the empty-array branch used a BRE interval
+        `\{0,1\}` inside `grep -E`, where `\{` is a *literal* brace, so it
+        never matched and the multi-line fallback counted quoted strings to
+        EOF. (The `sed` extractors were correct — sed is BRE — which is why
+        every other number was right and the error was silent.) Fixed to one
+        `awk` extractor that fails loudly when the field is absent, plus a
+        `--self-test` oracle (empty ⇒ 0, two gaps ⇒ 2, absent ⇒ fatal) so the
+        class cannot regress: **self-test PASS**. Also added the
+        decision-`0030`-required "coverage facts lit" section, and corrected
+        `date` to the derivation date (`commit` carries the code identity).
+        **Also fixed a second real bug, in `.3`'s check**: citing a digest by
+        its PATH (`docs/evidence/<bank>.md` — the most natural form, and a live
+        link) produced the token `<bank>.md`, which never resolved against
+        `docs/evidence/<token>.md`. The check now normalizes a trailing `.md`.
+        All four `.3` negative controls re-run green afterwards, plus a new one
+        proving a path-cited *malformed* digest still fails.
+        Driver **6/6**. No `src/`/`tests/` touched ⇒ DUT byte-identical.
+  Commit: `EVIDENCE-BANK-DURABILITY.5 — bank the first real digest; fix the deriver it exposed`
 
 ## `.2` audit — the 73 canonical banks behind the 77 raw citation strings
 
@@ -247,8 +276,8 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `EVIDENCE-BANK-DURABILITY.3` | `done` | Mechanized `2026-07-30`; `EVIDENCE-CITATIONS` is live in the driver (6/6). |
-| 2 | `EVIDENCE-BANK-DURABILITY.4` | `pending` | **Current frontier.** Re-scoped to a pointer-per-doc now that the inventory carries the breadcrumb record. |
-| 3 | `EVIDENCE-BANK-DURABILITY.5` | `pending` | Bank the first real digest from an actual gate re-run — the end-to-end proof that the `.3` chain works on real output rather than on fixtures. |
+| 2 | `EVIDENCE-BANK-DURABILITY.4` | `pending` | **Current frontier — the last open leaf.** Re-scoped to a pointer-per-doc now that the inventory carries the breadcrumb record; `README.md` already carries the worked example from `.5`. |
+| 3 | `EVIDENCE-BANK-DURABILITY.5` | `done` | Taken before `.4` (`2026-07-30`): the real run is the end-to-end proof of `.3`, and it found a real deriver bug a fixture would not have. |
 
 ## Decisions
 
@@ -284,6 +313,7 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 | --- | --- | --- | --- |
 | `2026-07-25` | (tree opened) | `ls -d /tmp/anvil-*` → 0 dirs; `du -sh target/tmp` → 0; `grep -rhoE '/tmp/anvil-[…]'` over the live-doc set → 77 distinct cited paths | observation recorded; tree opened |
 | `2026-07-25` | `EVIDENCE-BANK-DURABILITY.1` | `scripts/check_doctrines.sh` 4/4 PASS; `check_memory_architecture.sh` green (`MEMORY.md` 21 lines / cap 60); bootstrap sweep on the unchanged tree under `ram_guard --threshold 90`: `cargo check --all-targets` clean, `cargo test` exit 0 (pipeline 125/0, snapshots 6/6), `clippy -D warnings` clean, `fmt --check` clean | `done` — observation recorded, tree registered; docs-only ⇒ DUT byte-identical |
+| `2026-07-30` | `EVIDENCE-BANK-DURABILITY.5` | Real `--case-mux-if-gate` run (Verilator 5.046 + Yosys 0.64 both modes + Icarus) under `ram_guard`: 3 scenarios / 12 modules, `coverage_gaps = []`, **12/0 on every enabled column**, `saw_case_mux_if_emit` lit. First digest banked + cited; check reports 1 digest, PASS. FOUND-AND-FIXED a silent deriver bug (`\{0,1\}` BRE interval inside `grep -E` ⇒ "2907 gap(s)" for an empty array); added a `--self-test` oracle (PASS) so the class cannot regress. Driver **6/6**. | `done` — the mechanism is proven on real output, not fixtures |
 | `2026-07-30` | `EVIDENCE-BANK-DURABILITY.3` | Driver **6/6 PASS**. 4 negative controls, applied+reverted: new uncited bank → exit 1; widening the frozen §1 (the escape hatch) → exit 1; malformed digest → exit 1; schema-valid digest → exit 0. Classification cross-check **10/15/47 == decision `0030`'s own audit**, reached independently. `mdbook build` n/a (no book change). Docs + shell only ⇒ DUT byte-identical. | `done` — the contract is mechanical; a new bank cannot land uncited |
 | `2026-07-29` | `EVIDENCE-BANK-DURABILITY.2` | Re-measured the `.1` observation on the current tree (exact recorded command → 77 raw strings, reproduced); classified 73 canonical banks into (a) 10 / (b) 15 / (c) 47 / (d) 1; decision `0030` written + `INDEX.md` row; `scripts/check_doctrines.sh` 4/4 PASS (docs-only leaf, no tool run needed per tree Blockers) | `done` — ADR landed; mechanism = committed per-bank digest; frontier → `.3` (after the owner-steered mdBook-lanes unit) |
 
@@ -294,6 +324,7 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 | `EVIDENCE-BANK-DURABILITY.1` | `EVIDENCE-BANK-DURABILITY.1 — open tree: closure artifacts live in volatile /tmp` | docs-only; no `src/` touched ⇒ DUT byte-identical |
 | `EVIDENCE-BANK-DURABILITY.2` | `EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations` | docs-only; decision record + tree update ⇒ DUT byte-identical |
 | `EVIDENCE-BANK-DURABILITY.3` | `EVIDENCE-BANK-DURABILITY.3 — mechanize decision 0030: the EVIDENCE-CITATIONS doctrine` | `docs/evidence/{README,INVENTORY}.md` + 2 scripts + registry + the `0030` amendment; no generator code ⇒ DUT byte-identical |
+| `EVIDENCE-BANK-DURABILITY.5` | `EVIDENCE-BANK-DURABILITY.5 — bank the first real digest; fix the deriver it exposed` | first `docs/evidence/` digest + a real gate run + the deriver fix & self-test; no generator code ⇒ DUT byte-identical |
 
 ## Changelog
 
@@ -312,3 +343,9 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
   whole doctrine decorative. Recorded as a dated amendment to `0030`
   (original text untouched: supersede, do not mutate). `.4` narrowed
   accordingly; `.5` promoted from deferred to the real end-to-end proof.
+- `2026-07-30`: `.5` done, taken before `.4`. The real gate run immediately
+  earned its keep: the digest deriver rendered `coverage_gaps: **2907 gap(s)**`
+  for an empty array, from a BRE interval used inside `grep -E`. A synthetic
+  fixture would likely have been written to match whatever the author assumed;
+  the real report was not. `.5` now carries a `--self-test` so the class is an
+  oracle, not a memory. Only `.4` remains open.

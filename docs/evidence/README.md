@@ -31,6 +31,12 @@ scripts/evidence_digest.sh <report.json> <bank-name> \
     --leaf <TREE.LEAF> --claim '<what this backs>' [--command '<cmd>']
 ```
 
+`scripts/evidence_digest.sh --self-test` is its own oracle: it asserts the
+`coverage_gaps` extraction on an empty array, a populated array, and an absent
+field. That exists because the first real use of the deriver rendered
+`**2907 gap(s)**` for an *empty* array — a silent, schema-valid, completely
+wrong number. See `DEVELOPMENT_NOTES.md` (`2026-07-30`).
+
 The check enforces these fields (see `check_evidence_citations.sh` leg 2):
 
 | Field | Rule |
@@ -53,6 +59,14 @@ is not re-verifiable — it is just a number that once was true.
 Under `.cache/anvil-sandbox/<bank-name>/` — on the project volume (decision
 `0031`), gitignored, resolved by `src/paths.rs`. **The digest is the only
 tracked artifact.** Never write a bank to an OS temp dir; never commit a corpus.
+
+## How to cite a digest
+
+Either form works — the check normalizes a trailing `.md`:
+
+- by bank name: ``Banked clean at `anvil-case-mux-if-gate-r2`.``
+- by path (preferred, it is a live link):
+  ``[`docs/evidence/anvil-case-mux-if-gate-r2.md`](anvil-case-mux-if-gate-r2.md)``
 
 ## The three buckets
 

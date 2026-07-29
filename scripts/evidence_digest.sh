@@ -31,7 +31,46 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 die() { printf 'evidence-digest: %s\n' "$1" >&2; exit 1; }
 
-[ $# -ge 2 ] || die "usage: $0 <report.json> <bank-name> --leaf <ID> --claim '<text>' [--command '<cmd>'] [--out <path>]"
+# coverage_gaps is `[]` on one line when empty, otherwise a multi-line array.
+# Echoes the count, or nothing when the field is absent — the caller MUST treat
+# empty as fatal. A silently-wrong number in a signoff artifact is worse than no
+# artifact, which is not hypothetical: the first real use of this script emitted
+# "2907 gap(s)" for an empty array, because the empty-array branch was written
+# with a BRE interval `\{0,1\}` inside `grep -E`, where `\{` is a LITERAL brace.
+# It never matched, and the multi-line fallback then counted quoted strings to
+# end-of-file. Hence `--self-test` below.
+extract_gaps() {
+  awk '
+    /^  "coverage_gaps": \[\],?$/ { print 0; found=1; exit }
+    /^  "coverage_gaps": \[$/     { s=1; next }
+    s && /^  \],?$/               { print n+0; found=1; exit }
+    s && /"/                      { n++ }
+    END { if (!found && !s) exit 0 }
+  ' "$1"
+}
+
+self_test() {
+  local d="${ROOT}/.cache/anvil-sandbox/evidence-digest-selftest"
+  rm -rf "${d}"; mkdir -p "${d}"; local rc=0
+  printf '{\n  "coverage_gaps": [],\n  "x": 1\n}\n' > "${d}/empty.json"
+  printf '{\n  "coverage_gaps": [\n    "saw_a",\n    "saw_b"\n  ],\n  "x": 1\n}\n' > "${d}/two.json"
+  printf '{\n  "x": 1\n}\n' > "${d}/absent.json"
+  check() { # label expected actual
+    if [ "$2" = "$3" ]; then printf '  ok   %-28s -> %s\n' "$1" "$3"
+    else printf '  FAIL %-28s -> got [%s], want [%s]\n' "$1" "$3" "$2"; rc=1; fi
+  }
+  check "empty array => 0"      "0"  "$(extract_gaps "${d}/empty.json")"
+  check "two gaps => 2"         "2"  "$(extract_gaps "${d}/two.json")"
+  check "absent field => empty" ""   "$(extract_gaps "${d}/absent.json")"
+  rm -rf "${d}"
+  [ "${rc}" -eq 0 ] && echo "evidence-digest: self-test PASS" || echo "evidence-digest: self-test FAIL" >&2
+  return "${rc}"
+}
+
+if [ "${1:-}" = "--self-test" ]; then self_test; exit $?; fi
+
+[ $# -ge 2 ] || die "usage: $0 <report.json> <bank-name> --leaf <ID> --claim '<text>' [--command '<cmd>'] [--out <path>]
+       $0 --self-test"
 REPORT="$1"; BANK="$2"; shift 2
 LEAF=""; CLAIM=""; COMMAND=""; OUT=""
 while [ $# -gt 0 ]; do
@@ -75,12 +114,11 @@ SET=$(require scenario_set               "$(jstr scenario_set)")
 KIND=$(require artifact_kind             "$(jstr artifact_kind)")
 YMODE=$(require yosys_mode               "$(jstr yosys_mode)")
 
-# coverage_gaps: `[]` inline when empty, otherwise a multi-line array.
-if grep -qE '^  "coverage_gaps": \[\],\{0,1\}$' "${REPORT}"; then
-  GAPS="\`[]\` — none"
-  GAPS_N=0
+GAPS_N="$(extract_gaps "${REPORT}")"
+[ -n "${GAPS_N}" ] || die "coverage_gaps not found in ${REPORT} — refusing to emit a digest that cannot state it"
+if [ "${GAPS_N}" -eq 0 ]; then
+  GAPS='`[]` — none'
 else
-  GAPS_N=$(awk '/^  "coverage_gaps": \[/{s=1;next} s&&/^  \]/{exit} s&&/"/{n++} END{print n+0}' "${REPORT}")
   GAPS="**${GAPS_N} gap(s)** — see the report; a digest with gaps does NOT back a closure claim"
 fi
 
@@ -97,7 +135,7 @@ if [ -z "${COMMAND}" ]; then
 fi
 
 COMMIT="$(cd "${ROOT}" && git rev-parse --short=12 HEAD)"
-DATE="$(cd "${ROOT}" && git log -1 --date=short --format=%cd)"
+DATE="$(date +%F)"   # when the digest was derived; `commit` carries the code identity
 SHA="$(sha256_of "${REPORT}")"
 
 row() { # name pass fail
@@ -132,6 +170,10 @@ mkdir -p "$(dirname "${OUT}")"
   row 'Icarus compile'    "$(jnum2 iverilog_compile_passed)"   "$(jnum2 iverilog_compile_failed)"
   row 'sv2v'              "$(jnum2 sv2v_passed)"               "$(jnum2 sv2v_failed)"
   row 'slang'             "$(jnum2 slang_passed)"              "$(jnum2 slang_failed)"
+  printf '\n## Coverage facts lit\n\n'
+  facts="$(sed -n 's/^    "\(saw_[a-z0-9_]*\)": true,\{0,1\}$/\1/p' "${REPORT}" | sort -u)"
+  if [ -n "${facts}" ]; then printf -- '- `%s`\n' ${facts}
+  else printf -- '- (none recorded true in this report)\n'; fi
   printf '\n## Re-verification\n\n'
   printf 'Re-run `command` above at commit `%s`. The numbers here are what a clean\n' "${COMMIT}"
   printf 're-run must reproduce; a divergence is a finding, not a stale digest.\n'

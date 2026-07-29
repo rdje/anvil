@@ -5,6 +5,46 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — BRE intervals inside `grep -E`, and why fixtures would not have caught it — `EVIDENCE-BANK-DURABILITY.5`
+
+`scripts/evidence_digest.sh` reported `coverage_gaps: **2907 gap(s)**` for a report whose
+`coverage_gaps` was `[]`. The bug is a one-character class of mistake worth naming, because this
+repo's shell scripts mix the two regex dialects freely:
+
+```sh
+grep -qE '^  "coverage_gaps": \[\],\{0,1\}$'   # WRONG: \{ is a LITERAL brace in ERE
+sed  -n 's/^  "k": \([0-9]*\),\{0,1\}$/\1/p'   # RIGHT: sed is BRE, \{0,1\} is the interval
+```
+
+Both spellings sat four lines apart in the same file, both looked right, and only one was. In ERE
+the interval is `?` or `{0,1}` **unescaped**; the backslash makes it literal. Nothing warns you —
+the pattern simply never matches.
+
+What made it dangerous was the fallback. The unmatched branch dropped into a multi-line array
+parser that set its "inside the array" flag on `"coverage_gaps": [`, never saw a terminating
+`  ]` (the array had closed on the same line), and counted quoted strings to end-of-file. So the
+failure did not surface as "no match" — it surfaced as a **confident, specific, four-digit
+number** in a signoff artifact. That is the worst possible failure shape: `COMMIT.md` forbids
+aspirational claims, and a wrong number is a claim.
+
+**Two rules out of it.**
+
+1. *An extractor either finds the field or dies.* Every fallback path in a derivation tool is a
+   chance to emit something plausible instead of nothing. The rewrite returns the count or an
+   empty string, and the caller treats empty as fatal.
+
+2. *Run the tool on real output before trusting it.* This is why `EVIDENCE-BANK-DURABILITY.5` was
+   promoted ahead of `.4` instead of being closed with a fixture. A hand-made fixture tends to be
+   shaped by the same assumption as the parser — the author writes the JSON they think they are
+   parsing. The real `tool_matrix_report.json` was written by serde, and it disagreed. The same
+   pattern is already recorded at `DIFFERENTIAL-SIMULATION.3b.2` (the two-space `input  logic`
+   found only when the e2e gate ran against real emitted SV) and at `PHASE-7 .2c.2b.1` (the
+   `rem_euclid`-vs-`%` divergence found only when the parity gate ran against real Yosys). Three
+   independent instances now: **the fixture agrees with you; the tool does not.**
+
+`--self-test` locks the class down (empty / populated / absent), so it is an oracle rather than a
+thing someone has to remember.
+
 ## 2026-07-30 — A gate that must guess is the wrong gate — `EVIDENCE-BANK-DURABILITY.3`
 
 Decision `0030` specified an evidence check keyed on a bare `/tmp/anvil-*` path. By the time it

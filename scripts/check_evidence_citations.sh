@@ -145,7 +145,18 @@ while read -r token; do
   # a token may contain `.` (e.g. anvil-bisim-merged.sv).
   where="$(grep -lF "${token}" -- "${scan[@]}" 2>/dev/null | head -3 | tr '\n' ' ')"
   note "unclassified evidence citation \`${token}\` in ${where:-<unknown>}"
-done < <(grep -ohE "${TOKEN_RE}" -- "${scan[@]}" 2>/dev/null | sed 's/\.*$//' | sort -u)
+done < <(
+  # Normalize before classifying:
+  #   s/\.*$//   trailing prose dots — "banked at `anvil-foo`." yields "anvil-foo."
+  #   s/\.md$//  a citation written as the digest's PATH
+  #              (docs/evidence/anvil-foo.md) yields the token "anvil-foo.md",
+  #              which would otherwise never resolve against docs/evidence/<t>.md.
+  #              Citing a digest by path is the most natural form there is, so
+  #              rejecting it would push authors back to bare names.
+  #              Safe: the `.sv` probe tokens in §2 are unaffected, and no bank
+  #              is named "<something>.md".
+  grep -ohE "${TOKEN_RE}" -- "${scan[@]}" 2>/dev/null | sed -e 's/\.*$//' -e 's/\.md$//' | sort -u
+)
 
 if [ "${unclassified}" -gt 0 ]; then
   note ""
