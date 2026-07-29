@@ -641,7 +641,11 @@ sessions.
   `ArtifactLane` trait (`name`/`validate_knobs`/
   `generate(seed)`/`check_plan`) + the `LaneArtifact`
   carrier (with typed-`Option` manifest expressing "L1
-  has no semantic manifest" cleanly) + the `CheckPlan`
+  has no semantic manifest" cleanly, and — since
+  `LANE-OUT-FILENAME.1` — a builder-truth `top` name
+  that stems `--out` filenames, so the frontend lane's
+  files are named after its top module, never its
+  first-emitted child stub) + the `CheckPlan`
   enum (`SynthAccept` for L1; `ParityVsManifest` for
   L2/L3). Three lane impls — `DutLane`,
   `MicrodesignLane`, `FrontendLane` — wrap the existing

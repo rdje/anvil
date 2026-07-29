@@ -66,6 +66,12 @@ pub struct LaneArtifact {
     pub lane: String,
     /// The seed this artifact was built from.
     pub seed: u64,
+    /// The artifact's top-level name — builder truth, never re-parsed
+    /// from the emitted text (`LANE-OUT-FILENAME.1`). This is the
+    /// `--out` filename stem: the DUT lane's design top, the
+    /// microdesign lane's `mc_<seed>` module, the frontend lane's
+    /// `acc_<seed>` top (NOT its first-emitted child stub).
+    pub top: String,
     /// The emitted SystemVerilog.
     pub sv: String,
     /// The expected-facts JSON manifest, if the lane carries one.
@@ -182,6 +188,7 @@ impl ArtifactLane for DutLane {
         Ok(LaneArtifact {
             lane: "dut".to_string(),
             seed,
+            top: design.top.clone(),
             sv,
             manifest: None, // L1 has no semantic manifest (typed Option).
         })
@@ -234,6 +241,7 @@ impl ArtifactLane for MicrodesignLane {
         Ok(LaneArtifact {
             lane: "microdesign".to_string(),
             seed,
+            top: crate::microdesign::top_name(seed),
             sv,
             manifest: Some(manifest),
         })
@@ -290,6 +298,7 @@ impl ArtifactLane for FrontendLane {
         Ok(LaneArtifact {
             lane: "frontend".to_string(),
             seed,
+            top: unit.top.name.clone(),
             sv,
             manifest: Some(manifest),
         })
@@ -401,6 +410,43 @@ mod tests {
         let f = FrontendLane::new(4, 2);
         assert_eq!(f.name(), "frontend");
         assert_eq!(f.check_plan(), CheckPlan::ParityVsManifest);
+    }
+
+    /// `LaneArtifact::top` is builder truth for every lane
+    /// (`LANE-OUT-FILENAME.1`). The frontend case is the load-bearing
+    /// one: its SV emits child stubs *before* the top module, so the
+    /// old first-`module`-declaration text parse named `--out` files
+    /// `child_0.sv` instead of `acc_<seed>.sv`.
+    #[test]
+    fn lane_artifact_top_is_builder_truth() {
+        for &seed in &[0u64, 7, 42] {
+            let d = DutLane::new(Config::default())
+                .generate(seed)
+                .expect("dut lane generates");
+            assert!(
+                d.sv.contains(&format!("module {}", d.top)),
+                "DUT top {} must be declared in its SV",
+                d.top
+            );
+
+            let m = MicrodesignLane::new(5)
+                .generate(seed)
+                .expect("microdesign lane generates");
+            assert_eq!(m.top, format!("mc_{seed}"));
+
+            let f = FrontendLane::new(4, 2)
+                .generate(seed)
+                .expect("frontend lane generates");
+            assert_eq!(f.top, format!("acc_{seed}"));
+            assert!(
+                !f.top.starts_with("child_"),
+                "frontend top must be the top module, not a child stub"
+            );
+            // The manifest's own `top` field must agree with the
+            // filename stem — the disagreement the fix removes.
+            let manifest = f.manifest.as_deref().expect("frontend has a manifest");
+            assert!(manifest.contains(&format!("\"top\": \"{}\"", f.top)));
+        }
     }
 
     /// **Load-bearing byte-identical regression proof for L2.**

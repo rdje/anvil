@@ -1016,13 +1016,11 @@ fn run_non_dut_lane(cli: &Cli) -> anyhow::Result<()> {
         }
         Some(dir) => {
             std::fs::create_dir_all(dir)?;
-            // Derive the artifact's top-level name from the
-            // emitted SV's first non-empty non-comment line that
-            // starts with `module ` (or `package ` for
-            // microdesign's package-first SV). Fallback to
-            // `<lane>_<seed>` if the parse fails.
-            let top = parse_top_name(&artifact.sv)
-                .unwrap_or_else(|| format!("{}_{}", artifact.lane, artifact.seed));
+            // The filename stem is the lane builder's own top name
+            // (`LaneArtifact::top`) — never re-parsed from the SV
+            // text, which named the frontend lane's files after its
+            // first-emitted child stub (`LANE-OUT-FILENAME.1`).
+            let top = &artifact.top;
             std::fs::write(dir.join(format!("{top}.sv")), &artifact.sv)?;
             if let Some(manifest) = &artifact.manifest {
                 std::fs::write(dir.join(format!("{top}.json")), manifest)?;
@@ -1030,26 +1028,6 @@ fn run_non_dut_lane(cli: &Cli) -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-/// Best-effort extraction of the "top" name from an emitted lane SV
-/// for `<out>/<top>.sv` filenames. Reads the first `module <name>`
-/// declaration (skipping leading comments, package headers, etc.).
-/// Returns `None` if no `module ` line is found — the caller falls
-/// back to a `<lane>_<seed>` filename.
-fn parse_top_name(sv: &str) -> Option<String> {
-    for line in sv.lines() {
-        let trimmed = line.trim_start();
-        if let Some(rest) = trimmed.strip_prefix("module ") {
-            // The name is the next whitespace- or `#`- or `(`- or
-            // `;`-delimited token.
-            let end = rest
-                .find(|c: char| c.is_whitespace() || c == '#' || c == '(' || c == ';')
-                .unwrap_or(rest.len());
-            return Some(rest[..end].to_string());
-        }
-    }
-    None
 }
 
 fn init_tracing(cli: &Cli) -> anyhow::Result<()> {

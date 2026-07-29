@@ -1,6 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — LANE-OUT-FILENAME.1 — `--out` filenames from builder truth, not SV re-parse
+
+**Landed as:** this commit (previous: `5223452`, `BOOK-LANE-COVERAGE.1`).
+A **code** change (`src/`) owned by task-tree leaf `LANE-OUT-FILENAME.1`. Filenames only —
+**no SV or manifest byte changes in any lane** ⇒ `tests/snapshots.rs` 6/6 byte-identical.
+
+**What.** `LaneArtifact` (`src/umbrella/mod.rs`) gains `pub top: String`, populated by each lane
+from builder truth: `DutLane` → `design.top`, `MicrodesignLane` → a new
+`microdesign::top_name(seed)` helper, `FrontendLane` → `unit.top.name`. `src/main.rs`
+`run_non_dut_lane` now stems `--out` filenames from `artifact.top`, and the text-scraping
+`parse_top_name` helper is **deleted**. `top_name(seed)` also replaces the two inline
+`format!("mc_{seed}")` sites in `emit_sv` / `emit_manifest`, so the emitted module name, the
+manifest's `top` field, and the filename stem are one source of truth.
+
+**Why (DIAGNOSIS — WHY+WHERE).** Found while running both lanes live to ground the
+`BOOK-LANE-COVERAGE` chapters: `anvil --artifact frontend --seed 0 --lane-n-params 4
+--lane-n-children 2 --out DIR` wrote **`child_0.sv` / `child_0.json`**, while `USER_GUIDE.md`
+documented `acc_0.sv` / `acc_0.json` **and the manifest's own `top` field said `"acc_0"`**. Root
+cause, read directly in `src/main.rs`: the stem came from `parse_top_name(&artifact.sv)`, which
+returns the **first** `module` declaration in the emitted text — and `src/frontend/mod.rs`
+`emit_sv` declares the child stubs *before* the top module. Microdesign was correct only by luck
+(single module). Beyond the wrong name, re-parsing emitted text contradicts the lane philosophy
+stated in `src/frontend/mod.rs` itself: *"the builder is the oracle — no analysis pass, no
+re-parse."*
+
+**Rejected alternatives.** Parsing the manifest JSON for `"top"` in `main.rs` (still re-derivation
+from an emitted artifact); a last-`module`-declaration heuristic (breaks on any future multi-module
+shape); documenting `child_0.sv` as the behavior (enshrines a filename that disagrees with the
+artifact's own manifest).
+
+**Validation (VERIFICATION — effect).** Measured **REJECT→PASS**: frontend `--out` now writes
+`acc_0.sv` + `acc_0.json`; microdesign unchanged at `mc_7.sv` + `mc_7.json`. Post-fix `acc_0.sv`
+is `diff`-identical to the pre-fix `child_0.sv` — content untouched, only the name. New lib proof
+`umbrella::tests::lane_artifact_top_is_builder_truth` covers all three lanes across seeds
+0/7/42, asserting the frontend top is `acc_<seed>` (never a `child_` stub) and that the manifest's
+`top` field agrees with the filename stem. Full gate: `cargo check --all-targets`,
+`cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check` all clean; `cargo test`
+under `scripts/ram_guard.sh --threshold 90` → **exit 0** (`tests/pipeline.rs` 125/0;
+`tests/snapshots.rs` **6/6 byte-identical**); focused `cargo test --lib umbrella` 9/9 (8
+pre-existing + the new proof). No downstream tool run needed — generator output bytes are
+unchanged.
+
+**Impact.** User-visible fix in the two non-DUT lanes' `--out` naming; DUT lane untouched (it never
+routes through `run_non_dut_lane`) ⇒ **DUT byte-identical**. No phase labels moved. Unblocks
+`BOOK-LANE-COVERAGE.2`/`.3`, which can now document correct `--out` behavior.
+
+**Files touched.** `src/umbrella/mod.rs`, `src/microdesign/mod.rs`, `src/main.rs`,
+`docs/tasks/LANE-OUT-FILENAME.md` (new), `docs/TASK_TREE.md`, `USER_GUIDE.md`, `book/src/ir.md`,
+`CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — BOOK-LANE-COVERAGE.1 — register: mdBook lane-chapter gap (PGEN report)
 
 **Landed as:** this commit (previous: `98e31e1`, `EVIDENCE-BANK-DURABILITY.2`).

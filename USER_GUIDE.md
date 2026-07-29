@@ -78,6 +78,12 @@ Generate an oracle-backed const-expression micro-design artifact:
 anvil --artifact microdesign --seed 7 --lane-n-params 5 --out ./microdesign-artifact
 ```
 
+That writes `./microdesign-artifact/mc_7.sv` and
+`./microdesign-artifact/mc_7.json`. In both non-DUT lanes the `--out`
+filename stem is the artifact's **top** name as the lane builder
+recorded it — the same name the manifest's `top` field carries — so the
+two can never disagree.
+
 Each module lands in its own `.sv` file named by seed and index, e.g.
 `generated/mod_42_0007.sv`. A `manifest.json` in the output directory
 records the seed, knobs, and per-module summary (port counts, widths,

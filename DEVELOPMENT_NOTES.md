@@ -5,6 +5,22 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-29 — Non-DUT `--out` filenames come from builder truth — `LANE-OUT-FILENAME.1`
+
+Gotcha made structural: `run_non_dut_lane` derived the `--out` filename stem by re-parsing the
+emitted SV for the **first** `module` declaration (`parse_top_name`). Correct for microdesign
+(single module) by luck; wrong for frontend, whose emitter declares child stubs *before* the top —
+so `--artifact frontend --out DIR` wrote `child_0.sv`/`child_0.json` while `USER_GUIDE.md`
+documented `acc_0.sv` and the manifest itself said `"top": "acc_0"`. The fix follows the lane
+philosophy ("the builder is the oracle — no re-parse"): `LaneArtifact` carries `pub top: String`
+populated by each lane from builder truth (DUT `design.top`, microdesign a new
+`top_name(seed)` helper now single-sourcing `emit_sv` + `emit_manifest` + the lane, frontend
+`unit.top.name`); `parse_top_name` is deleted. Rejected: parsing the manifest JSON for `"top"`
+(still re-derivation from an emitted artifact), last-module-declaration heuristics (breaks on
+future shapes), re-documenting `child_0.sv` as behavior (enshrines a filename that disagrees with
+the artifact's own manifest). SV and manifest bytes are untouched — filenames only — so snapshots
+and all parity gates are structurally unaffected.
+
 ## 2026-07-29 — Evidence architecture — closure citations become committed digests — `EVIDENCE-BANK-DURABILITY.2`
 
 Decision [`0030`](docs/decisions/0030-durable-closure-evidence-citations.md): the durable form of a
