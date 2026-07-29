@@ -1,6 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — VOLUME-DATA-LOCALITY.1 — register + audit: off-volume project data
+
+**Landed as:** this commit (previous: `0f4d484`, `BOOK-LANE-COVERAGE.3`).
+**Docs-only** ⇒ **DUT byte-identical**.
+
+**What.** Opened `VOLUME-DATA-LOCALITY` (`docs/tasks/VOLUME-DATA-LOCALITY.md` + a
+`docs/TASK_TREE.md` row) on the owner's explicit §12/§13 directive: after all projects moved to a
+4TB SSD, no ANVIL-owned data may default to `/tmp`, `/private/tmp`, a home cache, or any other
+off-volume location, and persisted paths must be repo-root-relative.
+
+**Why (measured, not assumed).** `df -h` puts the repo on `/dev/disk5s1` and `/tmp` +
+`/private/tmp` on `/dev/disk3s1s1` — a different physical volume — so **every OS-temp write ANVIL
+makes is off-volume**. A `grep -rn "temp_dir()" src/ tests/ scripts/` audit classified all 15 sites:
+
+- **(a) One production violation.** `src/downstream/mod.rs:1185` —
+  `impl Default for ValidateOptions` sets `sandbox_root: std::env::temp_dir()`. That is the sandbox
+  root of the hardened downstream-tool runner, so every `validate` / `minimize` / `hunt` /
+  `divergence` run, over both the CLI and MCP, writes the generated `.sv` and the tools' output
+  off-volume. `src/hunt/` and `src/divergence/` inherit it.
+- **(b) One hardcoded debug path.** `src/ir/compact.rs:3167` writes `/tmp/anvil-bisim-merged.sv`
+  (env-gated by `ANVIL_DUMP_BISIM_SV`) — also a §12 breach, and cited as the `reverify` command of
+  the KM card `bisimulation-flop-merge`, so the card moves with it.
+- **(c) Thirteen test-fixture / temporary-workspace sites** across `src/hunt/`,
+  `src/bin/tool_matrix.rs`, `src/mcp/`, `src/diff_sim/`, `src/downstream/`, `src/divergence/`,
+  `tests/slang_e2e.rs`, `tests/sv2v_e2e.rs`, `tests/book_examples.rs` — in §13 scope, which names
+  runtime-created test fixtures and temporary workspaces explicitly.
+- **(d) Non-violations.** `/tmp/...` string literals in CLI-argument *parse* tests write nothing to
+  disk; they are recorded so a later sweep does not "fix" them and mistake noise for compliance.
+
+The tree also records the design tension the fix must resolve: ANVIL is **distributed** (release
+binaries + a composite GitHub Action), so "put it under the ANVIL repo root" cannot be a universal
+rule — a user running `anvil hunt` in their own CI has no ANVIL repo. The honest generalization is
+*the project's own volume, derived at runtime, never an unconditional OS temp dir*, which is the
+resolver shape `.2` will implement (`ANVIL_SANDBOX_ROOT` override → marker-walk repo root → CWD).
+
+**Session hygiene applied immediately (not deferred to a leaf).** This session's own scratch was
+being written to `/private/tmp` — an active violation. It was migrated to the gitignored, on-volume
+`.cache/scratch/` under copy/verify/use/delete: 13 files / 25,744 bytes, full-tree hash
+`a5473f7d4aafa8aa…` identical on both sides, the microdesign lane re-run successfully from the new
+location, source deleted, and a residue census confirming the path is gone with 0 stray
+`/tmp/anvil-*` banks and 0 booktest leftovers.
+
+**Also surfaced, deliberately NOT actioned.** The pre-move checkout at `~/Documents/github/anvil`
+still exists: 1.1G off-volume (877M of it `target/`), HEAD `ecda0e7` proven a **strict ancestor** of
+ours via `git merge-base --is-ancestor`, and a byte-identical 118-file local-reference cache ⇒ it
+holds **no unique work**. Deleting a repository checkout is destructive and is the owner's decision,
+so it is recorded in the tree (`.4`) rather than performed.
+
+**Validation.** Docs-only leaf. Volume split measured with `df`; audit enumerated by grep and
+classified; old-checkout inspection strictly read-only. `scripts/check_doctrines.sh` 4/4 PASS.
+
+**Impact.** No generator change; no phase labels moved. Frontier → `.2` (the resolver + the
+production rewire).
+
+**Files touched.** `docs/tasks/VOLUME-DATA-LOCALITY.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-07-29 — BOOK-LANE-COVERAGE.3 — book: the frontend artifact-lane chapter
 
 **Landed as:** this commit (previous: `efb5ee5`, `BOOK-LANE-COVERAGE.2`).
