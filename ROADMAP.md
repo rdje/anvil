@@ -1,5 +1,14 @@
 # Roadmap
 
+> **Reading an evidence-bank citation.** A bare `anvil-<name>` below names the
+> **run** that produced a result, not a directory you can open. Banks cited
+> before decision [`0030`](docs/decisions/0030-durable-closure-evidence-citations.md)
+> lived under the OS temp dir and are **gone**; they are listed as historical
+> breadcrumbs in [`docs/evidence/INVENTORY.md`](docs/evidence/INVENTORY.md) §1,
+> and the way to re-verify one is to re-run its named gate command at the commit
+> the claim was made. Banks recorded since `0030` carry a committed digest in
+> [`docs/evidence/`](docs/evidence/README.md).
+
 `anvil` grows in phases. Each phase delivers a working generator with a
 larger expressive subset. No phase should land without end-to-end tests
 and at least one `.sv` artifact run through Yosys or Verilator as a

@@ -1,5 +1,12 @@
 # Knobs and Reproducibility
 
+> **Reading an evidence-bank citation.** A bare `anvil-<name>` below names the
+> **run** that produced a result, not a directory you can open. Banks cited
+> before decision `0030` lived under the OS temp dir and are **gone**; they are
+> listed as historical breadcrumbs in `docs/evidence/INVENTORY.md` §1, and the
+> way to re-verify one is to re-run its named gate command. Banks recorded since
+> `0030` carry a committed digest in `docs/evidence/`.
+
 This chapter is the full catalog. You don't need to read it
 top-to-bottom — it's organised as a reference. **Most users only
 touch 2–4 knobs for their scenario.** The [Recipes](recipes.md)

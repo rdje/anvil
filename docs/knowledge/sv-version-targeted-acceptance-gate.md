@@ -15,7 +15,7 @@ date: 2026-06-16
 status: current
 tags: [sv-version, tool-matrix, coverage, downstream, verilator, language, acceptance, north-star]
 evidence: src/bin/tool_matrix.rs (ScenarioSet::SvVersionSweep, build_sv_version_sweep_scenarios, verilator_language_for, light_sv_version_acceptance, compute_coverage_gaps); src/downstream/mod.rs (run_verilator(_design) language selector); anvil-sv-version-gate-r1/tool_matrix_report.json; docs/decisions/0009-sv-version-targeting.md
-reverify: cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out anvil-sv-version-gate-check
+reverify: cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out .cache/anvil-sandbox/anvil-sv-version-gate-check
 ---
 
 # `tool_matrix --sv-version-gate` (SV-VERSION-TARGETING.2b.2b)

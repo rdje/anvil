@@ -1,5 +1,12 @@
 # The Circuit IR
 
+> **Reading an evidence-bank citation.** A bare `anvil-<name>` below names the
+> **run** that produced a result, not a directory you can open. Banks cited
+> before decision `0030` lived under the OS temp dir and are **gone**; they are
+> listed as historical breadcrumbs in `docs/evidence/INVENTORY.md` §1, and the
+> way to re-verify one is to re-run its named gate command. Banks recorded since
+> `0030` carry a committed digest in `docs/evidence/`.
+
 The IR is the circuit. Everything else — generator, emitter, validator —
 operates on it.
 

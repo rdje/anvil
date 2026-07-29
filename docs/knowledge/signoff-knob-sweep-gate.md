@@ -16,7 +16,7 @@ date: 2026-06-15
 status: current
 tags: [signoff, tool-matrix, coverage, adversarial, sweep, duplication, aggregate, memory, fsm]
 evidence: src/bin/tool_matrix.rs (ScenarioSet::SignoffKnobSweep, build_signoff_knob_sweep_scenarios, compute_coverage_gaps); src/metrics.rs (num_operator_gates_with_duplicate_operands); DEVELOPMENT_NOTES.md (SIGNOFF-AUTOMATION-EXPANSION.2b); anvil-signoff-knob-sweep-r1/tool_matrix_report.json
-reverify: cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out anvil-signoff-knob-sweep-check
+reverify: cargo run --release --bin tool_matrix -- --signoff-knob-sweep-gate --yosys-mode both --out .cache/anvil-sandbox/anvil-signoff-knob-sweep-check
 ---
 
 # `tool_matrix --signoff-knob-sweep-gate` (SIGNOFF-AUTOMATION-EXPANSION.2b)

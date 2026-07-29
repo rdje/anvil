@@ -58,9 +58,22 @@ that are now tracked through explicit current-proof boundaries.
 16. `docs/decisions/*.md`: durable layer-C decision/fact records used by the memory architecture.
 17. `book/`: mdBook — a live doc of equal standing with the short-form files. Structured in five parts: *Using anvil* (Getting Started / Tutorial / Recipes), *How It Works* (Core Idea / Algorithm / IR), *Correctness Guarantees*, *Motif Catalogue*, *Reference*. The user-facing chapters lead; design chapters follow. Recovery requires reading it.
 18. `DOCTRINE_ENFORCEMENT.md`: the fourth portable architecture — every load-bearing doctrine is paired with a deterministic check run from one registry+driver (`scripts/check_doctrines.sh`) gated by the git hook (E3) + CI (E4). Live registry (6): `MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`, `TASK-TREE-OWNERSHIP` (decision `0026`), `NO-BOOT-VOLUME-REFS` (decision `0031`), and `EVIDENCE-CITATIONS` (decision `0030`).
-19. `TOOLBOX.md`: the catalog of **ANVIL's own diagnostic instruments** (trace / metrics / introspect / `analyze` / `coverage` / `validate` / `minimize` / `hunt` / `divergence` / `--diff-sim` / `tool_matrix` gates / snapshots / `ram_guard`) for pinpointing issues ANVIL may have, plus the acceptance-checklist a code change must satisfy.
+19. `docs/evidence/`: committed **closure-evidence digests** (decision `0030`) — the few-KB
+    tracked record of what a banked gate run actually reported, since the corpora themselves
+    are bulk and are not tracked. `INVENTORY.md` §1 lists the pre-`0030` banks whose artifacts
+    are gone, and how to re-verify a claim backed by one. Gated by `EVIDENCE-CITATIONS`.
+20. `TOOLBOX.md`: the catalog of **ANVIL's own diagnostic instruments** (trace / metrics / introspect / `analyze` / `coverage` / `validate` / `minimize` / `hunt` / `divergence` / `--diff-sim` / `tool_matrix` gates / snapshots / `ram_guard`) for pinpointing issues ANVIL may have, plus the acceptance-checklist a code change must satisfy.
 
 Only the documents above are status authority. The mdBook is explicitly part of this set — not reference material adjacent to it.
+
+> **Reading an evidence-bank citation.** A bare `anvil-<name>` below names the
+> **run** that produced a result, not a directory you can open. Banks cited
+> before decision [`0030`](docs/decisions/0030-durable-closure-evidence-citations.md)
+> lived under the OS temp dir and are **gone**; they are listed as historical
+> breadcrumbs in [`docs/evidence/INVENTORY.md`](docs/evidence/INVENTORY.md) §1,
+> and the way to re-verify one is to re-run its named gate command at the commit
+> the claim was made. Banks recorded since `0030` carry a committed digest in
+> [`docs/evidence/`](docs/evidence/README.md).
 
 ## Key project file paths
 ### Crate layout
@@ -1254,7 +1267,12 @@ exercising adversarial axes that previously fired only by chance
   if/else if` chain is universally synthesizable, so the gate runs the full Verilator +
   both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
   `anvil-case-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 83
-  chains, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile).
+  chains, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile) — a
+  pre-`0030` breadcrumb whose artifact is gone (`docs/evidence/INVENTORY.md` §1).
+  **Re-banked `2026-07-30` with a committed digest**
+  ([`docs/evidence/anvil-case-mux-if-gate-r2.md`](docs/evidence/anvil-case-mux-if-gate-r2.md),
+  the first under decision `0030`): 3 scenarios, 12 modules, `coverage_gaps = []`,
+  `12/0` Verilator + both Yosys modes + Icarus, `saw_case_mux_if_emit` lit.
   Separate from the per-gate/per-cone gates and `--mux-if-gate`; default
   `case_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in
   proof axis.

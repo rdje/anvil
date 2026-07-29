@@ -1,6 +1,15 @@
 # Code Base Analysis
 Live analysis of the Rust workspace as it currently stands. Updated whenever a slice materially changes the workspace.
 
+> **Reading an evidence-bank citation.** A bare `anvil-<name>` below names the
+> **run** that produced a result, not a directory you can open. Banks cited
+> before decision [`0030`](docs/decisions/0030-durable-closure-evidence-citations.md)
+> lived under the OS temp dir and are **gone**; they are listed as historical
+> breadcrumbs in [`docs/evidence/INVENTORY.md`](docs/evidence/INVENTORY.md) §1,
+> and the way to re-verify one is to re-run its named gate command at the commit
+> the claim was made. Banks recorded since `0030` carry a committed digest in
+> [`docs/evidence/`](docs/evidence/README.md).
+
 ## Snapshot
 - **Workspace:** single crate `anvil` (no Cargo workspace; flat layout).
 - **Edition:** 2021.

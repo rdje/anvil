@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `EVIDENCE-BANK-DURABILITY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Quality / evidence architecture (cross-cutting; no phase reopened)
 - Created: `2026-07-25`
 - Last updated: `2026-07-29`
@@ -91,7 +91,7 @@ evidence citations absolute and volatile.
 ## Task Tree
 
 - ID: `EVIDENCE-BANK-DURABILITY`
-  Status: `active`
+  Status: `done`
   Goal: make closure evidence durable / re-derivable, or explicitly
         redefine what a closure citation means.
   Children: `EVIDENCE-BANK-DURABILITY.1`, `EVIDENCE-BANK-DURABILITY.2`,
@@ -173,7 +173,7 @@ evidence citations absolute and volatile.
   Commit: `EVIDENCE-BANK-DURABILITY.3 — mechanize decision 0030: the EVIDENCE-CITATIONS doctrine`
 
 - ID: `EVIDENCE-BANK-DURABILITY.4`
-  Status: `pending`
+  Status: `done`
   Goal: **RE-SCOPED `2026-07-30`** (0030 amendment). The original goal was a
         per-document sweep labelling pre-0030 `/tmp/anvil-*` citations as
         historical breadcrumbs. That assumed a visible `/tmp/` prefix to
@@ -188,8 +188,26 @@ evidence citations absolute and volatile.
   Acceptance: a reader who meets a bare `anvil-<bank>` citation in any live
         doc can reach, in one hop, the statement that pre-0030 banks are
         gone and how to re-verify.
-  Verification: `pending`
-  Commit: `pending`
+  Verification: One normative note added to each doc that cites a grandfathered
+        bank: `README.md` (+ a `docs/evidence/` entry in the ramp-up list),
+        `ROADMAP.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, and the four
+        affected book chapters (`architecture` / `hierarchy` / `knobs` / `ir`);
+        plus one note in `docs/TASK_TREE.md` covering all `docs/tasks/*.md`
+        (layer-B history, not retro-edited). **`docs/knowledge/*.md`
+        deliberately left alone** — those 11 cards cite *source files* as
+        `evidence:` and each carries a runnable `reverify:` one-liner, which is
+        a stronger re-verification path than a pointer; adding notes there
+        would be noise. `TOOLBOX.md` cites no grandfathered bank.
+        **Restored the `README.md` digest citation that `.5` claimed but did
+        not land** (see the Decisions entry below).
+        Also fixed two KM `reverify` commands that wrote their bank to the
+        **repo root** (`--out anvil-…-check`), contradicting the `0030`
+        amendment's on-volume convention and dirtying `git status` for anyone
+        who ran them → `.cache/anvil-sandbox/…`; map regenerated (83 facts /
+        827 keys). `mdbook build` exit 0; `cargo test --test book_examples`
+        **3/3** in 78.06s under `ram_guard --threshold 90`; driver **6/6**.
+        No `src/`/`tests/` touched ⇒ DUT byte-identical.
+  Commit: `EVIDENCE-BANK-DURABILITY.4 — breadcrumb pointers; close the tree`
 
 - ID: `EVIDENCE-BANK-DURABILITY.5`
   Status: `done`
@@ -276,10 +294,21 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `EVIDENCE-BANK-DURABILITY.3` | `done` | Mechanized `2026-07-30`; `EVIDENCE-CITATIONS` is live in the driver (6/6). |
-| 2 | `EVIDENCE-BANK-DURABILITY.4` | `pending` | **Current frontier — the last open leaf.** Re-scoped to a pointer-per-doc now that the inventory carries the breadcrumb record; `README.md` already carries the worked example from `.5`. |
+| 2 | `EVIDENCE-BANK-DURABILITY.4` | `done` | Re-scoped to a pointer-per-doc; landed `2026-07-30`. |
 | 3 | `EVIDENCE-BANK-DURABILITY.5` | `done` | Taken before `.4` (`2026-07-30`): the real run is the end-to-end proof of `.3`, and it found a real deriver bug a fixture would not have. |
 
 ## Decisions
+
+- `2026-07-30`: **`.5`'s `CHANGES.md` entry over-claimed and is not retro-edited.**
+  It states the digest was "cited from `README.md`"; the edit had in fact been
+  reverted moments earlier by a `git checkout -- README.md` used to clean up a
+  negative control, so `README.md` was absent from that commit. `CHANGES.md` is
+  append-only (decision `0031`), so the entry stands as written and `.4` makes
+  the claim true instead. Recorded here because a reader comparing `6aaa8e9`'s
+  file list against its prose would otherwise find an unexplained gap.
+  Lesson: `git checkout -- <file>` during a negative-control sweep discards
+  *unrelated* staged-in-spirit edits to that file — revert from a stash or
+  re-apply, and re-read the staged set before writing the commit prose.
 
 - `2026-07-25`: Opened as a task tree rather than a silent doc fix, per the
   surfacing directive ("if a result is foundationally surprising, root-cause
@@ -349,3 +378,8 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
   fixture would likely have been written to match whatever the author assumed;
   the real report was not. `.5` now carries a `--self-test` so the class is an
   oracle, not a memory. Only `.4` remains open.
+- `2026-07-30`: **Tree CLOSED.** `.1` observation, `.2` ADR `0030`, `.3` the
+  `EVIDENCE-CITATIONS` doctrine, `.5` the first real digest (and the two tool
+  bugs it exposed), `.4` the breadcrumb pointers. The durable outcome: a
+  closure claim now cites something that survives the machine, and a new
+  banked claim cannot land uncited — the driver enforces it at 6/6.

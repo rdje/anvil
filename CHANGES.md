@@ -1,6 +1,53 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EVIDENCE-BANK-DURABILITY.4 — breadcrumb pointers; close the tree
+
+**Landed as:** this commit (previous: `6aaa8e9`, `EVIDENCE-BANK-DURABILITY.5`).
+Live docs + book + KM only; no generator code ⇒ **DUT byte-identical**.
+**Closes the `EVIDENCE-BANK-DURABILITY` tree.**
+
+**What.** One normative note in every document that cites a grandfathered bank, so a reader who
+meets a bare `anvil-<name>` reaches in **one hop** the statement that pre-`0030` banks are gone and
+how to re-verify: `README.md` (plus a `docs/evidence/` entry in the ramp-up reading list),
+`ROADMAP.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, and the four affected book chapters
+(`architecture`, `hierarchy`, `knobs`, `ir`). One note in `docs/TASK_TREE.md` covers all
+`docs/tasks/*.md` — those are layer-B history (`MEMORY_ARCHITECTURE.md` §3) and are not
+retro-edited.
+
+**Deliberately not touched: `docs/knowledge/*.md`.** Those 11 cards name a bank in prose but cite
+*source files* as `evidence:` and each carries a runnable `reverify:` one-liner — a stronger
+re-verification path than any pointer this leaf could add. Adding notes there would be noise, so
+the leaf records the judgement instead of making the edit. `TOOLBOX.md` cites no grandfathered
+bank at all.
+
+**Correction to `.5`, made by making the claim true rather than by rewriting it.** `.5`'s entry
+above says the digest was "cited from `README.md` beside the r1 breadcrumb". It was not: the edit
+had been reverted moments earlier by a `git checkout -- README.md` used to clean up a negative
+control, so `README.md` never entered commit `6aaa8e9`. `CHANGES.md` is append-only (decision
+`0031`), so that entry **stands as written** and this leaf restores the citation. Recorded because
+a reader diffing `6aaa8e9`'s file list against its prose would otherwise find an unexplained gap.
+The operational lesson is in the tree's Decisions: `git checkout -- <file>` during a
+negative-control sweep silently discards unrelated edits to that file — re-read the staged set
+before writing commit prose.
+
+**Also fixed: two KM `reverify` commands wrote their bank to the repo root.**
+`--out anvil-signoff-knob-sweep-check` and `--out anvil-sv-version-gate-check` were repo-relative,
+so anyone running them would have created an untracked directory in the checkout root and dirtied
+`git status` — and they contradicted the `0030` amendment's convention that banks live under
+`.cache/anvil-sandbox/`. Both repointed; `KNOWLEDGE_MAP.md` regenerated (83 facts / 827 keys).
+
+**Validation.** `mdbook build book` exit 0; `cargo test --test book_examples` **3/3** in 78.06s
+under `ram_guard --threshold 90` (no bash block changed — prose and blockquotes only);
+`scripts/check_doctrines.sh` **6/6 PASS**.
+
+**No phase labels changed.** Phases 0–9 remain `done`.
+
+**Files touched.** `README.md`, `ROADMAP.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+`book/src/{architecture,hierarchy,knobs,ir}.md`, `docs/TASK_TREE.md`,
+`docs/knowledge/{signoff-knob-sweep-gate,sv-version-targeted-acceptance-gate}.md`,
+`KNOWLEDGE_MAP.md`, `docs/tasks/EVIDENCE-BANK-DURABILITY.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — EVIDENCE-BANK-DURABILITY.5 — bank the first real digest; fix the deriver it exposed
 
 **Landed as:** this commit (previous: `45cb334`, `EVIDENCE-BANK-DURABILITY.3`).
