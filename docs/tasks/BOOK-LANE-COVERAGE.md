@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `BOOK-LANE-COVERAGE`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Documentation / book-sync (cross-cutting; no phase reopened)
 - Created: `2026-07-29`
 - Last updated: `2026-07-29`
@@ -94,7 +94,7 @@ behavior, so the chapters describe corrected reality.
 ## Task Tree
 
 - ID: `BOOK-LANE-COVERAGE`
-  Status: `active`
+  Status: `done`
   Goal: dedicated book chapters for the microdesign + frontend lanes.
   Children: `BOOK-LANE-COVERAGE.1`, `BOOK-LANE-COVERAGE.2`,
         `BOOK-LANE-COVERAGE.3`
@@ -141,21 +141,40 @@ behavior, so the chapters describe corrected reality.
   Commit: `BOOK-LANE-COVERAGE.2 — book: the microdesign artifact-lane chapter`
 
 - ID: `BOOK-LANE-COVERAGE.3`
-  Status: `pending`
+  Status: `done`
   Goal: the frontend-lane chapter (`book/src/frontend-lane.md`) +
         `SUMMARY.md` row + cross-links from `introduction.md` (and
         `faq.md` if a pointer helps) to both new chapters. Documents the
         corrected `--out` naming (after `LANE-OUT-FILENAME`).
   Acceptance: chapter per the criteria above; `mdbook build book` clean;
         `cargo test --test book_examples` green; introduction links land.
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `book/src/frontend-lane.md` added; the deferred
+        `SUMMARY.md` frontend row landed; `.2`'s plain-text mention
+        converted to a link; `introduction.md`'s three-lane list and
+        `faq.md`'s two lane bullets now link both chapters (so the only
+        pre-existing book mentions of the lanes route to their
+        chapters). Every pasted artifact is REAL captured seed-0 output
+        (`--lane-n-params 4 --lane-n-children 2`), including the
+        post-`LANE-OUT-FILENAME.1` `acc_0.sv`/`acc_0.json` names. The
+        chapter calls out the child-stubs-before-top emit order — the
+        exact shape that caused the `LANE-OUT-FILENAME` bug — so the
+        hazard is documented, not just fixed. "Kept honest" section
+        cross-checked against `tests/frontend_parity.rs`: agreement +
+        per-category perturbation tests (incl. per-instance bindings and
+        instance presence) + the three `#[ignore]` real-tool gates
+        (`parity_against_real_yosys_hierarchy_write_json`,
+        `parity_against_real_downstream_elaborator`,
+        `parity_against_real_verilator_json_frontend_ast`, the last
+        skipping with an explicit message when Verilator lacks
+        `--json-only`). `mdbook build book` exit 0; `cargo test --test
+        book_examples` 3/3.
+  Commit: `BOOK-LANE-COVERAGE.3 — book: the frontend artifact-lane chapter`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-LANE-COVERAGE.3` | `pending` | The frontend chapter mirrors `.2`'s structure (the lane reuses the microdesign expression layer). It also adds the deferred `SUMMARY.md` frontend row and turns `.2`'s plain-text mention of the frontend lane into a link. Draft ready at `.cache/scratch/session-0cda78e8/frontend-lane.md`. |
+| — | (none) | — | `.1`/`.2`/`.3` all `done`; the PGEN-reported gap is closed — both non-DUT lanes have dedicated chapters, wired into `SUMMARY.md` and linked from every pre-existing book mention. Tree `done`. |
 
 ## Decisions
 
@@ -182,6 +201,7 @@ behavior, so the chapters describe corrected reality.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `BOOK-LANE-COVERAGE.3` | `mdbook build book` exit 0; `cargo test --test book_examples` 3/3; real seed-0 output pasted (incl. post-fix `acc_0.sv`/`acc_0.json`); `SUMMARY.md` frontend row + links from `microdesign-lane.md`, `introduction.md`, `faq.md`; parity-proof section cross-checked against `tests/frontend_parity.rs` (3 `#[ignore]` real-tool gates incl. the Verilator `--json-only` skip path) | `done` — tree CLOSED; both non-DUT lanes documented |
 | `2026-07-29` | `BOOK-LANE-COVERAGE.2` | `mdbook build book` exit 0; `cargo test --test book_examples` 3/3 (both new bash blocks executed by the harness, not merely rendered); every pasted SV/manifest/filename is real captured seed-7 output; `%`-semantics, `const_exprs` width rule, and parity-test names cross-checked against `src/`+`tests/` | `done` — microdesign chapter live; frontend row deferred to `.3` to avoid an mdBook stub |
 | `2026-07-29` | `BOOK-LANE-COVERAGE.1` | Book-coverage audit greps (`grep -rln "microdesign\|frontend" book/src/*.md` → mentions only in introduction/faq/agent-mcp/api-* chapters; no lane chapter files exist); both lanes run live this session (seed 7 microdesign, seed 0 frontend) to ground the chapters; KM regenerated with `pgen-first-contact-parser-gap`; `scripts/check_doctrines.sh` 4/4 PASS | `done` — tree registered; docs-only ⇒ DUT byte-identical |
 
@@ -191,8 +211,14 @@ behavior, so the chapters describe corrected reality.
 | --- | --- | --- |
 | `BOOK-LANE-COVERAGE.1` | `BOOK-LANE-COVERAGE.1 — register: mdBook lane-chapter gap (PGEN report)` | docs-only |
 | `BOOK-LANE-COVERAGE.2` | `BOOK-LANE-COVERAGE.2 — book: the microdesign artifact-lane chapter` | book-only ⇒ DUT byte-identical |
+| `BOOK-LANE-COVERAGE.3` | `BOOK-LANE-COVERAGE.3 — book: the frontend artifact-lane chapter` | book-only ⇒ DUT byte-identical; closes the tree |
 
 ## Changelog
 
 - `2026-07-29`: Created from the owner-relayed PGEN report; audit
   confirmed two of three artifact lanes have no book chapter.
+- `2026-07-29`: `.2` + `.3` landed — both non-DUT artifact lanes now have
+  dedicated book chapters under a new "Artifact Lanes" part, linked from
+  `introduction.md` and `faq.md`. Tree `done`. Two findings surfaced while
+  grounding the chapters: the `LANE-OUT-FILENAME` `--out` bug (fixed in its
+  own tree) and the owner's volume/data-locality directive (own tree next).

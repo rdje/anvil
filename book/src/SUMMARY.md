@@ -34,6 +34,7 @@
 # Artifact Lanes
 
 - [The Microdesign Lane: Oracle-Backed Const-Expr Artifacts](microdesign-lane.md)
+- [The Frontend Lane: Elaboration-Accept Hierarchies](frontend-lane.md)
 
 # Reference
 

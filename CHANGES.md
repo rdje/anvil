@@ -1,6 +1,47 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — BOOK-LANE-COVERAGE.3 — book: the frontend artifact-lane chapter
+
+**Landed as:** this commit (previous: `efb5ee5`, `BOOK-LANE-COVERAGE.2`).
+**Book-only** (no `src/`) ⇒ **DUT byte-identical**. **Closes the `BOOK-LANE-COVERAGE` tree.**
+
+**What.** Added `book/src/frontend-lane.md`, landed the deferred frontend row in the "Artifact
+Lanes" `SUMMARY.md` part, and wired the cross-links: `.2`'s plain-text mention became a link, and
+the lanes' two pre-existing book mentions — `introduction.md`'s three-lane list and `faq.md`'s two
+`--artifact` bullets — now point at their chapters. Every prior mention of a non-DUT lane in the
+book now routes to a real chapter.
+
+The chapter covers what makes this lane distinct from its sibling: **cross-module elaboration**.
+Parameter defaults flowing through instance bindings, package-qualified names resolved from another
+scope, a generate predicate crossing a package boundary — and the load-bearing manifest category,
+`instances[*].resolved_bindings`, which pins the value each child parameter must hold after its
+binding expression is evaluated *in the parent's scope*. It also documents the
+child-stubs-declared-before-top emit order explicitly, calling out that anything assuming "first
+`module` = top" gets this artifact wrong — the exact shape behind the `LANE-OUT-FILENAME` bug, so
+the hazard is now documented rather than only fixed.
+
+**Why.** Second half of the owner-relayed PGEN report registered in `.1`: two of three artifact
+lanes had no chapter on the project's review surface.
+
+**Validation.** All pasted artifacts are **real captured seed-0 output**
+(`--lane-n-params 4 --lane-n-children 2`), including the post-`LANE-OUT-FILENAME.1` `acc_0.sv` /
+`acc_0.json` filenames. The "kept honest" section was cross-checked against
+`tests/frontend_parity.rs` rather than assumed: agreement on the oracle-derived synthetic report,
+per-category perturbation tests (including per-instance bindings and instance presence), and the
+three `#[ignore]` real-tool gates — `parity_against_real_yosys_hierarchy_write_json`,
+`parity_against_real_downstream_elaborator`, and `parity_against_real_verilator_json_frontend_ast`
+(which skips with an explicit message when the local Verilator lacks `--json-only`, rather than
+passing silently). Gates: `mdbook build book` exit 0; `cargo test --test book_examples` **3/3**
+(both new bash blocks executed, not merely rendered).
+
+**Impact.** The PGEN-reported gap is closed; `BOOK-LANE-COVERAGE` is `done`. No generator change;
+no phase labels moved.
+
+**Files touched.** `book/src/frontend-lane.md` (new), `book/src/SUMMARY.md`,
+`book/src/microdesign-lane.md`, `book/src/introduction.md`, `book/src/faq.md`,
+`docs/tasks/BOOK-LANE-COVERAGE.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — BOOK-LANE-COVERAGE.2 — book: the microdesign artifact-lane chapter
 
 **Landed as:** this commit (previous: `a4c9f9e`, `LANE-OUT-FILENAME.1`).

@@ -190,6 +190,6 @@ beside its SV. See [API Reference: Tools](api-tools.md) and the lanes
 catalog in
 [API Reference: Resources & Prompts](api-resources-prompts.md).
 
-The sibling frontend lane (`--artifact frontend`) extends this idea to
-hierarchies, where *cross-module* elaboration becomes the pressure
-point.
+The sibling [frontend lane](frontend-lane.md) (`--artifact frontend`)
+extends this idea to hierarchies, where *cross-module* elaboration
+becomes the pressure point.

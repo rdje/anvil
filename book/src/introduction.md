@@ -30,12 +30,15 @@ families of **pseudo-random, valid-by-construction, synthesizable HDL
 artifacts** through the same binary:
 
 - the default DUT RTL lane (`--artifact dut`);
-- the oracle-backed micro-design lane (`--artifact microdesign`);
-- the source-level frontend/elaboration accept lane (`--artifact frontend`).
+- the oracle-backed [micro-design lane](microdesign-lane.md)
+  (`--artifact microdesign`);
+- the source-level [frontend/elaboration accept lane](frontend-lane.md)
+  (`--artifact frontend`).
 
 The two non-DUT lanes emit explicit expected-facts manifests so a
 downstream frontend or elaborator can be checked against known parameter,
-localparam, package, instance-binding, and generate-branch facts.
+localparam, package, instance-binding, and generate-branch facts — each
+has its own chapter under *Artifact Lanes*.
 
 The quality bar is intentionally high. `anvil` is not trying to become
 "a fuzzer that sometimes emits legal RTL"; it is trying to become a

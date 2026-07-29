@@ -185,12 +185,13 @@ No. The leaf/module typed-circuit generator is the default DUT RTL lane,
 but ANVIL now ships three artifact lanes through the same binary:
 
 - `--artifact dut` — the default synthesizable DUT RTL lane;
-- `--artifact microdesign` — compact oracle-backed const-expression /
-  parameter micro-designs with expected-facts manifests;
-- `--artifact frontend` — source-level frontend/elaboration accept
-  corpora with packages, top parameters, chained localparams,
-  named-binding child instances, generate branches, and expected-facts
-  manifests.
+- [`--artifact microdesign`](microdesign-lane.md) — compact
+  oracle-backed const-expression / parameter micro-designs with
+  expected-facts manifests;
+- [`--artifact frontend`](frontend-lane.md) — source-level
+  frontend/elaboration accept corpora with packages, top parameters,
+  chained localparams, named-binding child instances, generate
+  branches, and expected-facts manifests.
 
 What does **not** change is the quality bar: every lane is valid by
 construction and synthesizable, and the non-DUT lanes stay separate from
