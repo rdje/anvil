@@ -1,6 +1,48 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.0 — register: nine emit surfaces, never proven together
+
+**Landed as:** this commit (previous: `756713c`, `EVIDENCE-BANK-DURABILITY.4`).
+Docs-only — a task-tree registration + a standing directive; no code ⇒ **DUT byte-identical**.
+
+**Standing directive recorded** (`MEMORY.md`, owner-set `2026-07-30`): *decide, don't ask.* Pick the
+next work unit, narrow or supersede a decision record, choose the mechanism — autonomously, and
+record the reasoning where it survives a session reset. Surfacing a finding stays mandatory; turning
+it into a question does not. Routed to a durable layer per `MEMORY_ARCHITECTURE.md` §4, because an
+instruction that lives only in a conversation is not saved.
+
+**Finding registered as a tree, measured before it was written down.**
+
+1. Every one of the eight `*_emit_prob` focus configs in `src/bin/tool_matrix.rs` sets exactly
+   **one** surface to `1.0`.
+2. `--profile structured-emission-max` sets **4 of 9** emit knobs — it predates surfaces 6–9
+   (`multi_output_task`, `mux_if`, `case_mux_if`, `casez_mux_if`), so the preset's name is false.
+
+**Why (1) is the substantive one.** The nine passes are mutually exclusive on a gate, and that
+exclusion is the whole soundness argument for stacking nine overlapping projections: each pass skips
+any gate a sibling already claimed. With one probability at `1.0` and the rest at `0.0`, **every
+sibling set is empty** — so under every gate this repo owns, the exclusion predicates are dead code
+that always returns `false`. The one property holding the surfaces apart has never been exercised
+end-to-end against a downstream tool.
+
+It is also the shape ANVIL exists to produce (ROADMAP steering gap 1): one module carrying a
+`function automatic`, a `generate for`, a multi-output `task`, a cone function, a procedural
+`if/else` and two masked priority chains is far more interesting to a parser or synthesizer than
+eight modules each carrying one.
+
+**Explicitly not a defect claim.** Every surface is individually banked downstream-clean and the
+exclusion logic is unit-tested at the function level. The gap is the absence of an *end-to-end*
+run with two of them live at once. The `.1` ADR must reason the interactions through from source
+first — above all `cone_function`'s interior **absorption**, which unlike every sibling does not
+merely skip a gate but suppresses another gate's module wire — so that a failure would be a
+prediction confirmed rather than a surprise.
+
+**No phase labels changed.** Registration only; nothing implemented.
+
+**Files touched.** `docs/tasks/EMIT-SURFACE-INTERACTION-GATE.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — EVIDENCE-BANK-DURABILITY.4 — breadcrumb pointers; close the tree
 
 **Landed as:** this commit (previous: `6aaa8e9`, `EVIDENCE-BANK-DURABILITY.5`).
