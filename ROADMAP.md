@@ -153,7 +153,7 @@ instead of leaving them implicit.
    `aggregate_array_prob`, and the memory×fsm interplay — each with one
    focused scenario per construction strategy and a `saw_*` coverage
    fact so it fires by construction, not by chance. Banked
-   downstream-clean at `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios,
+   downstream-clean at `anvil-signoff-knob-sweep-r1` (12 scenarios,
    48 modules, `coverage_gaps = []`, `48/0` Verilator + both Yosys).
    Remaining knobs/axes and the higher-ceiling paths (new acceptance
    columns; non-DUT lanes under the acceptance columns) stay named
@@ -194,7 +194,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    (downstream `--language 1800-20xx` selector + focused real-tool acceptance
    proof) + `.2b.2b` (repo-owned `tool_matrix --sv-version-gate` +
    `ScenarioSet::SvVersionSweep` + per-version `saw_sv_version_*_targeted_acceptance`
-   coverage facts, banked clean at `/tmp/anvil-sv-version-gate-r1`: 9 scenarios /
+   coverage facts, banked clean at `anvil-sv-version-gate-r1`: 9 scenarios /
    18 units / `coverage_gaps = []` / `18/0` Verilator + both Yosys) all **done**.
    `.2` (plumbing + down-gating + per-version acceptance axis) is complete, and
    the **first version-distinctive up-opt now ships** (decision
@@ -217,7 +217,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `--sv-version-gate` scenario that genuinely emits the `union soft` overlay,
    run Verilator-only with Yosys/Icarus recorded no-op, lighting the
    `saw_sv_version_2023_soft_union_upopt` coverage fact; banked clean
-   `/tmp/anvil-sv-version-gate-upopt-r1`: 10 scenarios / 20 units /
+   `anvil-sv-version-gate-upopt-r1`: 10 scenarios / 20 units /
    `coverage_gaps=[]` / Verilator 20/0 / Yosys 18/0 both modes). **The
    `SV-VERSION-TARGETING` tree is now CLOSED** — down-gating + up-opting +
    per-version downstream acceptance axis all delivered; further version-distinctive
@@ -239,7 +239,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `to_sv_with_modules` `<wire>__f` `function automatic` decl/positional-body/call
    rendering; 9 lib proofs; default-off / DUT byte-identical, snapshots 6/6; forced
    `function_emit_prob=1.0` sweep clean across Verilator `--lint-only` + both Yosys
-   modes + Icarus, `/tmp/anvil-fe-r2/`; `Slice` excluded from the first cut — a
+   modes + Icarus, `anvil-fe-r2/`; `Slice` excluded from the first cut — a
    bit-select uses only a sub-range of its operand so a full-width param trips
    `-Wall UNUSEDSIGNAL`; still emitted inline, nothing retired, slice-aware
    projection = follow-up). `.2b.2` pre-split into `.2b.2a` (**done**:
@@ -250,7 +250,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    [one comb-only `function_emit_prob=1.0` DUT × three construction strategies]
    + `ModuleReport.emitted_combinational_function` SV-text detection +
    `saw_combinational_function_emit` coverage fact + gap enforcement; banked
-   clean `/tmp/anvil-function-emit-gate-r1` [3 scenarios / 12 modules / 608
+   clean `anvil-function-emit-gate-r1` [3 scenarios / 12 modules / 608
    emitted functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys +
    Icarus compile]; default-off / DUT byte-identical, snapshots 6/6) + `.2b.2c`
    (**done `2026-06-16`**: the user-facing closeout — a new `How It Works` book
@@ -311,7 +311,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    boundary leaves) under its own `cone_function_emit_prob` knob (introspection
    schema `1.11`, `num_emitted_cone_functions`) — is **delivered end-to-end**
    (`src/ir/cone_function_emit.rs` + the emitter render + `tool_matrix
-   --cone-function-gate`, banked clean `/tmp/anvil-cone-function-gate-r1`). The
+   --cone-function-gate`, banked clean `anvil-cone-function-gate-r1`). The
    **sixth surface** (decision
    [`0025`](docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md),
    leaves `.11`/`.12b`/`.13`) — a default-off multi-output combinational
@@ -322,7 +322,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    (introspection schema `1.14`, `num_emitted_multi_output_tasks`) — is
    **delivered end-to-end** (`src/ir/multi_output_task_emit.rs` + the emitter
    render + `tool_matrix --multi-output-task-gate`, banked clean
-   `/tmp/anvil-mo-k3-gate-r1` with a genuine `k=3` group). **Six structured
+   `anvil-mo-k3-gate-r1` with a genuine `k=3` group). **Six structured
    surfaces delivered end-to-end.** The **seventh surface** (decision
    [`0027`](docs/decisions/0027-structured-emission-seventh-surface-procedural-if-else.md),
    leaf `.14` design landed `2026-06-22`) — a default-off, valid-by-construction
@@ -344,7 +344,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    surface is now **delivered end-to-end**: `.15b.2` added the
    `num_emitted_mux_if_blocks` metric @ introspection schema `1.14 → 1.15` + the
    repo-owned `tool_matrix --mux-if-gate` + `saw_mux_if_emit` (banked clean
-   `/tmp/anvil-mux-if-gate-r1` — 3 scenarios / 12 modules / 12 emitting a `__cv` block /
+   `anvil-mux-if-gate-r1` — 3 scenarios / 12 modules / 12 emitting a `__cv` block /
    215 blocks / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus), and
    `.15b.3` landed the user docs (the `book/src/structured-emission.md` seventh-surface
    section with a byte-verified seed-1 example, the `mux_if_emit_prob` /
@@ -377,7 +377,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `0` default / `53` forced). The repo-owned `tool_matrix --case-mux-if-gate` /
    `saw_case_mux_if_emit` (metric-keyed, `ScenarioSet::CaseMuxIfSweep` +
    `case_mux_prob`-biased focus config × 3 strategies) **landed `.17b.2b`** — banked clean
-   `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
+   `anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
    chains / `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus). The user docs
    **landed `.17b.3`** (the `book/src/structured-emission.md` eighth-surface section with a
    byte-verified seed-1 before/after + the `case_mux_if_emit_prob` entries in
@@ -411,7 +411,7 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    `emit/sv.rs` `casez…endcase → masked if/else if` body branch, no `__cv`) + `.19b.2a`
    metric `num_emitted_casez_mux_if_chains` @ introspection schema `1.17` + `.19b.2b`
    repo-owned `tool_matrix --casez-mux-if-gate` / metric-keyed `saw_casez_mux_if_emit`
-   (banked clean `/tmp/anvil-casez-mux-if-gate-r1`: 3 scenarios / 12 modules / 108 chains /
+   (banked clean `anvil-casez-mux-if-gate-r1`: 3 scenarios / 12 modules / 108 chains /
    `coverage_gaps = []` / 12/0 Verilator + both Yosys + Icarus) + `.19b.3` user docs.
    Default-off / DUT byte-identical throughout. **Nine structured surfaces delivered
    end-to-end**; the lane returns to a **no-active-frontier boundary**. nested/multi-level
@@ -591,7 +591,7 @@ and elaborate in Verilator without error, all Yosys-synthesize to
 non-empty netlists, both with and without flops. **Met locally.** The
 repo-owned `tool_matrix` harness now has a completed current-code Phase
 1 report at
-`/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`:
+`anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`:
 
 - `scenario_count = 15`
 - `modules_per_scenario = 67`
@@ -633,7 +633,7 @@ controlled sharing factor; synthesis still succeeds; no multi-driver
 violations; Verilator lint passes on a representative seed sweep with
 `share_prob` ∈ {0.0, 0.3, 0.9}. The repo-owned `tool_matrix` harness
 now has a completed current-code Phase 2 sharing report at
-`/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`:
+`anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`:
 
 - `scenario_count = 18`
 - `modules_per_scenario = 12`
@@ -684,7 +684,7 @@ Phase 3 is now **done**. The previously explicit breadth gaps are
 landed (`case`, `casez`, variable shifts, generic selectable `Slice` /
 `Concat`, bounded unrolled logic), and the repo-owned closure evidence
 now exists too via
-`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+`anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (`21` scenarios, `10` modules/scenario, `210` total modules,
 `coverage_gaps = []`, and `210/0` pass-fail in Verilator plus both
 repo-owned Yosys modes).
@@ -823,7 +823,7 @@ cleanup unless the structural dedup merge itself collapses them.
     Broader
     registered hierarchy patterns remain future work
   - the latest full downstream-clean repo-owned Phase 4 matrix is banked at
-    `/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
+    `anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
     It covers both the wrapper lane and the representative recursive
     lane, including the mixed-depth recursive axis, the explicit
     child-sourcing axis, local parent state, registered sibling routing, direct registered sibling mixed-support
@@ -982,11 +982,11 @@ capability-deepening, not an exit criterion; per the `PHASE-4-HIERARCHY`
 audit it has no finite completion point and is explicitly excluded from
 the Phase 4 bar (no mode/strategy retired; future breadth is optional
 post-Phase-4 `rN` work). Closing artifact:
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
+`anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`.
 
 **Repo-owned Phase 4 hierarchy closure (latest full bank met locally):** the refreshed
 hierarchy gate now exists at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 with multi-file output, correct top declaration, design-level
 validation, representative wrapper and recursive profiles,
 `210` scenarios, `840` total designs, `coverage_gaps = []`, and clean Verilator + Yosys
@@ -1088,14 +1088,14 @@ proves all of the current representative hierarchy axes directly:
 - real exact profiled child-interface synthesis in the on-demand lane
 
 Earlier current-code coverage-only Phase 4 matrix probes at
-`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
-`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
+`anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
+`anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
 and
-`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
+`anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
 and
-`/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
 and
-`/tmp/anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
 remain useful targeted policy breadcrumbs for the mixed parent-output,
 registered mixed-support, multi-stage registered, and parent-cone
 helper-instance slices plus the stateful parent-output helper slice.
@@ -1599,7 +1599,7 @@ scenario.
 
 **Focused recursive-shape proof (still useful targeted evidence):**
 current HEAD also has bounded recursive hierarchy proven directly at
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`, clean in Verilator,
+`anvil-hier-range-smoke-r1/manifest.json`, clean in Verilator,
 Yosys `synth -noabc`, and the repo-owned Yosys with-ABC path. The
 design metrics there still prove the tree numerically:
 `realized_min_leaf_depth = 2`, `realized_max_leaf_depth = 2`,
@@ -1612,7 +1612,7 @@ design metrics there still prove the tree numerically:
 **Focused mixed-depth recursive proof (new targeted evidence):**
 current HEAD can now mix shallow and deep branches inside one bounded
 recursive tree. The focused proof artifact is
-`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, clean in
+`anvil-hier-mixed-depth-smoke-r1/manifest.json`, clean in
 Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The design metrics there prove the mixed shape numerically:
 `realized_min_leaf_depth = 2`,
@@ -1626,7 +1626,7 @@ path. The design metrics there prove the mixed shape numerically:
 current HEAD also supports depth-specific recursive branching control
 via repeated `--child-instances-per-depth DEPTH=MIN:MAX` overrides.
 The focused proof artifact is
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, clean in
+`anvil-hier-depth-profile-smoke-r1/manifest.json`, clean in
 Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The design metrics there prove the depth-specific shape without
 SV inspection:
@@ -1641,7 +1641,7 @@ SV inspection:
 **Focused parent-composed child-input proof (new targeted evidence):**
 current HEAD also supports parent-local combinational cones for child
 data input bindings. The focused proof artifact is
-`/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`, clean in
+`anvil-hier-child-input-cone-smoke-r1/manifest.json`, clean in
 Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The design metrics there prove the route numerically:
 `child_input_bindings_from_parent_composed_logic = 13`,
@@ -1653,7 +1653,7 @@ and `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`.
 current HEAD also supports parent outputs that mix parent data ports
 with child instance outputs while preserving child-output support. The
 focused proof artifact is
-`/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, clean in
+`anvil-hier-parent-output-mix-smoke-r1/manifest.json`, clean in
 Verilator, Yosys `synth -noabc`, and the repo-owned Yosys with-ABC
 path. The design metrics there prove the route numerically:
 `top_parent_port_composed_outputs = 8`,
@@ -1665,7 +1665,7 @@ path. The design metrics there prove the route numerically:
 current HEAD also supports registered parent-composed child-input
 bindings through `--hierarchy-registered-child-input-cone-prob`. The
 focused proof artifact is
-`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+`anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
 clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
 with-ABC path. The design metrics there prove the route numerically:
 `child_input_bindings_from_registered_parent_composed_logic = 3`,
@@ -1679,7 +1679,7 @@ with-ABC path. The design metrics there prove the route numerically:
 current HEAD now lets that registered parent-composed route mix parent
 data ports with sibling outputs when both supports are live. The
 focused proof artifact is
-`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
+`anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
 clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
 with-ABC path. The design metrics prove the mixed registered route:
 `child_input_bindings_from_registered_mixed_support = 3`,
@@ -1691,7 +1691,7 @@ with-ABC path. The design metrics prove the mixed registered route:
 current HEAD now also lets later registered parent-composed
 child-input routes chain through earlier parent-local Qs. The focused
 proof artifact is
-`/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
+`anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
 clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
 with-ABC path. The design metrics prove the multi-stage route:
 `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
@@ -1702,7 +1702,7 @@ and
 **Focused local-parent-state proof (new targeted evidence):**
 current HEAD also supports local parent flops in hierarchy parent-side
 cones through `--hierarchy-parent-flop-prob`. The focused proof
-artifact is `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`,
+artifact is `anvil-hier-parent-state-smoke-r1/manifest.json`,
 clean in Verilator, Yosys `synth -noabc`, and the repo-owned Yosys
 with-ABC path. The design metrics there prove the state surface
 numerically: `hierarchy_parent_local_flops = 8`,
@@ -1861,11 +1861,11 @@ artifact that adds per-module canonical signatures as the first slice
 of hierarchy-aware identity instrumentation.
 
 Current-code coverage-only probes after `r19` first aligned the gate
-policy with newer focused slices: `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+policy with newer focused slices: `anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
 requires mixed parent-output composition, and
-`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
 requires registered mixed-support child-input routing, and
-`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
 requires multi-stage registered parent-composed routing. All record
 `coverage_gaps = []` with Verilator/Yosys skipped; `r20` folded those
 three coverage facts into a full downstream-clean bank, `r21` added the
@@ -2147,7 +2147,7 @@ each visible in a repo-owned artifact (not narrative):
    unchanged; the H-A-I.1/.2/.4 regressions still pass. *(met:
    `.2.3` `canonical_module_signature` marker + width sentinel.)*
 4. A repo-owned matrix gate proves parameterized designs
-   downstream-clean. *(met: `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json`
+   downstream-clean. *(met: `anvil-tool-matrix-phase5-p1/tool_matrix_report.json`
    — 213 scenarios, 852 designs, `coverage_gaps = []`,
    `saw_width_parameterized_design = true`, Verilator 852/0,
    Yosys-without-abc 852/0, Yosys-with-abc 852/0.)*
@@ -2160,7 +2160,7 @@ deliberate, evidence-backed scope-cut doctrine used to close Phase 4).
 No mode/strategy retired; default-off keeps every prior artifact
 byte-identical; further breadth, if pursued, lands as optional
 post-Phase-5 `rN`/task-tree work without reopening the phase. Closing
-artifact: `/tmp/anvil-tool-matrix-phase5-p1/tool_matrix_report.json`.
+artifact: `anvil-tool-matrix-phase5-p1/tool_matrix_report.json`.
 
 ## Phase 5b — Synthesizable aggregates (done)
 
@@ -2202,7 +2202,7 @@ Three sub-paths, each with its own cost and payoff (full analysis in
 3. **Repr matrix gate, verified downstream-clean.** The repo-owned
    `Phase4Hierarchy` gate, now including the `phase5b_packed_aggregate`
    scenario, ran to completion (background, exit 0) and the banked
-   artifact `/tmp/anvil-tool-matrix-phase5b-p1/tool_matrix_report.json`
+   artifact `anvil-tool-matrix-phase5b-p1/tool_matrix_report.json`
    was verified CLEAN: **216 scenarios / 864 designs**,
    `coverage_gaps = []`, **Verilator 864/0**, **Yosys without-abc
    864/0**, **Yosys with-abc 864/0**, `saw_packed_aggregate_design =
@@ -2240,7 +2240,7 @@ is not a faithful projection.
   behind the opt-in `Config::memory_prob` (serde-default `0.0` →
   byte-identical). Verified downstream-clean against the real
   repo-owned `Phase4Hierarchy` gate — closing artifact
-  `/tmp/anvil-tool-matrix-phase6-p1`: **219 scenarios / 876
+  `anvil-tool-matrix-phase6-p1`: **219 scenarios / 876
   designs, `coverage_gaps = []`, 876/0 Verilator + both Yosys
   (`without_abc`/`with_abc`), `saw_inferrable_memory_design =
   true`**, with Phase 4/5/5b regressions still proven in the same
@@ -2262,7 +2262,7 @@ is not a faithful projection.
   on the shared `clk`/`rst_n`, behind the opt-in `Config::fsm_prob`
   (serde-default `0.0` → byte-identical). Verified downstream-clean
   against the real repo-owned `Phase4Hierarchy` gate — closing
-  artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: **222 scenarios
+  artifact `anvil-tool-matrix-phase6-fsm-p1`: **222 scenarios
   / 888 designs, `coverage_gaps = []`, 888/0 Verilator + both
   Yosys (`without_abc`/`with_abc`), `saw_fsm_design = true` and
   `saw_inferrable_memory_design = true`**, with Phase 4/5/5b
@@ -2286,8 +2286,8 @@ banked `Phase4Hierarchy` gate (`coverage_gaps = []`, all-pass
 Verilator + both Yosys, the corresponding `saw_*_design` facts
 true, P4/P5/P5b regressions clean in the same artifact). Both
 are met: the memory motif against
-`/tmp/anvil-tool-matrix-phase6-p1` (219/876, 2026-05-18) and the
-FSM motif against `/tmp/anvil-tool-matrix-phase6-fsm-p1` (222/888,
+`anvil-tool-matrix-phase6-p1` (219/876, 2026-05-18) and the
+FSM motif against `anvil-tool-matrix-phase6-fsm-p1` (222/888,
 2026-05-20). r87 no-aspirational-claims: the verified reports
 precede this promotion. Multi-clock CDC is the
 explicitly-optional, separately-prioritised deferral and was
@@ -2331,7 +2331,7 @@ gate is the repo-owned `parity_against_real_yosys_write_json`
 portable comparator core (`ToolReport`/`Divergence` ×
 17 variants/`compare_manifest_to_tool_report_in_scope`) +
 `FactCategory`+`ParityScope` live in `src/microdesign/`. Closing
-artifact `/tmp/anvil-microdesign-parity-phase7-yosys-p1/` (15
+artifact `anvil-microdesign-parity-phase7-yosys-p1/` (15
 files: 5 × {`mc_<seed>.sv`, `mc_<seed>.json`, `mc_<seed>.yosys.json`}
 for the reproducibility seeds `{0, 1, 7, 42, 12345}`): `cargo
 test --test microdesign_parity -- --ignored
@@ -2410,7 +2410,7 @@ including the hierarchy-aware `Instance*` additions /
 `FactCategory` / `ParityScope` /
 `compare_manifest_to_tool_report_in_scope`) lives in
 `src/frontend/`. Closing artifact
-`/tmp/anvil-frontend-parity-phase8-yosys-p1/` (15 files: 5 ×
+`anvil-frontend-parity-phase8-yosys-p1/` (15 files: 5 ×
 `{acc_<seed>.sv, acc_<seed>.json, acc_<seed>.yosys.json}` for
 the reproducibility seeds `{0, 1, 7, 42, 12345}`): `cargo test
 --test frontend_parity -- --ignored
@@ -2436,7 +2436,7 @@ Verilator's specialized child modules and direct package/top
 parameter declarations, enforces `ParityScope::all()` across all 7
 Phase-8 categories, and is verified clean across the 5 reproducibility
 seeds with artifacts in
-`target/tmp/frontend-parity-signoff-verilator-json`. `slang` remains
+`target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`. `slang` remains
 optional and was not present in the local tool environment.
 
 **Notable during closure:** Phase 8's parity gate came back
@@ -2526,15 +2526,15 @@ With Phase 9 closed, every numbered roadmap phase from 0 through
 - Phase 3 — Structured combinational ops (done).
 - Phase 4 — Hierarchy (done 2026-05-16; closing artifact r87).
 - Phase 5 — Width parameterization (done 2026-05-17;
-  `/tmp/anvil-tool-matrix-phase5-p1`).
+  `anvil-tool-matrix-phase5-p1`).
 - Phase 5b — Synthesizable aggregates (done 2026-05-18;
-  `/tmp/anvil-tool-matrix-phase5b-p1`).
+  `anvil-tool-matrix-phase5b-p1`).
 - Phase 6 — Advanced motifs: memories + FSMs (done 2026-05-20;
-  `/tmp/anvil-tool-matrix-phase6-p1` + `-phase6-fsm-p1`).
+  `anvil-tool-matrix-phase6-p1` + `-phase6-fsm-p1`).
 - Phase 7 — Oracle-backed micro-design artifacts (done
-  2026-05-20; `/tmp/anvil-microdesign-parity-phase7-yosys-p1/`).
+  2026-05-20; `anvil-microdesign-parity-phase7-yosys-p1/`).
 - Phase 8 — Frontend/elaboration accept corpora (done
-  2026-05-20; `/tmp/anvil-frontend-parity-phase8-yosys-p1/`).
+  2026-05-20; `anvil-frontend-parity-phase8-yosys-p1/`).
 - Phase 9 — Multi-artifact ANVIL umbrella (done 2026-05-20).
 
 Five post-phase follow-up trees are tracked in `docs/TASK_TREE.md` as
@@ -2603,7 +2603,7 @@ execution order is `2 → 3 → 1`:
   artifact families), warning-as-failure preserved. `.1` (decision
   `0006`) + `.2` **delivered** the first richer-knob-sweep increment
   (`tool_matrix --signoff-knob-sweep-gate` + the four `saw_*` coverage
-  facts, banked clean `/tmp/anvil-signoff-knob-sweep-r1`); the lane stays
+  facts, banked clean `anvil-signoff-knob-sweep-r1`); the lane stays
   `active` with no current frontier (higher-ceiling leaves preserved).
 - `IDENTITY-DEEPENING` (`active`) — advance steering gap 2
   (NodeId-as-identity): bounded hierarchical/module semantic identity

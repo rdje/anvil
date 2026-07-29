@@ -1055,7 +1055,7 @@ Useful options:
   `saw_sv_version_2023_soft_union_upopt` fact. Other gates own
   construction-strategy / motif breadth, so this gate uses the
   `Interleaved` strategy only. Banked clean at
-  `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
+  `anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
   `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both modes).
 - `--function-emit-gate` to run the repo-owned combinational `function
   automatic` emit gate (`STRUCTURED-EMISSION-EXPANSION.2b.2b`) and fail
@@ -1070,7 +1070,7 @@ Useful options:
   Unlike the `union soft` up-opt, a synthesizable function is accepted by
   every tool, so the gate runs the full Verilator + both Yosys modes (+
   Icarus when `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608
+  `anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608
   emitted functions / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0
   both modes / Icarus compile 12/0).
 - `--generate-loop-gate` to run the repo-owned `generate for` loop emit
@@ -1086,7 +1086,7 @@ Useful options:
   Like a function (and unlike the `union soft` up-opt), a `generate for` is
   universally synthesizable, so the gate runs the full Verilator + both
   Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean
-  at `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8
+  at `anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8
   emitting a loop / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both
   modes / Icarus compile 12/0).
 - `--task-emit-gate` to run the repo-owned combinational `task automatic`
@@ -1102,7 +1102,7 @@ Useful options:
   (and unlike the `union soft` up-opt), a combinational `task` is universally
   synthesizable, so the gate runs the full Verilator + both Yosys modes (+
   Icarus when `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a
+  `anvil-task-emit-gate-r1` (3 scenarios / 12 modules / 12 emitting a
   task / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both modes /
   Icarus compile 12/0).
 - `--cone-function-gate` to run the repo-owned multi-gate-cone `function
@@ -1119,7 +1119,7 @@ Useful options:
   single-gate surface). Like a single-gate function, a cone function is
   universally synthesizable, so the gate runs the full Verilator + both Yosys
   modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-cone-function-gate-r1` (3 scenarios / 12 modules / 12 emitting a
+  `anvil-cone-function-gate-r1` (3 scenarios / 12 modules / 12 emitting a
   cone function / 148 cone functions / `coverage_gaps = []` / Verilator 12/0 /
   Yosys 12/0 both modes / Icarus compile 12/0).
 - `--multi-output-task-gate` to run the repo-owned multi-output combinational
@@ -1135,7 +1135,7 @@ Useful options:
   `--task-emit-gate` (the single-gate surface). Like a single-gate task, a
   multi-output task is universally synthesizable, so the gate runs the full
   Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan.
-  Banked clean at `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios / 12 modules
+  Banked clean at `anvil-multi-output-task-gate-r1` (3 scenarios / 12 modules
   / 6 emitting a multi-output task / `coverage_gaps = []` / Verilator 12/0 / Yosys
   12/0 both modes / Icarus compile 12/0).
 - `--mux-if-gate` to run the repo-owned procedural `always_comb` `if`/`else` emit
@@ -1151,7 +1151,7 @@ Useful options:
   text's `<wire>__cv` token, accepted by Verilator **and** Yosys). Like a single-gate
   task, a procedural `always_comb if/else` is universally synthesizable, so the gate
   runs the full Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is
-  set) plan. Banked clean at `/tmp/anvil-mux-if-gate-r1` (3 scenarios / 12 modules /
+  set) plan. Banked clean at `anvil-mux-if-gate-r1` (3 scenarios / 12 modules /
   12 emitting a block / 215 blocks / `coverage_gaps = []` / Verilator 12/0 / Yosys
   12/0 both modes / Icarus compile 12/0).
 - `--case-mux-if-gate` to run the repo-owned procedural `always_comb` `if`/`else if`
@@ -1170,7 +1170,7 @@ Useful options:
   `if…else if`. Like a single-gate task, a procedural `always_comb if/else if` chain is
   universally synthesizable, so the gate runs the full Verilator + both Yosys modes
   (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
+  `anvil-case-mux-if-gate-r1` (3 scenarios / 12 modules / 12 emitting a chain / 83
   chains / `coverage_gaps = []` / Verilator 12/0 / Yosys 12/0 both modes / Icarus
   compile 12/0).
 - `--casez-mux-if-gate` to run the repo-owned procedural `always_comb` `if`/`else if`
@@ -1187,7 +1187,7 @@ Useful options:
   `always_comb`-written `logic` var, so only its body swaps `casez…endcase` → masked
   `if…else if`. Like a single-gate task, a procedural `always_comb if/else if` chain is
   universally synthesizable, so the gate runs the full Verilator + both Yosys modes (+ Icarus
-  when `--iverilog-compile` is set) plan. Banked clean at `/tmp/anvil-casez-mux-if-gate-r1`
+  when `--iverilog-compile` is set) plan. Banked clean at `anvil-casez-mux-if-gate-r1`
   (3 scenarios / 12 modules / 12 emitting a chain / 108 chains / `coverage_gaps = []` /
   Verilator 12/0 / Yosys 12/0 both modes / Icarus compile 12/0).
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
@@ -1258,11 +1258,11 @@ and the opt-in Icarus compile column:
 `Icarus compile 17/0`. `tool_matrix` treats warnings as failures, so a
 green run means "no errors, no warnings", not merely zero non-zero
 exits. Focused evidence:
-`/tmp/anvil-signoff-surface-iverilog-r1/tool_matrix_report.json`.
+`anvil-signoff-surface-iverilog-r1/tool_matrix_report.json`.
 
 The completed current-code
 `--phase1-gate --yosys-mode both`
-report at `/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
+report at `anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
 records:
 
 - `15` scenarios
@@ -1274,7 +1274,7 @@ records:
 - `Yosys with-abc pass/fail = 1005/0`
 
 The completed current-code Phase 2 sharing report at
-`/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
+`anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
 records:
 
 - `18` scenarios
@@ -1290,7 +1290,7 @@ records:
   - `share_prob = 0.9`: `shared_node_fraction = 0.4386`
 
 The completed current-code Phase 3 structured-surface report at
-`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+`anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 records:
 
 - `21` scenarios
@@ -1302,7 +1302,7 @@ records:
 - `Yosys with-abc pass/fail = 210/0`
 
 The latest full downstream-clean Phase 4 hierarchy report at
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 records:
 
 - `210` scenarios
@@ -1454,9 +1454,9 @@ unregistered helper child-input routing, stateful helper-through-flop
 child-input routing, direct registered sibling mixed-support routing,
 and recursive non-top direct registered sibling mixed-support routing, recursive non-top unregistered parent-composed mixed-support child-input routing without helper instances, recursive non-top parent outputs that mix parent data ports with child outputs without helper instances or parent-local state, and recursive non-top parent outputs that mix parent data ports, child outputs, and parent-local Qs without helper instances. The earlier
 coverage-only proofs at
-`/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
-`/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
 are superseded by the full downstream-clean `r87` bank.
 
 The older `r21` full bank remains useful historical evidence for the
@@ -1464,35 +1464,35 @@ pre-parent-output-helper surface. The clean pre-fix `r22` run is kept as
 root-cause evidence only: a stale total-design budget produced
 `42` scenarios at `3` designs/scenario (`126` total). The live Phase 4
 gate now enforces a direct `4` designs/scenario floor. The focused clean
-proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
-`/tmp/anvil-hier-under-smoke-r2`,
-`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json` still remain
-useful targeted evidence. `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json`
+proofs at `anvil-hier-reuse-smoke-r1`,
+`anvil-hier-under-smoke-r2`,
+`anvil-hier-parent-compose-smoke-r1/manifest.json`,
+`anvil-hier-range-smoke-r1/manifest.json`,
+`anvil-hier-depth-profile-smoke-r1/manifest.json`, and
+`anvil-hier-mixed-depth-smoke-r1/manifest.json` still remain
+useful targeted evidence. `anvil-hier-child-input-cone-smoke-r1/manifest.json`
 is the focused proof for parent-composed child-input bindings
 (`child_input_bindings_from_parent_composed_logic = 13`,
 `parent_composed_child_input_binding_fraction = 0.9285714285714286`).
-`/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is the focused
+`anvil-hier-parent-state-smoke-r1/manifest.json` is the focused
 proof for local parent state
 (`hierarchy_parent_local_flops = 8`, `top_local_flops = 8`,
 `top_clock_inputs = 1`, `top_reset_inputs = 1`, and
 `child_input_bindings_from_parent_flops = 1`).
-`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json` is the
+`anvil-hier-registered-sibling-smoke-r1/manifest.json` is the
 focused proof for registered sibling-routed child-input bindings
 (`child_input_bindings_from_registered_instance_outputs = 4`,
 `registered_instance_output_child_input_binding_fraction = 0.8`,
 `hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
 `top_reset_inputs = 1`).
-`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+`anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
 is the focused proof for registered parent-composed child-input
 bindings
 (`child_input_bindings_from_registered_parent_composed_logic = 3`,
 `registered_parent_composed_child_input_binding_fraction = 0.75`,
 `hierarchy_parent_local_flops = 3`, `top_clock_inputs = 1`, and
 `top_reset_inputs = 1`).
-`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+`anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
 is the focused proof for registered mixed-support child-input bindings
 (`child_input_bindings_from_registered_mixed_support = 3`,
 `registered_mixed_support_child_input_binding_fraction = 0.75`).
@@ -1508,16 +1508,16 @@ parent-composed child-input bindings without helper instances
 (`child_input_bindings_from_registered_multistage_parent_composed_logic >
 top_child_input_bindings_from_registered_multistage_parent_composed_logic`
 and all registered helper-chain counters remain zero).
-`/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+`anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
 is the focused proof for multi-stage registered parent-composed
 child-input bindings
 (`child_input_bindings_from_registered_multistage_parent_composed_logic = 2`,
 `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`).
-`/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is the
+`anvil-hier-parent-output-mix-smoke-r1/manifest.json` is the
 focused proof for mixed parent-port / child-output parent outputs
 (`top_parent_port_composed_outputs = 8`,
 `hierarchy_parent_port_composed_outputs = 8`).
-`/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json` is the focused
+`anvil-parent-cone-instance-smoke-r1/manifest.json` is the focused
 proof for parent-cone helper-instance routing
 (`top_parent_cone_instances = 1`,
 `child_input_bindings_from_parent_cone_instances = 4`).
@@ -1589,7 +1589,7 @@ support in the budgeted helper case
 `child_input_bindings_from_registered_parent_cone_instances = 0`, and
 `child_input_bindings_from_parent_cone_instances_through_parent_flops = 0`).
 The coverage-only Phase 4 matrix probe at
-`/tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check/tool_matrix_report.json`
 first records this as
 `saw_hierarchy_parent_cone_instance_mixed_support_routing = true` and
 `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`
@@ -1604,7 +1604,7 @@ support in the unregistered helper-through-flop route
 `top_parent_cone_instance_flop_mixed_support_child_input_binding_fraction > 0.0`,
 and registered helper route counters remain zero). The coverage-only
 Phase 4 matrix probe at
-`/tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check/tool_matrix_report.json`
 records this as
 `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
 and
@@ -1893,7 +1893,7 @@ a hierarchy-focused sequential leaf profile instead of reusing the
 fattest Phase 1 motif-heavy sequential stress shape.
 
 Current HEAD also has a focused clean recursive-hierarchy proof at
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`, with:
+`anvil-hier-range-smoke-r1/manifest.json`, with:
 
 - `realized_min_leaf_depth = 2`
 - `realized_max_leaf_depth = 2`
@@ -1907,7 +1907,7 @@ and remains a useful targeted numerical trust surface for the bounded
 recursive lane even after the full Phase 4 matrix closure.
 
 Current HEAD also has a focused clean mixed-depth recursive proof at
-`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`, with:
+`anvil-hier-mixed-depth-smoke-r1/manifest.json`, with:
 
 - `realized_min_leaf_depth = 2`
 - `realized_max_leaf_depth = 3`
@@ -1923,7 +1923,7 @@ at `r30` now includes this axis too, so the focused smoke is no longer
 standing alone as evidence.
 
 Current HEAD also has a focused clean per-depth branching proof at
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, with:
+`anvil-hier-depth-profile-smoke-r1/manifest.json`, with:
 
 - `realized_min_leaf_depth = 2`
 - `realized_max_leaf_depth = 2`
@@ -1938,7 +1938,7 @@ modes and is the current trust surface for depth-specific hierarchy
 branching without `.sv` inspection.
 
 Current HEAD also has a focused clean profiled on-demand proof at
-`/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json`, with:
+`anvil-hier-profiled-ondemand-smoke-r1/manifest.json`, with:
 
 - `num_profiled_instance_slots = 3`
 - `profiled_instance_fraction = 1.0`
@@ -1950,7 +1950,7 @@ modes and is the current trust surface for exact profiled `on-demand`
 child-interface synthesis without `.sv` inspection.
 
 Current HEAD also has a focused clean sibling-routing proof at
-`/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json`, with:
+`anvil-hier-sibling-routing-smoke-r1/manifest.json`, with:
 
 - `child_input_bindings_from_instance_outputs = 6`
 - `top_child_input_bindings_from_instance_outputs = 6`
@@ -2028,7 +2028,7 @@ full frontend manifest scope:
 Seed/Top/PackageConstants/TopParams/TopLocalparams/Instances/
 GenerateBranches. In the current local evidence, it is clean across the
 5 reproducibility seeds and writes artifacts under
-`target/tmp/frontend-parity-signoff-verilator-json`.
+`target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`.
 
 ## Agent introspection and the MCP server
 

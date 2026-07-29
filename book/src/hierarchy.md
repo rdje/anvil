@@ -587,7 +587,7 @@ It also keeps the open work honest. The following is **not** live yet:
 What **is** now live beyond the original smoke is the repo-owned Phase 4
 hierarchy gate. The latest full downstream-clean bank is:
 
-- `/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+- `anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 - `210` scenarios
 - `4` designs/scenario
 - `840` total designs
@@ -1144,9 +1144,9 @@ parent-local flops, plus recursive non-top multi-stage registered
 parent-composed no-helper routing, plus recursive non-top multi-stage
 registered sibling no-helper routing, plus recursive non-top
 multi-stage registered mixed-support no-helper routing. The earlier coverage-only proofs at
-`/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
-`/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
 are now historical policy breadcrumbs. The older `r21` bank remains
 historical pre-parent-output-helper evidence;
 the clean `r22` run is root-cause evidence for the stale 126-design
@@ -1156,7 +1156,7 @@ now historical breadcrumbs. The focused
 proof artifact for that composed-parent
 behavior remains:
 
-- `/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`
+- `anvil-hier-parent-compose-smoke-r1/manifest.json`
 - clean in Verilator
 - clean in Yosys `synth -noabc`
 - clean in the repo-owned Yosys with-ABC path
@@ -1170,33 +1170,33 @@ Current HEAD has widened the wrapper planner beyond the exact-once case,
 and that broadened repo-owned rerun is now banked too. The focused
 local proofs remain useful:
 
-- `/tmp/anvil-hier-reuse-smoke-r1` is clean in Verilator, Yosys
+- `anvil-hier-reuse-smoke-r1` is clean in Verilator, Yosys
   `synth -noabc`, and the repo-owned ABC-enabled Yosys path, and proves
   repeated child-definition reuse;
-- `/tmp/anvil-hier-under-smoke-r2` is clean in the same three lanes and
+- `anvil-hier-under-smoke-r2` is clean in the same three lanes and
   proves under-instantiation of the leaf library; and
-- `/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json` is clean
+- `anvil-hier-profiled-ondemand-smoke-r1/manifest.json` is clean
   in the same three lanes and proves exact profiled `on-demand`
   child-interface synthesis numerically:
   - `num_profiled_instance_slots = 3`
   - `profiled_instance_fraction = 1.0`
   - `profiled_instantiated_module_fraction = 1.0`
   - `dep_bearing_child_input_binding_fraction = 1.0`
-- `/tmp/anvil-hier-sibling-routing-smoke-r1/manifest.json` is clean
+- `anvil-hier-sibling-routing-smoke-r1/manifest.json` is clean
   in the same three lanes and proves sibling-routed child-input binding
   numerically:
   - `child_input_bindings_from_instance_outputs = 6`
   - `top_child_input_bindings_from_instance_outputs = 6`
   - `instance_output_child_input_binding_fraction = 0.75`
   - `top_instance_output_child_input_binding_fraction = 0.75`
-- `/tmp/anvil-hier-child-input-cone-smoke-r1/manifest.json` is clean
+- `anvil-hier-child-input-cone-smoke-r1/manifest.json` is clean
   in the same three lanes and proves parent-composed child-input binding
   numerically:
   - `child_input_bindings_from_parent_composed_logic = 13`
   - `top_child_input_bindings_from_parent_composed_logic = 13`
   - `parent_composed_child_input_binding_fraction = 0.9285714285714286`
   - `top_parent_composed_child_input_binding_fraction = 0.9285714285714286`
-- `/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json` is clean in
+- `anvil-parent-cone-instance-smoke-r1/manifest.json` is clean in
   the same three lanes and proves parent-cone helper-instance routing
   into child-input bindings numerically:
   - `top_parent_cone_instances = 1`
@@ -1302,7 +1302,7 @@ local proofs remain useful:
   - `child_input_bindings_from_registered_parent_cone_instances = 0`
   - `child_input_bindings_from_parent_cone_instances_through_parent_flops = 0`
   The coverage-only Phase 4 matrix probe at
-  `/tmp/anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check/tool_matrix_report.json`
+  `anvil-tool-matrix-phase4-parent-helper-child-input-mixed-check/tool_matrix_report.json`
   first recorded this as
   `saw_hierarchy_parent_cone_instance_mixed_support_routing = true` and
   `saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing = true`;
@@ -1317,7 +1317,7 @@ local proofs remain useful:
   - `top_parent_cone_instance_flop_mixed_support_child_input_binding_fraction > 0.0`
   - `child_input_bindings_from_registered_parent_cone_instances = 0`
   The coverage-only Phase 4 matrix probe at
-  `/tmp/anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check/tool_matrix_report.json`
+  `anvil-tool-matrix-phase4-stateful-helper-child-input-mixed-check/tool_matrix_report.json`
   first recorded this as
   `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`
   and
@@ -1484,7 +1484,7 @@ local proofs remain useful:
   This route is banked in the full downstream-clean `r34` Phase 4
   matrix through the dedicated
   `phase4_recur_d2_parent_cone_instance_state` scenario.
-- `/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+- `anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves registered mixed-support
   child-input binding numerically:
   - `child_input_bindings_from_registered_mixed_support = 3`
@@ -1492,7 +1492,7 @@ local proofs remain useful:
   - `registered_mixed_support_child_input_binding_fraction = 0.75`
   - `top_registered_mixed_support_child_input_binding_fraction = 0.75`
   The current-code coverage-only Phase 4 matrix probe at
-  `/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
+  `anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_mixed_support_routing = true`. That probe
@@ -1572,20 +1572,20 @@ local proofs remain useful:
   The route is banked in the full downstream-clean `r48` Phase 4 matrix
   through
   `saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing = true`.
-- `/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+- `anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
   is clean in the same three lanes and proves multi-stage registered
   parent-composed child-input binding numerically:
   - `child_input_bindings_from_registered_multistage_parent_composed_logic = 2`
   - `top_child_input_bindings_from_registered_multistage_parent_composed_logic = 2`
   - `registered_multistage_parent_composed_child_input_binding_fraction = 0.5`
   The current-code coverage-only Phase 4 matrix probe at
-  `/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
+  `anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_registered_multistage_routing = true`. That probe
   skipped Verilator/Yosys; the full downstream-clean `r30` bank now
   carries the same fact with real tool validation.
-- `/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
+- `anvil-hier-parent-output-mix-smoke-r1/manifest.json` is clean
   in the same three lanes and proves mixed parent-port / child-output
   parent outputs numerically:
   - `top_parent_port_composed_outputs = 8`
@@ -1593,20 +1593,20 @@ local proofs remain useful:
   - `top_outputs_reaching_instance_outputs = 8`
   - `top_outputs_without_instance_outputs = 0`
   The current-code coverage-only Phase 4 matrix probe at
-  `/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
+  `anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`
   first banked this as a required coverage fact with
   `coverage_gaps = []` and
   `saw_hierarchy_parent_port_composed_outputs = true`. That probe
   skipped Verilator/Yosys; the full downstream-clean `r30` bank now
   carries the same fact with real tool validation.
-- `/tmp/anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
+- `anvil-hier-parent-state-smoke-r1/manifest.json` is clean in
   the same three lanes and proves local parent state numerically:
   - `hierarchy_parent_local_flops = 8`
   - `top_local_flops = 8`
   - `top_clock_inputs = 1`
   - `top_reset_inputs = 1`
   - `child_input_bindings_from_parent_flops = 1`
-- `/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json` is clean
+- `anvil-hier-registered-sibling-smoke-r1/manifest.json` is clean
   in the same three lanes and proves registered sibling-routed
   child-input binding numerically:
   - `child_input_bindings_from_registered_instance_outputs = 4`
@@ -1615,7 +1615,7 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
   - `top_clock_inputs = 1`
   - `top_reset_inputs = 1`
-- `/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+- `anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
   is clean in the same three lanes and proves registered
   parent-composed child-input binding numerically:
   - `child_input_bindings_from_registered_parent_composed_logic = 3`
@@ -1625,7 +1625,7 @@ local proofs remain useful:
   - `hierarchy_parent_local_flops = 3`
 - the refreshed `tool_matrix` Phase 4 scenario set now explicitly
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
-  at `/tmp/anvil-tool-matrix-phase4-hierarchy-r87` closes them cleanly
+  at `anvil-tool-matrix-phase4-hierarchy-r87` closes them cleanly
   with `coverage_gaps = []` and `840/0` pass-fail in Verilator plus both
   repo-owned Yosys modes, including the direct sibling helper, direct
   registered sibling helper, direct registered sibling mixed-support,
@@ -1795,7 +1795,7 @@ local proofs remain useful:
 Current HEAD now also has a focused clean proof for the bounded
 recursive lane:
 
-- `/tmp/anvil-hier-range-smoke-r1/manifest.json`
+- `anvil-hier-range-smoke-r1/manifest.json`
 - clean in Verilator
 - clean in Yosys `synth -noabc`
 - clean in the repo-owned Yosys with-ABC path
@@ -1810,7 +1810,7 @@ recursive lane:
 Current HEAD now also has a focused clean proof for mixed-depth
 recursive hierarchy:
 
-- `/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`
+- `anvil-hier-mixed-depth-smoke-r1/manifest.json`
 - clean in Verilator
 - clean in Yosys `synth -noabc`
 - clean in the repo-owned Yosys with-ABC path
@@ -1825,7 +1825,7 @@ recursive hierarchy:
 Current HEAD also has a focused clean proof for depth-specific
 branching in the recursive lane:
 
-- `/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`
+- `anvil-hier-depth-profile-smoke-r1/manifest.json`
 - clean in Verilator
 - clean in Yosys `synth -noabc`
 - clean in the repo-owned Yosys with-ABC path

@@ -16,7 +16,7 @@ date: 2026-06-15
 status: current
 tags: [identity, sequential, factorization, bisimulation, coinduction, flop-merge]
 evidence: src/ir/compact.rs (merge_bisimilar_flops, finalize_flop_merge, canonical_flop_endpoint); book/src/factorization.md; book/src/knobs.md; DEVELOPMENT_NOTES.md; docs/decisions/0007-identity-deepening-first-extension.md
-reverify: "ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers -- --nocapture (the test prints the path it wrote, under .cache/anvil-sandbox/ per VOLUME-DATA-LOCALITY.2 — no longer /tmp), then lint that anvil-bisim-merged.sv with verilator --lint-only -Wall -Wno-DECLFILENAME + yosys (both modes) + iverilog -g2012. Verified 2026-07-29: all three clean. -Wno-DECLFILENAME is REQUIRED and is not a defect — the dump uses a fixed filename that cannot match the generated module name, so bare -Wall always reports DECLFILENAME and exits nonzero."
+reverify: "mkdir -p .cache/anvil-sandbox && ANVIL_DUMP_BISIM_SV=1 cargo test --lib merge_bisimilar_flops_merges_mutual_swap_registers -- --nocapture (the test prints the path it wrote, under .cache/anvil-sandbox/ per VOLUME-DATA-LOCALITY.2 — no longer /tmp), then lint that anvil-bisim-merged.sv with verilator --lint-only -Wall -Wno-DECLFILENAME + yosys (both modes) + iverilog -g2012. Verified 2026-07-29: all three clean. -Wno-DECLFILENAME is REQUIRED and is not a defect — the dump uses a fixed filename that cannot match the generated module name, so bare -Wall always reports DECLFILENAME and exits nonzero."
 ---
 
 The opt-in `Config::bisimulation_flop_merge` knob (default `false`,

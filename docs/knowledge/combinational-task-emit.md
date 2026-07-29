@@ -18,8 +18,8 @@ answers:
 date: 2026-06-16
 status: current
 tags: [structured-emission, task, always_comb, emission, knob, downstream, valid-by-construction, rules-first, matrix-gate, introspection]
-evidence: src/ir/task_emit.rs (annotate_task_emit_gates); src/config.rs (task_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the generate_loop pass); src/emit/sv.rs (task_emit_gate, render_gate_task_decl, render_gate_task_call reusing render_gate_function_body, the task section + assign-loop passthrough); src/metrics.rs (num_emitted_combinational_tasks); src/bin/tool_matrix.rs (--task-emit-gate, ScenarioSet::TaskEmitSweep, ModuleReport.emitted_combinational_task, saw_combinational_task_emit); book/src/structured-emission.md; docs/decisions/0014-structured-emission-third-surface-combinational-task.md; /tmp/anvil-task-emit-gate-r1/tool_matrix_report.json
-reverify: 'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config /tmp/te.json | tee /tmp/te.sv | grep -c "task automatic" && verilator --lint-only /tmp/te.sv && echo CLEAN'
+evidence: src/ir/task_emit.rs (annotate_task_emit_gates); src/config.rs (task_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the generate_loop pass); src/emit/sv.rs (task_emit_gate, render_gate_task_decl, render_gate_task_call reusing render_gate_function_body, the task section + assign-loop passthrough); src/metrics.rs (num_emitted_combinational_tasks); src/bin/tool_matrix.rs (--task-emit-gate, ScenarioSet::TaskEmitSweep, ModuleReport.emitted_combinational_task, saw_combinational_task_emit); book/src/structured-emission.md; docs/decisions/0014-structured-emission-third-surface-combinational-task.md; anvil-task-emit-gate-r1/tool_matrix_report.json
+reverify: 'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"task_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":2,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\".cache/anvil-sandbox/te.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config .cache/anvil-sandbox/te.json | tee .cache/anvil-sandbox/te.sv | grep -c "task automatic" && verilator --lint-only .cache/anvil-sandbox/te.sv && echo CLEAN'
 ---
 
 # `STRUCTURED-EMISSION-EXPANSION.6b` — the combinational `task automatic` emit-projection
@@ -78,7 +78,7 @@ value-returning `function` — a genuinely distinct elaboration surface.
   is accepted by Verilator **and** a clean Yosys (a combinational `task` is
   universally synthesizable like a function, so — unlike the Verilator-only
   `union soft` up-opt — the gate runs the full tool plan: Verilator + both
-  Yosys modes + Icarus). Banked clean `/tmp/anvil-task-emit-gate-r1` (3
+  Yosys modes + Icarus). Banked clean `anvil-task-emit-gate-r1` (3
   scenarios / 12 modules / 12 emitting a task / `coverage_gaps = []` / `12/0`
   Verilator + both Yosys + Icarus compile).
 

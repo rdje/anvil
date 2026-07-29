@@ -3392,7 +3392,7 @@ mod tests {
             &mut s,
             44,
             "coverage_gaps",
-            json!({ "report": sample_report(), "report_path": "/tmp/x.json" }),
+            json!({ "report": sample_report(), "report_path": ".cache/anvil-sandbox/x.json" }),
         );
         assert_eq!(resp["result"]["isError"], true);
         assert!(tool_text_of(&resp).contains("exactly one"));

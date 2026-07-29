@@ -6,16 +6,16 @@ answers:
   - "where does ANVIL store its working data"
   - "is the boot volume allowed"
   - "can the project reference Macintosh HD"
-  - "where is CARGO_HOME for this project"
+  - "do CARGO_HOME and RUSTUP_HOME move to the SSD"
   - "why is ANVIL_SANDBOX_ROOT set"
   - "what volume must project data live on"
   - "is cross-volume access ever allowed"
-  - "how do I run ANVIL builds on the right volume"
+  - "are shared $HOME stores a policy violation"
 date: 2026-07-29
 status: current
 tags: [doctrine, data-locality, volume, paths, portability, owner-directive]
 evidence: docs/tasks/VOLUME-DATA-LOCALITY.md; src/paths.rs; CHANGES.md
-reverify: "grep -rn 'temp_dir()' src/ tests/  → matches only src/paths.rs;  echo $CARGO_HOME  → a path under the repo volume;  df -h . | awk 'NR==2{print $1}'  → the repo's device"
+reverify: "grep -rn 'temp_dir()' src/ tests/  → matches only src/paths.rs (the OS temp dir is named in exactly one place)"
 ---
 
 # 0031 - The SSD is the only project volume
@@ -57,26 +57,81 @@ obligations, both absolute:
    workspaces, agent scratch — is written under the repository volume,
    at a path derived at runtime from the current root
    ([`src/paths.rs`](../../src/paths.rs)). Never `/tmp`, `/private/tmp`,
-   `$TMPDIR`, `$HOME`, or any other boot-volume location.
+   or `$TMPDIR`. (Shared machine-wide stores under `$HOME` are a
+   separate category — see the clarification below.)
 2. **Reference.** No tracked file may *point at* a boot-volume path as
    though it were live project data — including prose. Historical
    citations must be rewritten or explicitly labelled as dead
    breadcrumbs (this is what makes `EVIDENCE-BANK-DURABILITY.4`
    mandatory rather than tidy-up).
 
-### The only admitted exception: the installed toolchain
+### The hard limit on obligation 2: HISTORY IS NEVER REWRITTEN
 
-Compilers and downstream tools are installed by the OS package manager
-and cannot be relocated by this repository: `rustc`/`cargo` under
-`~/.rustup`, and `verilator` / `yosys` / `iverilog` under
-`/opt/homebrew`. ANVIL **executes** these; it does not store data in
-them. This is explicitly identified, execute/read-only, and documented
-here as required by §13's toolchain carve-out.
+**Owner directive (`2026-07-29`), absolute and permanent:** *"NO, no
+history rewrite, no at all. I do not want to mess with the git history.
+Keep it raw, keep honest, so that people can follow the whole history if
+they want to."*
 
-Everything the project can control is moved: `CARGO_HOME` and
-`RUSTUP_HOME` are repointed onto the repository volume so the crate
-registry, git checkouts of dependencies, and installed toolchains are
-project-local rather than shared boot-volume stores.
+Obligation 2 applies to documents that describe the project's **current
+state**. It stops at the record of what happened. Specifically:
+
+- **`git` history is never rewritten.** No `rebase`, no `--amend` of a
+  landed commit, no `reset --hard` over published work, no
+  `filter-branch`/`filter-repo`, no force-push. History is append-only.
+  A commit that said `/tmp/anvil-…` in 2026-06 keeps saying it.
+- **`CHANGES.md` and `DEVELOPMENT_NOTES.md` are never retro-edited.**
+  They are the human-readable audit trail (`MEMORY_ARCHITECTURE.md`
+  layers C/D: *append once, supersede, never silently rewrite*). Their
+  ~566 pre-0031 boot-volume references stay exactly as written.
+- **Policy documents keep the strings they forbid** — this record,
+  `0002`, `0030`, and the two owning task trees. A rule that cannot name
+  what it prohibits is unreadable.
+
+The reasoning, which outranks tidiness: a swept history is a **dishonest**
+history. Someone auditing why the evidence banks evaporated must be able
+to read the entries that cited `/tmp` and see the mistake as it was
+actually made. Rewriting them to look compliant would erase the very
+evidence that justifies this decision record existing.
+
+This limit was learned concretely: a first, allow-list-free sweep
+rewrote decision `0030`'s own `reverify` command from
+`ls -d /tmp/anvil-*` to `ls -d anvil-*` — turning a re-runnable check
+into nonsense — and had to be reverted. Mechanically rewriting a
+document whose *subject* is the string being rewritten destroys it.
+
+### What the rule does NOT cover: shared `$HOME` stores
+
+**Owner clarification (`2026-07-29`): "everything shared in `$HOME`
+stays in `$HOME`."** The directive governs data *this project owns*, not
+the machine-wide stores it merely uses. So the following stay exactly
+where they are and are **not** violations:
+
+- `~/.cargo` (crate registry, git checkouts, installed binaries) and
+  `~/.rustup` (toolchains) — shared across all the owner's projects.
+  `CARGO_HOME` / `RUSTUP_HOME` are deliberately **left at their
+  defaults**; an earlier plan to repoint them onto the repo volume was
+  **withdrawn** on this clarification, and the 3 GB of SSD copies it had
+  made were removed. This also aligns with §13's standing rule never to
+  fragment an ambiguous shared global cache.
+- `$HOME/.cargo/bin` in `.github/workflows/*.yml` — those run on
+  GitHub's runners, where `$HOME` is the runner's own disk. Correct and
+  portable as written.
+- Compilers and downstream tools installed by the OS package manager
+  (`verilator` / `yosys` / `iverilog` under `/opt/homebrew`). ANVIL
+  **executes** these; it stores nothing in them — §13's toolchain
+  carve-out.
+
+The line is therefore: **data ANVIL creates → the repo volume; stores
+ANVIL merely reads or executes → wherever the system keeps them.**
+
+And the rule for shared things, in the owner's words (`2026-07-29`,
+final): *"If something is shared, then please use the shared
+information, no need to duplicate the information that is shared on the
+SSD."* **Shared means shared — use it, do not fork it.** Copying a
+shared store onto the repo volume would burn the disk twice over *and*
+create a second cache that silently drifts from the one every other
+project uses; that is the same second-source-of-truth failure the
+project's full-factorization discipline forbids in its own code.
 
 Honest limit, stated rather than glossed: the **agent harness** writes
 its own runtime files (task output, tool results) under
@@ -86,21 +141,20 @@ The mitigation is that no ANVIL data depends on them: every command that
 matters redirects its real output to `.cache/scratch/` on the SSD, so
 losing the harness's files loses nothing.
 
-### Shared global caches are populated, never deleted
+### Shared global caches are left alone
 
 `~/.cargo` (845M) and `~/.rustup` (2.1G) are shared with the owner's
-other projects. Per §13 they are **not deleted**: a project-local store
-is populated, the shared copy stops being accessed, and only
-provably-project-owned records are ever removed. The owner separately
+other projects, so per the `$HOME` clarification they are neither
+relocated nor deleted — the project simply keeps using them. The owner separately
 confirmed (`2026-07-29`) that `~/Documents/github` — the pre-move
 checkouts — is deliberate owner-owned data to be removed by the owner
 themselves, never by an agent, and excluded from every audit.
 
 ## Consequences
 
-- `ANVIL_SANDBOX_ROOT`, `CARGO_HOME`, and `RUSTUP_HOME` are part of the
-  project's environment contract; the repo documents them and the agent
-  harness sets them.
+- `ANVIL_SANDBOX_ROOT` is the project's one environment knob for where
+  its working data lands; `CARGO_HOME` / `RUSTUP_HOME` stay at their
+  defaults per the `$HOME` clarification above.
 - A doctrine check (`scripts/check_no_boot_volume_refs.sh`, registered in
   `scripts/check_doctrines.sh`) fails on a new boot-volume reference in
   tracked files, so compliance is mechanical rather than remembered.
@@ -113,9 +167,9 @@ themselves, never by an agent, and excluded from every audit.
   `/tmp` — is now **partly mandated**. A future bank must be
   repo-derived and on-volume; the committed digest remains the citation
   form, so both mechanisms apply rather than one replacing the other.
-- Builds run against a cold project-local registry the first time,
-  costing one re-download; thereafter they are volume-correct and
-  unaffected by anything on the boot disk.
+- Builds are unchanged: they keep using the shared `~/.cargo` /
+  `~/.rustup`, so there is no cold-registry cost and no duplicated
+  toolchain.
 
 ## Links
 

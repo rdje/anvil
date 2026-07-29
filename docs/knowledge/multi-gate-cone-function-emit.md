@@ -18,8 +18,8 @@ answers:
 date: 2026-06-17
 status: current
 tags: [structured-emission, function, cone, emission, knob, downstream, valid-by-construction, rules-first, matrix-gate, introspection]
-evidence: src/ir/cone_function_emit.rs (annotate_cone_function_gates, compute_use_counts, absorb_children single-use cone-walk); src/config.rs (cone_function_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, run last after the task_emit pass); src/emit/sv.rs (cone-decl section + interior-suppression + render_cone_function_decl/render_cone_function_call/render_cone_gate_expr/cone_function_params/cone_operand_ref); src/metrics.rs (num_emitted_cone_functions); src/introspect/mod.rs (SCHEMA_VERSION 1.11); src/bin/tool_matrix.rs (--cone-function-gate, ScenarioSet::ConeFunctionSweep, ModuleReport.emitted_cone_function, saw_cone_function_emit); book/src/structured-emission.md; docs/decisions/0016-structured-emission-fifth-surface-cone-function.md; /tmp/anvil-cone-function-gate-r1/tool_matrix_report.json
-reverify: 'cargo run --quiet -- --seed 4 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\"/tmp/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config /tmp/cf.json | tee /tmp/cf.sv | grep -c "__cf(" && verilator --lint-only /tmp/cf.sv && echo CLEAN'
+evidence: src/ir/cone_function_emit.rs (annotate_cone_function_gates, compute_use_counts, absorb_children single-use cone-walk); src/config.rs (cone_function_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, run last after the task_emit pass); src/emit/sv.rs (cone-decl section + interior-suppression + render_cone_function_decl/render_cone_function_call/render_cone_gate_expr/cone_function_params/cone_operand_ref); src/metrics.rs (num_emitted_cone_functions); src/introspect/mod.rs (SCHEMA_VERSION 1.11); src/bin/tool_matrix.rs (--cone-function-gate, ScenarioSet::ConeFunctionSweep, ModuleReport.emitted_cone_function, saw_cone_function_emit); book/src/structured-emission.md; docs/decisions/0016-structured-emission-fifth-surface-cone-function.md; anvil-cone-function-gate-r1/tool_matrix_report.json
+reverify: 'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 4 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\".cache/anvil-sandbox/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config .cache/anvil-sandbox/cf.json | tee .cache/anvil-sandbox/cf.sv | grep -c "__cf(" && verilator --lint-only .cache/anvil-sandbox/cf.sv && echo CLEAN'
 ---
 
 # `STRUCTURED-EMISSION-EXPANSION.10b` — the multi-gate-cone `function automatic` emit-projection
@@ -88,7 +88,7 @@ an entire cone.
   lights `saw_cone_function_emit` only when that module is accepted by Verilator
   **and** a clean Yosys (a cone function is universally synthesizable like a
   single-gate function, so the gate runs the full plan: Verilator + both Yosys
-  modes + Icarus). Banked clean `/tmp/anvil-cone-function-gate-r1` (3 scenarios /
+  modes + Icarus). Banked clean `anvil-cone-function-gate-r1` (3 scenarios /
   12 modules / 12 emitting a cone function / 148 cone functions / `coverage_gaps
   = []` / `12/0` Verilator + both Yosys + Icarus compile).
 

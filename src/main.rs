@@ -1278,7 +1278,7 @@ mod tests {
             "--diff-sim",
             "--divergence",
             "--out",
-            "/tmp/anvil-hunt",
+            "anvil-hunt",
         ]);
         let Some(Commands::Hunt(h)) = cli.command else {
             panic!("expected a hunt subcommand");
@@ -1294,7 +1294,7 @@ mod tests {
         assert_eq!(h.budget, 10);
         assert!(h.diff_sim);
         assert!(h.divergence);
-        assert_eq!(h.out, Some(PathBuf::from("/tmp/anvil-hunt")));
+        assert_eq!(h.out, Some(PathBuf::from("anvil-hunt")));
     }
 
     /// `anvil hunt` with no flags carries the documented defaults (seed 0,
@@ -1337,7 +1337,7 @@ mod tests {
             budget: 12,
             diff_sim: true,
             divergence: true,
-            out: Some(PathBuf::from("/tmp/anvil-hunt-out")),
+            out: Some(PathBuf::from("anvil-hunt-out")),
         };
         let req = build_hunt_request(&args).expect("build request");
         assert_eq!(req.base_seed, 9);
@@ -1349,7 +1349,7 @@ mod tests {
         assert_eq!(req.max_oracle_calls, 12);
         assert!(req.diff_sim);
         assert!(req.divergence); // --divergence
-        assert_eq!(req.bundle_root, Some(PathBuf::from("/tmp/anvil-hunt-out")));
+        assert_eq!(req.bundle_root, Some(PathBuf::from("anvil-hunt-out")));
     }
 
     #[test]

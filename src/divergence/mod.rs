@@ -454,7 +454,7 @@ mod tests {
             lane: "dut".to_string(),
             kind: "module".to_string(),
             top: "m".to_string(),
-            sandbox: "/tmp/s".to_string(),
+            sandbox: ".cache/anvil-sandbox/s".to_string(),
             tools: vec![
                 inv("verilator", true, Some(0)),
                 inv("yosys-without-abc", false, Some(1)),
@@ -480,7 +480,7 @@ mod tests {
             lane: "dut".to_string(),
             kind: "module".to_string(),
             top: "m".to_string(),
-            sandbox: "/tmp/x".to_string(),
+            sandbox: ".cache/anvil-sandbox/x".to_string(),
             verdicts: vec![to_decision(&inv("verilator", true, Some(0)))],
             diverged: false,
             divergences: vec![],

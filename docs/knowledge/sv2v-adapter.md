@@ -13,7 +13,7 @@ answers:
 date: 2026-06-18
 status: current
 tags: [tool-matrix, sv2v, downstream, adapter, registry, mcp, signoff]
-evidence: 'cargo test --test sv2v_e2e   (portable: sv2v is a public selectable adapter; the real-tool gate is #[ignore], skips green when sv2v is absent). Also: cargo run --bin tool_matrix -- --out /tmp/x --skip-verilator --skip-yosys --sv2v  ⇒  exits 0 with "sv2v pass/fail = 0/0" and no sv2v invocations when sv2v is absent (the friendly no-op).'
+evidence: 'cargo test --test sv2v_e2e   (portable: sv2v is a public selectable adapter; the real-tool gate is #[ignore], skips green when sv2v is absent). Also: cargo run --bin tool_matrix -- --out .cache/anvil-sandbox/x --skip-verilator --skip-yosys --sv2v  ⇒  exits 0 with "sv2v pass/fail = 0/0" and no sv2v invocations when sv2v is absent (the friendly no-op).'
 ---
 
 `DOWNSTREAM-ADAPTER-EXPANSION.2b` (decision `0020`) lands **`sv2v`** as the

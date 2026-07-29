@@ -264,27 +264,29 @@ will remove that whole directory themselves later. It is therefore
   Commit: `pending`
 
 - ID: `VOLUME-DATA-LOCALITY.6`
-  Status: `pending`
-  Goal: **escalated by the owner's standing directive (`2026-07-29`,
-        decision `0031`): nothing stored on OR pointing at the boot
-        volume, ever.** Repoint the dependency/toolchain stores this
-        repo can control onto the repo volume:
-        `CARGO_HOME` (`~/.cargo`, **845M**, boot volume — the crate
-        registry + git checkouts every build reads and writes) and
-        `RUSTUP_HOME` (`~/.rustup`, **2.1G**). Populate project-local
-        stores under the repo volume, stop accessing the shared copies,
-        and — per §13 — **do not delete** the shared ones (they are
-        ambiguous global caches shared with the owner's other projects).
-        Wire the env contract so it holds for agent sessions *and*
-        humans (`.claude/settings.json` env + documented in
-        `USER_GUIDE.md`/`README.md`).
-  Acceptance: a clean build + full `cargo test` succeed with
-        `CARGO_HOME`/`RUSTUP_HOME` on the repo volume; `~/.cargo` and
-        `~/.rustup` are no longer read during a build (verified by
-        access-time or by a run with the shared paths made unreadable);
-        the shared stores are left intact.
-  Verification: `pending`
-  Commit: `pending`
+  Status: `withdrawn` (will not be done)
+  Goal (as originally scoped): give the project its own
+        `CARGO_HOME`/`RUSTUP_HOME` on the SSD.
+  **Withdrawn by owner decision (`2026-07-29`), final:** *"If something
+  is shared, then please use the shared information, no need to
+  duplicate the information that is shared on the SSD."*
+  So `~/.cargo` (845M) and `~/.rustup` (2.1G) are **used in place**.
+  `CARGO_HOME` / `RUSTUP_HOME` keep their defaults; nothing is copied,
+  nothing is deleted, and builds are entirely unchanged.
+  The rule this settles, now recorded in decision `0031`: **shared means
+  shared — use it, do not fork it.** Duplicating a shared store onto the
+  SSD would have cost 3 GB *and* created a second cache that silently
+  drifts from the one every other project uses — the opposite of the
+  full-factorization discipline the project applies to its own code.
+  This is *not* a boot-volume exception being smuggled in: ANVIL stores
+  no data of its own in those directories; it reads and executes from
+  them. The directive governs the data ANVIL **creates**.
+  Trail (recorded because the direction moved twice and a future reader
+  should not have to reconstruct it): proposed → withdrawn on
+  *"everything shared in `$HOME` stays in `$HOME`"* (the 3 GB of copies
+  made during the proposal were deleted) → briefly reinstated on
+  *"please do"* → **finally withdrawn** on the statement above. Net
+  effect on the repository: none — no copies exist, no env var is set.
 
 - ID: `VOLUME-DATA-LOCALITY.7`
   Status: `pending`
@@ -304,7 +306,75 @@ will remove that whole directory themselves later. It is therefore
   Commit: `pending`
 
 - ID: `VOLUME-DATA-LOCALITY.5`
-  Status: `pending`
+  Status: `done`
+  **Scope escalated (`2026-07-29`, owner):** *"nothing shall reference or
+  point to the boot volume — everything must be relative to this SSD
+  volume."* So this leaf is no longer a small doc touch-up: it is a
+  **full sweep of all 2376 boot-volume path references across 60+
+  tracked files**, under three rules:
+  - **Rule A — dead evidence-bank names** (355 distinct `/tmp/anvil-*`):
+    strip the `/tmp/` prefix, keeping `anvil-<name>` as a bare
+    *identifier*. These banks no longer exist (that is what
+    `EVIDENCE-BANK-DURABILITY` established), so the prefix was never
+    load-bearing — the name is what identifies the run, and decision
+    `0030` makes the re-runnable command the real citation.
+  - **Rule B — live scratch paths in runnable recipes** (`/tmp/c.json`,
+    `/tmp/fe.sv`, … — mostly Knowledge-Map `reverify` one-liners and
+    book/doc recipes): rewrite to `.cache/anvil-sandbox/…` so they stay
+    runnable *and* write on-volume. These are the only class that
+    actually *stored* on the boot volume.
+  - **Rule C — CLI-parse literals** (`/tmp/x` in `src/bin/tool_matrix.rs`
+    and `src/main.rs`): never written to disk, but still references, so
+    they move too. This **supersedes** audit class (d), which had
+    recorded them as "leave alone" — correct under §13, wrong under the
+    stricter directive.
+  Deliberately **kept**: the boot-volume paths inside the policy
+  documents themselves (`docs/decisions/0031`, this tree, `MEMORY.md`) —
+  a doctrine cannot state what it forbids without naming it. The `.7`
+  check allow-lists exactly those.
+  Generated artifacts (`KNOWLEDGE_MAP.md`) are fixed at their **sources**
+  (`docs/knowledge/*.md`, `docs/decisions/*.md`) and regenerated.
+  Acceptance: `git grep -E '/tmp/|/private/tmp|/var/folders'` returns
+  only the allow-listed policy documents; every rewritten `reverify`
+  command still runs; full gate green.
+  Verification: **52 files swept — Rule A 538 rewrites, Rule B/C 124.**
+        Residual boot-volume strings live ONLY in the allow-list, and
+        that boundary is deliberate, not laziness:
+        - **policy/ADR documents** (`0002`, `0030`, `0031`, this tree,
+          `docs/TASK_TREE.md`'s + `docs/decisions/INDEX.md`'s rows for
+          them, `MEMORY.md`) — *a doctrine cannot state what it forbids
+          without naming it*;
+        - **append-only history** (`CHANGES.md`,
+          `DEVELOPMENT_NOTES.md`) — `MEMORY_ARCHITECTURE.md` §3 says
+          layer-C/D records are appended and superseded, **never
+          silently rewritten**; retroactively editing what a past entry
+          said would corrupt the audit trail to satisfy a
+          presentation rule.
+        `KNOWLEDGE_MAP.md` is generated, so it was fixed at its sources
+        (`docs/knowledge/*.md`, `docs/decisions/*.md`) and regenerated —
+        83 facts / 822 keys.
+        **A first attempt was reverted.** A blanket sweep with no
+        allow-list rewrote decision `0030`'s own `reverify` from
+        `ls -d /tmp/anvil-*` to `ls -d anvil-*` — a meaningless command —
+        and mangled its question key *"why does a cited /tmp/anvil path
+        not exist"*. That is the hazard of a mechanical rewrite over
+        documents whose subject IS the string being rewritten. Reverted
+        via `git checkout` and redone with the allow-list above.
+        Rewritten `reverify` recipes were made self-sufficient
+        (`mkdir -p .cache/anvil-sandbox && …`) in 13 cards, and one was
+        **executed end-to-end** to prove the class still works:
+        `mux-if-emit` → 8 `__cv` blocks emitted, `iverilog -g2012`
+        clean, all writes on-volume.
+        Gate: `cargo check --all-targets`, `clippy -D warnings`,
+        `fmt --all --check`, `mdbook build book`, and
+        `cargo test --bin tool_matrix` 99/0 all green; full `cargo test`
+        under `ram_guard --threshold 90` → `CARGO_TEST_EXIT=0`
+        (lib 736/0/2ig, pipeline 125/0, **snapshots 6/6 byte-identical**,
+        book_examples 3/3).
+  Commit: `VOLUME-DATA-LOCALITY.5 — sweep every boot-volume path reference`
+
+- ID: `VOLUME-DATA-LOCALITY.5-ORIG`
+  Status: `superseded`
   Goal: docs + book sync — `USER_GUIDE.md` (the new env override and
         where sandboxes land), `TOOLBOX.md`, and the book chapters that
         mention sandbox paths (`book/src/api-tools.md` shows a
@@ -361,6 +431,7 @@ will remove that whole directory themselves later. It is therefore
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `VOLUME-DATA-LOCALITY.5` | 52 files / 662 rewrites (Rule A 538, Rule B/C 124); KM regenerated from sources (83 facts / 822 keys); 13 `reverify` recipes made self-sufficient and `mux-if-emit` executed end-to-end (8 `__cv`, iverilog clean, writes on-volume); allow-list = policy docs + append-only history (owner directive: no history rewrite) + GitHub-runner `$HOME` lines. First allow-list-free attempt broke `0030`'s own reverify → reverted via `git checkout`, redone. Gate: check/clippy(-D warnings)/fmt/mdbook/`--bin tool_matrix` 99/0 green; full `cargo test` under `ram_guard --threshold 90` `CARGO_TEST_EXIT=0` — lib 736/0, pipeline 125/0, **snapshots 6/6 byte-identical**, book_examples 3/3 | `done` — no live doc or code path points at the boot volume |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.3` | All 14 test-fixture sites rewired; `grep -rn "temp_dir()" src/ tests/` matches **only** `src/paths.rs`. Residue census **14 → 0** (per-user `TMPDIR` + `/private/tmp`, before vs after a full run). Clean full `cargo test` under `ram_guard --threshold 90` → `CARGO_TEST_EXIT=0`: lib 736/0 (2 ignored), pipeline 125/0, **snapshots 6/6 byte-identical**, book_examples 3/3. KM card `bisimulation-flop-merge` reverify re-run end-to-end: dump lands at `<repo>/.cache/anvil-sandbox/anvil-bisim-merged.sv`, clean under Verilator (`-Wall -Wno-DECLFILENAME`) + both Yosys modes + Icarus. First census attempt was `EXIT=101` from a self-inflicted mid-run `rm -rf` of the live sandbox root — root-caused, re-run clean, hazard recorded. | `done` — `cargo test` writes nothing off-volume |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.2` | 5 new `paths` unit tests green (incl. `sandbox_root_is_never_the_os_temp_dir`, which compares against `temp_dir()` itself — on macOS that is a per-user `/var/folders/…` path, so a `"/tmp"` grep would have missed it); real `validate(7)` with Verilator + Yosys → `sandbox = <repo>/.cache/anvil-sandbox/anvil-validate-d8420426e78b2d05`, `ok = true`, both tools `success = true`; `.cache/` gitignored ⇒ no `git status` pollution; `cargo check --all-targets` + `clippy -D warnings` + `fmt --check` + `mdbook build book` clean; full `cargo test` under `ram_guard --threshold 90` exit 0 with `tests/snapshots.rs` 6/6 byte-identical | `done` — the one production off-volume default is gone |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.1` | `df -h` on the repo vs `/private/tmp` → `/dev/disk5s1` vs `/dev/disk3s1s1` (off-volume confirmed); `grep -rn "temp_dir()" src/ tests/ scripts/` → 15 sites classified (a) 1 production, (b) 1 debug dump, (c) 14 test/workspace (this row said 13 when written; corrected in `.3` — the enumeration is 14, and 14 + 1 production = the 15 the grep reported), plus (d) non-violating parse literals; old-checkout inspection read-only (`git merge-base --is-ancestor ecda0e7 HEAD` → true; caches identical); `scripts/check_doctrines.sh` 4/4 PASS | `done` — tree registered; docs-only ⇒ DUT byte-identical |
@@ -372,6 +443,7 @@ will remove that whole directory themselves later. It is therefore
 | `VOLUME-DATA-LOCALITY.1` | `VOLUME-DATA-LOCALITY.1 — register + audit: off-volume project data` | docs-only |
 | `VOLUME-DATA-LOCALITY.2` | `VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp` | code + book/doc sync; moves where bytes land, never which bytes ⇒ DUT byte-identical |
 | `VOLUME-DATA-LOCALITY.3` | `VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver` | test-scope paths only ⇒ DUT byte-identical; residue census 14 → 0 |
+| `VOLUME-DATA-LOCALITY.5` | `VOLUME-DATA-LOCALITY.5 — sweep every boot-volume path reference` | prose + doc comments + test literals ⇒ DUT byte-identical; history deliberately NOT rewritten |
 
 ## Changelog
 

@@ -14,8 +14,8 @@ answers:
 date: 2026-06-16
 status: current
 tags: [sv-version, tool-matrix, coverage, downstream, verilator, language, acceptance, north-star]
-evidence: src/bin/tool_matrix.rs (ScenarioSet::SvVersionSweep, build_sv_version_sweep_scenarios, verilator_language_for, light_sv_version_acceptance, compute_coverage_gaps); src/downstream/mod.rs (run_verilator(_design) language selector); /tmp/anvil-sv-version-gate-r1/tool_matrix_report.json; docs/decisions/0009-sv-version-targeting.md
-reverify: cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out /tmp/anvil-sv-version-gate-check
+evidence: src/bin/tool_matrix.rs (ScenarioSet::SvVersionSweep, build_sv_version_sweep_scenarios, verilator_language_for, light_sv_version_acceptance, compute_coverage_gaps); src/downstream/mod.rs (run_verilator(_design) language selector); anvil-sv-version-gate-r1/tool_matrix_report.json; docs/decisions/0009-sv-version-targeting.md
+reverify: cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out anvil-sv-version-gate-check
 ---
 
 # `tool_matrix --sv-version-gate` (SV-VERSION-TARGETING.2b.2b)
@@ -54,7 +54,7 @@ tool standard mode**, not merely at the tool's default language.
 current subset is a 2012/2017/2023 common floor — so the gate's value is
 the per-version downstream acceptance axis, not output divergence (that
 arrives with the future up-opting leaf `.3`). Banked downstream-clean at
-`/tmp/anvil-sv-version-gate-r1` (9 scenarios, 18 units,
+`anvil-sv-version-gate-r1` (9 scenarios, 18 units,
 `coverage_gaps = []`, `18/0` Verilator + both Yosys modes; each
 scenario's Verilator argv carries the matching `--language 1800-20xx`).
 Default-off / byte-identical; nothing retired. See [[sv-version-targeting]]

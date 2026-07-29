@@ -95,7 +95,7 @@ fn injected_accept_reject_pair_classifies_accept_reject() {
         lane: "dut".to_string(),
         kind: "module".to_string(),
         top: "m".to_string(),
-        sandbox: "/tmp/anvil-divergence-e2e-synthetic".to_string(),
+        sandbox: "anvil-divergence-e2e-synthetic".to_string(),
         tools: vec![inv("verilator", true), inv("yosys-without-abc", false)],
         ok: false,
         declined: None,

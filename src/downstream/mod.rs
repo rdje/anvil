@@ -2146,7 +2146,7 @@ mod tests {
 
     #[test]
     fn yosys_mode_expands_to_expected_invocations() {
-        let path = Path::new("/tmp/example.sv");
+        let path = Path::new(".cache/anvil-sandbox/example.sv");
 
         let without = yosys_invocations(YosysMode::WithoutAbc, path);
         assert_eq!(without.len(), 1);
@@ -2169,12 +2169,17 @@ mod tests {
 
     #[test]
     fn hierarchy_yosys_mode_expands_to_expected_invocations() {
-        let paths = vec![PathBuf::from("/tmp/a.sv"), PathBuf::from("/tmp/b.sv")];
+        let paths = vec![
+            PathBuf::from(".cache/anvil-sandbox/a.sv"),
+            PathBuf::from(".cache/anvil-sandbox/b.sv"),
+        ];
 
         let without = yosys_design_invocations(YosysMode::WithoutAbc, &paths, "top_mod");
         assert_eq!(without.len(), 1);
         assert!(without[0].1.contains("read_verilog -sv"));
-        assert!(without[0].1.contains("\"/tmp/a.sv\" \"/tmp/b.sv\""));
+        assert!(without[0]
+            .1
+            .contains("\".cache/anvil-sandbox/a.sv\" \".cache/anvil-sandbox/b.sv\""));
         assert!(without[0]
             .1
             .contains("synth -top top_mod -noabc; stat; check"));
@@ -2188,8 +2193,8 @@ mod tests {
 
     #[test]
     fn iverilog_compile_invocations_use_sv2012_and_design_top() {
-        let out_dir = PathBuf::from("/tmp/anvil-iverilog-argv");
-        let sv_path = PathBuf::from("/tmp/anvil-iverilog-argv/mod.sv");
+        let out_dir = PathBuf::from("anvil-iverilog-argv");
+        let sv_path = PathBuf::from("anvil-iverilog-argv/mod.sv");
 
         let (module_argv, module_output) = iverilog_module_argv(&out_dir, &sv_path, "mod");
         assert_eq!(
@@ -2197,18 +2202,18 @@ mod tests {
             vec![
                 "-g2012",
                 "-o",
-                "/tmp/anvil-iverilog-argv/mod.iverilog.vvp",
-                "/tmp/anvil-iverilog-argv/mod.sv"
+                "anvil-iverilog-argv/mod.iverilog.vvp",
+                "anvil-iverilog-argv/mod.sv"
             ]
         );
         assert_eq!(
             module_output,
-            PathBuf::from("/tmp/anvil-iverilog-argv/mod.iverilog.vvp")
+            PathBuf::from("anvil-iverilog-argv/mod.iverilog.vvp")
         );
 
         let paths = vec![
-            PathBuf::from("/tmp/anvil-iverilog-argv/leaf.sv"),
-            PathBuf::from("/tmp/anvil-iverilog-argv/top.sv"),
+            PathBuf::from("anvil-iverilog-argv/leaf.sv"),
+            PathBuf::from("anvil-iverilog-argv/top.sv"),
         ];
         let (design_argv, design_output) = iverilog_design_argv(&out_dir, &paths, "top_mod");
         assert_eq!(
@@ -2218,22 +2223,27 @@ mod tests {
                 "-s",
                 "top_mod",
                 "-o",
-                "/tmp/anvil-iverilog-argv/top_mod.iverilog.vvp",
-                "/tmp/anvil-iverilog-argv/leaf.sv",
-                "/tmp/anvil-iverilog-argv/top.sv"
+                "anvil-iverilog-argv/top_mod.iverilog.vvp",
+                "anvil-iverilog-argv/leaf.sv",
+                "anvil-iverilog-argv/top.sv"
             ]
         );
         assert_eq!(
             design_output,
-            PathBuf::from("/tmp/anvil-iverilog-argv/top_mod.iverilog.vvp")
+            PathBuf::from("anvil-iverilog-argv/top_mod.iverilog.vvp")
         );
     }
 
     #[test]
     fn iverilog_compile_warning_detection_is_case_insensitive() {
         assert_eq!(
-            first_tool_warning("iverilog-compile", "", "/tmp/m.sv:2: warning: example").as_deref(),
-            Some("/tmp/m.sv:2: warning: example")
+            first_tool_warning(
+                "iverilog-compile",
+                "",
+                ".cache/anvil-sandbox/m.sv:2: warning: example"
+            )
+            .as_deref(),
+            Some(".cache/anvil-sandbox/m.sv:2: warning: example")
         );
         assert_eq!(
             first_tool_warning("iverilog-compile", "WARNING: noisy stdout", "").as_deref(),

@@ -530,7 +530,7 @@ sessions.
   block + opaque `Node::FsmOut` + encoding-derived emitter + opt-in
   `fsm_prob`; binary / one-hot / gray encodings; Moore outputs;
   verified downstream-clean on the same `Phase4Hierarchy` gate —
-  closing artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: 222
+  closing artifact `anvil-tool-matrix-phase6-fsm-p1`: 222
   scenarios / 888 designs, `coverage_gaps = []`, 888/0 Verilator
   + both Yosys, `saw_fsm_design = true`). Multi-clock CDC remains a
   separately-prioritised future option; every module is fully
@@ -618,7 +618,7 @@ sessions.
   Seed/Top/PackageConstants/TopParams/TopLocalparams/
   Instances/GenerateBranches. The local gate is clean
   across the same 5 reproducibility seeds; artifacts land
-  in `target/tmp/frontend-parity-signoff-verilator-json`.
+  in `target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`.
   `slang` is not required for this path and was not present
   in the local tool environment. The DUT lane stays
   byte-identical by construction (`frontend` is never

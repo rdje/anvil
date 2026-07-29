@@ -14,7 +14,7 @@ answers:
 date: 2026-06-21
 status: current
 tags: [tool-matrix, slang, downstream, adapter, registry, mcp, facts, ast-json, signoff]
-evidence: 'cargo test --test slang_e2e   (portable: slang is a public selectable, fact-bearing adapter — supports_facts=true; the real-tool gate is #[ignore], skips green when slang is absent). Also: cargo run --bin tool_matrix -- --out /tmp/x --skip-verilator --skip-yosys --slang  ⇒  exits 0 with "slang pass/fail = 0/0" and no slang invocations when slang is absent (the friendly no-op).'
+evidence: 'cargo test --test slang_e2e   (portable: slang is a public selectable, fact-bearing adapter — supports_facts=true; the real-tool gate is #[ignore], skips green when slang is absent). Also: cargo run --bin tool_matrix -- --out .cache/anvil-sandbox/x --skip-verilator --skip-yosys --slang  ⇒  exits 0 with "slang pass/fail = 0/0" and no slang invocations when slang is absent (the friendly no-op).'
 ---
 
 `DOWNSTREAM-ADAPTER-EXPANSION.2c` (decision `0020`) lands **`slang`** as the

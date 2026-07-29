@@ -1029,7 +1029,7 @@ mod tests {
     /// no-op; re-bank with
     ///   ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib \
     ///     sequential_dedup_merged_design_is_downstream_clean
-    /// then lint /tmp/anvil-seq-module-merged.sv with verilator --lint-only -Wall
+    /// then lint anvil-seq-module-merged.sv with verilator --lint-only -Wall
     /// + yosys (both modes) + iverilog -g2012.
     #[test]
     fn sequential_dedup_merged_design_is_downstream_clean() {
@@ -1045,7 +1045,7 @@ mod tests {
             .expect("merged sequential-equivalence design should validate");
         if std::env::var("ANVIL_DUMP_SEQ_MODULE_SV").is_ok() {
             std::fs::write(
-                "/tmp/anvil-seq-module-merged.sv",
+                "anvil-seq-module-merged.sv",
                 crate::emit::to_sv_design(&design),
             )
             .unwrap();

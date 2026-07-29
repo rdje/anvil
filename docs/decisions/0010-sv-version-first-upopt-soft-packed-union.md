@@ -17,7 +17,7 @@ date: 2026-06-16
 status: accepted
 tags: [capability, sv-version, up-opt, emission, downstream, soft-union, 2023, valid-by-construction, north-star]
 evidence: docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md; docs/tasks/SV-VERSION-TARGETING.md; docs/decisions/0009-sv-version-targeting.md; src/emit/sv.rs; src/ir/aggregate.rs; src/bin/tool_matrix.rs
-reverify: 'printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > /tmp/us.sv && verilator --lint-only --language 1800-2023 /tmp/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > /tmp/up.sv && (verilator --lint-only --language 1800-2012 /tmp/up.sv || echo hard-union-rejected-pre-2023)'
+reverify: 'mkdir -p .cache/anvil-sandbox && printf ''module v(input logic[7:0] a,input logic b,output logic[7:0] y);typedef union soft{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0^{7''"''"''b0,u.m1}^{7''"''"''b0,b};endmodule\n'' > .cache/anvil-sandbox/us.sv && verilator --lint-only --language 1800-2023 .cache/anvil-sandbox/us.sv && echo accepts-2023; printf ''module v(input logic[7:0] a,output logic[7:0] y);typedef union packed{logic[7:0] m0;logic m1;}u_t;u_t u;always_comb u=a;assign y=u.m0;endmodule\n'' > .cache/anvil-sandbox/up.sv && (verilator --lint-only --language 1800-2012 .cache/anvil-sandbox/up.sv || echo hard-union-rejected-pre-2023)'
 ---
 
 # 0010 - SV-VERSION-TARGETING: the first up-opted construct is a heterogeneous-width packed `union soft` (IEEE 1800-2023 §7.3.1)

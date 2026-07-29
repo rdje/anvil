@@ -541,22 +541,22 @@ harness path can be tracked separately. It also has an optional
 `--iverilog-compile` column that compiles each emitted artifact with
 Icarus Verilog (`iverilog -g2012`) and treats warnings as failures. The
 full current-code Phase 1 gate is now closed via
-`/tmp/anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
+`anvil-tool-matrix-phase1-real-r21/tool_matrix_report.json`
 (1005 modules, `coverage_gaps = []`, and 1005/0 pass-fail in
 Verilator plus both repo-owned Yosys modes). The explicit
 `--phase1-gate` mode turned the old roadmap arithmetic into a real
 repo-owned closure command. The dedicated Phase 2 sharing gate is now
-closed too via `/tmp/anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
+closed too via `anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
 (216 modules, `coverage_gaps = []`, and 216/0 pass-fail in Verilator
 plus both repo-owned Yosys modes), with a normalized `share_sweep`
 summary proving that `shared_node_fraction` rises monotonically across
 `share_prob = 0.0`, `0.3`, and `0.9`. The dedicated Phase 3
 structured-surface gate is now closed as well via
-`/tmp/anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
+`anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
 plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
 its latest full downstream-clean repo-owned gate via
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 (840 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
 840/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
@@ -715,37 +715,37 @@ registered parent-composed no-helper routing and recursive non-top
 multi-stage registered sibling no-helper routing through the same full
 downstream tool bank. The
 earlier coverage-only proofs at
-`/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
-`/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
 are now historical policy breadcrumbs.
 Earlier coverage-only probes at
-`/tmp/anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
-`/tmp/anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
-`/tmp/anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
+`anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
+`anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
+`anvil-tool-matrix-phase4-parent-port-coverage-r1/tool_matrix_report.json`,
 and
-`/tmp/anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-parent-cone-instance-r1/tool_matrix_report.json`
 and
-`/tmp/anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
 remain useful focused policy breadcrumbs, while the current full `r85`
 bank carries those facts through Verilator and both repo-owned Yosys
 modes. The old hierarchy smoke at
-`/tmp/anvil-hierarchy-smoke-r1`
+`anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
-ABC path. The focused clean proofs at `/tmp/anvil-hier-reuse-smoke-r1`,
-`/tmp/anvil-hier-under-smoke-r2`,
-`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-profiled-ondemand-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
-`/tmp/anvil-hier-parent-output-mix-smoke-r1/manifest.json`, and
-`/tmp/anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
+ABC path. The focused clean proofs at `anvil-hier-reuse-smoke-r1`,
+`anvil-hier-under-smoke-r2`,
+`anvil-hier-parent-compose-smoke-r1/manifest.json`,
+`anvil-hier-range-smoke-r1/manifest.json`, and
+`anvil-hier-depth-profile-smoke-r1/manifest.json`, and
+`anvil-hier-profiled-ondemand-smoke-r1/manifest.json`,
+`anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
+`anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+`anvil-hier-parent-output-mix-smoke-r1/manifest.json`, and
+`anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
 and
-`/tmp/anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
+`anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
 and
-`/tmp/anvil-parent-cone-instance-smoke-r1/manifest.json`, and
+`anvil-parent-cone-instance-smoke-r1/manifest.json`, and
 `cargo test hierarchy_sibling_routes_can_use_helper_instances`, and
 `cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`, and
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`, and

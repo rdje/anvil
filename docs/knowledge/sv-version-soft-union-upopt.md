@@ -21,8 +21,8 @@ answers:
 date: 2026-06-16
 status: current
 tags: [sv-version, up-opt, soft-union, 2023, emission, downstream, knob, slice, matrix-gate]
-evidence: src/ir/soft_union.rs; src/emit/sv.rs (soft_union_slice_overlay); src/config.rs (soft_union_slice_prob); src/gen/mod.rs (generate_module + generate_design rolls); src/bin/tool_matrix.rs (soft_union_upopt_config, scenario_emits_soft_union_overlay, ModuleReport.emitted_soft_union_overlay, saw_sv_version_2023_soft_union_upopt); tests/sv_version_downstream.rs; /tmp/anvil-sv-version-gate-upopt-r1/tool_matrix_report.json; docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md
-reverify: 'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\"/tmp/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config /tmp/su.json | tee /tmp/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 /tmp/su.sv && echo CLEAN'
+evidence: src/ir/soft_union.rs; src/emit/sv.rs (soft_union_slice_overlay); src/config.rs (soft_union_slice_prob); src/gen/mod.rs (generate_module + generate_design rolls); src/bin/tool_matrix.rs (soft_union_upopt_config, scenario_emits_soft_union_overlay, ModuleReport.emitted_soft_union_overlay, saw_sv_version_2023_soft_union_upopt); tests/sv_version_downstream.rs; anvil-sv-version-gate-upopt-r1/tool_matrix_report.json; docs/decisions/0010-sv-version-first-upopt-soft-packed-union.md
+reverify: 'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\".cache/anvil-sandbox/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config .cache/anvil-sandbox/su.json | tee .cache/anvil-sandbox/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 .cache/anvil-sandbox/su.sv && echo CLEAN'
 ---
 
 # `SV-VERSION-TARGETING.3b.2a` — the live `union soft` low-bits-slice up-opt
@@ -70,7 +70,7 @@ ANVIL's **first version-distinctive up-opt** ships as of `SV-VERSION-TARGETING.3
   (Yosys/Icarus recorded no-op); `ModuleReport.emitted_soft_union_overlay` (from the
   emitted SV text) lights the dedicated `saw_sv_version_2023_soft_union_upopt`
   coverage fact — Verilator-matching-mode acceptance only, never Yosys — enforced by
-  `compute_coverage_gaps`. Banked clean `/tmp/anvil-sv-version-gate-upopt-r1`
+  `compute_coverage_gaps`. Banked clean `anvil-sv-version-gate-upopt-r1`
   (10 scenarios / 20 units / `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both
   modes; the up-opt scenario is the Yosys no-op). This closes the
   `SV-VERSION-TARGETING` tree.

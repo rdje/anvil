@@ -251,7 +251,7 @@ built-in matrix is clean across Verilator, both repo-owned Yosys modes,
 and the opt-in Icarus compile column:
 `Verilator 17/0`, `Yosys without-abc 17/0`, `Yosys with-abc 17/0`,
 `Icarus compile 17/0`
-(`/tmp/anvil-signoff-surface-iverilog-r1/tool_matrix_report.json`).
+(`anvil-signoff-surface-iverilog-r1/tool_matrix_report.json`).
 
 The harness now has an explicit Yosys mode axis too:
 
@@ -319,7 +319,7 @@ designs. A previous small repo-owned `--yosys-mode both` probe was
 clean in both sub-modes: `without-abc = 15/15 pass`, `with-abc =
 15/15 pass`.
 A completed current-code `--phase1-gate --yosys-mode both` report now
-exists at `/tmp/anvil-tool-matrix-phase1-real-r21`. The final
+exists at `anvil-tool-matrix-phase1-real-r21`. The final
 `tool_matrix_report.json` records:
 
 - `15` scenarios
@@ -331,7 +331,7 @@ exists at `/tmp/anvil-tool-matrix-phase1-real-r21`. The final
 - `Yosys with-abc pass/fail = 1005/0`
 
 The completed current-code Phase 2 sharing report now also exists at
-`/tmp/anvil-tool-matrix-phase2-share-r1`. Its final
+`anvil-tool-matrix-phase2-share-r1`. Its final
 `tool_matrix_report.json` records:
 
 - `18` scenarios
@@ -347,7 +347,7 @@ The completed current-code Phase 2 sharing report now also exists at
   - `share_prob = 0.9`: `shared_node_fraction = 0.4386`
 
 The completed current-code Phase 3 structured-surface report now also
-exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
+exists at `anvil-tool-matrix-phase3-structured-r4`. Its final
 `tool_matrix_report.json` records:
 
 - `21` scenarios
@@ -359,7 +359,7 @@ exists at `/tmp/anvil-tool-matrix-phase3-structured-r4`. Its final
 - `Yosys with-abc pass/fail = 210/0`
 
 The completed current-code Phase 4 hierarchy report now also
-exists at `/tmp/anvil-tool-matrix-phase4-hierarchy-r87`. Its final
+exists at `anvil-tool-matrix-phase4-hierarchy-r87`. Its final
 `tool_matrix_report.json` records:
 
 - `210` scenarios
@@ -522,25 +522,25 @@ helper-backed parent outputs, unregistered helper child-input routing,
 stateful helper-through-flop child-input routing, and direct registered
 sibling mixed-support routing. The earlier
 coverage-only proofs at
-`/tmp/anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
-`/tmp/anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
 are superseded by the full downstream-clean `r87` bank.
 
-The clean pre-fix `/tmp/anvil-tool-matrix-phase4-hierarchy-r22` run is
+The clean pre-fix `anvil-tool-matrix-phase4-hierarchy-r22` run is
 kept only as root-cause evidence: the stale total-design budget let the
 42-scenario gate run `3` designs/scenario (`126` total). The live gate
 now uses a `4` designs/scenario floor directly, so future scenario-count
 growth cannot silently weaken the Phase 4 matrix. The focused clean
-smokes at `/tmp/anvil-hier-reuse-smoke-r1`,
-`/tmp/anvil-hier-under-smoke-r2`,
-`/tmp/anvil-hier-parent-compose-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-range-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-depth-profile-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-mixed-depth-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-parent-state-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-registered-sibling-smoke-r1/manifest.json`,
-`/tmp/anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
+smokes at `anvil-hier-reuse-smoke-r1`,
+`anvil-hier-under-smoke-r2`,
+`anvil-hier-parent-compose-smoke-r1/manifest.json`,
+`anvil-hier-range-smoke-r1/manifest.json`,
+`anvil-hier-depth-profile-smoke-r1/manifest.json`,
+`anvil-hier-mixed-depth-smoke-r1/manifest.json`,
+`anvil-hier-parent-state-smoke-r1/manifest.json`,
+`anvil-hier-registered-sibling-smoke-r1/manifest.json`,
+`anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
 `cargo test hierarchy_sibling_routes_can_use_helper_instances`, and
 `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
 still remain useful targeted proof points. The older `r21` report is
@@ -827,7 +827,7 @@ exercising adversarial axes that previously fired only by chance
   (`saw_memory_fsm_interplay_design`) — with clean Verilator + both
   Yosys modes. One focused scenario per knob across all three
   construction strategies. Banked clean at
-  `/tmp/anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules,
+  `anvil-signoff-knob-sweep-r1` (12 scenarios, 48 modules,
   `coverage_gaps = []`, `48/0` Verilator + both Yosys; closes ROADMAP
   steering gap 3's hidden-bias hole for these knobs).
 - `tool_matrix --sv-version-gate` runs the repo-owned per-version
@@ -852,7 +852,7 @@ exercising adversarial axes that previously fired only by chance
   `0010`) and the report requires the dedicated
   `saw_sv_version_2023_soft_union_upopt` fact. Uses the `Interleaved`
   strategy only (other gates own strategy breadth). Banked clean at
-  `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios, 20 units,
+  `anvil-sv-version-gate-upopt-r1` (10 scenarios, 20 units,
   `coverage_gaps = []`, Verilator `20/0`, Yosys `18/0` both modes — the
   up-opt scenario's two modules are the Yosys no-op).
 - `anvil --profile <name>` applies a curated knob preset before explicit
@@ -1130,7 +1130,7 @@ exercising adversarial axes that previously fired only by chance
   synthesizable function is accepted by every tool, so the gate runs the
   full Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is
   set) plan rather than Verilator-only. Banked clean at
-  `/tmp/anvil-function-emit-gate-r1` (3 scenarios, 12 modules, 608 emitted
+  `anvil-function-emit-gate-r1` (3 scenarios, 12 modules, 608 emitted
   functions, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Default `function_emit_prob = 0.0` emission stays
   byte-identical; the gate is the opt-in proof axis.
@@ -1149,7 +1149,7 @@ exercising adversarial axes that previously fired only by chance
   `union soft` up-opt), a `generate for` is universally synthesizable, so the
   gate runs the full Verilator + both Yosys modes (+ Icarus when
   `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-generate-loop-gate-r1` (3 scenarios, 12 modules, 8 emitting a
+  `anvil-generate-loop-gate-r1` (3 scenarios, 12 modules, 8 emitting a
   loop, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Default `generate_loop_emit_prob = 0.0` emission stays
   byte-identical; the gate is the opt-in proof axis.
@@ -1167,7 +1167,7 @@ exercising adversarial axes that previously fired only by chance
   `union soft` up-opt), a combinational `task` is universally synthesizable,
   so the gate runs the full Verilator + both Yosys modes (+ Icarus when
   `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-task-emit-gate-r1` (3 scenarios, 12 modules, 12 emitting a
+  `anvil-task-emit-gate-r1` (3 scenarios, 12 modules, 12 emitting a
   task, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Default `task_emit_prob = 0.0` emission stays byte-identical; the
   gate is the opt-in proof axis.
@@ -1186,7 +1186,7 @@ exercising adversarial axes that previously fired only by chance
   `union soft` up-opt), a cone function is universally synthesizable, so the
   gate runs the full Verilator + both Yosys modes (+ Icarus when
   `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-cone-function-gate-r1` (3 scenarios, 12 modules, 12 emitting a
+  `anvil-cone-function-gate-r1` (3 scenarios, 12 modules, 12 emitting a
   cone function / 148 cone functions, `coverage_gaps = []`, `12/0` Verilator +
   both Yosys + Icarus compile). Separate from `--function-emit-gate` (the
   single-gate surface); default `cone_function_emit_prob = 0.0` emission stays
@@ -1206,7 +1206,7 @@ exercising adversarial axes that previously fired only by chance
   (and unlike the `union soft` up-opt), a multi-output task is universally
   synthesizable, so the gate runs the full Verilator + both Yosys modes (+ Icarus
   when `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-multi-output-task-gate-r1` (3 scenarios, 12 modules, 6 emitting a
+  `anvil-multi-output-task-gate-r1` (3 scenarios, 12 modules, 6 emitting a
   multi-output task, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus
   compile). Separate from `--task-emit-gate` (the single-gate surface); default
   `multi_output_task_emit_prob = 0.0` emission stays byte-identical; the gate is
@@ -1226,7 +1226,7 @@ exercising adversarial axes that previously fired only by chance
   surfaces — accepted by Verilator **and** Yosys). Like a single-gate task (and unlike
   the `union soft` up-opt), a procedural `always_comb if/else` is universally
   synthesizable, so the gate runs the full Verilator + both Yosys modes (+ Icarus when
-  `--iverilog-compile` is set) plan. Banked clean at `/tmp/anvil-mux-if-gate-r1` (3
+  `--iverilog-compile` is set) plan. Banked clean at `anvil-mux-if-gate-r1` (3
   scenarios, 12 modules, 12 emitting a block / 215 blocks, `coverage_gaps = []`, `12/0`
   Verilator + both Yosys + Icarus compile). Separate from the per-gate/per-cone gates;
   default `mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the
@@ -1253,7 +1253,7 @@ exercising adversarial axes that previously fired only by chance
   single-gate task (and unlike the `union soft` up-opt), a procedural `always_comb
   if/else if` chain is universally synthesizable, so the gate runs the full Verilator +
   both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean at
-  `/tmp/anvil-case-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 83
+  `anvil-case-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 83
   chains, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile).
   Separate from the per-gate/per-cone gates and `--mux-if-gate`; default
   `case_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in
@@ -1278,7 +1278,7 @@ exercising adversarial axes that previously fired only by chance
   than a substring. Like a single-gate task (and unlike the `union soft` up-opt), a procedural
   `always_comb if/else if` chain is universally synthesizable, so the gate runs the full
   Verilator + both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. Banked clean
-  at `/tmp/anvil-casez-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 108
+  at `anvil-casez-mux-if-gate-r1` (3 scenarios, 12 modules, 12 emitting a chain / 108
   chains, `coverage_gaps = []`, `12/0` Verilator + both Yosys + Icarus compile). Separate from
   the per-gate/per-cone gates, `--mux-if-gate`, and `--case-mux-if-gate`; default
   `casez_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in proof
@@ -1431,7 +1431,7 @@ exercising adversarial axes that previously fired only by chance
   per-parent-depth branching summaries,
   `leaf_module_occurrences_by_depth` for mixed-depth trust. The
   latest repo-owned Phase 4 hierarchy matrix is banked downstream-clean at
-  `/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+  `anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
   for the wrapper, exact-depth recursive, mixed-depth recursive,
   explicit child-sourcing, exact profiled on-demand child synthesis,
   sibling-routed child-input binding, parent-composed child-input
@@ -1557,7 +1557,7 @@ exercising adversarial axes that previously fired only by chance
   Parameterization is also `done`** (2026-05-17): modules can carry a
   width `parameter` and be instantiated at multiple widths via
   `#(.W(v))`, rules-first and downstream-clean (closing artifact
-  `/tmp/anvil-tool-matrix-phase5-p1`: 213 scenarios / 852 designs,
+  `anvil-tool-matrix-phase5-p1`: 213 scenarios / 852 designs,
   `coverage_gaps = []`, 852/0 Verilator + both Yosys); parameter-aware
   child selection / parameter-driven parent generation are open-ended
   post-Phase-5 work (scope-cut, not a blocker). **Phase 5b —
@@ -1566,7 +1566,7 @@ exercising adversarial axes that previously fired only by chance
   same-direction data ports into one packed-`struct` emitter
   projection (flat IR / validators / dedup untouched; default-off
   byte-identical), closed against the `Phase4Hierarchy` matrix gate
-  (closing artifact `/tmp/anvil-tool-matrix-phase5b-p1`: 216 scenarios
+  (closing artifact `anvil-tool-matrix-phase5b-p1`: 216 scenarios
   / 864 designs, `coverage_gaps = []`, 864/0 Verilator + both Yosys,
   `saw_packed_aggregate_design = true`); `union`/`array` packing,
   parent-side aggregate connections and the param/aggregate
@@ -1578,14 +1578,14 @@ exercising adversarial axes that previously fired only by chance
   `Node::MemRead` leaf rendering the Yosys-`$mem_v2`-inferrable
   synchronous template behind the opt-in `memory_prob` (default-off
   byte-identical) — closed against
-  `/tmp/anvil-tool-matrix-phase6-p1` (219 scenarios / 876 designs,
+  `anvil-tool-matrix-phase6-p1` (219 scenarios / 876 designs,
   `coverage_gaps = []`, 876/0 Verilator + both Yosys,
   `saw_inferrable_memory_design = true`). The
   **generated-encoding FSM motif** (delivered 2026-05-20) — a
   first-class `Fsm` block + opaque `Node::FsmOut` + encoding-derived
   emitter (binary / one-hot / gray) behind the opt-in `fsm_prob`
   (default-off byte-identical), Moore outputs only — closed against
-  `/tmp/anvil-tool-matrix-phase6-fsm-p1` (222 scenarios / 888
+  `anvil-tool-matrix-phase6-fsm-p1` (222 scenarios / 888
   designs, `coverage_gaps = []`, 888/0 Verilator + both Yosys,
   `saw_fsm_design = true` **and** `saw_inferrable_memory_design =
   true`, with Phase 4/5/5b regressions still proven in the same
@@ -1608,7 +1608,7 @@ exercising adversarial axes that previously fired only by chance
   (`ToolReport`/`Divergence`/`FactCategory`/`ParityScope`/
   `compare_manifest_to_tool_report_in_scope`) reports exact
   agreement or retains a counterexample per axis. Closing
-  artifact `/tmp/anvil-microdesign-parity-phase7-yosys-p1/`
+  artifact `anvil-microdesign-parity-phase7-yosys-p1/`
   (5 reproducibility-set seeds × {`.sv`, `.json`, `.yosys.json`};
   `parity gate clean across 5 seeds`); the closing run found and
   fixed an ANVIL-self-consistency bug in `width_expr` (oracle
@@ -1640,7 +1640,7 @@ exercising adversarial axes that previously fired only by chance
   `ParityScope`/`compare_manifest_to_tool_report_in_scope`)
   + yosys-specific extractor + `parity_against_real_yosys_hierarchy_write_json`
   end-to-end gate close Phase 8. Closing artifact
-  `/tmp/anvil-frontend-parity-phase8-yosys-p1/` (5
+  `anvil-frontend-parity-phase8-yosys-p1/` (5
   reproducibility-set seeds × {`.sv`, `.json`,
   `.yosys.json`}; "parity gate clean across 5 seeds"); per-
   seed fact agreement verified including the
@@ -1659,7 +1659,7 @@ exercising adversarial axes that previously fired only by chance
   enforces all 7 Phase-8 manifest categories, and is
   verified clean across the same 5 reproducibility seeds
   with artifacts in
-  `target/tmp/frontend-parity-signoff-verilator-json`.
+  `target.cache/anvil-sandbox/frontend-parity-signoff-verilator-json`.
   `slang` is not required and was not present in the
   local tool environment. ANVIL now ships **three**
   complementary lanes: the DUT lane

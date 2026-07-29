@@ -47,7 +47,7 @@ to any reset-defined memory-state sharing ANVIL can prove.
   Status: `done`
   Goal: `Design the reset-defined memory proof boundary.`
   Acceptance: `The task tree and design notes record whether ANVIL can add a synthesizable reset-defined memory template suitable for sharing, plus the next executable implementation leaf or a blocker.`
-  Verification: `current memory template audit; /tmp/anvil-reset-mem-probe.sv Verilator/Yosys reset-all probe; memory/knowledge-map checks`
+  Verification: `current memory template audit; anvil-reset-mem-probe.sv Verilator/Yosys reset-all probe; memory/knowledge-map checks`
   Commit: `f962e6e`
 
 - ID: `MEMORY-STATE-IDENTITY.2`

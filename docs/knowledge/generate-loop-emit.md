@@ -19,8 +19,8 @@ answers:
 date: 2026-06-17
 status: current
 tags: [structured-emission, generate, genvar, emission, knob, downstream, valid-by-construction, rules-first, matrix-gate, introspection]
-evidence: src/ir/generate_loop.rs (annotate_generate_loop_gates); src/config.rs (generate_loop_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the function_emit pass); src/emit/sv.rs (generate_loop_gate, render_generate_loop_block, the generate-block section + assign-loop suppression); src/metrics.rs (num_emitted_generate_loops); src/bin/tool_matrix.rs (--generate-loop-gate, ScenarioSet::GenerateLoopSweep, ModuleReport.emitted_generate_loop, saw_generate_loop_emit); book/src/structured-emission.md; docs/decisions/0013-structured-emission-second-surface-generate-loop.md; docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md (the .8b wider-lane part-select broadening); /tmp/anvil-generate-loop-gate-r1/tool_matrix_report.json
-reverify: 'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"generate_loop_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"min_width\":4,\"max_width\":8,\"min_inputs\":3,\"max_inputs\":5,\"min_outputs\":1,\"max_outputs\":2,\"max_depth\":3});json.dump(c,open(\"/tmp/gl.json\",\"w\"))" && cargo run --quiet -- --seed 12 --config /tmp/gl.json | tee /tmp/gl.sv | grep -c "generate" && verilator --lint-only /tmp/gl.sv && echo CLEAN'
+evidence: src/ir/generate_loop.rs (annotate_generate_loop_gates); src/config.rs (generate_loop_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the function_emit pass); src/emit/sv.rs (generate_loop_gate, render_generate_loop_block, the generate-block section + assign-loop suppression); src/metrics.rs (num_emitted_generate_loops); src/bin/tool_matrix.rs (--generate-loop-gate, ScenarioSet::GenerateLoopSweep, ModuleReport.emitted_generate_loop, saw_generate_loop_emit); book/src/structured-emission.md; docs/decisions/0013-structured-emission-second-surface-generate-loop.md; docs/decisions/0015-structured-emission-fourth-surface-wide-lane-generate-loop.md (the .8b wider-lane part-select broadening); anvil-generate-loop-gate-r1/tool_matrix_report.json
+reverify: 'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"generate_loop_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"min_width\":4,\"max_width\":8,\"min_inputs\":3,\"max_inputs\":5,\"min_outputs\":1,\"max_outputs\":2,\"max_depth\":3});json.dump(c,open(\".cache/anvil-sandbox/gl.json\",\"w\"))" && cargo run --quiet -- --seed 12 --config .cache/anvil-sandbox/gl.json | tee .cache/anvil-sandbox/gl.sv | grep -c "generate" && verilator --lint-only .cache/anvil-sandbox/gl.sv && echo CLEAN'
 ---
 
 # `STRUCTURED-EMISSION-EXPANSION.4b`/`.8b` — the `generate for` loop emit-projection
@@ -76,7 +76,7 @@ loop instead of an inline `assign <wire> = {N{x}};`.
   for` is universally synthesizable like a function, so — unlike the
   Verilator-only `union soft` up-opt — the gate runs the full tool plan:
   Verilator + both Yosys modes + Icarus). Banked clean
-  `/tmp/anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a
+  `anvil-generate-loop-gate-r1` (3 scenarios / 12 modules / 8 emitting a
   loop / `coverage_gaps = []` / `12/0` Verilator + both Yosys + Icarus compile).
 
 See [[structured-emission-second-surface-generate-loop]] for the decision (why a

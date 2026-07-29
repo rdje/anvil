@@ -19,8 +19,8 @@ answers:
 date: 2026-06-16
 status: current
 tags: [structured-emission, function, emission, knob, downstream, valid-by-construction, rules-first, matrix-gate, introspection]
-evidence: src/ir/function_emit.rs (annotate_function_emit_gates); src/config.rs (function_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the soft_union pass); src/emit/sv.rs (function_emit_gate, render_gate_function_decl, render_gate_function_body, render_gate_function_call); src/metrics.rs (num_emitted_combinational_functions); src/bin/tool_matrix.rs (--function-emit-gate, ScenarioSet::FunctionEmitSweep, ModuleReport.emitted_combinational_function, saw_combinational_function_emit); book/src/structured-emission.md; docs/decisions/0012-structured-emission-first-surface-combinational-function.md; /tmp/anvil-function-emit-gate-r1/tool_matrix_report.json
-reverify: 'cargo run --quiet -- --seed 1 --dump-config > /tmp/c.json && python3 -c "import json;c=json.load(open(\"/tmp/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\"/tmp/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config /tmp/fe.json | tee /tmp/fe.sv | grep -c "function automatic" && verilator --lint-only /tmp/fe.sv && echo CLEAN'
+evidence: src/ir/function_emit.rs (annotate_function_emit_gates); src/config.rs (function_emit_prob); src/gen/mod.rs (generate_module + generate_design rolls, after the soft_union pass); src/emit/sv.rs (function_emit_gate, render_gate_function_decl, render_gate_function_body, render_gate_function_call); src/metrics.rs (num_emitted_combinational_functions); src/bin/tool_matrix.rs (--function-emit-gate, ScenarioSet::FunctionEmitSweep, ModuleReport.emitted_combinational_function, saw_combinational_function_emit); book/src/structured-emission.md; docs/decisions/0012-structured-emission-first-surface-combinational-function.md; anvil-function-emit-gate-r1/tool_matrix_report.json
+reverify: 'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\".cache/anvil-sandbox/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config .cache/anvil-sandbox/fe.json | tee .cache/anvil-sandbox/fe.sv | grep -c "function automatic" && verilator --lint-only .cache/anvil-sandbox/fe.sv && echo CLEAN'
 ---
 
 # `STRUCTURED-EMISSION-EXPANSION.2b` — the combinational `function automatic` emit-projection
@@ -75,7 +75,7 @@ direct operands instead of an inline `assign`.
   Verilator **and** a clean Yosys (a synthesizable function is universally
   accepted, so — unlike the Verilator-only `union soft` up-opt — the gate
   runs the full tool plan: Verilator + both Yosys modes + Icarus). Banked
-  clean `/tmp/anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608
+  clean `anvil-function-emit-gate-r1` (3 scenarios / 12 modules / 608
   emitted functions / `coverage_gaps = []` / `12/0` Verilator + both Yosys +
   Icarus compile).
 

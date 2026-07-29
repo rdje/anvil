@@ -172,7 +172,7 @@ Source: read-only audit of `src/config.rs`, `src/gen/hierarchy.rs`,
 `src/bin/tool_matrix.rs` (`CoverageSummary` + `summarize_design_coverage`
 + `compute_coverage_gaps`), `README.md` lines ~800-836, `ROADMAP.md`
 Phase 4 (~254-485), cross-referenced against the banked r87 report
-`/tmp/anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
+`anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 (210 scenarios, 840 designs, `coverage_gaps = []`, 840/0
 Verilator + Yosys-no-abc + Yosys-with-abc).
 

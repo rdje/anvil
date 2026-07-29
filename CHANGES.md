@@ -1,6 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — VOLUME-DATA-LOCALITY.5 — sweep every boot-volume path reference
+
+**Landed as:** this commit (previous: `ef7e5a8`, `VOLUME-DATA-LOCALITY.3`).
+Paths in prose, doc comments, and test string literals only ⇒ **DUT byte-identical**,
+`tests/snapshots.rs` untouched.
+
+**What.** Swept **52 files / 662 rewrites** so no live document or code path points at the boot
+volume, under three rules:
+
+- **Rule A (538)** — dead evidence-bank citations `/tmp/anvil-<name>` → bare `anvil-<name>`. Those
+  banks no longer exist (that is the finding `EVIDENCE-BANK-DURABILITY` was opened for), so the
+  prefix was never load-bearing: the *name* identifies the run, and decision `0030` makes the
+  re-runnable command the real citation.
+- **Rule B (124)** — live scratch paths in runnable recipes (`/tmp/c.json`, `/tmp/fe.sv`, …, mostly
+  Knowledge-Map `reverify` one-liners) → `.cache/anvil-sandbox/…`, so they stay runnable *and* write
+  on-volume. This was the only class that actually **stored** anything on the boot volume.
+- **Rule C** — CLI-*parse* string literals (`/tmp/x`). Never written to disk, but still references,
+  so they moved too. This **supersedes** the `.1` audit's class (d), which had recorded them as
+  "leave alone" — right under §13, wrong under the stricter directive.
+
+`KNOWLEDGE_MAP.md` is generated, so it was fixed at its sources (`docs/knowledge/*.md`,
+`docs/decisions/*.md`) and regenerated (83 facts / 822 keys). Thirteen `reverify` recipes were made
+self-sufficient with a leading `mkdir -p .cache/anvil-sandbox`.
+
+**What was deliberately NOT swept, and why.** Two categories keep their `/tmp` strings:
+
+1. **Policy documents** — `0002`, `0030`, this record's `0031`, the two owning task trees, and their
+   index rows. *A doctrine cannot state what it forbids without naming it.*
+2. **Append-only history** — `CHANGES.md` and `DEVELOPMENT_NOTES.md`, whose ~566 pre-0031 references
+   stay exactly as written. Confirmed by explicit owner directive: *"NO, no history rewrite, no at
+   all. Keep it raw, keep honest, so that people can follow the whole history if they want to."*
+   `MEMORY_ARCHITECTURE.md` says these layers are appended and superseded, **never silently
+   rewritten**. A swept history is a *dishonest* history: someone auditing why the evidence banks
+   evaporated must be able to read the entries that cited `/tmp` and see the mistake as it was
+   actually made. Decision `0031` now records this as a permanent hard limit, alongside the rule
+   that **git history itself is never rewritten** (no rebase, no amend of landed commits, no
+   force-push) — verified this session: the reflog shows only `commit:` entries.
+
+**A reverted first attempt, recorded because the hazard is general.** A blanket sweep with no
+allow-list rewrote decision `0030`'s own `reverify` from `ls -d /tmp/anvil-*` to `ls -d anvil-*` — a
+meaningless command — and mangled its question key *"why does a cited /tmp/anvil path not exist"*.
+Mechanically rewriting a document whose **subject** is the string being rewritten destroys it. The
+attempt was reverted with `git checkout` and redone with the allow-list above.
+
+**Validation.** `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`,
+`cargo fmt --all --check`, `mdbook build book`, and `cargo test --bin tool_matrix` **99/0** all
+green; full `cargo test` under `scripts/ram_guard.sh --threshold 90` recorded in the tree's
+Verification Log. One rewritten recipe was **executed end-to-end** to prove the class still works:
+the `mux-if-emit` card emitted 8 `__cv` blocks and passed `iverilog -g2012`, writing only on-volume.
+
+**Also settled here (owner arbitration, no repo change).** Shared stores are **used, never
+duplicated**: `~/.cargo` (845 M) and `~/.rustup` (2.1 G) stay in place with `CARGO_HOME` /
+`RUSTUP_HOME` at their defaults. `VOLUME-DATA-LOCALITY.6` — which would have copied them onto the
+SSD — is recorded `withdrawn`, and the 3 GB of copies made while the question was open were
+deleted. Net effect on the repository: none. Forking a shared cache would cost the disk twice and
+create a second source of truth that drifts from what every other project uses.
+
+**Impact.** No generator change; no phase labels moved. Frontier → `.7` (the doctrine check).
+
+**Files touched.** 52 swept files (README, ROADMAP, USER_GUIDE, CODEBASE_ANALYSIS, TOOLBOX,
+`book/src/*`, `docs/tasks/*`, `docs/knowledge/*`, `docs/decisions/*`, `src/*`, `tests/*`,
+`knowledge-map/scripts/*`), plus `docs/decisions/0031-ssd-volume-exclusivity.md`,
+`docs/tasks/VOLUME-DATA-LOCALITY.md`, `KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver
 
 **Landed as:** this commit (previous: `7518179`, `VOLUME-DATA-LOCALITY.2`).

@@ -1052,7 +1052,7 @@ mod tests {
             lane: "dut".to_string(),
             kind: "module".to_string(),
             top: "mod_x".to_string(),
-            sandbox: "/tmp/anvil-validate-deadbeef".to_string(),
+            sandbox: "anvil-validate-deadbeef".to_string(),
             tools: vec![], // validate-clean: no rejecting tool to replay
             ok: true,
             declined: None,

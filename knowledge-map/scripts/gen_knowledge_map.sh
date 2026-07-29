@@ -10,7 +10,7 @@
 # Usage:
 #   gen_knowledge_map.sh                  # write the map to the configured output path
 #   gen_knowledge_map.sh --print-map-path # print the resolved output path, then exit
-#   KM_OUTPUT=/tmp/x gen_knowledge_map.sh # override the output path (env wins)
+#   KM_OUTPUT=.cache/anvil-sandbox/x gen_knowledge_map.sh # override the output path (env wins)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

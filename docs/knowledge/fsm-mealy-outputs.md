@@ -18,7 +18,7 @@ date: 2026-06-22
 status: current
 tags: [fsm, mealy, moore, sequential, knob, emission, downstream, valid-by-construction, rules-first, matrix-gate, introspection]
 evidence: src/config.rs (fsm_mealy_prob + --fsm-mealy-prob + config_category "fsm"); src/gen/module.rs (build_fsm_block rolls mealy_outputs); src/ir/types.rs (Fsm.mealy_outputs + is_mealy); src/ir/validate.rs (mealy_outputs shape/mask check); src/ir/compact.rs (Mealy FSMs excluded from merge_equivalent_fsms); src/emit/sv.rs (nested case(state)->case(sel) Mealy output decode); src/metrics.rs (num_mealy_fsm_modules); src/bin/tool_matrix.rs (phase6_mealy_fsm scenario, saw_mealy_fsm_design, --phase4-hierarchy-gate); book/src/sequential.md "FSM outputs: Moore vs Mealy"; docs/decisions/0024-mealy-fsm-outputs.md
-reverify: 'cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee /tmp/mealy.sv | grep -c "case (sel" && verilator --lint-only /tmp/mealy.sv && echo CLEAN'
+reverify: 'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee .cache/anvil-sandbox/mealy.sv | grep -c "case (sel" && verilator --lint-only .cache/anvil-sandbox/mealy.sv && echo CLEAN'
 ---
 
 # `CAPABILITY-BREADTH-EXPANSION.2b` — the Mealy FSM output extension

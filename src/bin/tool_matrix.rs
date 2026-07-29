@@ -3646,7 +3646,7 @@ fn build_function_emit_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> 
 /// emitter renders each as a `function automatic`. node-id + e-graph keeps
 /// the cone shapes canonical. Downstream-clean across Verilator + both
 /// Yosys modes + Icarus (the live surface was banked clean at
-/// `/tmp/anvil-fe-r2/`).
+/// `anvil-fe-r2/`).
 fn function_emit_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
     Config {
         seed,
@@ -3718,7 +3718,7 @@ fn build_generate_loop_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> 
 /// shuffled/sequential seeds, and with 4 modules/scenario × 3 strategies the
 /// `saw_generate_loop_emit` fact lights robustly. Downstream-clean across
 /// Verilator + both Yosys modes + Icarus (the live surface was banked clean
-/// at `/tmp/anvil-gl-r1/`).
+/// at `anvil-gl-r1/`).
 fn generate_loop_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
     Config {
         seed,
@@ -3787,7 +3787,7 @@ fn build_task_emit_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
 /// pass marks every qualifying gate and the emitter renders each as a
 /// `task automatic` + `always_comb` call + passthrough `assign`. Downstream-clean
 /// across Verilator + both Yosys modes + Icarus (the live surface was banked
-/// clean at `/tmp/anvil-te-r1/`).
+/// clean at `anvil-te-r1/`).
 fn task_emit_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
     Config {
         seed,
@@ -3860,7 +3860,7 @@ fn build_cone_function_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> 
 /// more CSE-induced sharing (multi-use interiors that stay boundary params), so
 /// the lower reuse keeps single-use interior gates plentiful and the surface
 /// reliably fires. Downstream-clean across Verilator + both Yosys modes + Icarus
-/// (the live surface was banked clean at `/tmp/anvil-cf-sweep/`).
+/// (the live surface was banked clean at `anvil-cf-sweep/`).
 fn cone_function_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
     Config {
         seed,
@@ -3928,7 +3928,7 @@ fn build_multi_output_task_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenari
 /// (`0.6`, so gates reuse shared input terminals → co-support) and a **shallow**
 /// `max_depth` (`2`, keeping siblings fan-in-independent) with `min_outputs >= 2`.
 /// Downstream-clean across Verilator + both Yosys modes + Icarus (the live surface
-/// was banked clean at `/tmp/anvil-mo-sweep/`).
+/// was banked clean at `anvil-mo-sweep/`).
 fn multi_output_task_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
     Config {
         seed,
@@ -3995,7 +3995,7 @@ fn build_mux_if_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
 /// path (`comb_mux_encoding_prob = 1.0`), which builds plain `Mux` gates — the
 /// one-hot path instead emits `AND`/`OR` and would yield no `Mux`. Downstream-clean
 /// across Verilator + both Yosys modes + Icarus (the live surface was banked clean
-/// at `/tmp/anvil-muxif-genproof.*`).
+/// at `anvil-muxif-genproof.*`).
 fn mux_if_focus_config(strategy: ConstructionStrategy, seed: u64) -> Config {
     Config {
         seed,
@@ -10304,13 +10304,14 @@ mod tests {
     #[test]
     fn signoff_knob_sweep_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.signoff_knob_sweep_gate);
         let with_flag = Cli::try_parse_from([
             "tool_matrix",
             "--signoff-knob-sweep-gate",
             "--out",
-            "/tmp/x",
+            ".cache/anvil-sandbox/x",
         ])
         .expect("parse");
         assert!(with_flag.signoff_knob_sweep_gate);
@@ -10423,11 +10424,16 @@ mod tests {
     #[test]
     fn function_emit_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.function_emit_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--function-emit-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--function-emit-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.function_emit_gate);
     }
 
@@ -10512,11 +10518,16 @@ mod tests {
     #[test]
     fn generate_loop_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.generate_loop_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--generate-loop-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--generate-loop-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.generate_loop_gate);
     }
 
@@ -10609,10 +10620,16 @@ mod tests {
     #[test]
     fn task_emit_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.task_emit_gate);
-        let with_flag = Cli::try_parse_from(["tool_matrix", "--task-emit-gate", "--out", "/tmp/x"])
-            .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--task-emit-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.task_emit_gate);
     }
 
@@ -10703,11 +10720,16 @@ mod tests {
     #[test]
     fn cone_function_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.cone_function_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--cone-function-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--cone-function-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.cone_function_gate);
     }
 
@@ -10799,11 +10821,16 @@ mod tests {
     #[test]
     fn multi_output_task_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.multi_output_task_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--multi-output-task-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--multi-output-task-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.multi_output_task_gate);
     }
 
@@ -10896,10 +10923,16 @@ mod tests {
     #[test]
     fn mux_if_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.mux_if_gate);
-        let with_flag = Cli::try_parse_from(["tool_matrix", "--mux-if-gate", "--out", "/tmp/x"])
-            .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--mux-if-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.mux_if_gate);
     }
 
@@ -10992,11 +11025,16 @@ mod tests {
     #[test]
     fn case_mux_if_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.case_mux_if_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--case-mux-if-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--case-mux-if-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.case_mux_if_gate);
     }
 
@@ -11094,11 +11132,16 @@ mod tests {
     #[test]
     fn casez_mux_if_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.casez_mux_if_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--casez-mux-if-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--casez-mux-if-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.casez_mux_if_gate);
     }
 
@@ -11199,11 +11242,16 @@ mod tests {
     #[test]
     fn sv_version_gate_flag_defaults_false_and_parses() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.sv_version_gate);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--sv-version-gate", "--out", "/tmp/x"])
-                .expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--sv-version-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.sv_version_gate);
     }
 
@@ -12184,7 +12232,8 @@ mod tests {
     fn iverilog_compile_cli_flag_defaults_to_false_and_parses_when_set() {
         use clap::Parser;
 
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.iverilog_compile);
         assert_eq!(no_flag.iverilog_bin, "iverilog");
 
@@ -12194,7 +12243,7 @@ mod tests {
             "--iverilog-bin",
             "/opt/homebrew/bin/iverilog",
             "--out",
-            "/tmp/x",
+            ".cache/anvil-sandbox/x",
         ])
         .expect("parse");
         assert!(with_flag.iverilog_compile);
@@ -12209,7 +12258,8 @@ mod tests {
     fn sv2v_cli_flag_defaults_to_false_and_parses_when_set() {
         use clap::Parser;
 
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.sv2v);
         assert_eq!(no_flag.sv2v_bin, "sv2v");
 
@@ -12219,7 +12269,7 @@ mod tests {
             "--sv2v-bin",
             "/opt/homebrew/bin/sv2v",
             "--out",
-            "/tmp/x",
+            ".cache/anvil-sandbox/x",
         ])
         .expect("parse");
         assert!(with_flag.sv2v);
@@ -12234,7 +12284,8 @@ mod tests {
     fn slang_cli_flag_defaults_to_false_and_parses_when_set() {
         use clap::Parser;
 
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.slang);
         assert_eq!(no_flag.slang_bin, "slang");
 
@@ -12244,7 +12295,7 @@ mod tests {
             "--slang-bin",
             "/opt/homebrew/bin/slang",
             "--out",
-            "/tmp/x",
+            ".cache/anvil-sandbox/x",
         ])
         .expect("parse");
         assert!(with_flag.slang);
@@ -12838,10 +12889,16 @@ mod tests {
     #[test]
     fn diff_sim_cli_flag_defaults_to_false_and_parses_when_set() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.diff_sim);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--diff-sim", "--out", "/tmp/x"]).expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--diff-sim",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.diff_sim);
     }
 
@@ -13041,10 +13098,16 @@ mod tests {
     #[test]
     fn divergence_cli_flag_defaults_to_false_and_parses_when_set() {
         use clap::Parser;
-        let no_flag = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(!no_flag.divergence);
-        let with_flag =
-            Cli::try_parse_from(["tool_matrix", "--divergence", "--out", "/tmp/x"]).expect("parse");
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--divergence",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         assert!(with_flag.divergence);
     }
 
@@ -13079,7 +13142,8 @@ mod tests {
         let yosys = vec![divergence_test_inv("yosys-without-abc", false, Some(1))];
 
         // Column off ⇒ no report at all (default-off / byte-identical).
-        let off = Cli::try_parse_from(["tool_matrix", "--out", "/tmp/x"]).expect("parse");
+        let off =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
         assert!(unit_divergence(
             &off,
             &scenario_dir,
@@ -13095,8 +13159,13 @@ mod tests {
 
         // Column on ⇒ the tools the matrix already ran are projected and the
         // accept-vs-reject disagreement is classified — no extra tool spawned.
-        let on =
-            Cli::try_parse_from(["tool_matrix", "--divergence", "--out", "/tmp/x"]).expect("parse");
+        let on = Cli::try_parse_from([
+            "tool_matrix",
+            "--divergence",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
         let report = unit_divergence(
             &on,
             &scenario_dir,
@@ -13179,7 +13248,7 @@ mod tests {
             lane: "dut".to_string(),
             kind: "module".to_string(),
             top: "mod_0".to_string(),
-            sandbox: "/tmp/s".to_string(),
+            sandbox: ".cache/anvil-sandbox/s".to_string(),
             verdicts: vec![],
             diverged: false,
             divergences: vec![],
@@ -13193,7 +13262,7 @@ mod tests {
             lane: "dut".to_string(),
             kind: "module".to_string(),
             top: "mod_1".to_string(),
-            sandbox: "/tmp/s".to_string(),
+            sandbox: ".cache/anvil-sandbox/s".to_string(),
             verdicts: vec![],
             diverged: true,
             divergences: vec![divergence::Divergence {

@@ -469,7 +469,7 @@ instead of creating fresh logic.
   `0010`) and lights the dedicated `saw_sv_version_2023_soft_union_upopt`
   fact, which requires only matching-mode Verilator acceptance of a
   *genuinely emitted* overlay. Banked clean at
-  `/tmp/anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
+  `anvil-sv-version-gate-upopt-r1` (10 scenarios / 20 units /
   `coverage_gaps = []` / Verilator 20/0 / Yosys 18/0 both modes — the
   up-opt scenario's two modules are the Yosys no-op).
 
@@ -1420,7 +1420,7 @@ for cross-simulator trace agreement.
   mutually exclusive with the param/memory lanes; default-off is
   byte-identical. **Delivered (Phase 6, 2026-05-20)**, proven
   downstream-clean against the banked `Phase4Hierarchy` gate
-  (closing artifact `/tmp/anvil-tool-matrix-phase6-fsm-p1`: 222
+  (closing artifact `anvil-tool-matrix-phase6-fsm-p1`: 222
   scenarios / 888 designs, `coverage_gaps = []`, 888/0 Verilator +
   both Yosys, `saw_fsm_design = true`). **This closes Phase 6
   (advanced motifs).** The FSM output is **Moore** by default (it
