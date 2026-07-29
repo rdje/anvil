@@ -31,6 +31,10 @@
 - [Signal Sharing: Trees Become DAGs](sharing.md)
 - [Hierarchy: Modules of Modules](hierarchy.md)
 
+# Artifact Lanes
+
+- [The Microdesign Lane: Oracle-Backed Const-Expr Artifacts](microdesign-lane.md)
+
 # Reference
 
 - [Knobs and Reproducibility](knobs.md)

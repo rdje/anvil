@@ -112,15 +112,33 @@ behavior, so the chapters describe corrected reality.
   Commit: `BOOK-LANE-COVERAGE.1 — register: mdBook lane-chapter gap (PGEN report)`
 
 - ID: `BOOK-LANE-COVERAGE.2`
-  Status: `pending`
+  Status: `done`
   Goal: the microdesign-lane chapter (`book/src/microdesign-lane.md`) +
         the new "Artifact Lanes" `SUMMARY.md` part. Grounded in
         `src/microdesign/mod.rs`, `src/umbrella/mod.rs`,
         `USER_GUIDE.md`, and real seed-7 output captured this session.
   Acceptance: chapter per the criteria above; `mdbook build book` clean;
         `cargo test --test book_examples` green.
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `book/src/microdesign-lane.md` added + a new
+        "Artifact Lanes" `SUMMARY.md` part (between Motif Catalogue and
+        Reference) carrying the microdesign row only — the frontend row
+        is deliberately deferred to `.3`, because an `SUMMARY.md` entry
+        for a not-yet-written file makes mdBook generate an empty stub
+        chapter. Every pasted artifact is REAL captured output (seed 7,
+        `--lane-n-params 5`): the SV, the manifest fields, and the
+        `--out` filenames (`mc_7.sv`/`mc_7.json`, post-`LANE-OUT-FILENAME.1`).
+        Claims cross-checked against source: the `(((P4 % 8) + 8) % 8 + 1)`
+        width idiom vs SV's sign-of-dividend `%` (`P4 = -1`); the
+        `const_exprs` width rule (`bits_for` clamps negatives ⇒ width 1);
+        and the parity-proof description against the real test names in
+        `tests/microdesign_parity.rs` (agreement + per-category
+        perturbation tests + the `#[ignore]`
+        `parity_against_real_yosys_write_json` + the
+        `yosys_scope_ignores_localparams_and_package_constants` scope
+        pin). `mdbook build book` exit 0; `cargo test --test
+        book_examples` 3/3 green (the harness EXECUTES both new bash
+        blocks; `ran >= 40` assertion still satisfied).
+  Commit: `BOOK-LANE-COVERAGE.2 — book: the microdesign artifact-lane chapter`
 
 - ID: `BOOK-LANE-COVERAGE.3`
   Status: `pending`
@@ -137,8 +155,7 @@ behavior, so the chapters describe corrected reality.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-LANE-COVERAGE.2` | `pending` | Microdesign is the simpler lane (single module, no hierarchy); its chapter establishes the shared structure `.3` extends. The `LANE-OUT-FILENAME` fix lands between `.1` and `.2` so both chapters document corrected `--out` behavior. |
-| 2 | `BOOK-LANE-COVERAGE.3` | `pending` | The frontend chapter builds on `.2`'s structure (the lane reuses the microdesign expression layer). |
+| 1 | `BOOK-LANE-COVERAGE.3` | `pending` | The frontend chapter mirrors `.2`'s structure (the lane reuses the microdesign expression layer). It also adds the deferred `SUMMARY.md` frontend row and turns `.2`'s plain-text mention of the frontend lane into a link. Draft ready at `.cache/scratch/session-0cda78e8/frontend-lane.md`. |
 
 ## Decisions
 
@@ -165,6 +182,7 @@ behavior, so the chapters describe corrected reality.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `BOOK-LANE-COVERAGE.2` | `mdbook build book` exit 0; `cargo test --test book_examples` 3/3 (both new bash blocks executed by the harness, not merely rendered); every pasted SV/manifest/filename is real captured seed-7 output; `%`-semantics, `const_exprs` width rule, and parity-test names cross-checked against `src/`+`tests/` | `done` — microdesign chapter live; frontend row deferred to `.3` to avoid an mdBook stub |
 | `2026-07-29` | `BOOK-LANE-COVERAGE.1` | Book-coverage audit greps (`grep -rln "microdesign\|frontend" book/src/*.md` → mentions only in introduction/faq/agent-mcp/api-* chapters; no lane chapter files exist); both lanes run live this session (seed 7 microdesign, seed 0 frontend) to ground the chapters; KM regenerated with `pgen-first-contact-parser-gap`; `scripts/check_doctrines.sh` 4/4 PASS | `done` — tree registered; docs-only ⇒ DUT byte-identical |
 
 ## Commit Log
@@ -172,6 +190,7 @@ behavior, so the chapters describe corrected reality.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `BOOK-LANE-COVERAGE.1` | `BOOK-LANE-COVERAGE.1 — register: mdBook lane-chapter gap (PGEN report)` | docs-only |
+| `BOOK-LANE-COVERAGE.2` | `BOOK-LANE-COVERAGE.2 — book: the microdesign artifact-lane chapter` | book-only ⇒ DUT byte-identical |
 
 ## Changelog
 

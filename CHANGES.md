@@ -1,6 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — BOOK-LANE-COVERAGE.2 — book: the microdesign artifact-lane chapter
+
+**Landed as:** this commit (previous: `a4c9f9e`, `LANE-OUT-FILENAME.1`).
+**Book/docs-only** (no `src/`) ⇒ **DUT byte-identical**.
+
+**What.** Added `book/src/microdesign-lane.md` and a new **"Artifact Lanes"** part in
+`book/src/SUMMARY.md` (between *Motif Catalogue* and *Reference* — the lanes are user-facing
+artifact families with their own design story, not DUT motifs and not pure reference). The chapter
+covers: why the lane exists (the DUT lane proves *acceptance*, a one-bit answer; this lane proves
+*correct resolution* against an oracle), a real generated artifact, the expected-facts manifest
+field-by-field, `--out` behaviour, the reproducibility contract, how the lane is kept honest, and
+the MCP route. The frontend `SUMMARY.md` row is deliberately **not** added here — an entry for a
+not-yet-written file makes mdBook generate an empty stub chapter — so `.2`'s closing paragraph
+mentions the frontend lane in plain text and `.3` converts it to a link.
+
+**Why.** `BOOK-LANE-COVERAGE.1` registered the owner-relayed PGEN report: two of three artifact
+lanes had no book chapter, and the book is the owner's review surface.
+
+**Validation.** Every pasted artifact is **real captured output**, not illustrative: the seed-7
+SV, the manifest values, and the `--out` filenames (`mc_7.sv`/`mc_7.json`, post-`LANE-OUT-FILENAME.1`).
+Load-bearing claims were cross-checked against source rather than asserted: the
+`(((P4 % 8) + 8) % 8 + 1)` width idiom against SystemVerilog's sign-of-dividend `%` (`P4 = -1`, so
+the doubled modulo is what normalizes into `0..7`); the `const_exprs` width rule against
+`bits_for` (negatives clamp ⇒ width `1`, matching the emitted `{"value": -1, "width": 1}`); and the
+"kept honest" section against the actual test names in `tests/microdesign_parity.rs` (agreement on
+the oracle-derived synthetic report, a **per-category perturbation test** for each fact class — the
+real proof, since agreement alone is vacuous if the comparator cannot fail — the `#[ignore]`
+`parity_against_real_yosys_write_json`, and `yosys_scope_ignores_localparams_and_package_constants`
+pinning the tool-scope gap explicitly). Gates: `mdbook build book` exit 0; `cargo test --test
+book_examples` **3/3** — the harness *executes* both new bash blocks in a temp CWD, so the chapter's
+commands are proven runnable, not merely rendered.
+
+**Impact.** One of the two missing lane chapters is live. No generator change; no phase labels
+moved. Frontier → `.3` (frontend chapter + the deferred `SUMMARY.md` row + cross-links).
+
+**Files touched.** `book/src/microdesign-lane.md` (new), `book/src/SUMMARY.md`,
+`docs/tasks/BOOK-LANE-COVERAGE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — LANE-OUT-FILENAME.1 — `--out` filenames from builder truth, not SV re-parse
 
 **Landed as:** this commit (previous: `5223452`, `BOOK-LANE-COVERAGE.1`).
