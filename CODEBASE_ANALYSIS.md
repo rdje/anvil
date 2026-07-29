@@ -408,6 +408,19 @@ src/
 │                     --profile -> explicit -> seed -> validate) used by
 │                     the CLI (and the MCP surface in .2b.2). New
 │                     ConfigError::UnknownProfile.
+│                     EMIT-SURFACE-INTERACTION-GATE.2 (decision 0032):
+│                     two pub consts STRUCTURED_EMISSION_MAX_PROB (0.25)
+│                     + STRUCTURED_EMISSION_MAX_SELECTOR_PROB (0.35), and
+│                     the `structured-emission-max` preset re-pointed at
+│                     them — it now sets all EIGHT non-version-gated
+│                     *_emit_prob knobs (was 4) plus comb/case/casez_mux_
+│                     prob. NOT 1.0: the projections are mutually
+│                     exclusive and run in a fixed order, so at 1.0 the
+│                     first pass claims every gate and five surfaces emit
+│                     nothing. New anti-drift test derives the required
+│                     knob set from knob_catalog()'s structured_emission
+│                     group minus the version-gated soft_union_slice_prob,
+│                     so a tenth surface cannot silently omit itself.
 │                     COVERAGE-STEERED-GENERATION.2a (decision 0023):
 │                     SteeringConfig type (per_knob/per_category
 │                     BTreeMaps of emphasis weights + weight()/

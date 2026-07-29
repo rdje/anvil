@@ -1090,8 +1090,13 @@ a rich shape in one word:
 - `deep-hierarchy` — bounded recursive hierarchy (depth 2..=3, 2..=3
   children/parent) with sibling routing, parent-composed child-input cones,
   and parent-local flops.
-- `structured-emission-max` — all four emit-projections on (mutually
-  exclusive per gate, so all-on is safe and behaviour-preserving).
+- `structured-emission-max` — maximum structured-surface **diversity**: all
+  eight non-version-gated emit-projections at `0.25`, plus `comb_mux_prob` /
+  `case_mux_prob` / `casez_mux_prob` raised to `0.35` so the three procedural
+  surfaces have candidate gates. One module typically carries all eight
+  shapes at once. Deliberately **not** every knob at `1.0` — see
+  ["Combining the surfaces"](structured-emission.md#combining-the-surfaces)
+  for why that emits *fewer* shapes, not more.
 - `sv2023-upopts` — `--sv-version 2023` + the `union soft` low-bits-slice
   up-opt.
 

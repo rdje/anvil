@@ -121,7 +121,7 @@ them live simultaneously.
         surfaces and emits **one**.
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.2`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: make `--profile structured-emission-max` set every non-version-gated
         surface **at `0.25`** (decision `0032` (e) — all-at-`1.0` is measured to emit
         one surface), raise the three selector-shape knobs so the procedural surfaces
@@ -134,6 +134,23 @@ them live simultaneously.
   Acceptance: preset ↔ knob-list test green; `--dump-config --profile
         structured-emission-max` shows all eight; a single module under the preset
         carries ≥ 2 distinct emitted surfaces; default path byte-identical.
+  Delivered: two `pub const`s in `src/config.rs` —
+        `STRUCTURED_EMISSION_MAX_PROB = 0.25` and
+        `STRUCTURED_EMISSION_MAX_SELECTOR_PROB = 0.35` — with the preset re-pointed
+        at them (eight `*_emit_prob` + `comb_mux_prob`/`case_mux_prob`/
+        `casez_mux_prob`), a rewritten description that says *why not `1.0`*, and
+        the anti-drift test
+        `structured_emission_max_preset_covers_every_non_version_gated_surface`,
+        which derives the required knob set from `knob_catalog()`'s
+        `structured_emission` group minus the version-gated
+        `soft_union_slice_prob` — so a tenth surface joins by construction or the
+        test fails. Measured: the preset emits **8/8** surfaces on seeds 1–5 (was
+        1/8), and a 12-module corpus is clean on all four tool columns with
+        **every** module carrying all eight. Docs corrected in `README.md`,
+        `USER_GUIDE.md`, `book/src/knobs.md`, the new
+        `book/src/structured-emission.md` "Combining the surfaces" section (three
+        runnable examples), and the `knob-presets-and-cli-flags` KM card + its
+        `reverify` line.
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.3`
   Status: `pending`
@@ -163,9 +180,9 @@ them live simultaneously.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.2` | `pending` | **Current frontier.** Cheap, self-contained, and makes the preset honest independently of the gate — and decision `0032` (e) pins exactly what it must set. |
-| 2 | `.3` | `pending` | The gate + the digest. Uses the same `0.25` config the preset adopts, so the gate is literally a proof of the preset. |
-| 3 | `.4` | `pending` | The absorption-census hardening. Byte-identical today; ordered last because it is a latent-trap fix, not a blocker for `.2`/`.3`. |
+| 1 | `.3` | `pending` | **Current frontier.** The gate + the digest. It reuses the same `0.25` configuration `.2` just shipped, so the gate is literally a proof of the preset. |
+| 2 | `.4` | `pending` | The absorption-census hardening. Byte-identical today; ordered after the gate because it is a latent-trap fix, not a blocker. |
+| — | `.2` | `done` | Preset honest: 8/8 surfaces emitted (was 1/8), anti-drift test derived from the knob catalog, docs + book corrected. |
 | — | `.1` | `done` | Design ADR landed as decision `0032`. |
 
 ## Decisions
@@ -218,12 +235,22 @@ them live simultaneously.
 | `2026-07-30` | `.1` | Nine surfaces under `--sv-version 2023 --soft-union-slice-prob 1.0`, 8 modules | Verilator-clean under `--language 1800-2023`; 8/8 genuinely emit `union soft`; 6/8 also carry all eight other surfaces |
 | `2026-07-30` | `.1` | Negative control: the same shape with **all** surfaces off, `-Wall` | 23/24 fail `UNUSEDSIGNAL` — the `-Wall` failures were a shape artifact, not surface stacking; the repo's bar is bare `--lint-only` (`src/downstream/mod.rs:154`) |
 | `2026-07-30` | `.1` | `--memory-prob 1.0 --cone-function-emit-prob 1.0`, 40 modules | no undeclared-identifier failure — the `compute_use_counts` gap is unreachable today because `build_memory_leaf` / `build_fsm_block` construct gate-free modules; recorded as `.4` |
+| `2026-07-30` | `.2` | `cargo test --lib config::` | 36/36 pass, including the new drift gate |
+| `2026-07-30` | `.2` | **Negative control 1** — delete `mux_if_emit_prob` from the preset | drift gate FAILS with an actionable message naming the omitted surface; restored |
+| `2026-07-30` | `.2` | **Negative control 2** — set `task_emit_prob` to `1.0` instead of the shared value | drift gate FAILS (`must use the shared intermediate probability`); restored |
+| `2026-07-30` | `.2` | `anvil --seed {1..5} --profile structured-emission-max --introspect` | **8/8 surfaces live on every seed** (was 1/8 before this leaf) |
+| `2026-07-30` | `.2` | 12-module preset corpus, seed 42, all four tool columns | 12/12 clean on Verilator `--lint-only`, Yosys without-abc, Yosys with-abc, `iverilog -g2012`; **zero** warnings; all 12 modules carry all 8 surfaces |
+| `2026-07-30` | `.2` | The book's new sv2023 example (`--profile structured-emission-max --sv-version 2023 --soft-union-slice-prob 1.0`, 4 modules) | exit 0; 4/4 Verilator-clean under `--language 1800-2023`; 4/4 genuinely emit `union soft` |
+| `2026-07-30` | `.2` | `mdbook build book` + `cargo test --test book_examples` | exit 0; 3/3 harness tests pass, covering the three new runnable examples |
+| `2026-07-30` | `.2` | `cargo test` (full suite, under `scripts/ram_guard.sh --threshold 90`) | green — `tests/snapshots.rs` byte-identical (default path untouched) |
+| `2026-07-30` | `.2` | `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check` | clean |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.1` | `EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination` | Docs-only design leaf; delivers `docs/decisions/0032-emit-surface-interaction-gate.md` and opens `.4` |
+| `.1` | `EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination` (`7664761`) | Docs-only design leaf; delivers `docs/decisions/0032-emit-surface-interaction-gate.md` and opens `.4` |
+| `.2` | `EMIT-SURFACE-INTERACTION-GATE.2 — structured-emission-max emits 8 surfaces, not 1` | Preset + anti-drift test + docs/book; default path byte-identical |
 
 ## Changelog
 

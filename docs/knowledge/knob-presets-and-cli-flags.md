@@ -18,7 +18,7 @@ answers:
 date: 2026-06-18
 status: current
 tags: [knobs, presets, profile, cli, mcp, api, catalog, usability]
-reverify: "anvil --profile structured-emission-max --dump-config  (function/generate-loop/task/cone-function emit knobs all 1.0; --profile nope errors listing the 4 names; explicit --function-emit-prob 0.25 overrides the preset)"
+reverify: "anvil --profile structured-emission-max --dump-config  (all EIGHT non-version-gated *_emit_prob knobs = 0.25 and comb/case/casez_mux_prob = 0.35, NOT 1.0 — decision 0032; --profile nope errors listing the 4 names; explicit --function-emit-prob 1.0 overrides the preset)"
 ---
 
 `KNOB-ERGONOMICS-AND-PRESETS.2b.1` (decision
@@ -38,9 +38,22 @@ plus the four on-only `SetTrue` toggles `--hierarchy-module-dedup`,
 
 **`--profile <name>` applies a curated bundle of knob overrides:**
 `arithmetic-heavy` (datapath bias), `deep-hierarchy` (bounded recursive hierarchy
-with sibling routing + parent-local flops), `structured-emission-max` (all four
-emit-projections on), and `sv2023-upopts` (`--sv-version 2023` + the `union soft`
-up-opt).
+with sibling routing + parent-local flops), `structured-emission-max` (all
+**eight** non-version-gated emit-projections at `0.25` + the three selector knobs
+at `0.35`), and `sv2023-upopts` (`--sv-version 2023` + the `union soft` up-opt).
+
+**`structured-emission-max` means maximal surface *diversity*, not every knob at
+`1.0`** (`EMIT-SURFACE-INTERACTION-GATE.2`, decision
+[`0032`](../decisions/0032-emit-surface-interaction-gate.md)). The nine
+emit-projections are mutually exclusive per gate and run in a fixed order, so
+under saturation **probability is priority, not intensity**: at `1.0`
+`function_emit` runs second and claims every admissible gate, and the later
+passes emit nothing. Measured — the pre-`0032` preset set four surfaces to `1.0`
+and emitted **one** (796 combinational functions, everything else exactly `0`).
+At `0.25` a single module carries all eight surfaces, downstream-clean across
+Verilator + both Yosys modes + Icarus. A tenth surface joins at the same shared
+value; a `structured_emission`-group drift test in `src/config.rs` fails if it
+does not.
 
 **Resolution order** (lowest → highest precedence): `Config::default()` →
 `--config <json>` → `--profile <name>` → explicit CLI flags → `--seed`. So an

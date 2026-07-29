@@ -2116,6 +2116,37 @@ pub struct Preset {
     pub overrides: Overrides,
 }
 
+/// The shared probability every non-version-gated emit-projection gets under the
+/// `structured-emission-max` preset (`EMIT-SURFACE-INTERACTION-GATE.2`, decision
+/// `0032` — `docs/decisions/0032-emit-surface-interaction-gate.md`, relative to
+/// the repository root).
+///
+/// **Why an intermediate value and not `1.0`.** The nine emit-projections are
+/// mutually exclusive on a gate and run in a fixed order, so under saturation
+/// *probability is priority, not intensity*: at `1.0`, `function_emit` (second in
+/// the chain) claims every admissible gate — a superset of `generate_loop`'s
+/// `{N{x}}` `Concat`s, `task_emit`'s candidates, `multi_output_task`'s members,
+/// `cone_function`'s roots and interiors, and `mux_if`'s 2:1 `Mux`es — and each
+/// later pass correctly finds nothing left. Measured: the pre-`0032` preset set
+/// four surfaces to `1.0` and emitted **one**; all eight at `1.0` emits **three**.
+///
+/// `0.25` is calibrated by **max-min**: it maximises the *least-represented*
+/// surface's emitted count (mean per-seed minimum across the eight surfaces over
+/// seeds 1–5 is `73.8`, versus `51.4` / `70.2` / `37.0` at `0.15` / `0.35` /
+/// `0.50`). At this value a single module typically carries all eight surfaces at
+/// once, downstream-clean across Verilator + both Yosys modes + Icarus.
+///
+/// A tenth surface joins at this same shared value; the max-min is then
+/// recalibrated. It must never be appended at `1.0`.
+pub const STRUCTURED_EMISSION_MAX_PROB: f64 = 0.25;
+
+/// The shared selector-block probability the `structured-emission-max` preset
+/// applies to `comb_mux_prob` / `case_mux_prob` / `casez_mux_prob` so the three
+/// procedural surfaces (`mux_if` / `case_mux_if` / `casez_mux_if`) have candidate
+/// gates to project. At the defaults (`0.1` / `0.05` / `0.05`) they would fire
+/// only by chance.
+pub const STRUCTURED_EMISSION_MAX_SELECTOR_PROB: f64 = 0.35;
+
 /// The curated preset registry (the single source of truth). Deterministic; no
 /// randomness. Each preset only sets **existing** knobs — it introduces no new
 /// generator behaviour — so a preset is an opt-in re-shaping, and *not* selecting
@@ -2154,15 +2185,32 @@ pub fn presets() -> Vec<Preset> {
         },
         Preset {
             name: "structured-emission-max",
-            description: "Turn on every richer-structured emit-projection \
-                          (function / generate-loop / task / cone-function); they \
-                          are mutually exclusive per gate, so all-on is safe and \
-                          behaviour-preserving.",
+            description: "Maximum structured-surface DIVERSITY: all eight \
+                          non-version-gated emit-projections at 0.25, plus the \
+                          three selector knobs raised so the procedural surfaces \
+                          have candidates. One module typically carries all eight \
+                          shapes at once. NOT 1.0-everything — the projections are \
+                          mutually exclusive and run in a fixed order, so at 1.0 \
+                          the first pass claims every gate and five surfaces emit \
+                          nothing (decision 0032).",
             overrides: Overrides {
-                function_emit_prob: Some(1.0),
-                generate_loop_emit_prob: Some(1.0),
-                task_emit_prob: Some(1.0),
-                cone_function_emit_prob: Some(1.0),
+                function_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                generate_loop_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                task_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                multi_output_task_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                cone_function_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                mux_if_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                case_mux_if_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                casez_mux_if_emit_prob: Some(STRUCTURED_EMISSION_MAX_PROB),
+                // Shape, not projection: the three procedural surfaces project a
+                // `Mux` / `CaseMux` / `CasezMux`, so at the default selector
+                // probabilities (0.1 / 0.05 / 0.05) they have almost no candidates
+                // and the preset's own surfaces would starve. Raising these is the
+                // `deep-hierarchy` precedent — a preset may set structural knobs to
+                // make its own surfaces reachable.
+                comb_mux_prob: Some(STRUCTURED_EMISSION_MAX_SELECTOR_PROB),
+                case_mux_prob: Some(STRUCTURED_EMISSION_MAX_SELECTOR_PROB),
+                casez_mux_prob: Some(STRUCTURED_EMISSION_MAX_SELECTOR_PROB),
                 ..Default::default()
             },
         },
@@ -2477,8 +2525,9 @@ mod tests {
         );
     }
 
-    /// A preset re-shapes the config: `structured-emission-max` turns on all four
-    /// emit-projection knobs.
+    /// A preset re-shapes the config: `structured-emission-max` turns on all
+    /// eight non-version-gated emit-projection knobs, at the shared
+    /// intermediate probability (decision `0032`).
     #[test]
     fn resolve_config_applies_a_preset() {
         let cfg = resolve_config(
@@ -2488,19 +2537,97 @@ mod tests {
             0,
         )
         .unwrap();
-        assert_eq!(cfg.function_emit_prob, 1.0);
-        assert_eq!(cfg.generate_loop_emit_prob, 1.0);
-        assert_eq!(cfg.task_emit_prob, 1.0);
-        assert_eq!(cfg.cone_function_emit_prob, 1.0);
+        let p = STRUCTURED_EMISSION_MAX_PROB;
+        assert_eq!(cfg.function_emit_prob, p);
+        assert_eq!(cfg.generate_loop_emit_prob, p);
+        assert_eq!(cfg.task_emit_prob, p);
+        assert_eq!(cfg.multi_output_task_emit_prob, p);
+        assert_eq!(cfg.cone_function_emit_prob, p);
+        assert_eq!(cfg.mux_if_emit_prob, p);
+        assert_eq!(cfg.case_mux_if_emit_prob, p);
+        assert_eq!(cfg.casez_mux_if_emit_prob, p);
+        // The selector knobs are raised so the three procedural surfaces have
+        // candidates; the version-gated `soft_union_slice_prob` stays out
+        // (owned by `sv2023-upopts`).
+        let s = STRUCTURED_EMISSION_MAX_SELECTOR_PROB;
+        assert_eq!(cfg.comb_mux_prob, s);
+        assert_eq!(cfg.case_mux_prob, s);
+        assert_eq!(cfg.casez_mux_prob, s);
+        assert_eq!(cfg.soft_union_slice_prob, 0.0);
+    }
+
+    /// The **anti-drift gate** for `structured-emission-max` (decision `0032`):
+    /// the preset must set *every* knob the knob catalog classifies as
+    /// `structured_emission`, minus the version-gated `soft_union_slice_prob`,
+    /// and set them all to the same shared probability.
+    ///
+    /// Derived from the catalog rather than a hardcoded list, so a **tenth**
+    /// surface — which lands in the group automatically by virtue of its
+    /// `*_emit_prob` name — cannot silently omit itself from the preset. That is
+    /// exactly how surfaces 6–9 went missing before `0032`.
+    #[test]
+    fn structured_emission_max_preset_covers_every_non_version_gated_surface() {
+        let group: std::collections::BTreeSet<String> = knob_catalog()
+            .iter()
+            .filter(|k| k.group == "structured_emission")
+            .map(|k| k.name.clone())
+            .collect();
+        // Sanity: the group is the nine surfaces, not an empty or renamed set.
+        assert!(
+            group.contains("soft_union_slice_prob"),
+            "the version-gated surface must be in the group: {group:?}"
+        );
+        assert!(
+            group.len() >= 9,
+            "expected at least the nine known surfaces, got {}: {group:?}",
+            group.len()
+        );
+
+        let expected: std::collections::BTreeSet<String> = group
+            .iter()
+            .filter(|n| n.as_str() != "soft_union_slice_prob")
+            .cloned()
+            .collect();
+
+        let preset = presets()
+            .into_iter()
+            .find(|p| p.name == "structured-emission-max")
+            .expect("structured-emission-max present");
+        let set: serde_json::Map<String, serde_json::Value> =
+            match serde_json::to_value(&preset.overrides).unwrap() {
+                serde_json::Value::Object(m) => m,
+                _ => panic!("Overrides is not a JSON object"),
+            };
+        let covered: std::collections::BTreeSet<String> = set
+            .iter()
+            .filter(|(k, v)| !v.is_null() && expected.contains(k.as_str()))
+            .map(|(k, _)| k.clone())
+            .collect();
+
+        let missing: Vec<&String> = expected.difference(&covered).collect();
+        assert!(
+            missing.is_empty(),
+            "structured-emission-max omits emit surfaces {missing:?} — a new \
+             surface must join the preset at STRUCTURED_EMISSION_MAX_PROB \
+             (decision 0032); appending it at 1.0 would starve its neighbours"
+        );
+
+        for name in &expected {
+            assert_eq!(
+                set[name].as_f64(),
+                Some(STRUCTURED_EMISSION_MAX_PROB),
+                "{name} must use the shared intermediate probability"
+            );
+        }
     }
 
     /// Explicit per-knob overrides beat the preset (the `Option`-by-field
-    /// discipline): the preset sets `function_emit_prob = 1.0`, an explicit
-    /// override forces it back to `0.25`.
+    /// discipline): the preset sets every emit knob to the shared probability, an
+    /// explicit override forces one of them to `1.0`.
     #[test]
     fn resolve_config_explicit_override_beats_preset() {
         let overrides = Overrides {
-            function_emit_prob: Some(0.25),
+            function_emit_prob: Some(1.0),
             ..Default::default()
         };
         let cfg = resolve_config(
@@ -2510,9 +2637,9 @@ mod tests {
             0,
         )
         .unwrap();
-        assert_eq!(cfg.function_emit_prob, 0.25);
+        assert_eq!(cfg.function_emit_prob, 1.0);
         // a knob the override did NOT touch keeps the preset value
-        assert_eq!(cfg.task_emit_prob, 1.0);
+        assert_eq!(cfg.task_emit_prob, STRUCTURED_EMISSION_MAX_PROB);
     }
 
     /// An unknown profile name is a clean error that lists the valid names.
@@ -2593,7 +2720,7 @@ mod tests {
             .find(|p| p["name"] == "structured-emission-max")
             .expect("structured-emission-max present");
         let ovr = sem["overrides"].as_object().expect("overrides object");
-        assert_eq!(ovr["function_emit_prob"], 1.0);
+        assert_eq!(ovr["function_emit_prob"], STRUCTURED_EMISSION_MAX_PROB);
         // unset knobs are filtered, not serialized as null
         assert!(!ovr.contains_key("seed"));
         assert!(!ovr.contains_key("flop_prob"));

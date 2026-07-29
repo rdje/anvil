@@ -360,9 +360,26 @@ shape without hand-authoring config JSON. The four curated presets:
 - `deep-hierarchy` — bounded recursive hierarchy (depth 2..=3, 2..=3
   children per parent) with sibling routing, parent-composed child-input
   cones, and parent-local flops.
-- `structured-emission-max` — turns on all four emit-projections
-  (function / generate-loop / task / cone-function); they are mutually
-  exclusive per gate, so all-on is safe and behaviour-preserving.
+- `structured-emission-max` — maximum structured-surface **diversity**: all
+  eight non-version-gated emit-projections (function / generate-loop / task /
+  multi-output-task / cone-function / mux-if / case-mux-if / casez-mux-if) at
+  `0.25`, plus `comb_mux_prob` / `case_mux_prob` / `casez_mux_prob` raised to
+  `0.35` so the three procedural surfaces have candidate gates. A single module
+  typically carries **all eight shapes at once**.
+
+  It is deliberately **not** every knob at `1.0`. The projections are mutually
+  exclusive per gate and run in a fixed order, so at `1.0` the first pass
+  (`function_emit`) claims every gate the later passes' candidate sets overlap
+  and five surfaces emit nothing — measured, the pre-`0032` preset set four
+  surfaces to `1.0` and emitted **one**. Under mutual exclusion, probability is
+  *priority*, not intensity. `0.25` is calibrated to maximise the
+  least-represented surface (decision
+  [`0032`](docs/decisions/0032-emit-surface-interaction-gate.md)).
+
+  ```bash
+  # 12 modules, each carrying all eight structured surfaces
+  anvil --seed 42 --count 12 --profile structured-emission-max --out ./sem
+  ```
 - `sv2023-upopts` — `--sv-version 2023` + the `union soft` low-bits-slice
   up-opt (Verilator `--language 1800-2023` accepts it; Yosys/Icarus no-op).
 

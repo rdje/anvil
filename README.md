@@ -872,7 +872,11 @@ exercising adversarial axes that previously fired only by chance
   flags (`KNOB-ERGONOMICS-AND-PRESETS.2b.1`, decision `0021`):
   `arithmetic-heavy` (datapath bias), `deep-hierarchy` (bounded recursive
   hierarchy with sibling routing + parent-local flops),
-  `structured-emission-max` (all four emit-projections on), and
+  `structured-emission-max` (all **eight** non-version-gated emit-projections at
+  `0.25` + the three selector knobs raised, so one module carries all eight
+  structured shapes at once — deliberately *not* every knob at `1.0`, which
+  under the projections' mutual exclusion would let the first pass claim every
+  gate and leave five surfaces emitting nothing; decision `0032`), and
   `sv2023-upopts` (`--sv-version 2023` + the `union soft` up-opt). The
   resolution order is `default → --config → --profile → explicit flags →
   --seed`, so an explicit knob always **overrides** the preset; an unknown

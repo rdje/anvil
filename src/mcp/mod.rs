@@ -2136,7 +2136,10 @@ mod tests {
             .iter()
             .find(|p| p["name"] == "structured-emission-max")
             .unwrap();
-        assert_eq!(sem["overrides"]["function_emit_prob"], 1.0);
+        assert_eq!(
+            sem["overrides"]["function_emit_prob"],
+            crate::config::STRUCTURED_EMISSION_MAX_PROB
+        );
         assert!(sem["overrides"].get("seed").is_none());
     }
 
@@ -2179,8 +2182,9 @@ mod tests {
             json!({ "seed": 1, "profile": "structured-emission-max" }),
         );
         let cfg: Value = serde_json::from_str(&tool_text_of(&resp)).unwrap();
-        assert_eq!(cfg["function_emit_prob"], 1.0);
-        assert_eq!(cfg["task_emit_prob"], 1.0);
+        let p = crate::config::STRUCTURED_EMISSION_MAX_PROB;
+        assert_eq!(cfg["function_emit_prob"], p);
+        assert_eq!(cfg["task_emit_prob"], p);
         assert_eq!(cfg["seed"], 1);
     }
 

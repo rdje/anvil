@@ -5,6 +5,45 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Derive the anti-drift set, never enumerate it — `EMIT-SURFACE-INTERACTION-GATE.2`
+
+`structured-emission-max` went stale in the most ordinary way possible: surfaces 6, 7, 8 and 9
+each shipped with their own knob, their own gate, their own book section — and nobody edited the
+preset. Four separate increments, four chances to notice, zero notices. The preset's list was a
+hand-maintained enumeration, and a hand-maintained enumeration of a growing set decays by
+default.
+
+So the repair is not "add the four missing knobs." It is a test that makes the list impossible to
+under-populate:
+
+```rust
+let group = knob_catalog().filter(|k| k.group == "structured_emission");
+let expected = group - "soft_union_slice_prob";      // the version-gated one
+assert!(preset covers expected, and all at the shared probability);
+```
+
+The set is **derived from the catalog**, and the catalog is itself already gated to cover every
+`Config` field exactly once (`knob_catalog_classifies_every_field`). The group predicate is
+`name.ends_with("_emit_prob")`, so a tenth surface joins the group the moment it is declared —
+before anyone thinks about presets at all. The preset then either includes it or CI is red.
+
+> **An anti-drift test that contains the list it is protecting is not an anti-drift test.** It is
+> a second copy of the same enumeration, decaying at the same rate. Chain it to something that
+> already has to be complete for an unrelated reason.
+
+Two negative controls before trusting it, in both directions the test claims to cover: deleting
+one knob from the preset (fails, naming the omission) and setting one knob to `1.0` instead of
+the shared value (fails, naming the value rule). A gate nobody has watched fail is a gate nobody
+knows works.
+
+Secondary note on scope: the preset also raises `comb_mux_prob` / `case_mux_prob` /
+`casez_mux_prob`. That is not scope creep — three of the eight surfaces project a `Mux` /
+`CaseMux` / `CasezMux`, and at the default `0.1` / `0.05` / `0.05` those gates barely exist, so
+the preset's own surfaces would starve on shape rather than on probability. `deep-hierarchy`
+already set the precedent: **a preset may set structural knobs to make its own surfaces
+reachable.** A preset that turns on a projection without ensuring anything to project is a preset
+that does nothing.
+
 ## 2026-07-30 — "All knobs on" is not "all surfaces emitted" — `EMIT-SURFACE-INTERACTION-GATE.1`
 
 The nine emit-projections are mutually exclusive on a gate and run in a fixed order. Those two

@@ -1192,3 +1192,110 @@ anvil --seed 1 --config base.json
 ```
 
 Flip `casez_mux_if_emit_prob` back to `0.0` and the output is byte-identical to the default lane.
+
+## Combining the surfaces
+
+Every section above turns on **one** surface. That is how each was designed,
+tested, and banked downstream-clean — and it is also how the whole lane was
+exercised for its first nine increments. Combining them is a different question,
+with a genuinely surprising answer.
+
+### The surfaces are mutually exclusive, and that has a consequence
+
+A gate is projected by **at most one** surface. The nine annotation passes run in
+a fixed order
+
+```text
+soft_union → function_emit → generate_loop → task_emit → multi_output_task
+           → cone_function → mux_if → case_mux_if → casez_mux_if
+```
+
+and each pass skips any gate an earlier pass already claimed. That exclusion is
+what makes stacking nine overlapping projections sound: without it, two passes
+could both claim a gate and the emitter would render it twice.
+
+The consequence catches everyone the first time:
+
+> **Under mutual exclusion with a fixed pass order, a probability is a
+> *priority*, not an intensity.** Turning every knob up does not turn every
+> surface up — it hands the whole gate graph to whichever pass runs first.
+
+Set all eight non-version-gated knobs to `1.0` and `function_emit`, second in the
+chain, claims **every** admissible gate. That set is a superset of
+`generate_loop`'s `{N{x}}` replications, `task_emit`'s candidates,
+`multi_output_task`'s members, `cone_function`'s roots and interiors, and
+`mux_if`'s 2:1 muxes. Each later pass then correctly finds nothing left, and the
+emitted module carries **three** shapes, not eight — only `case_mux_if` and
+`casez_mux_if` survive alongside, because `CaseMux` and `CasezMux` are outside
+`function_emit`'s admissible set in the first place.
+
+This is not a bug in any surface. It is what mutual exclusion *means*. But it does
+mean **maximum coverage and maximum diversity are opposite goals**, and diversity
+— many distinct legal shapes in one module for a tool to trip over — is the one
+worth having.
+
+### The fix: an intermediate probability
+
+Give every surface a *partial* claim and each pass leaves work for the next.
+Around `0.25` all eight surfaces appear together in a single module, and the value
+is chosen to maximise the **least-represented** surface's count rather than the
+total. That is exactly what the `structured-emission-max` preset applies, together
+with raised `comb_mux_prob` / `case_mux_prob` / `casez_mux_prob` so the three
+procedural surfaces have candidate gates at all:
+
+```bash
+cargo run --release -- --seed 42 --count 12 \
+  --profile structured-emission-max --out ./sem
+grep -c "endfunction" ./sem/mod_42_0000.sv
+grep -c "endtask" ./sem/mod_42_0000.sv
+grep -c "endgenerate" ./sem/mod_42_0000.sv
+```
+
+Each of those counts is non-zero on the same module — a `function automatic`, a
+`task automatic`, and a `generate for` loop coexisting in one file, alongside the
+cone functions, multi-output tasks, and the three procedural conditional shapes
+that do not mint their own keyword.
+
+To see the per-surface counts directly, ask the introspection document:
+
+```bash
+cargo run --release -- --seed 42 --profile structured-emission-max --introspect \
+  | grep num_emitted
+```
+
+### Why this is the interesting artifact
+
+A module carrying a `function automatic`, a `generate for`, a multi-output `task`,
+a whole-cone `function`, a procedural `if`/`else`, and two priority chains **at
+once** is a materially harder parse, elaborate, and lower than the same constructs
+spread across eight files. Downstream tools handle each shape in isolation every
+day; they see them interleaved far less often, and that is where the interesting
+rejections live.
+
+Combining the surfaces is also the only way to exercise the mutual-exclusion
+invariant end-to-end. With one knob at `1.0` and the rest at `0.0` — the shape of
+all nine single-surface gates — every exclusion check sees an empty sibling set
+and trivially passes. Only a combined run puts a real sibling set in front of it.
+
+The full reasoning, the pass-by-pass exclusion audit, the probability calibration,
+and the downstream results are in decision `0032`
+(`docs/decisions/0032-emit-surface-interaction-gate.md`, relative to the
+repository root).
+
+### The one version-gated surface stays separate
+
+`soft_union_slice_prob` — the IEEE 1800-2023 `union soft` overlay — is *not* in
+the preset. It is disjoint from the other eight by target type (it claims `Slice`
+gates, which none of the others touch), so it adds no exclusion pressure; and
+Yosys and Icarus reject the syntax, so enabling it costs two of the four
+acceptance columns. Combine it explicitly when you want it:
+
+```bash
+cargo run --release -- --seed 42 --count 4 \
+  --profile structured-emission-max \
+  --sv-version 2023 --soft-union-slice-prob 1.0 --out ./sem2023
+```
+
+That corpus is Verilator-clean under `--language 1800-2023` and is a recorded
+no-op for Yosys and Icarus (see
+[the version target](knobs.md#systemverilog-version-target)).

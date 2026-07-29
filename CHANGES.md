@@ -1,6 +1,104 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.2 — structured-emission-max emits 8 surfaces, not 1
+
+**Landed as:** this commit (previous: `7664761`, `EMIT-SURFACE-INTERACTION-GATE.1`).
+Preset values + one test + docs/book. The default path (no `--profile`) is untouched ⇒
+**DUT byte-identical**, `tests/snapshots.rs` unchanged.
+
+**What.** `--profile structured-emission-max` becomes true to its name, per decision `0032` (e).
+
+*Before* — four surfaces at `1.0`, **one** actually emitted:
+
+```
+num_emitted_combinational_functions 796 · generate_loops 0 · tasks 0 · cone_functions 0
+```
+
+*After* — eight surfaces at `0.25` plus the three selector knobs at `0.35`, **all eight** emitted,
+every seed 1–5:
+
+```
+seed 1  live=8  [838, 67, 577, 130, 48, 59, 92, 82]
+seed 5  live=8  [929, 83, 715, 146, 89, 81, 101, 61]
+```
+
+**Why `0.25` and not `1.0` — the part that is counter-intuitive enough to be worth stating
+twice.** The nine emit-projections are mutually exclusive on a gate and run in a fixed order, so
+under saturation **probability is priority, not intensity**. At `1.0`, `function_emit` (second in
+the chain) claims every admissible gate — a superset of `generate_loop`'s `{N{x}}` `Concat`s,
+`task_emit`'s candidates, `multi_output_task`'s members, `cone_function`'s roots and interiors,
+and `mux_if`'s 2:1 `Mux`es — and every later pass correctly finds nothing left. Raising all eight
+knobs together does not raise all eight surfaces together; it hands the whole gate graph to
+whichever pass runs first. `0.25` is calibrated by **max-min** — it maximises the
+*least-represented* surface's count (`0032` Context §5).
+
+**Two `pub const`s carry the calibration** (`src/config.rs`), so the value is named once and the
+reasoning lives with it rather than in a literal: `STRUCTURED_EMISSION_MAX_PROB = 0.25` and
+`STRUCTURED_EMISSION_MAX_SELECTOR_PROB = 0.35`.
+
+**The selector knobs are part of the preset, deliberately.** `mux_if` / `case_mux_if` /
+`casez_mux_if` project a `Mux` / `CaseMux` / `CasezMux`, and at the defaults (`0.1` / `0.05` /
+`0.05`) those barely exist — the preset's own surfaces would starve. Raising them is the
+`deep-hierarchy` precedent: a preset may set structural knobs to make its own surfaces reachable.
+
+**The anti-drift gate is derived, not hardcoded.** The new test
+`structured_emission_max_preset_covers_every_non_version_gated_surface` reads the required knob
+set from `knob_catalog()`'s `structured_emission` group (which is *itself* already gated to cover
+every `Config` field) minus the version-gated `soft_union_slice_prob`. A tenth surface lands in
+that group automatically by virtue of its `*_emit_prob` name, so it either joins the preset at the
+shared value or the test fails. That is precisely the failure mode this leaf is repairing:
+surfaces 6–9 were added and the preset was never updated.
+
+Both directions negative-controlled before being trusted: deleting `mux_if_emit_prob` from the
+preset fails the test with `structured-emission-max omits emit surfaces ["mux_if_emit_prob"]`, and
+setting `task_emit_prob` to `1.0` fails with `must use the shared intermediate probability`. Both
+restored.
+
+**`soft_union_slice_prob` stays out.** It is version-gated, owned by the `sv2023-upopts` preset,
+disjoint from the other eight by target type (it claims `Slice` gates), and Yosys/Icarus reject
+the syntax — enabling it would cost two of the four acceptance columns for a surface that adds no
+exclusion pressure. The book shows how to combine it explicitly when you want the ninth.
+
+**Downstream-clean, not just "the knobs are set."** A 12-module corpus at seed 42 under the new
+preset: **12/12** clean with **zero** warnings on Verilator `--lint-only`, Yosys `synth -noabc`,
+Yosys `synth -noabc; abc -fast; opt -fast`, and `iverilog -g2012` — and every one of the 12
+modules carries all eight surfaces. The book's sv2023 example (preset + `--sv-version 2023
+--soft-union-slice-prob 1.0`) is 4/4 Verilator-clean under `--language 1800-2023`, all four
+genuinely emitting `union soft`.
+
+**Not a retirement.** The old behaviour is `--function-emit-prob 1.0`, still one flag away, and an
+explicit flag still beats the preset (proven by
+`resolve_config_explicit_override_beats_preset`, now asserting the override direction that
+matters). What changed is a preset whose measured behaviour contradicted its documented purpose.
+
+**Docs corrected in every place that pinned the old claim** — the obligation decision `0032`
+recorded so it could not be forgotten: `README.md` ("all four emit-projections on"),
+`USER_GUIDE.md` (the preset bullet, now with a worked example), `book/src/knobs.md` (the preset
+list), the `knob-presets-and-cli-flags` Knowledge Map card **and its `reverify` one-liner** (which
+still asserted "emit knobs all 1.0" — a `reverify` that would have failed on the very next run),
+and `CODEBASE_ANALYSIS.md`.
+
+**New book section: `book/src/structured-emission.md` → "Combining the surfaces."** The chapter
+documented nine surfaces one at a time and never said what happens when you turn several on. It
+now explains the mutual-exclusion/priority interaction, why saturation *reduces* shape diversity,
+what the preset does instead, and why an interleaved module is the interesting artifact — with
+three runnable examples, all exercised by `cargo test --test book_examples`.
+
+**Validation.** `cargo test` full suite green under `scripts/ram_guard.sh --threshold 90`
+(`tests/snapshots.rs` byte-identical — the default path is untouched); `cargo clippy --all-targets
+-- -D warnings` clean; `cargo fmt --all --check` clean; `mdbook build book` exit 0;
+`cargo test --test book_examples` 3/3; doctrine driver 6/6 after staging; plus the measurements
+above.
+
+**No phase labels changed.**
+
+**Files touched.** `src/config.rs`, `src/mcp/mod.rs` (two preset assertions re-pointed at the
+const), `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`, `book/src/knobs.md`,
+`book/src/structured-emission.md`, `docs/knowledge/knob-presets-and-cli-flags.md`,
+`docs/tasks/EMIT-SURFACE-INTERACTION-GATE.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination
 
 **Landed as:** this commit (previous: `74b101b`, `EMIT-SURFACE-INTERACTION-GATE.0`).
