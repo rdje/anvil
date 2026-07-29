@@ -1,9 +1,51 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations
+
+**Landed as:** this commit (previous: `ecda0e7`, `EVIDENCE-BANK-DURABILITY.1`).
+A **docs-only** change (no `src/` / `tests/` / `examples/` touched) ⇒ **DUT byte-identical**;
+`tests/snapshots.rs` untouched. Decision leaf of an active tree — owned by
+`EVIDENCE-BANK-DURABILITY.2`.
+
+**What.** The design-first ADR the `.1` observation demanded: decision
+[`0030`](docs/decisions/0030-durable-closure-evidence-citations.md)
+(`docs/decisions/INDEX.md` row added; carries KM `answers:` front-matter so the map indexes it).
+The chosen mechanism — after auditing all 77 raw `/tmp/anvil-*` citation strings (= 73 canonical
+banks: **(a)** 10 phase-closing, **(b)** 15 repo-owned surface/sweep gate banks, **(c)** 47 focused
+smokes/probes/e2e banks, **(d)** 1 illustrative API-example string that is not evidence) — is the
+**committed per-bank digest** under `docs/evidence/`: owning leaf, commit hash, the **exact
+re-runnable command**, unit counts, per-tool pass/fail, `coverage_gaps`, and the report's SHA-256.
+Pre-0030 citations are demoted to **labelled historical breadcrumbs** (their artifacts are gone; a
+retroactive digest would fabricate evidence). Rejected: command-only citations (subsumed into the
+digest; alone, every audit pays re-derivation and proves today's code, not the recorded numbers),
+a gitignored `.cache/evidence/` relocation (fails all four `MEMORY_ARCHITECTURE.md` §2 durability
+properties), committing corpora (tree non-goal). Implementation leaves defined on the tree: `.3`
+(mechanize: digest schema + `scripts/evidence_digest.sh` + `scripts/check_evidence_citations.sh` +
+driver registry line + frozen grandfathered list), `.4` (breadcrumb sweep across the live docs),
+`.5` (deferred: bank a digest opportunistically on the next real gate run; never a mass re-run).
+
+**Why.** `.1` recorded that every banked closure artifact is absent while 77 citations point at
+volatile `/tmp`. The fix is a policy before it is an edit: what a citation *must be* so that closure
+evidence satisfies the same durability properties as every other memory layer.
+
+**Validation.** Docs/decision leaf (tree Blockers: no tool run needed). Exact `.1` measurement
+command re-run on the current tree → 77 raw strings, reproduced. `scripts/check_doctrines.sh` →
+4/4 PASS (`MEMORY-ARCH`, `KNOWLEDGE-MAP` regenerated in sync, `CODE-CHANGE-EVIDENCE` +
+`TASK-TREE-OWNERSHIP` scope-exempt on a non-code commit). `KNOWLEDGE_MAP.md` regenerated (decision
+`0030` adds 8 question keys).
+
+**Impact.** No generator behaviour change; no phase label moves. `docs/evidence/` becomes the
+citation target for future banks once `.3` lands. Decision `0002`'s allowance for absolute `/tmp`
+evidence paths is narrowed: legal inside a digest as a breadcrumb, no longer legal as the citation.
+
+**Files touched.** `docs/decisions/0030-durable-closure-evidence-citations.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/EVIDENCE-BANK-DURABILITY.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-07-25 — EVIDENCE-BANK-DURABILITY.1 — open tree: closure artifacts live in volatile /tmp
 
-**Landed as:** this commit (previous: `4bb1822`, `SEMANTIC-INTROSPECTION-EXPANSION.15b.2`).
+**Landed as:** `ecda0e7` (previous: `4bb1822`, `SEMANTIC-INTROSPECTION-EXPANSION.15b.2`).
 A **docs-only** change (no `src/` / `tests/` / `examples/` touched) ⇒ **DUT byte-identical**;
 `tests/snapshots.rs` untouched. Pure-docs commits are exempt from the code-change task-tree
 doctrine (`docs/TASK_TREE.md` "ANVIL Adoption Scope"), but this commit *creates* a tree, so it is

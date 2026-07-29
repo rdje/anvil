@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Quality / evidence architecture (cross-cutting; no phase reopened)
 - Created: `2026-07-25`
-- Last updated: `2026-07-25`
+- Last updated: `2026-07-29`
 - Owner: repo-local workflow
 
 ## Goal
@@ -94,7 +94,9 @@ evidence citations absolute and volatile.
   Status: `active`
   Goal: make closure evidence durable / re-derivable, or explicitly
         redefine what a closure citation means.
-  Children: `EVIDENCE-BANK-DURABILITY.1`, `EVIDENCE-BANK-DURABILITY.2`
+  Children: `EVIDENCE-BANK-DURABILITY.1`, `EVIDENCE-BANK-DURABILITY.2`,
+        `EVIDENCE-BANK-DURABILITY.3`, `EVIDENCE-BANK-DURABILITY.4`,
+        `EVIDENCE-BANK-DURABILITY.5`
 
 - ID: `EVIDENCE-BANK-DURABILITY.1`
   Status: `done`
@@ -111,33 +113,114 @@ evidence citations absolute and volatile.
   Commit: this commit.
 
 - ID: `EVIDENCE-BANK-DURABILITY.2`
-  Status: `pending`
+  Status: `done`
   Goal: design-first ADR — audit the 77 cited paths, classify each as
         (a) phase-closing, (b) surface-gate, or (c) focused smoke; then
         pick ONE durable-evidence mechanism and record it as a decision
-        record. Candidate mechanisms to weigh (each with its cost):
-        (i) cite the re-runnable gate command beside every claim
-            (cheap, oracle-grade, no storage — but re-derivation is not free);
-        (ii) commit a small **digest** per bank (scenario/unit counts,
-            `coverage_gaps`, per-tool pass/fail, the report's SHA-256)
-            under `docs/evidence/` — a few KB each, greppable, diffable,
-            and enough to detect a regression without the corpus;
-        (iii) move banks out of `/tmp` into a gitignored but stable
-            location (e.g. `.cache/evidence/`) so at least the *current*
-            machine keeps them across reboots;
-        (iv) accept volatility explicitly and demote every `/tmp` path to
-            a labelled breadcrumb.
+        record. Candidate mechanisms weighed: (i) re-runnable-command
+        citations; (ii) committed per-bank digests under `docs/evidence/`;
+        (iii) a stable gitignored non-`/tmp` location; (iv) explicit
+        breadcrumb demotion.
   Acceptance: a `docs/decisions/00NN-*.md` record with Context / Decision /
         Consequences, naming the chosen mechanism, the rejected
         alternatives and why, and the leaf shape for implementation.
+  Verification: decision `0030`
+        (`docs/decisions/0030-durable-closure-evidence-citations.md`)
+        landed: the chosen mechanism is the **committed per-bank digest**
+        under `docs/evidence/` (embedding the exact re-runnable command,
+        so (i) is inside the digest); pre-0030 citations are demoted to
+        labelled historical breadcrumbs ((iv) applied retroactively);
+        (iii) rejected (fails all four `MEMORY_ARCHITECTURE.md` §2
+        durability properties). Audit result: 77 raw strings = 73
+        canonical banks (4 punctuation/line-wrap variants) = (a) 10
+        phase-closing + (b) 15 repo-owned surface/sweep gate banks +
+        (c) 47 focused smokes/probes/e2e banks + (d) 1 illustrative
+        API-example string (`/tmp/anvil-validate-3f1c…`, not evidence);
+        full classified list in the section below.
+  Commit: `EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations`
+
+- ID: `EVIDENCE-BANK-DURABILITY.3`
+  Status: `pending`
+  Goal: mechanize the 0030 contract: `docs/evidence/README.md` (digest
+        schema), `scripts/evidence_digest.sh` (derive a digest from a
+        `tool_matrix_report.json`), `scripts/check_evidence_citations.sh`
+        (structural: a live-doc `/tmp/anvil-*` citation must be
+        grandfathered or digest-matched) + `check_doctrines.sh` registry
+        line + the frozen grandfathered list under `docs/evidence/`.
+  Acceptance: driver reports the new check PASS on the current tree;
+        a synthetic new bare `/tmp/anvil-*` citation makes it FAIL.
   Verification: `pending`
   Commit: `pending`
+
+- ID: `EVIDENCE-BANK-DURABILITY.4`
+  Status: `pending`
+  Goal: the live-doc sweep per 0030: label pre-0030 `/tmp/anvil-*`
+        citations as historical breadcrumbs — a normative note per
+        affected top-level live doc and book chapter; `docs/tasks/*.md`
+        covered by one note in `docs/TASK_TREE.md` (layer-B history).
+  Acceptance: every live-doc closure claim either cites a digest, carries
+        its re-runnable command, or is covered by a breadcrumb note.
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `EVIDENCE-BANK-DURABILITY.5`
+  Status: `pending` (deferred, opt-in)
+  Goal: bank a `docs/evidence/` digest opportunistically the next time a
+        gate actually re-runs. Explicitly NOT a mass re-run of historical
+        gates (tree non-goal).
+  Acceptance: the first post-0030 gate run lands with its digest.
+  Verification: `pending`
+  Commit: `pending`
+
+## `.2` audit — the 73 canonical banks behind the 77 raw citation strings
+
+Raw list banked at decision time (re-derivable):
+`grep -rhoE '/tmp/anvil-[A-Za-z0-9_.-]+' README.md ROADMAP.md USER_GUIDE.md
+CODEBASE_ANALYSIS.md TOOLBOX.md book/src/*.md docs/tasks/*.md | sort -u`
+→ 77 strings; 4 are variants (`-case-mux-if-gate-r1.`,
+`-casez-mux-if-gate-r1.`, `-tool-matrix-phase5b-p1.` trailing-dot forms,
+and `-microdesign-parity-phase7-` line-wrap truncation).
+
+- **(a) Phase-closing (10):** `-tool-matrix-phase1-real-r21`,
+  `-tool-matrix-phase2-share-r1`, `-tool-matrix-phase3-structured-r4`,
+  `-tool-matrix-phase4-hierarchy-r87`, `-tool-matrix-phase5-p1`,
+  `-tool-matrix-phase5b-p1`, `-tool-matrix-phase6-p1`,
+  `-tool-matrix-phase6-fsm-p1`, `-microdesign-parity-phase7-yosys-p1`,
+  `-frontend-parity-phase8-yosys-p1`.
+- **(b) Repo-owned surface/sweep gate banks (15):**
+  `-function-emit-gate-r1`, `-generate-loop-gate-r1`,
+  `-generate-loop-gate-8b`, `-task-emit-gate-r1`, `-cone-function-gate-r1`,
+  `-multi-output-task-gate-r1`, `-mo-k3-gate-r1`, `-mux-if-gate-r1`,
+  `-case-mux-if-gate-r1`, `-casez-mux-if-gate-r1`, `-sv-version-gate-r1`,
+  `-sv-version-gate-upopt-r1`, `-signoff-knob-sweep-r1`,
+  `-signoff-surface-iverilog-r1`, `-signoff-surface-nflop-r1`.
+- **(c) Focused smokes / probes / e2e verification banks (47):**
+  the 16 `-hier-*-smoke-*` + `-hierarchy-smoke-r1` family,
+  `-parent-cone-instance-smoke-r1`, the historical Phase 4 root-cause /
+  coverage runs (`-tool-matrix-phase4-hierarchy-r7`, `-…-r22`,
+  `-…-mixed-helper-check`, `-…-parent-cone-instance-r1`,
+  `-…-parent-helper-child-input-mixed-check`,
+  `-…-parent-output-helper-state-r3`, `-…-parent-port-coverage-r1`,
+  `-…-recursive-direct-helper-r32`, `-…-recursive-helper-state-r31`,
+  `-…-registered-mixed-r1`, `-…-registered-multistage-r1`,
+  `-…-stateful-helper-child-input-mixed-check`), and the per-surface
+  forced sweeps / probes / e2e banks (`-gl-r1`, `-gl8b`, `-te-r1`,
+  `-fe-r2`, `-cf-sweep`, `-mo-sweep`, `-muxif-genproof.*`,
+  `-ifelse-probe.*`, `-probe-se4`, `-widelane-probe`, `-se9-probe`,
+  `-se-motask-probe`, `-seq-bank`, `-diff-sim-p1`, `-multi-clock-p2`,
+  `-divergence-col-smoke`, `-iverilog-compile-smoke-r2`,
+  `-reset-mem-probe.sv`).
+- **(d) Illustrative, not evidence (1):** `-validate-3f1c…` — a sample
+  MCP `validate` sandbox path inside a book API-reference example. The
+  `.4` sweep must NOT breadcrumb-label it; it is not a claim.
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `EVIDENCE-BANK-DURABILITY.2` | `pending` | Design-first: the fix is a *policy* choice (what a citation must be) before it is an edit. Writing 77 path rewrites before choosing the mechanism would be the expensive wrong order. (`.1` — record + register — is `done`.) |
+| 1 | `EVIDENCE-BANK-DURABILITY.3` | `pending` | The 0030 contract exists; mechanizing it (digest schema + helper + doctrine check) must precede the `.4` sweep so the sweep lands already gated. **Owner re-steer (`2026-07-29`):** a PGEN-reported mdBook gap (no microdesign/frontend lane chapters) takes the frontier first; `.3` resumes after that unit. |
+| 2 | `EVIDENCE-BANK-DURABILITY.4` | `pending` | The breadcrumb sweep, once the check exists to hold it in place. |
+| 3 | `EVIDENCE-BANK-DURABILITY.5` | `pending` (deferred) | Opportunistic: first post-0030 gate run banks its digest. |
 
 ## Decisions
 
@@ -153,14 +236,15 @@ evidence citations absolute and volatile.
 
 ## Open Questions
 
-- Does the owner want the digest committed (mechanism (ii), a real but small
-  repo-size cost) or the citation-as-command form (mechanism (i), zero
-  storage but re-derivation on every audit)? This is a durability-vs-cost
-  judgement and is the reason `.2` is design-first — it does not block the
-  frontier, it *is* the frontier.
-- Should re-running the phase gates to produce fresh, digest-backed banks be
-  a separate leaf, or out of scope (the claims are already recorded with the
-  numbers they produced)?
+- ~~Digest vs citation-as-command?~~ **Resolved by `.2` / decision `0030`:**
+  the committed digest is the mechanism, and it embeds the re-runnable
+  command — the two are one artifact, not a choice. Decided autonomously
+  (the digest is the only candidate satisfying all four
+  `MEMORY_ARCHITECTURE.md` §2 durability properties); the owner can
+  supersede `0030` if the repo-size cost is unwanted.
+- ~~Re-run historical gates?~~ **Resolved by `.2` / decision `0030`:** out
+  of scope as a sweep; `.5` banks digests opportunistically on future
+  re-runs only.
 
 ## Blockers
 
@@ -172,16 +256,20 @@ evidence citations absolute and volatile.
 | --- | --- | --- | --- |
 | `2026-07-25` | (tree opened) | `ls -d /tmp/anvil-*` → 0 dirs; `du -sh target/tmp` → 0; `grep -rhoE '/tmp/anvil-[…]'` over the live-doc set → 77 distinct cited paths | observation recorded; tree opened |
 | `2026-07-25` | `EVIDENCE-BANK-DURABILITY.1` | `scripts/check_doctrines.sh` 4/4 PASS; `check_memory_architecture.sh` green (`MEMORY.md` 21 lines / cap 60); bootstrap sweep on the unchanged tree under `ram_guard --threshold 90`: `cargo check --all-targets` clean, `cargo test` exit 0 (pipeline 125/0, snapshots 6/6), `clippy -D warnings` clean, `fmt --check` clean | `done` — observation recorded, tree registered; docs-only ⇒ DUT byte-identical |
-| `2026-07-25` | `EVIDENCE-BANK-DURABILITY.2` | `pending` | `pending` |
+| `2026-07-29` | `EVIDENCE-BANK-DURABILITY.2` | Re-measured the `.1` observation on the current tree (exact recorded command → 77 raw strings, reproduced); classified 73 canonical banks into (a) 10 / (b) 15 / (c) 47 / (d) 1; decision `0030` written + `INDEX.md` row; `scripts/check_doctrines.sh` 4/4 PASS (docs-only leaf, no tool run needed per tree Blockers) | `done` — ADR landed; mechanism = committed per-bank digest; frontier → `.3` (after the owner-steered mdBook-lanes unit) |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `EVIDENCE-BANK-DURABILITY.1` | `EVIDENCE-BANK-DURABILITY.1 — open tree: closure artifacts live in volatile /tmp` | docs-only; no `src/` touched ⇒ DUT byte-identical |
-| `EVIDENCE-BANK-DURABILITY.2` | `pending` | `pending` |
+| `EVIDENCE-BANK-DURABILITY.2` | `EVIDENCE-BANK-DURABILITY.2 — ADR 0030: durable closure-evidence citations` | docs-only; decision record + tree update ⇒ DUT byte-identical |
 
 ## Changelog
 
 - `2026-07-25`: Created task tree from a session-bootstrap observation that
   every cited banked artifact is absent from the machine.
+- `2026-07-29`: `.2` done — decision `0030` (committed per-bank digests;
+  pre-0030 citations demoted to breadcrumbs; `.3`/`.4`/`.5` implementation
+  leaves defined). Frontier paused after `.2` for an owner-steered unit
+  (PGEN-reported mdBook lane-chapter gap); resumes at `.3`.

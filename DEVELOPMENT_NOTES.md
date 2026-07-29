@@ -5,6 +5,25 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-29 — Evidence architecture — closure citations become committed digests — `EVIDENCE-BANK-DURABILITY.2`
+
+Decision [`0030`](docs/decisions/0030-durable-closure-evidence-citations.md): the durable form of a
+closure/gate citation is a small **committed digest** under `docs/evidence/` (owning leaf, commit
+hash, the exact re-runnable command, unit counts, per-tool pass/fail, `coverage_gaps`, report
+SHA-256) — not a `/tmp` output path. The digest *embeds* the re-runnable command, so
+"citation-as-command" was not rejected but subsumed; a command-only citation was rejected as the
+primary form because every audit would pay full re-derivation and a re-run on current code verifies
+today's generator, not the recorded numbers. A stable gitignored location (`.cache/evidence/`) was
+rejected because it fails all four `MEMORY_ARCHITECTURE.md` §2 durability properties (one machine,
+no clone, no git). Pre-0030 citations (77 raw strings / 73 canonical banks: 10 phase-closing, 15
+surface/sweep gates, 47 smokes/probes, 1 illustrative) are demoted to labelled historical
+breadcrumbs — writing digests for them retroactively would fabricate evidence
+(no-aspirational-claims). Gotcha for the `.4` sweep: `/tmp/anvil-validate-3f1c…` in the book's API
+reference is an *illustrative sandbox string*, not an evidence citation — do not breadcrumb-label
+it. Implementation: `.3` (digest schema + `evidence_digest.sh` + `check_evidence_citations.sh`
+registry entry + frozen grandfathered list), `.4` (breadcrumb sweep), `.5` (deferred: digest on next
+real gate run; never a mass re-run).
+
 ## 2026-06-24 — Semantic introspection — `reach_path` impl design-detail — `SEMANTIC-INTROSPECTION-EXPANSION.15a`
 
 Design-detail leaf for `.15` — the **fourteenth** derived query, `reach_path`: for a start node
