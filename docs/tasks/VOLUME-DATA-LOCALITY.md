@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `VOLUME-DATA-LOCALITY`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Quality / data locality + path portability (cross-cutting; no phase reopened)
 - Created: `2026-07-29`
 - Last updated: `2026-07-29`
@@ -125,7 +125,7 @@ will remove that whole directory themselves later. It is therefore
 ## Task Tree
 
 - ID: `VOLUME-DATA-LOCALITY`
-  Status: `active`
+  Status: `done`
   Goal: bring all ANVIL-owned data onto the repository volume, by a
         runtime-derived root rather than an OS temp default.
   Children: `.1`, `.2`, `.3`, `.4`, `.5`, `.6`, `.7`
@@ -248,7 +248,7 @@ will remove that whole directory themselves later. It is therefore
   Commit: `VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver`
 
 - ID: `VOLUME-DATA-LOCALITY.4`
-  Status: `pending`
+  Status: `done` (landed inside the `.5` + `.7` commits, not its own)
   Goal: the decision record (`docs/decisions/0031-*.md`) stating the
         data-locality contract + the resolver's resolution order +
         rejected alternatives; amend decision `0030` (its rejected
@@ -260,8 +260,22 @@ will remove that whole directory themselves later. It is therefore
         audit or check); add the doctrine check if feasible.
   Acceptance: ADR + `INDEX.md` row + KM front-matter; `0030` amended,
         not silently rewritten (supersede-don't-mutate).
-  Verification: `pending`
-  Commit: `pending`
+  Verification: decision
+        [`0031`](../decisions/0031-ssd-volume-exclusivity.md) written
+        with KM front-matter + an `INDEX.md` row; it **amends** `0002`
+        (withdrawing its explicit allowance that `/tmp/anvil-…` evidence
+        paths "may remain absolute" — the clause that let the citations
+        accumulate) and `0030` (its rejected option (iii) is now partly
+        mandated), by *adding* an amending record rather than editing
+        either — supersede-don't-mutate, honoured. It also records the
+        settled `~/Documents/github` decision, the shared-store rule
+        ("use it, do not fork it"), and the permanent no-history-rewrite
+        limit. The doctrine check it proposed became `.7`.
+        **Landed across the `.5` and `.7` commits rather than its own**
+        — recorded plainly instead of back-dating a commit, since the
+        leaf-to-commit mapping is a durable join key and a fabricated
+        one would be worse than an honest note.
+  Commit: `(content in VOLUME-DATA-LOCALITY.5 + .7)`
 
 - ID: `VOLUME-DATA-LOCALITY.6`
   Status: `withdrawn` (will not be done)
@@ -289,7 +303,7 @@ will remove that whole directory themselves later. It is therefore
   effect on the repository: none — no copies exist, no env var is set.
 
 - ID: `VOLUME-DATA-LOCALITY.7`
-  Status: `pending`
+  Status: `done`
   Goal: the mechanical gate — `scripts/check_no_boot_volume_refs.sh`
         registered in `scripts/check_doctrines.sh`, failing on any new
         boot-volume path in tracked files (`/tmp/`, `/private/tmp`,
@@ -302,8 +316,38 @@ will remove that whole directory themselves later. It is therefore
   Acceptance: driver reports the new check PASS on a compliant tree and
         FAIL on a synthetic new `/tmp/...` reference; `check_doctrines.sh`
         reports 5/5.
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `scripts/check_no_boot_volume_refs.sh` written to the
+        §4 contract (structural archetype; exit code is the verdict;
+        deterministic; reads the repo, mutates nothing) and registered
+        as `NO-BOOT-VOLUME-REFS` → driver reports **5/5**.
+        **Two legs, both proven by negative control** (a check that has
+        never been observed to fail is not evidence):
+        - leg 1 — appended `Banked at /tmp/anvil-fake-bank-r1.` to
+          `README.md` ⇒ exit 1, naming the file, the count, and the
+          offending line;
+        - leg 2 — added a `std::env::temp_dir()` call to
+          `src/metrics.rs` ⇒ exit 1, naming the file and the fix.
+        Both reverted with `git checkout`; the check returns exit 0 on
+        the restored tree.
+        Leg 2 is the one that makes the rule durable: it pins
+        `temp_dir()` to `src/paths.rs` alone, so the OS temp dir is
+        named in exactly one place and a regression is caught by
+        construction rather than by anyone remembering the policy.
+        The banned set deliberately includes **`/var/folders`** — the
+        macOS per-user `TMPDIR`, which a `"/tmp"` grep does NOT catch,
+        and which is where most of this machine's real off-volume
+        writes were actually landing.
+        Allow-list rationale is documented in the script header and in
+        `DOCTRINE_ENFORCEMENT.md` §10, so a future maintainer cannot
+        mistake it for an oversight and "fix" it into a history rewrite.
+        **It caught a real breach within minutes of landing** — its own
+        registry row in `DOCTRINE_ENFORCEMENT.md`, which names
+        `/tmp`, `/private/tmp`, `/var/folders` to describe what it
+        bans. That is exactly the policy-document case, so the
+        standard was added to the allow-list; the incident is a live
+        demonstration that the gate fires on unplanned additions and
+        not merely on synthetic ones.
+  Commit: `VOLUME-DATA-LOCALITY.7 — doctrine check: nothing points at the boot volume`
 
 - ID: `VOLUME-DATA-LOCALITY.5`
   Status: `done`
@@ -394,9 +438,7 @@ will remove that whole directory themselves later. It is therefore
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `VOLUME-DATA-LOCALITY.3` | `pending` | Test fixtures + temporary workspaces onto the resolver, now that it exists and is proven. 13 sites; `cargo test` should write nothing off-volume, verified by a residue census after a full run. |
-| 2 | `VOLUME-DATA-LOCALITY.4` | `pending` | ADR `0031` + amend `0030`, now that the resolution order is proven in code rather than proposed. |
-| 3 | `VOLUME-DATA-LOCALITY.5` | `pending` | **Narrowed** — the `book/src/api-tools.md` examples and the `USER_GUIDE.md` section landed in `.2` (they went stale the moment `.2` landed). What remains: `TOOLBOX.md` and a sweep for any other doc implying an OS-temp sandbox. |
+| — | (none) | — | `.1` `.2` `.3` `.4` `.5` `.7` all `done`; `.6` `withdrawn` by owner decision. The tree's goal is met: ANVIL writes nothing off-volume, no live document or code path points at the boot volume, and `NO-BOOT-VOLUME-REFS` now gates both properties mechanically (driver 5/5). Reopen only if a new store or reference class appears. |
 
 ## Decisions
 
@@ -431,6 +473,7 @@ will remove that whole directory themselves later. It is therefore
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `VOLUME-DATA-LOCALITY.7` | `check_no_boot_volume_refs.sh` registered as `NO-BOOT-VOLUME-REFS` → driver **5/5**. Both legs proven by negative control: a synthetic `/tmp/anvil-fake-bank-r1` in `README.md` ⇒ exit 1 (file + count + offending line); a synthetic `temp_dir()` in `src/metrics.rs` ⇒ exit 1 (file + fix). Both reverted; exit 0 restored. Banned set includes `/var/folders` (the macOS per-user `TMPDIR` a `"/tmp"` grep misses — where most real off-volume writes actually landed). | `done` — the doctrine is mechanical, not remembered |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.5` | 52 files / 662 rewrites (Rule A 538, Rule B/C 124); KM regenerated from sources (83 facts / 822 keys); 13 `reverify` recipes made self-sufficient and `mux-if-emit` executed end-to-end (8 `__cv`, iverilog clean, writes on-volume); allow-list = policy docs + append-only history (owner directive: no history rewrite) + GitHub-runner `$HOME` lines. First allow-list-free attempt broke `0030`'s own reverify → reverted via `git checkout`, redone. Gate: check/clippy(-D warnings)/fmt/mdbook/`--bin tool_matrix` 99/0 green; full `cargo test` under `ram_guard --threshold 90` `CARGO_TEST_EXIT=0` — lib 736/0, pipeline 125/0, **snapshots 6/6 byte-identical**, book_examples 3/3 | `done` — no live doc or code path points at the boot volume |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.3` | All 14 test-fixture sites rewired; `grep -rn "temp_dir()" src/ tests/` matches **only** `src/paths.rs`. Residue census **14 → 0** (per-user `TMPDIR` + `/private/tmp`, before vs after a full run). Clean full `cargo test` under `ram_guard --threshold 90` → `CARGO_TEST_EXIT=0`: lib 736/0 (2 ignored), pipeline 125/0, **snapshots 6/6 byte-identical**, book_examples 3/3. KM card `bisimulation-flop-merge` reverify re-run end-to-end: dump lands at `<repo>/.cache/anvil-sandbox/anvil-bisim-merged.sv`, clean under Verilator (`-Wall -Wno-DECLFILENAME`) + both Yosys modes + Icarus. First census attempt was `EXIT=101` from a self-inflicted mid-run `rm -rf` of the live sandbox root — root-caused, re-run clean, hazard recorded. | `done` — `cargo test` writes nothing off-volume |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.2` | 5 new `paths` unit tests green (incl. `sandbox_root_is_never_the_os_temp_dir`, which compares against `temp_dir()` itself — on macOS that is a per-user `/var/folders/…` path, so a `"/tmp"` grep would have missed it); real `validate(7)` with Verilator + Yosys → `sandbox = <repo>/.cache/anvil-sandbox/anvil-validate-d8420426e78b2d05`, `ok = true`, both tools `success = true`; `.cache/` gitignored ⇒ no `git status` pollution; `cargo check --all-targets` + `clippy -D warnings` + `fmt --check` + `mdbook build book` clean; full `cargo test` under `ram_guard --threshold 90` exit 0 with `tests/snapshots.rs` 6/6 byte-identical | `done` — the one production off-volume default is gone |
@@ -444,6 +487,8 @@ will remove that whole directory themselves later. It is therefore
 | `VOLUME-DATA-LOCALITY.2` | `VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp` | code + book/doc sync; moves where bytes land, never which bytes ⇒ DUT byte-identical |
 | `VOLUME-DATA-LOCALITY.3` | `VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver` | test-scope paths only ⇒ DUT byte-identical; residue census 14 → 0 |
 | `VOLUME-DATA-LOCALITY.5` | `VOLUME-DATA-LOCALITY.5 — sweep every boot-volume path reference` | prose + doc comments + test literals ⇒ DUT byte-identical; history deliberately NOT rewritten |
+| `VOLUME-DATA-LOCALITY.4` | `(content in .5 + .7)` | ADR `0031` + `0002`/`0030` amendments; no commit of its own |
+| `VOLUME-DATA-LOCALITY.7` | `VOLUME-DATA-LOCALITY.7 — doctrine check: nothing points at the boot volume` | scripts + registry + standard; no generator code ⇒ DUT byte-identical |
 
 ## Changelog
 
@@ -451,3 +496,8 @@ will remove that whole directory themselves later. It is therefore
   projects moved to the 4TB SSD; audit found one production off-volume
   default (the downstream sandbox root) plus a hardcoded debug-dump path
   and 13 test-fixture sites.
+- `2026-07-29`: Tree CLOSED. `.1`–`.5`+`.7` done, `.6` withdrawn.
+  ANVIL writes nothing off-volume (residue census 14 → 0), no live
+  document or code path points at the boot volume, shared stores are
+  used in place, history is untouched, and `NO-BOOT-VOLUME-REFS` gates
+  all of it at 5/5.

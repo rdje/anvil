@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — VOLUME-DATA-LOCALITY.7 — doctrine check: nothing points at the boot volume
+
+**Landed as:** this commit (previous: `bdb6b0a`, `VOLUME-DATA-LOCALITY.5`).
+Scripts + registry + standard; no generator code ⇒ **DUT byte-identical**.
+**Closes the `VOLUME-DATA-LOCALITY` tree.**
+
+**What.** `scripts/check_no_boot_volume_refs.sh`, registered in the driver as `NO-BOOT-VOLUME-REFS`
+— the driver now reports **5/5**. Two legs:
+
+1. No tracked file references `/tmp`, `/private/tmp`, or `/var/folders`. The third matters more
+   than it looks: `/var/folders` is the macOS per-user `TMPDIR`, which a `"/tmp"` grep does **not**
+   catch, and which is where most of this machine's real off-volume writes were actually landing.
+2. `std::env::temp_dir()` appears in exactly one file — `src/paths.rs`, the runtime resolver. This
+   is the leg that makes the rule durable: the OS temp dir is nameable in one place, so a
+   regression is impossible to introduce quietly rather than merely discouraged.
+
+**Verified by negative control, not by observing a pass.** A check that has never been seen to fail
+is not evidence. Leg 1: appending `Banked at /tmp/anvil-fake-bank-r1.` to `README.md` ⇒ exit 1,
+naming the file, the count, and the offending line. Leg 2: adding a `temp_dir()` call to
+`src/metrics.rs` ⇒ exit 1, naming the file and the fix. Both reverted with `git checkout`; exit 0
+restored.
+
+**It then caught a real breach within minutes — its own.** The registry row this change added to
+`DOCTRINE_ENFORCEMENT.md` names `/tmp`, `/private/tmp`, `/var/folders` in order to describe what is
+banned, so the gate flagged the standard document itself. That is precisely the policy-document
+case the allow-list exists for, so `DOCTRINE_ENFORCEMENT.md` was added to it. Worth recording: the
+gate fires on unplanned additions, not only on synthetic probes.
+
+**The allow-list is load-bearing, and documented as such** (script header + `DOCTRINE_ENFORCEMENT.md`
+§10) so a later maintainer cannot mistake it for an oversight and "tighten" it into the history
+rewrite the owner has forbidden. It exempts (a) policy documents — a doctrine cannot state what it
+prohibits without naming it — (b) `CHANGES.md` / `DEVELOPMENT_NOTES.md`, append-only history that
+must stay raw, and (c) `.github/workflows/*` `$HOME` lines, which run on GitHub's runners where
+`$HOME` is the runner's own disk.
+
+**Also closed here.** `VOLUME-DATA-LOCALITY.4` (ADR `0031` + the `0002`/`0030` amendments + the
+settled `~/Documents/github` decision) is recorded `done` with its content having landed inside the
+`.5` and `.7` commits rather than one of its own — stated plainly rather than back-dating a commit,
+since the leaf→commit mapping is a durable join key and a fabricated one would be worse than an
+honest note. `0002`'s clause explicitly permitting absolute `/tmp` evidence paths — the clause that
+let the citations accumulate in the first place — is withdrawn by `0031`, by *adding* an amending
+record rather than editing the original.
+
+**Tree closed.** ANVIL writes nothing off-volume (residue census **14 → 0**), no live document or
+code path points at the boot volume, shared stores are used in place and never duplicated, git
+history and the append-only logs are untouched, and all of it is now gated mechanically.
+
+**Validation.** `bash scripts/check_doctrines.sh` → 5/5 PASS. No generator code touched ⇒
+`tests/snapshots.rs` unaffected; the full suite was green at `bdb6b0a` immediately prior.
+
+**Files touched.** `scripts/check_no_boot_volume_refs.sh` (new), `scripts/check_doctrines.sh`,
+`DOCTRINE_ENFORCEMENT.md`, `docs/tasks/VOLUME-DATA-LOCALITY.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — VOLUME-DATA-LOCALITY.5 — sweep every boot-volume path reference
 
 **Landed as:** this commit (previous: `ef7e5a8`, `VOLUME-DATA-LOCALITY.3`).

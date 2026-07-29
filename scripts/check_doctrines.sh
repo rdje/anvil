@@ -31,6 +31,7 @@ DOCTRINES=(
   "KNOWLEDGE-MAP|the derived KNOWLEDGE_MAP.md is in sync with its fact sources|knowledge-map/scripts/check_knowledge_map.sh"
   "CODE-CHANGE-EVIDENCE|a staged code change co-stages the mandatory CHANGES.md + MEMORY.md live-doc evidence (COMMIT.md); non-code commits exempt|scripts/check_diagnosis_evidence.sh"
   "TASK-TREE-OWNERSHIP|a staged code change co-stages an owning docs/tasks/*.md task file (2026-05-17 doctrine; COMMIT.md task-tree rule #2); non-code commits exempt|scripts/check_task_tree_ownership.sh"
+  "NO-BOOT-VOLUME-REFS|no tracked file stores on or points at the boot volume, and std::env::temp_dir() is confined to src/paths.rs (decision 0031); policy docs + append-only history exempt|scripts/check_no_boot_volume_refs.sh"
 )
 
 fail=0
