@@ -10041,7 +10041,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("time went backwards")
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!(
+        let dir = anvil::paths::sandbox_root().join(format!(
             "anvil-tool-matrix-{label}-{}-{unique}",
             std::process::id()
         ));
@@ -13298,7 +13298,7 @@ mod tests {
         let mut gen = Generator::new(cfg);
         let top = gen.generate_module();
         let sv = anvil::emit::to_sv(&top);
-        let dir = std::env::temp_dir().join(format!(
+        let dir = anvil::paths::sandbox_root().join(format!(
             "anvil-tool-matrix-diff-sim-e2e-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()

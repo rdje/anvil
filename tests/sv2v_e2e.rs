@@ -62,7 +62,7 @@ fn sv2v_accepts_anvil_dut_output_end_to_end() {
     };
     let opts = ValidateOptions {
         tools: vec![AcceptanceTool::Sv2v],
-        sandbox_root: std::env::temp_dir().join("anvil-sv2v-e2e"),
+        sandbox_root: anvil::paths::sandbox_root().join("anvil-sv2v-e2e"),
         ..Default::default()
     };
     let report = validate(42, &cfg, &opts).unwrap();

@@ -43,13 +43,16 @@ hardcoded absolute off-volume path, also a §12 violation. It is cited as
 the `reverify` command of the KM card `bisimulation-flop-merge`, so the
 card must move with it.
 
-**(c) TEST FIXTURES / TEMPORARY WORKSPACES** — in policy scope (§13 names
-"runtime-created test fixtures, and temporary workspaces" explicitly),
-lower risk because they are not user-facing:
-`src/hunt/mod.rs` (4 sites), `src/bin/tool_matrix.rs` (2),
+**(c) TEST FIXTURES / TEMPORARY WORKSPACES — 14 sites** — in policy scope
+(§13 names "runtime-created test fixtures, and temporary workspaces"
+explicitly), lower risk because they are not user-facing:
+`src/hunt/mod.rs` (4), `src/bin/tool_matrix.rs` (2),
 `src/mcp/mod.rs` (1), `src/diff_sim/mod.rs` (1),
 `src/downstream/mod.rs:2283` (1), `src/divergence/mod.rs` (1),
-`tests/slang_e2e.rs`, `tests/sv2v_e2e.rs`, `tests/book_examples.rs` (2).
+`tests/slang_e2e.rs` (1), `tests/sv2v_e2e.rs` (1),
+`tests/book_examples.rs` (2).
+*(Corrected in `.3`: the `.1` write-up said "13"; the enumeration is 14,
+which with the 1 production site is the 15 total the grep reported.)*
 
 **(d) NOT violations** — `/tmp/...` string literals in CLI-argument
 *parse* tests (`src/main.rs`, `src/bin/tool_matrix.rs`): nothing is
@@ -73,14 +76,27 @@ the honest generalization of §13 is *"the project's own volume, derived
 at runtime, never an unconditional OS temp dir."* Hence the resolution
 order proposed in `.2`.
 
-### Also surfaced (owner decision required, NOT actioned)
+### The pre-move checkout — surfaced, then RESOLVED by the owner
 
 The pre-move checkout at `~/Documents/github/anvil` still exists:
 **1.1G off-volume** (877M of it `target/`). Its HEAD `ecda0e7` is a
 **strict ancestor** of this checkout's HEAD, and its
 `.cache/local-references` is identical to ours (118 files / 6.7M) ⇒ it
 holds **no unique work**. Deleting a repository checkout is destructive,
-so it is surfaced, not performed. Recorded in `.4`.
+so it was surfaced rather than performed.
+
+**Owner decision (`2026-07-29`): keep it for now — leave it alone.** The
+owner is retaining the original projects under `~/Documents/github` and
+will remove that whole directory themselves later. It is therefore
+**deliberate, owner-owned data**, not a policy breach to remediate:
+
+- **No agent may delete or migrate it.** Not now, not as cleanup, not as
+  part of a later leaf. Removal is the owner's action on their schedule.
+- It is **out of scope for this tree**, which governs the paths *ANVIL's
+  code* writes to, not where the owner keeps checkouts.
+- Any future off-volume audit must **exclude** `~/Documents/github` —
+  finding it there is the expected state, not a regression. A doctrine
+  check added in `.4` must not flag it.
 
 ## Non-Goals
 
@@ -112,7 +128,7 @@ so it is surfaced, not performed. Recorded in `.4`.
   Status: `active`
   Goal: bring all ANVIL-owned data onto the repository volume, by a
         runtime-derived root rather than an OS temp default.
-  Children: `.1`, `.2`, `.3`, `.4`, `.5`
+  Children: `.1`, `.2`, `.3`, `.4`, `.5`, `.6`, `.7`
 
 - ID: `VOLUME-DATA-LOCALITY.1`
   Status: `done`
@@ -174,15 +190,62 @@ so it is surfaced, not performed. Recorded in `.4`.
   Commit: `VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp`
 
 - ID: `VOLUME-DATA-LOCALITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: migrate the (c) test-fixture / temporary-workspace sites onto the
         same resolver (or a test-scoped sibling), so `cargo test` writes
         nothing off-volume.
   Acceptance: no `temp_dir()` outside the resolver; full suite green;
         a residue census shows no new `/private/tmp` ANVIL data after a
         full `cargo test`.
-  Verification: `pending`
-  Commit: `pending`
+  Verification: All 14 sites rewired onto `crate::paths::sandbox_root()`
+        (`anvil::paths::` from the `tool_matrix` bin and the integration
+        tests). `grep -rn "temp_dir()" src/ tests/` now matches **only**
+        `src/paths.rs` — the resolver is the sole place the OS temp dir
+        is even named, which is what makes the rule enforceable rather
+        than aspirational.
+        `tests/book_examples.rs` keeps its load-bearing invariant: the
+        stdout/stderr capture files stay *siblings* of the script CWD,
+        never inside it, so a book block that enumerates its working
+        directory is still unaffected.
+        **Before/after census (the measurement that proves it):** the OS
+        temp dir held **14** `anvil-*` entries from prior runs before
+        this leaf (real off-volume residue — the exact policy breach);
+        cleared to 0, then a full `cargo test` under
+        `ram_guard --threshold 90` → `CARGO_TEST_EXIT=0` (lib 736/0/2ig,
+        `tests/pipeline.rs` 125/0, `tests/snapshots.rs` **6/6
+        byte-identical**, `tests/book_examples.rs` 3/3), and the census
+        immediately after the run over **both** the per-user `TMPDIR`
+        and `/private/tmp` → **0 entries**. So the measured before/after
+        is **14 → 0**: a full test run now writes nothing ANVIL-owned
+        off-volume.
+
+        **Self-inflicted failure, root-caused (recorded so nobody
+        re-derives it).** The first census run came back `EXIT=101` with
+        `book_examples` failing on `recipes.md:607` (the 1000-module
+        `--out ./parse-stress/` block) and an **empty** captured-output
+        tail. Cause: mid-run, this session ran `rm -rf
+        .cache/anvil-sandbox` to tidy a bisim dump — which is now the
+        *live sandbox root the suite is using*, so it deleted that
+        block's working directory **and** its stdout/stderr capture
+        files (hence the empty tail: the harness read a file that no
+        longer existed). Re-running `cargo test --test book_examples`
+        untouched → **3/3 green**, confirming the hypothesis rather than
+        assuming it. **Operational consequence of `.2`/`.3`:** the
+        sandbox root is now inside the repo, so deleting it during a
+        test run is destructive in a way it never was when it lived in
+        the OS temp dir. Clear it *before* or *after* a run, never
+        during. The gate numbers recorded here are from a clean re-run
+        with no concurrent filesystem mutation.
+        Also re-ran the `bisimulation-flop-merge` KM card's `reverify`
+        end-to-end: it now prints
+        `<repo>/.cache/anvil-sandbox/anvil-bisim-merged.sv` and the
+        dumped SV is clean under Verilator (`-Wall -Wno-DECLFILENAME`),
+        both Yosys modes, and Icarus. The card was updated to require
+        `-Wno-DECLFILENAME` and to say why: the dump uses a fixed
+        filename that cannot match the generated module name, so bare
+        `-Wall` always exits nonzero on `DECLFILENAME` — a future agent
+        would otherwise read that as the fact being broken.
+  Commit: `VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver`
 
 - ID: `VOLUME-DATA-LOCALITY.4`
   Status: `pending`
@@ -191,10 +254,52 @@ so it is surfaced, not performed. Recorded in `.4`.
         rejected alternatives; amend decision `0030` (its rejected
         option (iii) is now **partly mandated**: a future evidence bank
         must be repo-derived and on-volume — the committed digest
-        remains the citation form); record the old-checkout finding for
-        the owner's decision; add the doctrine check if feasible.
+        remains the citation form); record the settled old-checkout
+        decision (owner keeps `~/Documents/github` and removes it
+        themselves later — never an agent action, and excluded from any
+        audit or check); add the doctrine check if feasible.
   Acceptance: ADR + `INDEX.md` row + KM front-matter; `0030` amended,
         not silently rewritten (supersede-don't-mutate).
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `VOLUME-DATA-LOCALITY.6`
+  Status: `pending`
+  Goal: **escalated by the owner's standing directive (`2026-07-29`,
+        decision `0031`): nothing stored on OR pointing at the boot
+        volume, ever.** Repoint the dependency/toolchain stores this
+        repo can control onto the repo volume:
+        `CARGO_HOME` (`~/.cargo`, **845M**, boot volume — the crate
+        registry + git checkouts every build reads and writes) and
+        `RUSTUP_HOME` (`~/.rustup`, **2.1G**). Populate project-local
+        stores under the repo volume, stop accessing the shared copies,
+        and — per §13 — **do not delete** the shared ones (they are
+        ambiguous global caches shared with the owner's other projects).
+        Wire the env contract so it holds for agent sessions *and*
+        humans (`.claude/settings.json` env + documented in
+        `USER_GUIDE.md`/`README.md`).
+  Acceptance: a clean build + full `cargo test` succeed with
+        `CARGO_HOME`/`RUSTUP_HOME` on the repo volume; `~/.cargo` and
+        `~/.rustup` are no longer read during a build (verified by
+        access-time or by a run with the shared paths made unreadable);
+        the shared stores are left intact.
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `VOLUME-DATA-LOCALITY.7`
+  Status: `pending`
+  Goal: the mechanical gate — `scripts/check_no_boot_volume_refs.sh`
+        registered in `scripts/check_doctrines.sh`, failing on any new
+        boot-volume path in tracked files (`/tmp/`, `/private/tmp`,
+        `$TMPDIR`, `$HOME/.cargo`, `/Users/`) outside an explicit
+        allow-list. The allow-list must cover: the `.github/workflows/`
+        `$HOME/.cargo/bin` lines (those run on GitHub's runners, where
+        `$HOME` is the runner's own disk — correct and portable, NOT a
+        violation on this machine), and the CLI-*parse* string literals
+        recorded in audit class (d).
+  Acceptance: driver reports the new check PASS on a compliant tree and
+        FAIL on a synthetic new `/tmp/...` reference; `check_doctrines.sh`
+        reports 5/5.
   Verification: `pending`
   Commit: `pending`
 
@@ -231,8 +336,12 @@ so it is surfaced, not performed. Recorded in `.4`.
   usual design-first cadence: the audit already pins the defect and the
   fix shape, and every hour the default stands is more off-volume data.
   The ADR (`.4`) follows the proven resolver rather than preceding it.
-- `2026-07-29`: The old off-volume checkout is **surfaced, not deleted** —
-  destructive and the owner's call.
+- `2026-07-29`: The old off-volume checkout was **surfaced, not deleted** —
+  destructive and the owner's call. **Resolved the same day:** the owner
+  keeps `~/Documents/github` (all original projects) for now and will
+  remove the whole directory themselves later. It is deliberate,
+  owner-owned data — excluded from this tree's scope and from any
+  off-volume audit or doctrine check. No agent deletes or migrates it.
 
 ## Open Questions
 
@@ -252,8 +361,9 @@ so it is surfaced, not performed. Recorded in `.4`.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-29` | `VOLUME-DATA-LOCALITY.3` | All 14 test-fixture sites rewired; `grep -rn "temp_dir()" src/ tests/` matches **only** `src/paths.rs`. Residue census **14 → 0** (per-user `TMPDIR` + `/private/tmp`, before vs after a full run). Clean full `cargo test` under `ram_guard --threshold 90` → `CARGO_TEST_EXIT=0`: lib 736/0 (2 ignored), pipeline 125/0, **snapshots 6/6 byte-identical**, book_examples 3/3. KM card `bisimulation-flop-merge` reverify re-run end-to-end: dump lands at `<repo>/.cache/anvil-sandbox/anvil-bisim-merged.sv`, clean under Verilator (`-Wall -Wno-DECLFILENAME`) + both Yosys modes + Icarus. First census attempt was `EXIT=101` from a self-inflicted mid-run `rm -rf` of the live sandbox root — root-caused, re-run clean, hazard recorded. | `done` — `cargo test` writes nothing off-volume |
 | `2026-07-29` | `VOLUME-DATA-LOCALITY.2` | 5 new `paths` unit tests green (incl. `sandbox_root_is_never_the_os_temp_dir`, which compares against `temp_dir()` itself — on macOS that is a per-user `/var/folders/…` path, so a `"/tmp"` grep would have missed it); real `validate(7)` with Verilator + Yosys → `sandbox = <repo>/.cache/anvil-sandbox/anvil-validate-d8420426e78b2d05`, `ok = true`, both tools `success = true`; `.cache/` gitignored ⇒ no `git status` pollution; `cargo check --all-targets` + `clippy -D warnings` + `fmt --check` + `mdbook build book` clean; full `cargo test` under `ram_guard --threshold 90` exit 0 with `tests/snapshots.rs` 6/6 byte-identical | `done` — the one production off-volume default is gone |
-| `2026-07-29` | `VOLUME-DATA-LOCALITY.1` | `df -h` on the repo vs `/private/tmp` → `/dev/disk5s1` vs `/dev/disk3s1s1` (off-volume confirmed); `grep -rn "temp_dir()" src/ tests/ scripts/` → 15 sites classified (a) 1 production, (b) 1 debug dump, (c) 13 test/workspace, plus (d) non-violating parse literals; old-checkout inspection read-only (`git merge-base --is-ancestor ecda0e7 HEAD` → true; caches identical); `scripts/check_doctrines.sh` 4/4 PASS | `done` — tree registered; docs-only ⇒ DUT byte-identical |
+| `2026-07-29` | `VOLUME-DATA-LOCALITY.1` | `df -h` on the repo vs `/private/tmp` → `/dev/disk5s1` vs `/dev/disk3s1s1` (off-volume confirmed); `grep -rn "temp_dir()" src/ tests/ scripts/` → 15 sites classified (a) 1 production, (b) 1 debug dump, (c) 14 test/workspace (this row said 13 when written; corrected in `.3` — the enumeration is 14, and 14 + 1 production = the 15 the grep reported), plus (d) non-violating parse literals; old-checkout inspection read-only (`git merge-base --is-ancestor ecda0e7 HEAD` → true; caches identical); `scripts/check_doctrines.sh` 4/4 PASS | `done` — tree registered; docs-only ⇒ DUT byte-identical |
 
 ## Commit Log
 
@@ -261,6 +371,7 @@ so it is surfaced, not performed. Recorded in `.4`.
 | --- | --- | --- |
 | `VOLUME-DATA-LOCALITY.1` | `VOLUME-DATA-LOCALITY.1 — register + audit: off-volume project data` | docs-only |
 | `VOLUME-DATA-LOCALITY.2` | `VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp` | code + book/doc sync; moves where bytes land, never which bytes ⇒ DUT byte-identical |
+| `VOLUME-DATA-LOCALITY.3` | `VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver` | test-scope paths only ⇒ DUT byte-identical; residue census 14 → 0 |
 
 ## Changelog
 

@@ -346,7 +346,8 @@ mod tests {
         DivergenceOptions {
             validate: ValidateOptions {
                 tools: vec![], // no-tool smoke: generate + sandbox only, no real tools
-                sandbox_root: std::env::temp_dir().join(format!("anvil-divergence-test-{tag}")),
+                sandbox_root: crate::paths::sandbox_root()
+                    .join(format!("anvil-divergence-test-{tag}")),
                 ..ValidateOptions::default()
             },
             tool_specs: vec![], // same-version path by default; `.2e` overrides

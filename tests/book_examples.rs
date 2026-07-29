@@ -122,7 +122,9 @@ fn parse_blocks(md: &Path) -> Vec<Block> {
 /// the combined output on failure for diagnostics.
 fn run_script(script: &str, tag: &str) -> Result<(), String> {
     let anvil = anvil_bin();
-    let dir = std::env::temp_dir().join(format!(
+    // On the project volume via the crate's own resolver, never the OS
+    // temp dir (`VOLUME-DATA-LOCALITY.3`).
+    let dir = anvil::paths::sandbox_root().join(format!(
         "anvil-booktest-{}-{}",
         std::process::id(),
         tag.replace([':', '/', '.', ' '], "_")
@@ -139,7 +141,7 @@ fn run_script(script: &str, tag: &str) -> Result<(), String> {
     // no such limit and need no concurrent reader thread (std-only).
     // The capture files live OUTSIDE the script CWD so a block that
     // enumerates its working dir is unaffected.
-    let out_path = std::env::temp_dir().join(format!(
+    let out_path = anvil::paths::sandbox_root().join(format!(
         "anvil-booktest-cap-{}-{}.out",
         std::process::id(),
         tag.replace([':', '/', '.', ' '], "_")

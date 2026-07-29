@@ -5,6 +5,25 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-29 — The sandbox root is now inside the repo: don't clear it mid-run — `VOLUME-DATA-LOCALITY.3`
+
+New operational hazard created by moving ANVIL's working data on-volume, learned the hard way in
+the slice that introduced it. `cargo test` now stages its fixtures under
+`<repo>/.cache/anvil-sandbox/`, so that directory is **live state during a test run**. Clearing it
+mid-run — a habit that was harmless when the data lived in the OS temp dir — deletes running tests'
+working directories out from under them.
+
+The symptom is misleading: `tests/book_examples.rs` failed on its longest block (the 1000-module
+`recipes.md` `--out ./parse-stress/` example) with an **empty** captured-output tail, which reads
+like a silent generator crash. The empty tail is the tell — the harness writes child stdout/stderr
+to capture *files* under the same root, so deleting the root makes the diagnostic disappear along
+with the evidence. Re-running the target alone was green, which is what distinguished a
+self-inflicted flake from a real regression.
+
+Rule: clear `.cache/anvil-sandbox` **before or after** a run, never during. And when a test failure
+comes with no captured output at all, suspect the harness's own scratch before suspecting the code
+under test.
+
 ## 2026-07-29 — ANVIL's working data leaves the OS temp dir — `VOLUME-DATA-LOCALITY.2`
 
 The owner's §13 data-locality policy forbids ANVIL-owned data defaulting off the project's

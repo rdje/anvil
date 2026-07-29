@@ -2284,7 +2284,7 @@ mod tests {
     // ----- AGENT-INTROSPECTION-MCP.5.2: `validate` -----
 
     fn test_root(tag: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("anvil-validate-test-{tag}"))
+        crate::paths::sandbox_root().join(format!("anvil-validate-test-{tag}"))
     }
 
     fn no_tools(tag: &str) -> ValidateOptions {

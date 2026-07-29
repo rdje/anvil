@@ -1,6 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-29 — VOLUME-DATA-LOCALITY.3 — test fixtures and temp workspaces move onto the resolver
+
+**Landed as:** this commit (previous: `7518179`, `VOLUME-DATA-LOCALITY.2`).
+A **code** change owned by leaf `VOLUME-DATA-LOCALITY.3`. Test-scope paths only ⇒ **DUT
+byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** All **14** test-fixture / temporary-workspace `std::env::temp_dir()` call sites move onto
+`crate::paths::sandbox_root()` (`anvil::paths::` from the `tool_matrix` binary and the integration
+tests): `src/hunt/mod.rs` ×4, `src/bin/tool_matrix.rs` ×2, `src/mcp/mod.rs` ×1,
+`src/diff_sim/mod.rs` ×1, `src/downstream/mod.rs` ×1, `src/divergence/mod.rs` ×1,
+`tests/slang_e2e.rs`, `tests/sv2v_e2e.rs`, and `tests/book_examples.rs` ×2.
+
+`grep -rn "temp_dir()" src/ tests/` now matches **only** `src/paths.rs`. That is the property worth
+having: the OS temp dir is named in exactly one place, so the rule is enforceable by inspection
+rather than by discipline. (The `.1` audit said "13" test sites; the enumeration is 14 — corrected
+in the tree, and 14 + 1 production = the 15 the original grep reported.)
+
+`tests/book_examples.rs` keeps its load-bearing invariant: the stdout/stderr capture files remain
+*siblings* of the script CWD rather than living inside it, so a book block that enumerates its own
+working directory is still unaffected.
+
+**Why.** §13 names "runtime-created test fixtures, and temporary workspaces" explicitly. The
+measurement: before this leaf the macOS per-user temp dir held **14** `anvil-*` entries left by
+earlier runs — real off-volume residue, the exact breach the policy forbids.
+
+**Validation.** Full `cargo test` under `scripts/ram_guard.sh --threshold 90`, followed by a residue
+census over both the per-user temp dir and `/private/tmp` (see the tree's Verification Log for the
+recorded numbers). Also re-ran the `bisimulation-flop-merge` KM card's `reverify` end-to-end: it now
+prints `<repo>/.cache/anvil-sandbox/anvil-bisim-merged.sv`, and that SV is clean under Verilator,
+both Yosys modes, and Icarus.
+
+**A KM card made honest along the way.** That card's `reverify` said to lint the dump with
+`verilator --lint-only -Wall`, which *always* exits nonzero on `DECLFILENAME` — the dump uses a
+fixed filename that cannot match the generated module name. A future agent running the card's own
+command would have read a filename artifact as the fact being broken. The card now requires
+`-Wno-DECLFILENAME` and explains why.
+
+**A hazard this slice creates, recorded rather than left to bite.** The sandbox root now lives
+inside the repo, so it is *live state during a test run*. Clearing it mid-run — harmless when the
+data sat in the OS temp dir — deletes running tests' working directories. This session did exactly
+that and produced a misleading `book_examples` failure on `recipes.md:607` with an **empty**
+captured-output tail (the capture files live under the same root, so the diagnostic vanished with
+the evidence). Re-running the target alone was green, which is what separated the self-inflicted
+flake from a real regression; the gate numbers above come from a clean re-run with no concurrent
+filesystem mutation. Rule now recorded in `DEVELOPMENT_NOTES.md`: clear `.cache/anvil-sandbox`
+before or after a run, never during — and when a failure carries no captured output at all, suspect
+the harness's own scratch first.
+
+**Impact.** `cargo test` no longer writes ANVIL data off-volume. No generator change; no phase
+labels moved. Frontier → `.4` (ADR `0031` + amending decision `0030`).
+
+**Files touched.** `src/hunt/mod.rs`, `src/bin/tool_matrix.rs`, `src/mcp/mod.rs`,
+`src/diff_sim/mod.rs`, `src/downstream/mod.rs`, `src/divergence/mod.rs`, `tests/slang_e2e.rs`,
+`tests/sv2v_e2e.rs`, `tests/book_examples.rs`, `docs/knowledge/bisimulation-flop-merge.md`,
+`KNOWLEDGE_MAP.md` (regenerated), `docs/tasks/VOLUME-DATA-LOCALITY.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-29 — VOLUME-DATA-LOCALITY.2 — sandbox root resolves to the project volume, never OS temp
 
 **Landed as:** this commit (previous: `6d9a318`, `VOLUME-DATA-LOCALITY.1`).

@@ -70,7 +70,7 @@ fn slang_accepts_anvil_dut_output_and_extracts_facts_end_to_end() {
     };
     let opts = ValidateOptions {
         tools: vec![AcceptanceTool::Slang],
-        sandbox_root: std::env::temp_dir().join("anvil-slang-e2e"),
+        sandbox_root: anvil::paths::sandbox_root().join("anvil-slang-e2e"),
         // Keep the sandbox so the `<top>.slang.json` side file `run_slang` wrote
         // survives for the `extract_facts` projection below.
         keep_sandbox: true,

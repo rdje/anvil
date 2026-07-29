@@ -675,7 +675,7 @@ mod tests {
     fn test_validate_opts(tag: &str) -> ValidateOptions {
         ValidateOptions {
             tools: vec![], // no-tool smoke: generate + sandbox only, no real tools
-            sandbox_root: std::env::temp_dir().join(format!("anvil-hunt-test-{tag}")),
+            sandbox_root: crate::paths::sandbox_root().join(format!("anvil-hunt-test-{tag}")),
             ..ValidateOptions::default()
         }
     }
@@ -933,7 +933,7 @@ mod tests {
         assert_eq!(kind, "module"); // default config is a combinational leaf
         let run_id = crate::introspect::content_run_id("dut", seed, &cfg);
         // A plausible (now-deleted) sandbox SV path the captured argv references.
-        let sandbox = std::env::temp_dir()
+        let sandbox = crate::paths::sandbox_root()
             .join(format!("anvil-validate-{run_id}"))
             .display()
             .to_string();
@@ -975,7 +975,7 @@ mod tests {
             bundle: None,
         };
 
-        let root = std::env::temp_dir().join("anvil-hunt-bundle-emit-test");
+        let root = crate::paths::sandbox_root().join("anvil-hunt-bundle-emit-test");
         let _ = std::fs::remove_dir_all(&root);
         let bundle = write_bundle(&root, seed, &cfg, &report, &failure).expect("write bundle");
 
@@ -1068,7 +1068,7 @@ mod tests {
     /// never perturbs a clean run. Cargo-portable.
     #[test]
     fn bundle_root_writes_nothing_on_a_clean_sweep() {
-        let root = std::env::temp_dir().join("anvil-hunt-bundle-clean-test");
+        let root = crate::paths::sandbox_root().join("anvil-hunt-bundle-clean-test");
         let _ = std::fs::remove_dir_all(&root);
         let req = HuntRequest {
             base_seed: 70,

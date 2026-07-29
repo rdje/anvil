@@ -855,7 +855,7 @@ endmodule\n";
             // gate covers the present-tools case. Skip cleanly.
             return;
         }
-        let dir = std::env::temp_dir().join("anvil-diff-sim-noop-probe");
+        let dir = crate::paths::sandbox_root().join("anvil-diff-sim-noop-probe");
         let report = run_agreement(&dir, "m", "module m (\n);\nendmodule\n", 4);
         assert!(!report.ran);
         assert!(!report.success);

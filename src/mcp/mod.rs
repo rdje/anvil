@@ -3347,7 +3347,8 @@ mod tests {
 
     #[test]
     fn coverage_gaps_reads_a_recorded_report_from_path() {
-        let mut path = std::env::temp_dir();
+        let mut path = crate::paths::sandbox_root();
+        std::fs::create_dir_all(&path).unwrap();
         path.push("anvil-mcp-coverage-gaps-test-report.json");
         std::fs::write(&path, serde_json::to_string(&sample_report()).unwrap()).unwrap();
 
