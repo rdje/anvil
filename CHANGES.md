@@ -1,6 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — README-POLICY-ADOPTION.3 — the README-GROWTH doctrine, and the tree closes
+
+**Landed as:** (backfilled next slice). Previous: `1287b8d`.
+**Scripts + docs only** — no `src/` change ⇒ **DUT byte-identical**.
+
+**What.** `scripts/check_readme_growth.sh` lands and is registered as the **8th
+doctrine**, `README-GROWTH`, in `scripts/check_doctrines.sh` — so the git hook
+(E3) **and** CI (E4) both run it through the existing driver. `.github/workflows/ci.yml`
+needed no edit: it already runs `scripts/check_doctrines.sh`. That is exactly the
+argument decision `0036` §(d) made for using the doctrine mechanism instead of a
+standalone CI script. **`README-POLICY-ADOPTION` is closed.**
+
+**What the check enforces.** The caps decision `0036` §(c) derived — `250` lines
+and `12,288` bytes — plus the policy's own **storage clause**: `README_POLICY.md`
+must exist beside the file it governs. Without the project-owned copy the caps
+are folklore and the failure message's routing hint points at a document that is
+not there.
+
+**Two deliberate design choices, both recorded in the script's header.**
+
+1. **Not scope-aware.** Every other structural check in this repo that governs
+   *changes* looks at the staged set and exempts what it does not govern.
+   This one does not, because landing-page size is a property of the **tree**,
+   not of a change: a commit that never touches `README.md` is still checked,
+   so an over-cap README cannot arrive via a revert or a merge and then go
+   unexamined until someone happens to edit it.
+2. **The check is authoritative; `README_POLICY.md` cites it.** The policy
+   document states no numbers. Decision `0033`'s rule is that a number written
+   beside the thing that defines it is one more copy of it — and this session
+   already found that anti-pattern *inside the sentence warning about it*
+   (`DOCTRINE_ENFORCEMENT.md`'s "the **five** live docs", now four).
+
+**Negative-controlled five ways**, in an isolated on-volume fixture root — never
+by mutating and restoring the real tree, because `git checkout --` during a
+negative-control sweep has already silently cost this repo a README citation
+once:
+
+| # | fixture | expected | got |
+| --- | --- | --- | --- |
+| 1 | 251 lines / 502 bytes | FAIL (line cap) | FAIL + routing hint |
+| 2 | 100 lines / 20,100 bytes | FAIL (byte cap) | FAIL + routing hint |
+| 3 | `README_POLICY.md` absent | FAIL (storage clause) | FAIL |
+| 4 | exactly 250 lines / 12,288 bytes | PASS (inclusive) | PASS |
+| 5 | 12,289 bytes | FAIL (no off-by-one) | FAIL |
+
+Controls **1 and 2 are the load-bearing pair**: each fixture is far *under* the
+other cap, which is the mechanical proof that the two caps are not
+belt-and-braces but catch different bloat — the claim `.2` derived from measuring
+prose density and that `0036` rests on.
+
+**A sixth control on the registry side.** Removing `README-GROWTH` from *one*
+live-registry site (`CODEBASE_ANALYSIS.md`) makes `ENUMERATION-PARITY` fail,
+naming the file. Restored and verified byte-exact against the index. The new
+entry is in all five documented copies the doctrine gates:
+`DOCTRINE_ENFORCEMENT.md` §10 (pair 1, exact parity), plus `README.md`,
+`book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md` and
+`CODEBASE_ANALYSIS.md` (pair 1b).
+
+**Validation.** `scripts/check_doctrines.sh` **8/8 PASS** · real `README.md` at
+**157 lines / 10,226 bytes** = 63 % / 83 % of the caps · `mdbook build book`
+clean · no Rust touched (the last slice that did, `d6cca64`, ran `cargo test`
+green including `tests/snapshots.rs`).
+
+**Impact.** The owner directive in `CLAUDE.md` §14 is now implemented *and*
+mechanically enforced: `README.md` cannot grow back without failing the commit,
+and the failure tells the author where the content belongs instead of just
+saying no. Raising a cap is not a fix — it requires a new decision record
+stating that the landing-page contract itself expanded.
+
+**Files touched:** `scripts/check_readme_growth.sh` (new),
+`scripts/check_doctrines.sh`, `DOCTRINE_ENFORCEMENT.md`, `README.md`,
+`book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/README-POLICY-ADOPTION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`.
+
 ## 2026-07-30 — README-POLICY-ADOPTION.2 — restore the landing page (1771 → 156 lines)
 
 **Landed as:** `d6cca64`. Previous: `55b84d2`.

@@ -126,8 +126,9 @@ requires reading it.
 - **Every doctrine is mechanically gated.** `scripts/check_doctrines.sh` is the
   single registry+driver, run by the git hook and by CI. Live registry:
   `MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`,
-  `TASK-TREE-OWNERSHIP`, `NO-BOOT-VOLUME-REFS`, `EVIDENCE-CITATIONS`, and
-  `ENUMERATION-PARITY` — a list itself gated by the last of those.
+  `TASK-TREE-OWNERSHIP`, `NO-BOOT-VOLUME-REFS`, `EVIDENCE-CITATIONS`,
+  `ENUMERATION-PARITY`, and `README-GROWTH` (which keeps *this* file a
+  landing page) — a list itself gated by `ENUMERATION-PARITY`.
 
 ## Where content goes
 This README is a landing page under [`README_POLICY.md`](README_POLICY.md),

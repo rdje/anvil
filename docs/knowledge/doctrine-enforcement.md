@@ -45,6 +45,11 @@ beside a list is a second copy of it):
 - `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh` (structural:
   every declared docs/script enumeration pair matches the set it mirrors —
   including this list; decision `0033`).
+- `README-GROWTH` → `scripts/check_readme_growth.sh` (structural: `README.md`
+  stays a landing page within its reviewed line **and** byte caps, with the
+  project-owned `README_POLICY.md` beside it; decision `0036`, owner directive
+  `CLAUDE.md` §14. Not scope-aware — landing-page size is a property of the
+  tree, not of a change).
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
 `src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`). `.githooks/pre-commit`

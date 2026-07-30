@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Why `README-GROWTH` is the one doctrine that is *not* scope-aware — `README-POLICY-ADOPTION.3`
+
+Every other structural check in this repo that governs *changes* reads the staged
+set and exempts what it does not govern — that is contract item (5) in
+`DOCTRINE_ENFORCEMENT.md` §4, and it is what keeps `CODE-CHANGE-EVIDENCE` and
+`TASK-TREE-OWNERSHIP` from blocking a pure-docs commit. `README-GROWTH`
+deliberately ignores the staged set.
+
+The reason is that the two kinds of doctrine assert different things. A
+scope-aware check asserts *"this change carries its evidence"* — a property **of
+the change**, meaningless when there is no change to inspect. A cap asserts
+*"the tree is in a legal state"* — a property **of the tree**. If the cap only
+fired when `README.md` was staged, an over-cap README could arrive by a route
+that stages it without an author reading it — a revert, a merge resolution, a
+cherry-pick — and then sit there until someone happened to edit that file again.
+The gate would be green the whole time. Checking unconditionally costs two `wc`
+calls; the alternative costs the guarantee.
+
+The corollary is a rule of thumb for adding future doctrines: **ask whether the
+predicate is about the diff or about the tree.** If you can state it without
+referring to a change ("the landing page is under N lines", "every cited bank is
+classified"), it should not be scope-aware. If stating it requires a change ("a
+staged code change co-stages `CHANGES.md`"), it must be.
+
+Two smaller decisions in the same check, both applications of rules this repo
+already earned:
+
+- **It also asserts `README_POLICY.md` exists.** A cap with no published policy
+  beside it is folklore, and the failure message's routing hint would point at a
+  missing document. The policy's own storage clause requires the project-owned
+  copy; the check is where that requirement becomes real.
+- **The caps live in the check, and `README_POLICY.md` cites it rather than
+  restating them.** Decision `0033`: a number written beside the thing that
+  defines it is one more copy of it. This session watched that fail in real
+  time — `DOCTRINE_ENFORCEMENT.md` said "the **five** live docs that enumerate
+  the `--steer` taxonomy" inside the very table cell arguing that counts should
+  be deleted rather than maintained. It was four by then.
+
+**On negative-controlling a cap: control each bound separately.** Two fixtures,
+each far *under* the other cap — 251 lines at 502 bytes, and 100 lines at 20,100
+bytes — are what turn "both caps, because they catch different things" from a
+design assertion into a measured fact. A single over-both fixture would have
+passed the test suite while proving nothing about *why* there are two numbers.
+Add the exact boundary (250 / 12,288 passes, 12,289 fails) and the check has no
+untested edge left.
+
 ## 2026-07-30 — Four things learned deleting 1615 lines of README — `README-POLICY-ADOPTION.2`
 
 **1. A line cap and a byte cap can disagree, and the byte cap is the honest one.**

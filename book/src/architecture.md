@@ -474,6 +474,13 @@ Knowledge Map. The live registry:
 - **`ENUMERATION-PARITY`** — every *declared* docs/script enumeration
   pair is in parity with the set it mirrors (decision `0033`) — including
   this very list, which is checked against the registry it describes.
+- **`README-GROWTH`** — `README.md` stays a landing page, within its
+  reviewed line **and** byte caps, with the project-owned
+  `README_POLICY.md` beside it (decision `0036`; owner directive
+  `CLAUDE.md` §14). Both caps, because prose density means a file can sit
+  well under the line cap while already over the byte cap. Fails with a
+  routing hint naming the canonical home per kind of overflow; raising a
+  cap requires a new decision record, not an edit to the check.
 
 The driver collects every check's result, meta-checks that each
 registered check exists and is executable (so the registry can never

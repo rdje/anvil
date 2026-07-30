@@ -2640,7 +2640,8 @@ In `ir::validate::validate_design`:
   `TASK-TREE-OWNERSHIP` → `scripts/check_task_tree_ownership.sh`;
   `NO-BOOT-VOLUME-REFS` → `scripts/check_no_boot_volume_refs.sh`;
   `EVIDENCE-CITATIONS` → `scripts/check_evidence_citations.sh`;
-  `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh`). The driver
+  `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh`;
+  `README-GROWTH` → `scripts/check_readme_growth.sh`). The driver
   collects all results, meta-checks each registered check exists+executable,
   and exits nonzero on any breach. `.githooks/pre-commit` (E3) and
   `.github/workflows/ci.yml` (E4) both run it; the two code-scoped checks are
