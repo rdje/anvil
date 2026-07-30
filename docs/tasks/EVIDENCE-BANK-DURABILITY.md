@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `EVIDENCE-BANK-DURABILITY`
-- Status: `active` (reopened `2026-07-30`)
+- Status: `done` (closed `2026-07-30`; reopened + re-closed the same day — see "Reopened findings")
 - Roadmap lane: Quality / evidence architecture (cross-cutting; no phase reopened)
 - Created: `2026-07-25`
 - Last updated: `2026-07-30`
@@ -91,7 +91,7 @@ evidence citations absolute and volatile.
 ## Task Tree
 
 - ID: `EVIDENCE-BANK-DURABILITY`
-  Status: `active` (reopened `2026-07-30` — see "Reopened findings")
+  Status: `done` (re-closed `2026-07-30` after `.6`)
   Goal: make closure evidence durable / re-derivable, or explicitly
         redefine what a closure citation means.
   Children: `EVIDENCE-BANK-DURABILITY.1`, `EVIDENCE-BANK-DURABILITY.2`,
@@ -99,7 +99,7 @@ evidence citations absolute and volatile.
         `EVIDENCE-BANK-DURABILITY.5`, `EVIDENCE-BANK-DURABILITY.6`
 
 - ID: `EVIDENCE-BANK-DURABILITY.6`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: repair the two deriver defects the second real digest exposed
         (see "Reopened findings"): (A) `scripts/evidence_digest.sh`
         reconstructs `--command` from a **hardcoded** list of `*_gate`
@@ -115,6 +115,35 @@ evidence citations absolute and volatile.
         settled and the check validates them; negative controls for both;
         `docs/evidence/anvil-emit-surface-interaction-r1.md` regenerates to
         the hand-corrected value.
+  Delivered: **(A)** the fourteen-name enumeration is gone. `true_gates_in`
+        reads every `"*_gate": true` key straight out of the report, and the
+        caller **classifies** the result — exactly one ⇒ use it; more than one
+        ⇒ die (they are mutually exclusive, so the report is malformed); zero
+        ⇒ legitimate *only* when `scenario_set == "default"` (a plain matrix or
+        a `--phase1-gate` run, both of which report that set), otherwise die
+        naming the contradiction. The report already serialises one boolean per
+        gate, so the truth was always there to be read rather than remembered.
+        **(B)** `--commit <sha>` added, and when `commit:` is filled from a
+        **dirty** tree the deriver warns loudly that the value names the
+        *parent* of the banking commit and must be backfilled — converting the
+        silent wrong value into a visible one.
+  Verification: five live negative controls plus a meta-control —
+        (1) the real `anvil-emit-surface-interaction-r1` report now
+        reconstructs `--emit-surface-interaction-gate` **automatically**, the
+        flag the old list did not know; (2) that report with its flag flipped
+        to `false` (non-default set, no true flag) dies with an actionable
+        message instead of emitting a flagless command; (3) two true flags
+        dies; (4) a `default`-set report with no flag still succeeds, emitting
+        a correctly-spaced flagless command; (5) `--commit 401d72de3425`
+        regenerates the digest to the hand-corrected pointer with **no** dirty
+        warning, differing from the committed file only by the hand-added
+        correction note. Meta-control: sabotaging the shared `true_gates_in`
+        with the repo's own BRE-interval-inside-ERE mistake turns
+        `--self-test` red (3 failures, exit 1); restoring turns it green.
+  Decision: the four new self-test cases call the **same** `true_gates_in` the
+        real path calls. A self-test carrying its own copy of the pattern is
+        the same shadow-copy mistake as defect A, one level up — it would keep
+        passing after the real extractor changed.
 
 - ID: `EVIDENCE-BANK-DURABILITY.1`
   Status: `done`
@@ -347,9 +376,11 @@ layer down, to the tool that produces the artifact the check validates.
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
+**No frontier — re-closed `2026-07-30` after `.6`.**
+
+| Order | Leaf | Status | Outcome |
 | --- | --- | --- | --- |
-| 1 | `EVIDENCE-BANK-DURABILITY.6` | `pending` | **Current frontier (reopened).** Fix defects A and B in `scripts/evidence_digest.sh`: derive the gate flag from the report's own `*_gate` keys and fail loudly rather than emitting a flagless command; settle the `commit:` semantics. Negative-control both. |
+| — | `EVIDENCE-BANK-DURABILITY.6` | `done` | Both deriver defects repaired and negative-controlled; the classification and the self-test now share **one** extractor, and a meta-control proves sabotaging it turns the self-test red. |
 | — | `EVIDENCE-BANK-DURABILITY.3` | `done` | Mechanized `2026-07-30`; `EVIDENCE-CITATIONS` is live in the driver (6/6). |
 | — | `EVIDENCE-BANK-DURABILITY.4` | `done` | Re-scoped to a pointer-per-doc; landed `2026-07-30`. |
 | — | `EVIDENCE-BANK-DURABILITY.5` | `done` | Taken before `.4` (`2026-07-30`): the real run is the end-to-end proof of `.3`, and it found a real deriver bug a fixture would not have. |

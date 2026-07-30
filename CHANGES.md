@@ -1,6 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EVIDENCE-BANK-DURABILITY.6 — the deriver classifies instead of remembering
+
+**Landed as:** this commit (previous: `be0c23a`, `EMIT-SURFACE-INTERACTION-GATE.4`).
+Tooling script + docs; no generator or emitter change ⇒ **DUT byte-identical**.
+**Re-closes the `EVIDENCE-BANK-DURABILITY` tree**, reopened earlier today by the two defects
+banking the second real digest exposed.
+
+**Defect A — the reconstructed `--command` was a hardcoded enumeration.** `evidence_digest.sh`
+rebuilt the re-runnable oracle by scanning a literal list of fourteen `*_gate` report fields. A
+gate added after the script was written is absent from that list, so the deriver emitted
+`cargo run --release --bin tool_matrix -- --yosys-mode both --out …` — **no gate flag at all**,
+a command that runs the *default* scenario set. A reader following it would "re-verify" an
+entirely different run and see numbers that do not match, with nothing indicating why. That is
+the worst failure available to an evidence mechanism: silent, plausible, and wrong.
+`EMIT-SURFACE-INTERACTION-GATE.3` escaped it only because `--command` was passed explicitly.
+
+The fix is this tree's own rule — *classify, never guess* — applied one layer down, to the
+deriver rather than the check. `tool_matrix` already serialises one boolean per gate, so the
+truth is in the report; read it instead of remembering it:
+
+```
+exactly one true *_gate        → use it
+more than one                  → die (mutually exclusive ⇒ the report is malformed)
+zero, scenario_set == default  → legitimate (a plain matrix run, or --phase1-gate,
+                                 which also reports scenario_set "default")
+zero, otherwise                → die naming the contradiction
+```
+
+The fourth row is what makes it classification rather than a wider guess: "no gate flag" is
+genuinely ambiguous alone, and `scenario_set` disambiguates it, so the deriver never invents an
+answer.
+
+**Defect B — `commit:` was `HEAD` at derivation time.** A digest is normally derived as part of
+the leaf that produces it, i.e. with a **dirty** tree — so the numbers came from *uncommitted*
+code and `HEAD` is the **parent** of the commit that banks them. Harmless when the gate already
+existed; wrong when the gate is introduced by the banking commit itself, because the recorded
+revision is then one where its flag does not exist. Now: `--commit <sha>` is accepted, and
+filling `commit:` from a dirty tree emits a loud multi-line warning naming the problem and both
+remedies — turning the silent wrong value into a visible one.
+
+**Verified by five live negative controls plus a meta-control.**
+
+1. The real `anvil-emit-surface-interaction-r1` report now reconstructs
+   `--emit-surface-interaction-gate` **automatically** — the flag the old list did not know.
+2. That report with its flag flipped to `false` (non-default set, no true flag) **dies** with an
+   actionable message instead of emitting a flagless command.
+3. Two true flags → **dies** (malformed).
+4. A `default`-set report with no flag still **succeeds**, emitting a correctly-spaced flagless
+   command (the legitimate case is not collateral damage).
+5. `--commit 401d72de3425` regenerates the digest to the hand-corrected pointer with **no** dirty
+   warning; it differs from the committed file only by the hand-added correction note.
+
+Meta-control: sabotaging the shared extractor with this repo's own
+BRE-interval-inside-`grep -E` mistake turns `--self-test` **red** (3 failures, exit 1); restoring
+turns it green.
+
+**The self-test does not hold its own copy of the pattern.** The four new cases call the *same*
+`true_gates_in` the real path calls. A test with a private regex would be defect A one level up —
+it would keep passing after the real extractor changed. That is why the meta-control above is
+meaningful rather than decorative.
+
+**Third enumeration-decay bug in one session**, after the `structured-emission-max` knob list and
+the `compute_use_counts` field census. All three shadowed a set that already existed somewhere
+readable (the knob catalog, the `Module` struct, the report's JSON keys). Written up as a single
+`DEVELOPMENT_NOTES.md` note with the three-row table, because the pattern is more valuable than
+any of the three fixes.
+
+**Validation.** `scripts/evidence_digest.sh --self-test` 7/7 (3 pre-existing + 4 new);
+`bash -n` clean; the five negative controls and the meta-control above; doctrine driver 6/6 after
+staging. No Rust changed, so the cargo gate is unaffected.
+
+**No phase labels changed.**
+
+**Files touched.** `scripts/evidence_digest.sh`, `docs/evidence/README.md`,
+`docs/tasks/EVIDENCE-BANK-DURABILITY.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.4 — complete the cone-absorption consumer census
 
 **Landed as:** this commit (previous: `99e6cc0`, `EMIT-SURFACE-INTERACTION-GATE.3` follow-up).

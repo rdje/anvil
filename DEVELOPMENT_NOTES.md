@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Three enumerations rotted in one day; the cure is always the same — `EVIDENCE-BANK-DURABILITY.6`
+
+Same session, three separate bugs, one shape:
+
+| where | the enumeration | how it rotted |
+| --- | --- | --- |
+| `structured-emission-max` preset | a hand-listed set of `*_emit_prob` knobs | surfaces 6–9 shipped; nobody edited the list; the preset emitted 1 of 9 |
+| `cone_function_emit::compute_use_counts` | a hand-listed set of `NodeId`-bearing `Module` fields | `Memory`/`Fsm` ports were added; nobody edited the census; absorption became unsound-in-waiting |
+| `evidence_digest.sh` | a hand-listed set of fourteen `*_gate` report fields | a tenth gate shipped; nobody edited the list; the deriver emitted a **flagless** re-verification command |
+
+In every case the authoritative set already existed somewhere the code could read:
+the knob catalog, the `Module` struct, the report's own JSON keys. The list was a
+**second copy**, and a second copy of a growing set decays by default — silently,
+because nothing fails when it falls behind.
+
+> **A hardcoded list that shadows a growing set is a bug with a delay fuse.** If the
+> real set is reachable at runtime, read it. If it is only reachable at authoring time
+> (a struct's fields), put the enumeration where an author editing the set will
+> collide with it, and make something fail when they do not.
+
+The third one is the most instructive, because the wrong output was so *plausible*.
+`cargo run --release --bin tool_matrix -- --yosys-mode both --out …` is a perfectly
+good command. It runs. It produces a report. It just describes a completely different
+run from the one the digest is attesting to, and the mismatch would surface — if at
+all — as "the numbers moved, the generator must have changed."
+
+The repair is the rule this tree already wrote down for its *check* (`a doctrine check
+must classify, never guess`), applied to its *deriver*:
+
+```
+exactly one true *_gate  → use it
+more than one            → die (they are mutually exclusive ⇒ malformed report)
+zero, scenario_set=default→ legitimate: a plain matrix or --phase1-gate run
+zero, otherwise          → die naming the contradiction
+```
+
+Note the fourth row is what makes this classification rather than a wider guess. "No
+gate flag" is genuinely ambiguous on its own; the report's `scenario_set` disambiguates
+it, so the deriver never has to invent an answer.
+
+**And the self-test must not hold its own copy of the pattern.** The four new cases call
+the *same* `true_gates_in` the real path calls. A test with a private regex would be
+defect A one level up: it would keep passing after the real extractor changed. Proven by
+meta-control — sabotaging the shared function with this repo's own
+BRE-interval-inside-`grep -E` mistake turns `--self-test` red; restoring turns it green.
+
 ## 2026-07-30 — A suppressing pass owes an exhaustive census, and the census owes a table — `EMIT-SURFACE-INTERACTION-GATE.4`
 
 `cone_function_emit` is the only pass in the emit-projection family that does more than mark a

@@ -28,14 +28,25 @@ by hand:
 
 ```bash
 scripts/evidence_digest.sh <report.json> <bank-name> \
-    --leaf <TREE.LEAF> --claim '<what this backs>' [--command '<cmd>']
+    --leaf <TREE.LEAF> --claim '<what this backs>' [--command '<cmd>'] [--commit <sha>]
 ```
 
 `scripts/evidence_digest.sh --self-test` is its own oracle: it asserts the
 `coverage_gaps` extraction on an empty array, a populated array, and an absent
-field. That exists because the first real use of the deriver rendered
-`**2907 gap(s)**` for an *empty* array — a silent, schema-valid, completely
-wrong number. See `DEVELOPMENT_NOTES.md` (`2026-07-30`).
+field, **and** the `*_gate` classification on four shapes (an unknown gate name,
+two true flags, none true, and a `false` flag). Both sets exist because both
+failed in real use, silently and schema-valid:
+
+- the first real bank rendered `**2907 gap(s)**` for an *empty* array (a BRE
+  interval inside `grep -E`);
+- the second reconstructed a `--command` with **no gate flag at all**, because
+  the flag list was hardcoded and the new gate was not on it — a command that
+  runs the *default* scenario set and would "re-verify" an entirely different
+  run.
+
+The self-test and the real path share **one** extractor (`true_gates_in`), so a
+change to the pattern cannot pass a test holding a stale copy of it. See
+`DEVELOPMENT_NOTES.md` (`2026-07-30`).
 
 The check enforces these fields (see `check_evidence_citations.sh` leg 2):
 
@@ -53,6 +64,17 @@ The check enforces these fields (see `check_evidence_citations.sh` leg 2):
 `commit` is load-bearing and easy to under-value: a later commit may
 legitimately produce different numbers, so a digest without the commit it ran at
 is not re-verifiable — it is just a number that once was true.
+
+**`commit` is not always `HEAD`.** A digest is normally derived as part of the
+leaf that produces it, i.e. with a **dirty** working tree — so the numbers came
+from *uncommitted* code and `HEAD` is the **parent** of the commit that banks
+them. That is harmless when the gate already existed, and wrong when the gate is
+introduced by the banking commit itself: the recorded revision is then one where
+the gate's flag does not exist, and the digest's own re-verification instruction
+cannot be followed. The deriver **warns loudly** whenever it fills `commit` from
+a dirty tree; either pass `--commit <sha>` once the hash is known, or backfill it
+in a follow-up commit (`anvil-emit-surface-interaction-r1` took the latter route,
+`d73b1545a577` → `401d72de3425`).
 
 ## Where banks are written
 

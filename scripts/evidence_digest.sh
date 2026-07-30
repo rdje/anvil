@@ -17,6 +17,10 @@
 #                `bank:` field must match the filename (the check enforces it).
 #   --command    the exact re-runnable oracle. Defaults to a reconstruction from
 #                the report's own gate flags — always review it before committing.
+#   --commit     the commit whose code produced these numbers. Defaults to HEAD,
+#                which is the PARENT of the banking commit whenever the tree is
+#                dirty (the normal case) — the script warns loudly when so. See
+#                the `commit:` derivation below (EVIDENCE-BANK-DURABILITY.6).
 #
 # CONVENTION: write banks under .cache/anvil-sandbox/<bank-name>/ (on-volume,
 # gitignored). The digest is the only tracked artifact.
@@ -49,6 +53,14 @@ extract_gaps() {
   ' "$1"
 }
 
+# EVIDENCE-BANK-DURABILITY.6 — every `*_gate` field the report records as `true`,
+# one per line. The ONE extractor: the caller-side classification and the
+# self-test both call this, so a change to the pattern cannot pass a test that
+# kept a stale copy of it. (Defect A was a hardcoded list shadowing the report;
+# a self-test with its own copy of the regex would be the same mistake one level
+# up.)
+true_gates_in() { sed -n 's/^  "\([a-z0-9_]*_gate\)": true,\{0,1\}$/\1/p' "$1"; }
+
 self_test() {
   local d="${ROOT}/.cache/anvil-sandbox/evidence-digest-selftest"
   rm -rf "${d}"; mkdir -p "${d}"; local rc=0
@@ -62,6 +74,26 @@ self_test() {
   check "empty array => 0"      "0"  "$(extract_gaps "${d}/empty.json")"
   check "two gaps => 2"         "2"  "$(extract_gaps "${d}/two.json")"
   check "absent field => empty" ""   "$(extract_gaps "${d}/absent.json")"
+
+  # EVIDENCE-BANK-DURABILITY.6 — the gate-flag classification. These four cases
+  # are the negative controls for defect A: the old hardcoded enumeration passed
+  # case 1 only for gates it already knew, and silently produced a FLAGLESS
+  # command for cases 1 and 3 alike. A rule nobody has watched fail is a rule
+  # nobody knows works, so the controls live here rather than in a session log.
+  # 1: a gate name this script has never been told about.
+  printf '{\n  "scenario_set": "brand-new-set",\n  "some_future_gate": true,\n  "mux_if_gate": false\n}\n' > "${d}/future.json"
+  check "unknown gate is derived"  "some_future_gate" "$(true_gates_in "${d}/future.json")"
+  # 2: two true flags — mutually exclusive, so malformed.
+  printf '{\n  "scenario_set": "x",\n  "a_gate": true,\n  "b_gate": true\n}\n' > "${d}/two-gates.json"
+  check "two true gates => 2"      "2" "$(true_gates_in "${d}/two-gates.json" | grep -c .)"
+  # 3: non-default set, no true flag — the silent-wrong case; must be 0 here so
+  #    the caller-side `case` can die on it.
+  printf '{\n  "scenario_set": "gated",\n  "x_gate": false\n}\n' > "${d}/none.json"
+  check "no true gate => 0"        "0" "$(true_gates_in "${d}/none.json" | grep -c .)"
+  # 4: a false flag is never mistaken for a true one.
+  printf '{\n  "scenario_set": "default",\n  "phase1_gate": false\n}\n' > "${d}/false.json"
+  check "false flag not derived"   ""  "$(true_gates_in "${d}/false.json")"
+
   rm -rf "${d}"
   [ "${rc}" -eq 0 ] && echo "evidence-digest: self-test PASS" || echo "evidence-digest: self-test FAIL" >&2
   return "${rc}"
@@ -69,15 +101,16 @@ self_test() {
 
 if [ "${1:-}" = "--self-test" ]; then self_test; exit $?; fi
 
-[ $# -ge 2 ] || die "usage: $0 <report.json> <bank-name> --leaf <ID> --claim '<text>' [--command '<cmd>'] [--out <path>]
+[ $# -ge 2 ] || die "usage: $0 <report.json> <bank-name> --leaf <ID> --claim '<text>' [--command '<cmd>'] [--commit <sha>] [--out <path>]
        $0 --self-test"
 REPORT="$1"; BANK="$2"; shift 2
-LEAF=""; CLAIM=""; COMMAND=""; OUT=""
+LEAF=""; CLAIM=""; COMMAND=""; OUT=""; COMMIT=""; COMMIT_PENDING=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --leaf)    LEAF="${2:-}";    shift 2 ;;
     --claim)   CLAIM="${2:-}";   shift 2 ;;
     --command) COMMAND="${2:-}"; shift 2 ;;
+    --commit)  COMMIT="${2:-}";  shift 2 ;;
     --out)     OUT="${2:-}";     shift 2 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -123,18 +156,60 @@ else
 fi
 
 # Which gate flag drove the run (for the reconstructed command).
+#
+# DERIVED FROM THE REPORT, NOT ENUMERATED (EVIDENCE-BANK-DURABILITY.6). This used
+# to scan a hardcoded list of fourteen `*_gate` field names. A gate added after the
+# script was written was absent from that list, so the deriver emitted a command
+# with NO gate flag at all — one that runs the *default* scenario set. A reader
+# following it would "re-verify" a completely different run and see numbers that do
+# not match, with nothing to indicate why: silent, plausible, and wrong, the worst
+# failure an evidence mechanism can have. `tool_matrix` already serializes one
+# boolean per gate, so the truth is in the report; read it instead of remembering
+# it. Same rule the EVIDENCE-CITATIONS check follows: classify, never guess.
+TRUE_GATES="$(true_gates_in "${REPORT}")"
+N_TRUE=$(printf '%s' "${TRUE_GATES}" | grep -c . || true)
 GATE_FLAG=""
-for g in phase1_gate phase2_share_gate phase3_structured_gate phase4_hierarchy_gate \
-         signoff_knob_sweep_gate sv_version_gate function_emit_gate generate_loop_gate \
-         task_emit_gate cone_function_gate multi_output_task_gate mux_if_gate \
-         case_mux_if_gate casez_mux_if_gate; do
-  [ "$(jbool "$g")" = "true" ] && GATE_FLAG="--$(printf '%s' "$g" | tr '_' '-')"
-done
+case "${N_TRUE}" in
+  0)
+    # Legitimate ONLY for the default scenario set (a plain matrix run, or a
+    # `--phase1-gate` run which also reports `scenario_set: "default"`). A
+    # non-default set with no true flag is a contradiction the deriver must not
+    # paper over: it means this script cannot reconstruct the command.
+    if [ "${SET}" != "default" ]; then
+      die "report says scenario_set='${SET}' but records no '*_gate: true' field.
+       The re-runnable command cannot be reconstructed, and emitting one without a
+       gate flag would silently describe a DEFAULT-set run. Pass --command '<exact cmd>'
+       (and teach tool_matrix to record the flag) rather than banking a wrong pointer."
+    fi
+    ;;
+  1) GATE_FLAG="--$(printf '%s' "${TRUE_GATES}" | tr '_' '-')" ;;
+  *)
+    die "report records ${N_TRUE} '*_gate: true' fields ($(printf '%s' "${TRUE_GATES}" | tr '\n' ' ')).
+       The gates are mutually exclusive, so this report is malformed; refusing to guess."
+    ;;
+esac
 if [ -z "${COMMAND}" ]; then
-  COMMAND="cargo run --release --bin tool_matrix -- ${GATE_FLAG} --yosys-mode ${YMODE} --out .cache/anvil-sandbox/${BANK}"
+  # `${GATE_FLAG}` may be empty (a default-set bank); build the argv without a
+  # double space, because this string is meant to be copy-pasted by a human.
+  COMMAND="cargo run --release --bin tool_matrix --${GATE_FLAG:+ ${GATE_FLAG}} --yosys-mode ${YMODE} --out .cache/anvil-sandbox/${BANK}"
 fi
 
-COMMIT="$(cd "${ROOT}" && git rev-parse --short=12 HEAD)"
+# `commit:` must name the code that PRODUCED these numbers, which is not always
+# HEAD (EVIDENCE-BANK-DURABILITY.6). When the working tree is dirty — the normal
+# case, because a digest is derived as part of the leaf that adds the gate — the
+# numbers came from uncommitted code, and HEAD is the PARENT of the commit that
+# will bank them. For a gate introduced by that same commit, HEAD is a revision
+# where the gate's flag does not exist, so the digest's own re-verification
+# instruction cannot be followed. Hit exactly that on
+# `anvil-emit-surface-interaction-r1`, whose pointer had to be corrected by hand.
+# So: `--commit` wins; otherwise use HEAD, and when the tree is dirty say loudly
+# that the value needs backfilling once the banking commit lands.
+if [ -z "${COMMIT}" ]; then
+  COMMIT="$(cd "${ROOT}" && git rev-parse --short=12 HEAD)"
+  if [ -n "$(cd "${ROOT}" && git status --porcelain 2>/dev/null)" ]; then
+    COMMIT_PENDING=1
+  fi
+fi
 DATE="$(date +%F)"   # when the digest was derived; `commit` carries the code identity
 SHA="$(sha256_of "${REPORT}")"
 
@@ -183,3 +258,12 @@ mkdir -p "$(dirname "${OUT}")"
 
 printf 'evidence-digest: wrote %s\n' "${OUT#"${ROOT}"/}" >&2
 printf 'evidence-digest: REVIEW the derived `command` before committing.\n' >&2
+if [ "${COMMIT_PENDING}" -eq 1 ]; then
+  printf 'evidence-digest: WARNING — the working tree was DIRTY, so these numbers came from\n' >&2
+  printf '                 UNCOMMITTED code and `commit: %s` names its PARENT.\n' "${COMMIT}" >&2
+  printf '                 If the code that produced them lands in the commit that banks this\n' >&2
+  printf '                 digest (always true for a gate introduced by its own first bank),\n' >&2
+  printf '                 that value is WRONG and the re-verification instruction cannot be\n' >&2
+  printf '                 followed. Backfill it in a follow-up commit, or re-derive with\n' >&2
+  printf '                 --commit <sha> once the hash is known.\n' >&2
+fi
