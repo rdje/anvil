@@ -372,9 +372,19 @@ it safe are deliberate:
 
 The target is set programmatically (the `steering` block of `Config`, so it
 rides every API call) or with the `--steer <key>=<weight>` CLI shim. A `key` is a
-knob name (`flop_prob`) or one of the six coarse categories — `state`,
-`selectors`, `datapath`, `terminals`, `sharing`, `hierarchy` — so one entry can
-emphasise a whole family. The *achieved* coverage to steer toward is read back
+knob name (`flop_prob`) or one of the eight coarse categories — `state`,
+`selectors`, `datapath`, `terminals`, `sharing`, `hierarchy`, `motifs`,
+`emission` — so one entry can emphasise a whole family.
+
+The last two are worth distinguishing, because they sit at opposite ends of the
+same pipeline and at opposite ends of *resolution*. **`motifs`** selects *what
+kind of module this is* — a memory, an FSM, a parameterized leaf, a multi-clock
+design — and rolls **once per module**. **`emission`** selects how an
+already-built cone is *rendered* — the nine structured-emission surfaces — and
+rolls **once per candidate gate**, so a single module contributes thousands of
+attempts. They are deliberately separate categories: merged, any per-category
+rate would be dominated by `emission` and would tell you nothing about the motif
+knobs. The *achieved* coverage to steer toward is read back
 from the introspection [`coverage_readout`](agent-mcp.md#anvil---introspect) /
 the MCP `coverage` tool, and the
 [measure → derive → re-steer loop](agent-mcp.md#coverage-steered-generation)

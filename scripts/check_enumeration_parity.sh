@@ -85,6 +85,14 @@ extract_adapter_ids() {
     grep -oE '"[a-z0-9]+"' | tr -d '"' | sort -u
 }
 
+# Authoritative: the steering category names in `KnobId::category`'s exhaustive
+# match. The match arms are the ONLY place the taxonomy is defined; every prose
+# copy of the list is a shadow of this (COVERAGE-STEERED-GENERATION.4c).
+extract_steering_categories() {
+  sed -n '/pub fn category(&self)/,/^    }$/p' src/ir/types.rs |
+    grep -oE '=> "[a-z]+"' | grep -oE '"[a-z]+"' | tr -d '"' | sort -u
+}
+
 # --- helpers ----------------------------------------------------------------
 
 count_of() { printf '%s\n' "$1" | grep -c . ; }
@@ -210,6 +218,29 @@ if floor_or_fail 'downstream adapter ids' 5 "${adapter_ids}"; then
     "${adapter_ids}" 'book/src/api-tools.md'
   covers_set 'adapter allow-list <-> the adapter registry' \
     "${adapter_ids}" 'book/src/agent-mcp.md'
+fi
+
+# Pair 4 — the live docs that enumerate the `--steer` category taxonomy (shadow)
+# mirror `KnobId::category`'s match arms (authoritative). Added by
+# COVERAGE-STEERED-GENERATION.4c, which added two categories (`motifs`,
+# `emission`) and found the six-name list copied into five live docs plus the
+# book. A stale copy here is worse than an omission: `--steer` *errors* on an
+# unknown key, so a user reading a short list simply never learns the category
+# exists — the feature is delivered and invisible. The sites are NAMED rather
+# than discovered, because a grep for "any file mentioning two category words"
+# also matches ordinary prose about state and sharing.
+steering_categories="$(extract_steering_categories)"
+if floor_or_fail 'KnobId steering categories' 6 "${steering_categories}"; then
+  covers_set 'steer categories <-> KnobId::category' \
+    "${steering_categories}" 'book/src/algorithm.md'
+  covers_set 'steer categories <-> KnobId::category' \
+    "${steering_categories}" 'book/src/knobs.md'
+  covers_set 'steer categories <-> KnobId::category' \
+    "${steering_categories}" 'USER_GUIDE.md'
+  covers_set 'steer categories <-> KnobId::category' \
+    "${steering_categories}" 'README.md'
+  covers_set 'steer categories <-> KnobId::category' \
+    "${steering_categories}" 'docs/AGENT_INTROSPECTION_SCHEMA.md'
 fi
 
 # --- verdict ----------------------------------------------------------------

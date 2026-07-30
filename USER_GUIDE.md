@@ -398,9 +398,9 @@ generation toward under-exercised constructs at **construction time** — a
 probability **prior**, never a generate-then-filter. ANVIL multiplies the named
 roll's probability by `weight` before its single seeded draw; with no `--steer`
 (or a neutral `=1.0`) the output is byte-identical to today. `key` is either a
-**knob name** (e.g. `flop_prob`, `coefficient_prob`) or one of the six coarse
+**knob name** (e.g. `flop_prob`, `coefficient_prob`) or one of the eight coarse
 **categories** — `state` / `selectors` / `datapath` / `terminals` / `sharing` /
-`hierarchy` — so one entry can emphasise a whole family; `weight` is a
+`hierarchy` / `motifs` / `emission` — so one entry can emphasise a whole family; `weight` is a
 non-negative multiplier (`>1` emphasises, `<1` de-emphasises, `0` suppresses).
 The flag is repeatable and layers after `--profile` (explicit wins per key); an
 unknown key errors naming the categories, and a negative/non-finite weight is
@@ -416,14 +416,26 @@ anvil --seed 42 --steer state=4 --steer coefficient_prob=3 --steer selectors=0.5
 `coverage_readout` is steerable at **every** one of its decision sites — the
 readout and the steering surface are the same set of rolls, because one
 primitive produces both, and a roll that skipped it would not compile
-(`COVERAGE-STEERED-GENERATION.3b`, decision `0034`). Knobs *outside* that set —
-the motif and emit-projection probabilities such as `memory_prob`, `fsm_prob`,
-`function_emit_prob` — are not silently ignored: naming one is an error.
+(`COVERAGE-STEERED-GENERATION.3b`/`.5`, decision `0034`). Since `.4b`
+(decision `0035`) that set covers **every ANVIL knob that actually rolls**: the
+seven module-level motif knobs (`motifs`) and the nine structured-emission
+knobs (`emission`) joined it, so `--steer memory_prob=2.0` and
+`--steer emission=0.5` both work.
+
+The two new categories differ in *resolution*, which is why they are separate:
+a `motifs` knob rolls **once per module**, an `emission` knob **once per
+candidate gate** — thousands of attempts in a single module.
+
+Three probability-shaped knobs are deliberately **not** steerable, because they
+are not rolls at all: `operand_duplication_rate` and `mux_arm_duplication_rate`
+are dedup *thresholds* compared against during construction, and `library_prob`
+is a reserved knob nothing currently reads. Naming one is an error rather than a
+silent no-op:
 
 ```bash
-$ anvil --seed 7 --steer memory_prob=2.0
-Error: unknown steer key "memory_prob"; expected a knob name or a category
-       (datapath, hierarchy, selectors, sharing, state, terminals)
+$ anvil --seed 7 --steer library_prob=2.0
+Error: unknown steer key "library_prob"; expected a knob name or a category
+       (datapath, emission, hierarchy, motifs, selectors, sharing, state, terminals)
 ```
 
 > **Fixed in `.3b`, worth knowing if you used steering before `2026-07-30`.**

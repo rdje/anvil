@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.4c — steering-width docs + close `.4`
+
+**Landed as:** `<pending>` (previous: `4f41ba9`, `.4b.2` hash backfill).
+**Docs + one gate**, no generator change ⇒ **DUT byte-identical**.
+**Closes `.4c` and `.4`** — steering's *width* is delivered.
+
+**What.** The category taxonomy went from six names to eight, and that list was
+copied into **six** live documents. All six updated; `book/src/algorithm.md` also
+gains the distinction that matters when choosing between them:
+
+> **`motifs`** selects *what kind of module this is* and rolls **once per
+> module**. **`emission`** selects how an already-built cone is *rendered* and
+> rolls **once per candidate gate** — thousands of attempts in a single module.
+
+`USER_GUIDE.md`'s "which knobs a steer reaches" paragraph is rewritten: the gap
+`.4a` documented is closed for every knob that actually rolls, and the three
+exclusions-by-kind are named with the **real** error text (checked against the
+binary rather than transcribed).
+
+`book/src/structured-emission.md` gains **"Measuring the surfaces: per-gate fire
+rates"** — the measured per-surface table plus two cautions an agent needs before
+steering the family:
+
+- **A raised probability is not more surfaces.** Mutual exclusion plus the fixed
+  pass order means an earlier surface claiming more gates starves later ones, so
+  steering `emission` *up* moves the lane toward the saturation regime where
+  three shapes survive. For diversity, steer individual under-represented
+  surfaces.
+- **`soft_union_slice_prob` is in the category but version-gated**, so an
+  `emission` steer moves its roll rate even where the emitter down-gates every
+  marked slice.
+
+**A fourth `ENUMERATION-PARITY` pair.** Six copies of a growing list is the
+decision-`0033` shadow shape exactly, and the failure mode here is worse than an
+omission: `--steer` **errors** on an unknown key, so a user reading a stale
+six-name list never learns the category exists — the feature ships *invisible*.
+The new pair binds the five live-doc sites to `KnobId::category`'s match arms,
+count-floored at 6 and negative-controlled **both** ways: a doc missing
+`emission` fails naming it, a new `probecat` category in the code fails across
+every doc site, and restoring either leaves the gate clean.
+
+**And a count deleted rather than incremented.** `DOCTRINE_ENFORCEMENT.md`
+described the pairs as *"Three today"*. Adding a fourth, the tempting edit is
+"Four today" — but a number beside a list is one more copy of it, and decision
+`0033` repairs that by **deletion**, never by gating the count too. The clause now
+names the pairs and states why it carries no count; the script's `PAIRS` table is
+the authority.
+
+**Validation.** `mdbook build book` clean; `cargo test --test book_examples` 4/4
+(65 runnable blocks, 36 skip-sentineled — the two new blocks carry genuine
+reasons, which `BOOK-EXAMPLES-RUNNABLE.3`'s repaired guard now actually checks);
+`scripts/check_doctrines.sh` all 7 PASS including the new pair; Knowledge Map
+regenerated (87 facts / 877 question keys) with decision `0035` enriched as the
+card (`status → delivered`, 4 new answer keys, a `reverify` that reproduces both
+before/after measurements).
+
+**`.4` is closed.** All **38** `KnobId`s are steered at every one of their roll
+sites and appear in the coverage readout when their knob is on. Decision `0017`'s
+API-completeness gate now holds for every ANVIL capability that actually rolls;
+the three probability-shaped knobs that are *not* rolls error loudly rather than
+no-op.
+
+**Files touched.** `book/src/algorithm.md`, `book/src/knobs.md`,
+`book/src/structured-emission.md`, `USER_GUIDE.md`, `README.md`,
+`CODEBASE_ANALYSIS.md`, `docs/AGENT_INTROSPECTION_SCHEMA.md`,
+`DOCTRINE_ENFORCEMENT.md`, `scripts/check_enumeration_parity.sh`,
+`docs/decisions/0035-…md`, `docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4b.2 — nine emission surfaces, measurable per gate
 
 **Landed as:** `4a15ecd` (previous: `ed3ed29`, `.5` hash backfill).

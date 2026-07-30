@@ -11,10 +11,15 @@ answers:
   - "are operand_duplication_rate and mux_arm_duplication_rate steerable"
   - "what is library_prob"
   - "how many roll sites does an emit-projection knob have"
+  - "how do I measure how often each structured-emission surface fires"
+  - "what are the motifs and emission steering categories"
+  - "how do I steer all nine emit-projection surfaces at once"
+  - "why is emission a separate steering category from motifs"
 date: 2026-07-30
-status: accepted
+status: delivered
 tags: [steering, coverage, knob-roll, motifs, structured-emission, api-completeness, rules-first, telemetry, north-star]
-evidence: src/config.rs:1657-1729 (the 41-entry probability validation list — all 16 candidates are range-checked into [0,1], which is what makes the routing byte-identical); src/gen/module.rs:386-417 (the 4 module-level motif rolls) + src/gen/mod.rs:77-190,196-460 (the multi-clock / aggregate / 9 emit-projection call sites, each duplicated across `generate_module` and `generate_module_with_interface_profile`); src/ir/{soft_union,function_emit,generate_loop,task_emit,multi_output_task_emit,cone_function_emit,mux_if_emit,case_mux_if_emit,casez_mux_if_emit}.rs (the 9 `annotate_*(m, rng, prob)` signatures that must gain a `&SteeringConfig`); src/ir/knob_roll.rs (the one primitive, decision 0034); src/ir/types.rs (`KnobId::all` — the 22-entry list this widens to 38); docs/AGENT_INTROSPECTION_SCHEMA.md §6.8 (`coverage_readout` is a map, so widening its key set is data, not shape)
+evidence: src/config.rs:1657-1729 (the 41-entry probability validation list — all 16 candidates are range-checked into [0,1], which is what makes the routing byte-identical); src/gen/module.rs:386-417 (the 4 module-level motif rolls) + src/gen/mod.rs:77-190,196-460 (the multi-clock / aggregate / 9 emit-projection call sites, each duplicated across `generate_module` and `generate_module_with_interface_profile`); src/ir/{soft_union,function_emit,generate_loop,task_emit,multi_output_task_emit,cone_function_emit,mux_if_emit,case_mux_if_emit,casez_mux_if_emit}.rs (the 9 `annotate_*(m, rng, prob)` signatures that must gain a `&SteeringConfig`); src/ir/knob_roll.rs (the one primitive, decision 0034); src/ir/types.rs (`KnobId::all` — the 22-entry list this widens to 38); docs/AGENT_INTROSPECTION_SCHEMA.md §6.8 (`coverage_readout` is a map, so widening its key set is data, not shape); DELIVERED by .4b.1 (7 motif knobs) + .4b.2 (9 emission knobs) + .4c (docs), on the guard .5 completed
+reverify: cargo run --release -- --seed 7 --profile structured-emission-max --introspect   # introspection.coverage_readout.knob_fire_rates must carry all 8 non-version-gated emission knobs, each ~0.25, under a single `emission` category; before .4b.2 it carried NONE. Then: cargo run --release -- --seed 7 --memory-prob 0.5 --introspect  # memory_prob under `motifs`; the readout was EMPTY before .4b.1
 ---
 
 # 0035 - COVERAGE-STEERED-GENERATION.4: steering's width

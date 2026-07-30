@@ -885,7 +885,7 @@ exercising adversarial axes that previously fired only by chance
 - `anvil --steer <key>=<weight>` (repeatable) biases construction-time coverage
   steering (`COVERAGE-STEERED-GENERATION.2c.1`, decision `0023`): `key` is a knob
   name (e.g. `flop_prob`) or a steering category
-  (`state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`) and `weight`
+  (`state`/`selectors`/`datapath`/`terminals`/`motifs`/`emission`/`sharing`/`hierarchy`) and `weight`
   is a non-negative multiplier on that roll's probability (`>1` emphasizes, `<1`
   de-emphasizes, `1` neutral). It is the ergonomic shim over `Config.steering`
   (which is also `--config`/MCP-settable); it layers after `--profile` (explicit

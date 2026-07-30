@@ -1333,3 +1333,60 @@ cargo run --release -- --seed 42 --count 4 \
 That corpus is Verilator-clean under `--language 1800-2023` and is a recorded
 no-op for Yosys and Icarus (see
 [the version target](knobs.md#systemverilog-version-target)).
+
+## Measuring the surfaces: per-gate fire rates
+
+Every knob above rolls **once per candidate gate**, and since
+`COVERAGE-STEERED-GENERATION.4b.2` each of those rolls is recorded. That makes
+the nine surfaces the highest-resolution part of ANVIL's
+[coverage readout](knobs.md#per-knob-roll-rate-validation): a single module
+contributes thousands of attempts, so the achieved rate is a real measurement
+rather than a small-sample estimate.
+
+<!-- book-test: skip — reads the readout with jq/python, which the harness does not shim -->
+```bash
+cargo run --release -- --seed 7 --profile structured-emission-max --introspect
+```
+
+Read `introspection.coverage_readout.knob_fire_rates`. On seed 7 it reports:
+
+| surface | fires/attempts | achieved rate |
+| --- | --- | --- |
+| `function_emit_prob` | 881/3420 | `0.258` |
+| `task_emit_prob` | 626/2463 | `0.254` |
+| `multi_output_task_emit_prob` | 401/1631 | `0.246` |
+| `case_mux_if_emit_prob` | 120/425 | `0.282` |
+| `casez_mux_if_emit_prob` | 77/285 | `0.270` |
+| `cone_function_emit_prob` | 78/305 | `0.256` |
+| `generate_loop_emit_prob` | 76/325 | `0.234` |
+| `mux_if_emit_prob` | 61/253 | `0.241` |
+| **category `emission`** | **2320/9107** | **`0.255`** |
+
+Every rate lands on `0.25` — the preset's value, and the one the
+[Combining the surfaces](#combining-the-surfaces) section derived by sweeping
+per-surface counts externally. It is now visible **from the artifact itself**,
+which is what lets an agent close the loop: measure the achieved rates, notice a
+surface is under-represented, and steer toward it.
+
+Steering the whole family is one key, because all nine share the `emission`
+category:
+
+<!-- book-test: skip — comparative measurement; the runnable form is the plain --introspect above -->
+```bash
+# halve the emission family's achieved rate without touching any other knob
+cargo run --release -- --seed 7 --profile structured-emission-max \
+  --steer emission=0.5 --introspect
+```
+
+Two cautions worth internalising before you steer:
+
+- **A raised probability is not more surfaces.** Mutual exclusion plus the fixed
+  pass order means an *earlier* surface claiming more gates leaves *later* ones
+  with fewer candidates. Steering `emission` up moves every surface's rate up,
+  but it moves the lane back toward the saturation regime where `function_emit`
+  claims nearly everything and three shapes survive. If you want diversity,
+  steer *individual* under-represented surfaces, not the category.
+- **`soft_union_slice_prob` is in the category but version-gated.** It only
+  emits under `--sv-version 2023`, so an `emission` steer will move its roll
+  rate even in a run where the emitter down-gates every marked slice back to a
+  plain bit-select.
