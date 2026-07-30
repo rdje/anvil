@@ -182,7 +182,7 @@ call-site change anywhere.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `IR-TYPES-DECOMPOSITION.1` | `30e731b` — `IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree` | Docs-only; no code moved. |
-| `IR-TYPES-DECOMPOSITION.2` | `IR-TYPES-DECOMPOSITION.2 — extract KnobId into src/ir/knob_id.rs` | Hash backfilled next slice. Pure move ⇒ DUT byte-identical. |
+| `IR-TYPES-DECOMPOSITION.2` | `218277d` — `IR-TYPES-DECOMPOSITION.2 — extract KnobId into src/ir/knob_id.rs` | Pure move ⇒ DUT byte-identical. |
 
 ## Changelog
 

@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout
 
-**Landed as:** (backfilled next slice). Previous: `218277d`.
+**Landed as:** `2ee8500`. Previous: `218277d`.
 **Script-only** — no `src/` change ⇒ **DUT byte-identical**.
 
 **What.** `ENUMERATION-PARITY` pair 4 has been silently verifying **7 of 8**
@@ -74,7 +74,7 @@ needed changing.
 
 ## 2026-07-31 — IR-TYPES-DECOMPOSITION.2 — extract `KnobId` into `src/ir/knob_id.rs`
 
-**Landed as:** (backfilled next slice). Previous: `30e731b`.
+**Landed as:** `218277d`. Previous: `30e731b`.
 **Pure move** — no behaviour change ⇒ **DUT byte-identical**, `tests/snapshots.rs`
 untouched.
 
@@ -147,7 +147,7 @@ untouched · `scripts/check_doctrines.sh` 8/8 · `README-GROWTH` still green at
 
 ## 2026-07-31 — IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree
 
-**Landed as:** (backfilled next slice). Previous: `bd7dba2`.
+**Landed as:** `30e731b`. Previous: `bd7dba2`.
 **Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
 
 **What.** Registered a task tree to split `src/ir/types.rs` by ownership, on the

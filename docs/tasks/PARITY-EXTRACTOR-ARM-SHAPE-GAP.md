@@ -182,7 +182,7 @@ re-open it.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout` | Hash backfilled next slice. Script-only ⇒ DUT byte-identical. |
+| `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `2ee8500` — `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout` | Script-only ⇒ DUT byte-identical. |
 
 ## Changelog
 
