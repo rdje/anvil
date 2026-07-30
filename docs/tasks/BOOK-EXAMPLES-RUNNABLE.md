@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `BOOK-EXAMPLES-RUNNABLE`
-- Status: `done`
+- Status: `active`
 - Roadmap lane: Quality — user-facing book correctness
 - Created: `2026-05-18`
-- Last updated: `2026-05-18` (`.2.2` harness + embedded migration + skip sentinels + `mdbook test` CI landed; pipe-deadlock root-caused & fixed; tree CLOSED)
+- Last updated: `2026-07-30` (REOPENED with a new `.3` node: the `.2.2` "no silent skips" guard is itself defeatable — a reasonless `<!-- book-test: skip -->` parses to the reason `">"` and passes. Registered `2026-07-30` during `COVERAGE-STEERED-GENERATION.3c`, which tripped it by accident. The `.1`/`.2` scope stays closed.)
 - Owner: repo-local workflow
 
 ## Goal
@@ -48,9 +48,9 @@ silently rot). This is now load-bearing because the repo is public
 ## Task Tree
 
 - ID: `BOOK-EXAMPLES-RUNNABLE`
-  Status: `done`
+  Status: `active`
   Goal: `Make every mdBook example copy-paste runnable from a fresh clone and CI-enforced against drift.`
-  Children: `BOOK-EXAMPLES-RUNNABLE.1` (done), `BOOK-EXAMPLES-RUNNABLE.2` (done container: `.2.1`, `.2.2`)
+  Children: `BOOK-EXAMPLES-RUNNABLE.1` (done), `BOOK-EXAMPLES-RUNNABLE.2` (done container: `.2.1`, `.2.2`), `BOOK-EXAMPLES-RUNNABLE.3` (pending)
 
 - ID: `BOOK-EXAMPLES-RUNNABLE.1`
   Status: `done`
@@ -78,11 +78,19 @@ silently rot). This is now load-bearing because the repo is public
   Verification: `tests/book_examples.rs landed (std-only cargo integration test): builds the release anvil once, parses every ```bash fence in book/src/*.md, honours the <!-- book-test: skip — <reason> --> sentinel, substitutes 'cargo run --release --' → "$ANVIL", classification-guard panics on any unclassified residual (cargo/bare-anvil/verilator/yosys/jq/git clone), runs each block via bash 'set -euo pipefail' in a fresh temp CWD offline with a defensive 600s timeout, asserts exit 0; + negative-control test (broken flag → must fail) + skip-sentinel-reason test. Embedded-position migration completed (1 $()-embedded anvil → cargo run; 9 skip sentinels with reasons; 32 bare ``` fences → ```text so mdbook test does not compile prose as Rust). RESULT: cargo test --test book_examples = 3 passed / 0 failed, ran 54 runnable blocks (all exit 0) + 9 skip-sentineled, 76.4s. Root-caused & fixed a harness pipe-buffer deadlock (a default module is ~86 KB > ~64 KB OS pipe; Stdio::piped() + an undrained try_wait() loop hung 12 blocks to the 600s timeout — 12×600≈the 7273s first-run total; the examples themselves run in 0.03–0.15s): run_script now captures child stdout/stderr to temp FILES and reaps after a timeout kill. mdbook build book clean; mdbook test book exit 0; .github/workflows/ci.yml has the 'mdbook test book' step (also covers fmt/clippy/test/mdbook build). cargo fmt --all --check clean; cargo check --all-targets clean; cargo clippy --all-targets -- -D warnings clean; full cargo test green (only tests/book_examples.rs is new code — a separate integration binary that cannot regress the lib/unit suite). Frontier closed: .2.2 + .2 + the tree are done.`
   Commit: `BOOK-EXAMPLES-RUNNABLE.2.2 book-examples harness + embedded migration + mdbook-test CI`
 
+- ID: `BOOK-EXAMPLES-RUNNABLE.3`
+  Status: `pending`
+  Goal: `Close the "no silent skips" hole in the .2.2 harness. MEASURED 2026-07-30 against the real code path (a compiled probe over the exact parse in tests/book_examples.rs:83-95): the sentinel reason is extracted as rest.trim_start_matches([' ','—','-',':']).trim().trim_end_matches("-->").trim(), so a REASONLESS `<!-- book-test: skip -->` leaves rest=" -->", the trim_start eats the two hyphens of the closing "-->", and the reason becomes ">" — non-empty, so both the inline assert and skip_sentinels_have_reasons ACCEPT it. `<!-- book-test: skip —  -->` yields ">" too. The guard that exists specifically to prevent an unexplained skip cannot see one.`
+  Acceptance: `Parse the closing delimiter BEFORE trimming reason punctuation (strip a trailing "-->" first, then trim), so a reasonless sentinel yields an empty reason and panics with the existing message; add a unit test over the extraction function itself with a table of sentinels — reasonless, em-dash-only, hyphen-only, whitespace-only, and a real reason — asserting exactly which are rejected; NEGATIVE-CONTROL it both ways (a reasonless sentinel must fail the suite; restoring the reason must pass). Then audit the 34 live skip-sentineled blocks for any reason that is currently punctuation-only. Book/test-code only ⇒ DUT byte-identical.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| — | — | `CLOSED` | Tree complete. `.1` (design) → `.2.1` (convention migration) → `.2.2` (embedded migration + `tests/book_examples.rs` harness + `mdbook test` CI; pipe-deadlock root-caused & fixed) all `done`. `cargo test --test book_examples` = 3/3 green, 54 runnable blocks exit-0, negative control proves detection. CI now gates every book example against drift. No remaining work. |
+| 1 | `BOOK-EXAMPLES-RUNNABLE.3` | `pending` | **Open.** The `.2.2` no-silent-skips guard is defeatable: a reasonless `<!-- book-test: skip -->` parses to the reason `">"` and passes both checks (measured `2026-07-30` against the real parse). Fix the delimiter-before-punctuation trim order, table-test the extractor, negative-control both ways, then audit the 34 live sentinels. |
+| — | `.1` / `.2.1` / `.2.2` | `done` | Tree complete. `.1` (design) → `.2.1` (convention migration) → `.2.2` (embedded migration + `tests/book_examples.rs` harness + `mdbook test` CI; pipe-deadlock root-caused & fixed) all `done`. `cargo test --test book_examples` = 3/3 green, 54 runnable blocks exit-0, negative control proves detection. CI now gates every book example against drift. No remaining work. |
 
 ## Decisions
 
@@ -236,3 +244,16 @@ silently rot). This is now load-bearing because the repo is public
   `mdbook test book` exit 0, `ci.yml` carries the `mdbook test book`
   step (+ fmt/clippy/test/mdbook build). Every book example is now
   CI-gated against drift — the tree's goal is fully met.
+- `2026-07-30`: **Reopened** with a new `.3` node (the `.1`/`.2` scope stays closed —
+  the Phase-4 closure pattern). Found by accident during
+  `COVERAGE-STEERED-GENERATION.3c`: a new book example was written with a bare
+  `<!-- book-test: skip -->` and the suite stayed green, when `skip_sentinels_have_reasons`
+  exists precisely to reject that. Measured against the real code path with a compiled
+  probe over `tests/book_examples.rs:83-95` — the reason extraction trims reason
+  punctuation (`' '`, `'—'`, `'-'`, `':'`) from the **front** before stripping the closing
+  `-->` from the back, so ` -->` loses its two hyphens to the front-trim and yields the
+  non-empty reason `">"`. Both the inline `assert!` and the dedicated test accept it.
+  The example was made genuinely runnable instead, so no reasonless sentinel is in the
+  tree; the guard defect is what `.3` fixes. *(Class note: this is a guard that cannot
+  fail — the `SHADOW-ENUMERATION-SWEEP` S3 tier, decision `0033` — reached here through
+  ordering rather than through a missing enumeration entry.)*

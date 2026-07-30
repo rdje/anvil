@@ -1570,7 +1570,11 @@ counts taken during construction. The empirical fire-rate
   `flop_prob` rolls are gated on `flop_allowed`, so hitting
   `max_flops_per_module` cuts attempts) or a bug.
 - The counters cover every instrumented `gen_bool(cfg.<prob>)` site in
-  the generator — see `KnobId` in `src/ir/types.rs` for
+  the generator — and *every* site of each listed knob, not merely
+  most of them: the counters and the steering multiplier are written
+  by the same primitive, and the method that writes them is private to
+  it, so an uninstrumented roll of a listed knob does not compile. See
+  `KnobId` in `src/ir/types.rs` for
   the full list (`flop_prob`, `comb_mux_prob`,
   `priority_encoder_prob`, `coefficient_prob`,
   `const_shift_amount_prob`, `const_comparand_prob`,
@@ -1600,3 +1604,31 @@ name or a category — `state` / `selectors` / `datapath` / `terminals` /
 the mechanism and
 [Driving anvil from an AI Agent](agent-mcp.md#coverage-steered-generation) for
 the measure → derive → re-steer loop.
+
+**Measured, so it is a check you can repeat.** A hierarchy design with both
+routing knobs at `0.3`, steered `9×`, drives the achieved rate to its ceiling —
+`clamp01(0.3 × 9) = 1.0`:
+
+```bash
+# unsteered:  hierarchy_child_input_cone_prob fires 0 of 5 attempts
+cargo run --release -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 \
+  --num-child-instances 6 --flop-prob 0.0 \
+  --hierarchy-sibling-route-prob 0.3 --hierarchy-child-input-cone-prob 0.3 \
+  --introspect
+
+# steered:    the same knob fires 5 of 5
+cargo run --release -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 \
+  --num-child-instances 6 --flop-prob 0.0 \
+  --hierarchy-sibling-route-prob 0.3 --hierarchy-child-input-cone-prob 0.3 \
+  --steer hierarchy=9.0 --introspect
+```
+
+Read `introspection.coverage_readout.knob_fire_rates` from each. If a steer ever
+leaves a rate *identical* rather than merely close, that is the signature of a
+roll site that has escaped the primitive — the failure mode described under
+[why the guard is a compile error](algorithm.md#why-the-guard-is-a-compile-error).
+The regression test for it (`steering_shifts_hierarchy_category_construct_distribution`)
+is deliberately **per-knob and two-sided**: it asserts an up-weight raises *and* a
+down-weight lowers each probed knob, because a one-sided proof is satisfied by a
+mechanism that only ever raises a probability, and a whole-category average is
+satisfied by any one member moving.

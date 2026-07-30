@@ -333,7 +333,7 @@ the live logic instead of a provisional wider first draft.
 
 Every probabilistic choice in the algorithm above — *is this leaf a flop?
 a priority encoder? a sibling-routed child input?* — flows through one
-helper, `roll_knob(g, m, knob, prob)`, which takes exactly one seeded
+primitive, `ir::knob_roll::roll_knob_into`, which takes exactly one seeded
 `gen_bool(prob)` draw and records the attempt/fire for telemetry. **Coverage
 steering** biases those choices toward under-exercised constructs by adjusting
 that probability — and **only** that probability — *before* the draw:
@@ -353,14 +353,22 @@ it safe are deliberate:
   There is no rejection path and no second artifact — the project's first
   doctrine (*rules-first, no generate-then-filter*) holds by construction. A
   filter would be the forbidden mode; a probability multiplier is not.
-- **The draw count is unchanged.** Exactly one `gen_bool` per `roll_knob`, just
-  as without steering — so output stays byte-stable per `(seed, knobs,
+- **The draw count is unchanged.** Exactly one `gen_bool` per roll, just as
+  without steering — so output stays byte-stable per `(seed, knobs,
   steering-config)`.
 - **Unsteered is byte-identical to today.** With no steering target every
-  `weight` is `1.0`, and the helper short-circuits to the exact `prob.min(1.0)`
-  it always computed — so the default path is provably unchanged (the snapshot
-  tests prove it), and even an *explicit* neutral weight of `1.0` reproduces the
-  same bytes.
+  `weight` is `1.0`, and the primitive short-circuits to the exact
+  `prob.min(1.0)` it always computed — so the default path is provably unchanged
+  (the snapshot tests prove it), and even an *explicit* neutral weight of `1.0`
+  reproduces the same bytes.
+- **"One primitive" is enforced by the compiler, not by convention.** The roll
+  counters live in the same module as the primitive, and the method that writes
+  them is **private** to it. Rolling a knob anywhere else in the crate — bumping
+  the counters directly, next to a bare `gen_bool` — does not compile. This is
+  not decoration: for two months the hierarchy planner carried seven roll helpers
+  of its own that recorded the identical telemetry while skipping the multiplier,
+  which left `--steer hierarchy=…` silently biasing nothing. See
+  [why the guard exists](#why-the-guard-is-a-compile-error).
 
 The target is set programmatically (the `steering` block of `Config`, so it
 rides every API call) or with the `--steer <key>=<weight>` CLI shim. A `key` is a
@@ -370,7 +378,44 @@ emphasise a whole family. The *achieved* coverage to steer toward is read back
 from the introspection [`coverage_readout`](agent-mcp.md#anvil---introspect) /
 the MCP `coverage` tool, and the
 [measure → derive → re-steer loop](agent-mcp.md#coverage-steered-generation)
-closes it. First cut: only the `roll_knob`-mediated knobs are steerable (the
-instrumented surface); routing the remaining raw `gen_bool` / weighted-choice
-sites through `roll_knob` so they gain telemetry *and* steerability together is a
-recorded follow-up.
+closes it.
+
+Scope, stated precisely: **every knob that appears in the coverage readout is
+steerable at every one of its decision sites** — the readout and the steering
+surface are the same set of rolls, because one primitive produces both. Knobs
+*outside* that set are not silently unsteerable; naming one is an error
+(`--steer memory_prob=2.0` → `unknown steer key "memory_prob"`). Widening the set
+to the remaining motif and emission knobs, so they gain telemetry *and*
+steerability together, is a recorded follow-up.
+
+### Why the guard is a compile error
+
+Worth reading if you are extending the generator, because the failure it prevents
+is invisible when it happens.
+
+Steering's whole contract is *"the multiplier reaches every roll"*. That is a
+property of a **set of call sites**, and a set of call sites is exactly the kind
+of thing that grows a member nobody notices. It did: the steering multiplier was
+added at what was then a **module-private** helper in the cone builder, so the
+hierarchy planner — a sibling module that could not see it — had already written
+seven roll helpers of its own. They recorded the same telemetry, so the coverage
+readout looked complete; they skipped the multiplier, so six knobs and one whole
+steering category silently ignored every weight for two months. A 9× weight left
+the recorded fire counts bit-identical; an 800× spread emitted byte-identical SV.
+
+Two design rules came out of that, and both are load-bearing:
+
+1. **Guard the effect, not the wrapper.** Making the helper crate-visible would
+   fix that fork and prevent no other: the next contributor still writes
+   `rng.gen_bool(p)` followed by a counter bump, because that is the obvious
+   thing to write. Making the *counter write* private means those two lines are a
+   build error, whatever module they appear in.
+2. **A private helper carrying a cross-cutting invariant is an invitation to fork
+   it.** Module privacy is encapsulation for local detail; for an invariant that
+   must hold everywhere, it is a fork generator.
+
+The corresponding test rule is in [Knobs](knobs.md#per-knob-roll-rate-validation):
+the steering proof is *per-knob* and spans both regions of the generator, because
+a proof that samples one member of a set cannot detect that the set has been
+partitioned — which is precisely why the original steering proof passed
+throughout.

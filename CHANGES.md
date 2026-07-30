@@ -1,6 +1,95 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.3c — steering docs + close `.3`
+
+**Landed as:** `<pending>` (previous: `c4c7843`, `COVERAGE-STEERED-GENERATION.3b`).
+**Docs-only** — no `src/`, `tests/`, or `examples/` file touched ⇒ **DUT
+byte-identical** by construction. **Closes `.3c` and `.3`.**
+
+**What.** The user-facing surfaces now describe steering as it actually behaves
+after `.3b`, and two findings this slice surfaced are registered as owned work
+rather than left in prose.
+
+- **`book/src/algorithm.md`** — the steering section names the real primitive
+  (`ir::knob_roll::roll_knob_into`), adds the compile-time-guard bullet, and states
+  the reach precisely: *every knob in the `coverage_readout` is steerable at every
+  one of its decision sites, because one primitive produces both; knobs outside
+  that set error rather than being silently ignored.* It gains a new subsection,
+  **"Why the guard is a compile error"**, carrying the two transferable rules —
+  **guard the effect, not the wrapper** (making the helper crate-visible fixes one
+  fork and prevents no other; making the *counter write* private makes the obvious
+  wrong thing a build error) and **a private helper carrying a cross-cutting
+  invariant is an invitation to fork it** — plus the matching test rule.
+- **`book/src/knobs.md`** — the roll-rate section states that the counters cover
+  *every* site of each listed knob (an uninstrumented roll of a listed knob does
+  not compile), and gains a **runnable** two-command example proving `0/5 → 5/5`
+  under `--steer hierarchy=9.0`, with the diagnostic that matters: *a rate that
+  comes back **identical** rather than merely close is the signature of a roll site
+  that escaped the primitive.* It also records why the regression test is
+  deliberately per-knob and two-sided.
+- **`USER_GUIDE.md`** — a "Which knobs a steer reaches" paragraph with the real
+  `unknown steer key` error text, and an explicit callout that
+  `--steer hierarchy=<weight>` was accepted-but-inert before `2026-07-30`, so a
+  hierarchy corpus tuned in that window is worth repeating.
+- **`README.md`** — the steering bullet corrected, and deliberately **net-neutral
+  in length** (`CLAUDE.md` §14; see the new tree below). The first draft of that
+  edit was `+2` lines and the second `+1`; it was tightened twice until the diff
+  read `3 insertions / 3 deletions`, because "small growth" is exactly the failure
+  mode the policy names. A related self-catch: the README measurement first
+  recorded in the new tree (`1773 / 122,920`) had been taken **after** that first
+  draft — i.e. a number this session had itself perturbed. Corrected everywhere to
+  the `HEAD` figures, `1771 lines / 122,767 bytes`. *Never baseline a metric
+  against a file you have already edited.*
+- **Decision `0034` enriched as the Knowledge Map card** — `status: accepted →
+  delivered`, four new answer keys covering the shipped surface, `evidence`
+  rewritten from the defect sites to the shipped ones, and a `reverify` command
+  that reproduces `0/5 → 5/5`.
+
+**Two findings surfaced by this slice, both registered before moving on** (the
+owner's standing directive: a defect is only handled if a task-tree owns it).
+
+1. **`BOOK-EXAMPLES-RUNNABLE.3` (tree reopened).** The book harness's
+   "no silent skips" guard is itself defeatable. Writing a bare
+   `<!-- book-test: skip -->` with no reason left `cargo test --test book_examples`
+   green, when `skip_sentinels_have_reasons` exists precisely to reject that.
+   Root-caused with a compiled probe over the real parse
+   (`tests/book_examples.rs:83-95`): the extractor trims reason punctuation
+   (`' '`, `'—'`, `'-'`, `':'`) off the **front** *before* stripping the closing
+   `-->` off the back, so ` -->` loses both hyphens to the front-trim and yields
+   the non-empty reason `">"`. Both the inline `assert!` and the dedicated test
+   accept it. This is the decision-`0033` **S3** tier — a gate that cannot fail —
+   reached through trim *order* rather than a missing enumeration entry. The book
+   example was made genuinely runnable instead, so no reasonless sentinel is left
+   in the tree; `.3` fixes the extractor, table-tests it, negative-controls it both
+   ways, and audits the 34 live sentinels.
+2. **`README-POLICY-ADOPTION` (new tree).** `CLAUDE.md` §14 directs adoption of the
+   README Stability Policy and it has never been implemented. Measured
+   `2026-07-30`: `README.md` is **1771 lines / 122,767 bytes** against the policy's
+   illustrative `300` / `16,384` — ~6× the line cap, ~7.5× the byte cap — with no
+   repo-root `README_POLICY.md` (which the policy's own storage clause requires).
+   `## Current CLI truth` alone spans lines 620–1762, ~64 % of the file: an
+   exhaustive CLI reference, banked evidence tallies, and per-knob design
+   rationale — three categories the policy routes to `USER_GUIDE.md`, the release
+   notes, and `docs/decisions/`. Registered with a three-leaf plan (audit+design →
+   relocation → mechanical cap), deliberately **not** started inside this slice.
+
+**Validation.** `mdbook build book` clean. `cargo test --test book_examples` 3/3 —
+**65** runnable blocks, up from 64, because the new example genuinely executes
+rather than carrying a sentinel. Knowledge Map regenerated (86 facts / 860 question
+keys) + check green. `scripts/check_doctrines.sh` — all 7 registered doctrines PASS.
+
+**Impact.** `COVERAGE-STEERED-GENERATION.3` is closed; the tree's frontier advances
+to `.4` (steering's *width* — the 16 Bernoulli knobs with no `KnobId`). Two
+previously-unowned defects are now tracked.
+
+**Files touched.** `book/src/algorithm.md`, `book/src/knobs.md`, `USER_GUIDE.md`,
+`README.md`, `docs/decisions/0034-one-steering-aware-knob-roll-primitive.md`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/tasks/BOOK-EXAMPLES-RUNNABLE.md`, `docs/tasks/README-POLICY-ADOPTION.md`
+(new), `docs/TASK_TREE.md`, `KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.3b — one knob-roll primitive, and a compile error if a second appears
 
 **Landed as:** `<pending>` (previous: `3aabb1f`, `COVERAGE-STEERED-GENERATION.3a`).

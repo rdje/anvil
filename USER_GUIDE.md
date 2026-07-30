@@ -412,6 +412,27 @@ rejected. The same target is also settable in `--config` JSON under `steering`
 anvil --seed 42 --steer state=4 --steer coefficient_prob=3 --steer selectors=0.5
 ```
 
+**Which knobs a steer reaches.** Every knob that appears in the
+`coverage_readout` is steerable at **every** one of its decision sites — the
+readout and the steering surface are the same set of rolls, because one
+primitive produces both, and a roll that skipped it would not compile
+(`COVERAGE-STEERED-GENERATION.3b`, decision `0034`). Knobs *outside* that set —
+the motif and emit-projection probabilities such as `memory_prob`, `fsm_prob`,
+`function_emit_prob` — are not silently ignored: naming one is an error.
+
+```bash
+$ anvil --seed 7 --steer memory_prob=2.0
+Error: unknown steer key "memory_prob"; expected a knob name or a category
+       (datapath, hierarchy, selectors, sharing, state, terminals)
+```
+
+> **Fixed in `.3b`, worth knowing if you used steering before `2026-07-30`.**
+> Until then `--steer hierarchy=<weight>` — and five of the seven per-knob
+> hierarchy steers — were accepted, validated and echoed by `--dump-config`
+> while biasing **nothing**: those rolls went through a second, unsteered code
+> path. If you tuned a hierarchy corpus in that window, the steering weights had
+> no effect on it and the run is worth repeating.
+
 **The measure → derive → re-steer loop.** Steering is most useful as an outer
 feedback loop (the feedback lives in your orchestration; each generation pass
 stays a pure, reproducible function):

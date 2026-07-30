@@ -889,9 +889,9 @@ exercising adversarial axes that previously fired only by chance
   is a non-negative multiplier on that roll's probability (`>1` emphasizes, `<1`
   de-emphasizes, `1` neutral). It is the ergonomic shim over `Config.steering`
   (which is also `--config`/MCP-settable); it layers after `--profile` (explicit
-  wins per key) and is applied as a construction-time **prior** at the single
-  `roll_knob` draw — **rules-first**, never generate-then-filter. An unknown key
-  errors naming the valid categories; a non-finite/negative weight is rejected.
+  wins per key) and is applied as a construction-time **prior** at the crate's
+  single knob-roll primitive — a second one is a compile error since `.3b`
+  (decision `0034`) — **rules-first**, never generate-then-filter. Bad key ⇒ error.
   Default-off (no `--steer`) and a neutral `=1.0` are both DUT byte-identical. The
   achieved coverage to steer *toward* is read from `--introspect`'s
   `coverage_readout` / the MCP `coverage` tool, and

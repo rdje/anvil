@@ -12,10 +12,15 @@ answers:
   - "how do you find every knob-roll site in anvil"
   - "is hierarchy_parent_flop_prob steerable"
   - "what does knob_rolls.record mean and who may call it"
+  - "where does anvil apply the coverage steering multiplier"
+  - "how do I add a new steerable knob to anvil"
+  - "why can I not call KnobRollCounters::record"
+  - "how do I check that a steer actually changed generation"
 date: 2026-07-30
-status: accepted
+status: delivered
 tags: [steering, coverage, knob-roll, hierarchy, full-factorization, silent-no-op, defect, rules-first, api-completeness, north-star]
-evidence: src/gen/cone.rs:42-54 (`roll_knob` — the steering-aware primitive); src/gen/hierarchy.rs:883-938 (the seven hand-rolled `roll_hierarchy_*` helpers that record the same telemetry without the prior); src/config.rs:496-507 (`SteeringConfig::effective_prob` — the multiplier the helpers never call); src/ir/types.rs:666-691 (`KnobId::all` — the 22-knob universe); docs/tasks/COVERAGE-STEERED-GENERATION.md "Implementation Notes" (the `.1` survey claim "All 31 steerable rolls funnel through one function … No call site changes" — false when written); measured probes reproducible from the commands in Context §2
+evidence: src/ir/knob_roll.rs (the SHIPPED single primitive `roll_knob_into` + the private `KnobRollCounters::record` — the R2 guard); src/gen/mod.rs (`Generator::roll_knob`, the crate-wide shim); src/gen/cone.rs (`roll_knob`, now a free-function alias over it); src/gen/hierarchy.rs (seven inline `g.roll_knob(m, KnobId::…, prob)` decision sites — the seven `roll_hierarchy_*` helpers are deleted); src/config.rs (`SteeringConfig::effective_prob` — the multiplier the deleted helpers never called); src/ir/types.rs (`KnobId::all` — the 22-knob universe); tests/pipeline.rs (`steering_shifts_hierarchy_category_construct_distribution`, per-knob + both weight directions; `neutral_hierarchy_steering_is_byte_identical_on_designs`); docs/tasks/COVERAGE-STEERED-GENERATION.md "Implementation Notes" (the `.1` survey claim "All 31 steerable rolls funnel through one function … No call site changes" — false when written, preserved unedited as layer-B history); measured probes reproducible from the commands in Context §2
+reverify: cargo run --release -- --seed 42 --hierarchy-depth 1 --num-leaf-modules 2 --num-child-instances 6 --flop-prob 0.0 --hierarchy-sibling-route-prob 0.3 --hierarchy-child-input-cone-prob 0.3 --steer hierarchy=9.0 --introspect   # coverage_readout.knob_fire_rates.hierarchy_child_input_cone_prob must read 5/5 (it read 0/5 before .3b); drop --steer and it reads 0/5
 ---
 
 # 0034 - COVERAGE-STEERED-GENERATION: one steering-aware knob-roll primitive, structurally enforced
