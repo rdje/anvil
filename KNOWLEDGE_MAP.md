@@ -3,7 +3,7 @@
 > **AUTO-GENERATED — DO NOT EDIT.** Regenerate with `knowledge-map/scripts/gen_knowledge_map.sh`.
 > Source of truth = YAML front-matter in: `docs/knowledge docs/decisions`. Edit the fact files, never this map.
 > A fact is any `.md` whose front-matter has a non-empty `answers:` list.
-> **85** facts · **850** question keys.
+> **86** facts · **860** question keys.
 
 ## Questions → fact
 
@@ -295,6 +295,7 @@
 - "how do I walk the ANVIL gate graph one hop at a time over MCP" -> [semantic-introspection-node-drivers](docs/knowledge/semantic-introspection-node-drivers.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how do an ANVIL module's registers feed each other" -> [semantic-introspection-flop-dependencies](docs/knowledge/semantic-introspection-flop-dependencies.md) · 2026-06-23 · reverify: `cargo test --lib analyze`
 - "how do non-DUT lanes reach the MCP interface" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
+- "how do you find every knob-roll site in anvil" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "how does ANVIL add a new downstream tool" -> [downstream-adapter-interface](docs/decisions/0020-downstream-adapter-interface.md) · 2026-06-17
 - "how does ANVIL address a flop D cone in analyze" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how does ANVIL classify a tool verdict accept warn reject" -> [acceptance-divergence-hunting](docs/decisions/0019-acceptance-divergence-hunting.md) · 2026-06-17
@@ -343,6 +344,7 @@
 - "how does an agent ask what drives output Y over MCP" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
 - "how does an agent query a generated module's structure semantically" -> [semantic-introspection-derived-query-surface](docs/decisions/0011-semantic-introspection-derived-query-surface.md) · 2026-06-16
 - "how does an agent query a generated module's support cone over MCP" -> [semantic-introspection-analyze-tool](docs/knowledge/semantic-introspection-analyze-tool.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "how does anvil stop a second knob-roll primitive from being written" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "how does the ANVIL Action find its release binary" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
 - "how does the bug-hunt loop compose validate and minimize" -> [bug-hunt-orchestration-loop](docs/decisions/0018-bug-hunt-orchestration-loop.md) · 2026-06-17
 - "how does the matrix run Verilator --language 1800-2017 or 1800-2023" -> [sv-version-targeted-acceptance-gate](docs/knowledge/sv-version-targeted-acceptance-gate.md) · 2026-06-16 · reverify: `cargo run --release --bin tool_matrix -- --sv-version-gate --yosys-mode both --out .cache/anvil-sandbox/anvil-sv-version-gate-check`
@@ -416,6 +418,8 @@
 - "is coverage steering rules-first or post-hoc filtering" -> [coverage-steered-generation](docs/decisions/0023-coverage-steered-generation.md) · 2026-06-21
 - "is cross-volume access ever allowed" -> [ssd-volume-exclusivity](docs/decisions/0031-ssd-volume-exclusivity.md) · 2026-07-29 · reverify: `grep -rn 'temp_dir()' src/ tests/  → matches only src/paths.rs (the OS temp dir is named in exactly one place)`
 - "is deep semantic introspection first-class in ANVIL" -> [api-first-everything-mcp-accessible](docs/decisions/0017-api-first-everything-mcp-accessible.md) · 2026-06-17
+- "is every KnobId roll steered by SteeringConfig" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
+- "is hierarchy_parent_flop_prob steerable" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "is hierarchy_sequential_module_dedup default-off" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "is longest_path a timing critical path" -> [semantic-introspection-longest-path](docs/knowledge/semantic-introspection-longest-path.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
 - "is node_reach consistent with input_reach" -> [semantic-introspection-node-reach](docs/knowledge/semantic-introspection-node-reach.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
@@ -524,6 +528,7 @@
 - "what does hierarchy_semantic_module_dedup do" -> [bounded-semantic-module-identity](docs/knowledge/bounded-semantic-module-identity.md) · 2026-06-05
 - "what does hierarchy_sequential_module_dedup do" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what does input X reach in an ANVIL module" -> [semantic-introspection-input-reach](docs/knowledge/semantic-introspection-input-reach.md) · 2026-06-16 · reverify: `cargo test --lib analyze`
+- "what does knob_rolls.record mean and who may call it" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "what does modules_sequentially_equivalent do" -> [sequential-module-dedup](docs/knowledge/sequential-module-dedup.md) · 2026-06-16 · reverify: `cargo test --lib sequential   (the proof + metric + bank tests); downstream bank: ANVIL_DUMP_SEQ_MODULE_SV=1 cargo test --lib sequential_dedup_merged_design_is_downstream_clean, split the dump per module, then lint with verilator --lint-only -Wall + yosys (both modes) + iverilog -g2012`
 - "what does multi_output_task_emit_prob do" -> [structured-emission-sixth-surface-multi-output-task](docs/decisions/0025-structured-emission-sixth-surface-multi-output-task.md) · 2026-06-22
 - "what does mux_if_emit_prob do" -> [structured-emission-seventh-surface-procedural-if-else](docs/decisions/0027-structured-emission-seventh-surface-procedural-if-else.md) · 2026-06-22
@@ -735,6 +740,7 @@
 - "where does the ANVIL Action upload reproducer bundles" -> [ci-github-action](docs/knowledge/ci-github-action.md) · 2026-06-21
 - "where does the coverage_gaps MCP tool get its data" -> [agent-mcp-expansion-surface](docs/decisions/0005-agent-mcp-expansion-surface.md) · 2026-06-15
 - "where is ANVIL's API documented" -> [api-reference](docs/knowledge/api-reference.md) · 2026-06-17 · reverify: `'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'`
+- "where is ANVIL's knob-roll primitive" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "where is Mealy FSM output emission implemented" -> [fsm-mealy-outputs](docs/knowledge/fsm-mealy-outputs.md) · 2026-06-22 · reverify: `'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 3 --fsm-prob 1.0 --fsm-mealy-prob 1.0 --min-width 2 --max-width 4 --flop-prob 0.0 --constant-prob 0.0 --max-depth 1 | tee .cache/anvil-sandbox/mealy.sv | grep -c "case (sel" && verilator --lint-only .cache/anvil-sandbox/mealy.sv && echo CLEAN'`
 - "where is combinational function emission implemented" -> [combinational-function-emit](docs/knowledge/combinational-function-emit.md) · 2026-06-16 · reverify: `'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4});json.dump(c,open(\".cache/anvil-sandbox/fe.json\",\"w\"))" && cargo run --quiet -- --seed 11 --config .cache/anvil-sandbox/fe.json | tee .cache/anvil-sandbox/fe.sv | grep -c "function automatic" && verilator --lint-only .cache/anvil-sandbox/fe.sv && echo CLEAN'`
 - "where is cone function emission implemented" -> [multi-gate-cone-function-emit](docs/knowledge/multi-gate-cone-function-emit.md) · 2026-06-17 · reverify: `'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 4 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"cone_function_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"gate_struct_weight\":0,\"terminal_reuse_prob\":0.1,\"min_width\":4,\"max_width\":4,\"min_inputs\":3,\"max_inputs\":4,\"min_outputs\":1,\"max_outputs\":1,\"max_depth\":2});json.dump(c,open(\".cache/anvil-sandbox/cf.json\",\"w\"))" && cargo run --quiet -- --seed 4 --config .cache/anvil-sandbox/cf.json | tee .cache/anvil-sandbox/cf.sv | grep -c "__cf(" && verilator --lint-only .cache/anvil-sandbox/cf.sv && echo CLEAN'`
@@ -752,6 +758,7 @@
 - "where is the doctrine registry and driver" -> [doctrine-enforcement](docs/knowledge/doctrine-enforcement.md) · 2026-06-22 · reverify: `bash scripts/check_doctrines.sh`
 - "where is the union soft up-opt implemented" -> [sv-version-soft-union-upopt](docs/knowledge/sv-version-soft-union-upopt.md) · 2026-06-16 · reverify: `'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/c.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/c.json\"));c.update({\"soft_union_slice_prob\":1.0,\"sv_version\":\"2023\",\"gate_struct_weight\":10,\"min_width\":4,\"max_width\":16});json.dump(c,open(\".cache/anvil-sandbox/su.json\",\"w\"))" && cargo run --quiet -- --seed 7 --config .cache/anvil-sandbox/su.json | tee .cache/anvil-sandbox/su.sv | grep -c "union soft" && verilator --lint-only --language 1800-2023 .cache/anvil-sandbox/su.sv && echo CLEAN'`
 - "where should a tool_matrix bank be written" -> [durable-closure-evidence-citations](docs/decisions/0030-durable-closure-evidence-citations.md) · 2026-07-29 · reverify: `bash scripts/check_evidence_citations.sh   (every cited bank is digest-backed under docs/evidence/ or classified in its frozen inventory; the 2026-07-30 amendment replaced this ADR's original /tmp-path grep, which VOLUME-DATA-LOCALITY.5 rendered moot by stripping every /tmp/ prefix)`
+- "which ANVIL knobs are actually reachable by coverage steering" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "which ANVIL knobs have no CLI flag" -> [knob-ergonomics-presets-and-queryable-catalog](docs/decisions/0021-knob-ergonomics-presets-and-queryable-catalog.md) · 2026-06-18
 - "which ANVIL knobs still have no CLI flag" -> [knob-presets-and-cli-flags](docs/knowledge/knob-presets-and-cli-flags.md) · 2026-06-18 · reverify: `anvil --profile structured-emission-max --dump-config  (all EIGHT non-version-gated *_emit_prob knobs = 0.25 and comb/case/casez_mux_prob = 0.35, NOT 1.0 — decision 0032; --profile nope errors listing the 4 names; explicit --function-emit-prob 1.0 overrides the preset)`
 - "which analyze query crosses the module boundary" -> [semantic-introspection-instance-provenance](docs/knowledge/semantic-introspection-instance-provenance.md) · 2026-06-24 · reverify: `cargo test --lib analyze`
@@ -809,10 +816,13 @@
 - "why can omitting a gate flag from tool_matrix produce a gate that cannot fail" -> [shadow-enumeration-classification](docs/decisions/0033-shadow-enumeration-classification.md) · 2026-07-30
 - "why did IDENTITY-DEEPENING pick sequential over module equivalence first" -> [identity-deepening-first-extension](docs/decisions/0007-identity-deepening-first-extension.md) · 2026-06-15
 - "why did Icarus warn always_comb process has no sensitivities" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
+- "why did the coverage-steering survey miss the hierarchy rolls" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "why do larger semantic cones fall back to structural proof" -> [semantic-proof-budget](docs/knowledge/semantic-proof-budget.md) · 2026-06-05
 - "why do semantically equal modules stay separate" -> [hierarchy-identity-boundary](docs/knowledge/hierarchy-identity-boundary.md) · 2026-06-05
 - "why do static case muxes lower to assign" -> [iverilog-compile-matrix-axis](docs/knowledge/iverilog-compile-matrix-axis.md) · 2026-06-05
 - "why does --profile structured-emission-max emit only combinational functions" -> [emit-surface-interaction-gate](docs/decisions/0032-emit-surface-interaction-gate.md) · 2026-07-30
+- "why does --steer hierarchy do nothing" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
+- "why does --steer hierarchy_sibling_route_prob not change anvil output" -> [one-steering-aware-knob-roll-primitive](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md) · 2026-07-30
 - "why does ANVIL not add a new downstream tool column as the first signoff increment" -> [signoff-automation-first-increment](docs/decisions/0006-signoff-automation-first-increment.md) · 2026-06-15
 - "why does ANVIL not emit interfaces or modports first" -> [structured-emission-first-surface-combinational-function](docs/decisions/0012-structured-emission-first-surface-combinational-function.md) · 2026-06-16
 - "why does ANVIL ship the masked-AND form instead of sel ==? pattern" -> [casez-mux-if-emit](docs/knowledge/casez-mux-if-emit.md) · 2026-06-23 · reverify: `'mkdir -p .cache/anvil-sandbox && cargo run --quiet -- --seed 1 --dump-config > .cache/anvil-sandbox/cz.json && python3 -c "import json;c=json.load(open(\".cache/anvil-sandbox/cz.json\"));c.update({\"casez_mux_if_emit_prob\":1.0,\"flop_prob\":0.0,\"constant_prob\":0.0,\"comb_mux_prob\":0.0,\"case_mux_prob\":0.0,\"casez_mux_prob\":1.0,\"min_inputs\":3,\"max_inputs\":3,\"min_outputs\":1,\"max_outputs\":1,\"min_width\":4,\"max_width\":4,\"max_depth\":1,\"min_mux_arms\":2,\"max_mux_arms\":2});json.dump(c,open(\".cache/anvil-sandbox/czi.json\",\"w\"))" && cargo run --quiet -- --seed 1 --config .cache/anvil-sandbox/czi.json | tee .cache/anvil-sandbox/czi.sv | grep -c "else if ((" && iverilog -g2012 -o .cache/anvil-sandbox/czi.vvp .cache/anvil-sandbox/czi.sv && echo CLEAN'`
@@ -1219,6 +1229,14 @@ _N-flop CDC synchronizer is config-selectable_
 - **date:** 2026-06-05 · **status:** current
 - **evidence:** `src/gen/multi_clock.rs; src/config.rs; src/metrics.rs; src/bin/tool_matrix.rs; book/src/sequential.md; book/src/knobs.md`
 - **source:** [`docs/knowledge/n-flop-cdc-synchronizer.md`](docs/knowledge/n-flop-cdc-synchronizer.md)
+
+### one-steering-aware-knob-roll-primitive
+_There is exactly **one** knob-roll primitive, and it is steering-aware; a second hand-rolled primitive in the hierarchy planner made the whole `hierarchy` steering category a measured silent no-op_
+
+- **answers:** why does --steer hierarchy do nothing | why does --steer hierarchy_sibling_route_prob not change anvil output | which ANVIL knobs are actually reachable by coverage steering | is every KnobId roll steered by SteeringConfig | where is ANVIL's knob-roll primitive | how does anvil stop a second knob-roll primitive from being written | why did the coverage-steering survey miss the hierarchy rolls | how do you find every knob-roll site in anvil | is hierarchy_parent_flop_prob steerable | what does knob_rolls.record mean and who may call it
+- **date:** 2026-07-30 · **status:** accepted
+- **evidence:** `src/gen/cone.rs:42-54 (`roll_knob` — the steering-aware primitive); src/gen/hierarchy.rs:883-938 (the seven hand-rolled `roll_hierarchy_*` helpers that record the same telemetry without the prior); src/config.rs:496-507 (`SteeringConfig::effective_prob` — the multiplier the helpers never call); src/ir/types.rs:666-691 (`KnobId::all` — the 22-knob universe); docs/tasks/COVERAGE-STEERED-GENERATION.md "Implementation Notes" (the `.1` survey claim "All 31 steerable rolls funnel through one function … No call site changes" — false when written); measured probes reproducible from the commands in Context §2`
+- **source:** [`docs/decisions/0034-one-steering-aware-knob-roll-primitive.md`](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md)
 
 ### pgen-first-contact-parser-gap
 _First-contact consumer result: ANVIL output exposed a missing case/endcase production in PGEN's parser within minutes_

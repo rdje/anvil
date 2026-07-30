@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `COVERAGE-STEERED-GENERATION`
-- Status: `done`
+- Status: `active`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-06-22` (`.2c.2` docs/close landed; `.2` + the tree CLOSED — every acceptance criterion met)
+- Last updated: `2026-07-30` (`.3a` design ADR landed — decision `0034`; the tree REOPENS with a new `.3` node for a measured silent-no-op defect in the shipped steering surface, plus `.4` for the recorded decision-`0023` follow-up. The `.1`/`.2` scope stays closed and is not revisited.)
 - Owner: repo-local workflow
 
 ## Goal
@@ -47,10 +47,10 @@ design space while preserving every lane invariant.
 ## Task Tree
 
 - ID: `COVERAGE-STEERED-GENERATION`
-  Status: `done`
+  Status: `active`
   Goal: `Construction-time coverage-feedback steering (rules-first, reproducible) with an API-settable coverage target + an API-queryable achieved-coverage readout.`
-  Closure: `done 2026-06-22. Every acceptance criterion met: the roll_knob per-category/per-knob prior multiplier measurably shifts the distribution rules-first + reproducible (.2a); the achieved coverage is API-queryable (the SCHEMA-DERIVED coverage_readout in --introspect + the MCP coverage tool, .2b) and the target API-settable (Config.steering over MCP/--config + the --steer CLI shim, .2c.1) per decision 0017; default unsteered DUT byte-identical (snapshots 6/6 throughout); fully documented in book/USER_GUIDE/KM (.2c.2). The in-generator adaptive schedule + routing the remaining raw gen_bool / weighted-choice sites through roll_knob are OPEN-ENDED follow-ups (recorded in decision 0023's Rejected alternatives) that land as optional new .N leaves WITHOUT reopening this closed scope — nothing retired (feedback_never_retire_strategies), the Phase-4 closure pattern.`
-  Children: `COVERAGE-STEERED-GENERATION.1`
+  Closure: `The .1/.2 scope closed 2026-06-22 and is NOT reopened: every acceptance criterion of that scope was met (the roll_knob per-category/per-knob prior multiplier measurably shifts the distribution rules-first + reproducible (.2a); the achieved coverage is API-queryable (.2b) and the target API-settable (.2c.1) per decision 0017; unsteered DUT byte-identical; documented (.2c.2)). The tree returns to 'active' on 2026-07-30 for the new .3 node (decision 0034: a MEASURED SILENT NO-OP in the shipped surface — 6 of the 22 KnobIds, and therefore the whole documented 'hierarchy' steering category, are never reached by the prior because src/gen/hierarchy.rs defines seven roll primitives of its own) and .4 (the recorded decision-0023 follow-up: the 16 Bernoulli knobs that have no KnobId at all). Nothing retired (feedback_never_retire_strategies); the Phase-4 closure pattern — a closed scope stays closed, new work lands as new nodes.`
+  Children: `COVERAGE-STEERED-GENERATION.1`, `.2`, `.3`, `.4`
 
 - ID: `COVERAGE-STEERED-GENERATION.1`
   Status: `done`
@@ -110,6 +110,41 @@ design space while preserving every lane invariant.
   Verification: `done — book/src/algorithm.md gains the "Construction-time coverage steering" section (the roll_knob prior multiplier, rules-first, byte-stable, the follow-up note); book/src/agent-mcp.md gains the "Coverage-steered generation" section (the measure→derive→re-steer loop) + the coverage tool row + the coverage_readout in --introspect + schema 1.11→1.12 example refresh; book/src/api-tools.md (coverage tool section + 10-tools + schema refresh), api-introspection.md (coverage_readout schema section + envelope/contract 1.12), api-reference.md (version 1.12 + 10 tools), knobs.md (roll-rate → steering cross-ref); USER_GUIDE.md (--steer table row + "Coverage steering" subsection with the recipe + schema 1.12). KM: decision 0023 enriched with 4 shipped-surface answer keys + status → delivered. Verification: mdbook build clean; cargo test --test book_examples 3/3 (the runnable --steer example executes, exit 0); KM regen+check green. Docs-only (no src change beyond the already-shipped code) ⇒ DUT byte-identical. Closes .2c + .2.`
   Commit: `COVERAGE-STEERED-GENERATION.2c.2 — steering-lane docs + close .2 (book/USER_GUIDE/KM)`
 
+- ID: `COVERAGE-STEERED-GENERATION.3`
+  Status: `active`
+  Goal: `Make the steering prior reach EVERY roll site of every KnobId. Opened 2026-07-30 on a measured defect: src/gen/hierarchy.rs:883-938 defines seven roll primitives of its own that record the same m.knob_rolls telemetry as roll_knob while omitting SteeringConfig::effective_prob, so 6 of the 22 KnobIds are never steered, HierarchyParentFlopProb is half-steered, and --steer hierarchy=<w> is a silent no-op that the CLI/config/--dump-config all accept and echo. Scoped to the existing 22-knob KnobId universe; widening that universe is .4.`
+  Acceptance: `set at .3a (decision 0034): exactly one steering-aware knob-roll primitive exists and a second one is a COMPILE ERROR (KnobRollCounters::record privatized into the primitive's module — repair rung R2, no new registered doctrine); all 7 hierarchy call sites route through it with an explicit KnobId at the decision site; a hierarchy-category distribution-shift regression proof (the sibling of .2a's state-category proof) is green; a neutral weight (1.0) and no --steer are both byte-identical (tests/snapshots.rs 6/6 untouched); full COMMIT.md cargo gate.`
+  Verification: `pending — .3a done (design); .3b/.3c pending.`
+  Children: `COVERAGE-STEERED-GENERATION.3a` (design ADR), `.3b` (the fix + proofs), `.3c` (docs + close `.3`).
+
+- ID: `COVERAGE-STEERED-GENERATION.3a`
+  Status: `done`
+  Goal: `Design/decision leaf (ADR, no code): record the measured defect, root-cause it, pin the fix shape (one shared steering-aware primitive with a borrow signature the hierarchy planner can actually call), pin the structural guard rung, and pin the scope boundary between .3 (steering's REACH over the existing KnobId set) and .4 (its WIDTH — the knobs with no KnobId).`
+  Acceptance: `A decision record + tree/INDEX/TASK_TREE/live-doc updates naming: the measurement, the root cause, the primitive's signature, the guard rung and why R2 rather than R4, the byte-identity argument, and the .3/.4 split. Docs-only ⇒ DUT byte-identical.`
+  Verification: `done — decision 0034. MEASURED (commit ff506e1): 16 of 22 KnobIds reached by roll_knob; 6 never reached (HierarchySiblingRouteProb, HierarchyRegisteredSiblingRouteProb, HierarchyRegisteredSiblingMixedSupportProb, HierarchyRegisteredChildInputConeProb, HierarchyChildInputConeProb, HierarchyParentConeInstanceProb); HierarchyParentFlopProb steered only at the two cfg.flop_prob-swap cone scopes (hierarchy.rs:1533,:1673), not at its dedicated helper (:934). Evidence: a 9x per-knob / per-category steer leaves the recorded fire counts BIT-IDENTICAL (hierarchy_child_input_cone_prob 0/5 where clamp01(0.3*9)=1.0 demands 5/5); --steer hierarchy=8.0 vs =0.01 (800x spread) emits byte-identical SV; positive control --steer state=8.0 does change output. ROOT CAUSE: the .1 survey enumerated roll sites by the SHAPE it knew (roll_knob( call sites) rather than from the AUTHORITATIVE SET (knob_rolls.record(, 8 sites in 2 files) — decision 0033 rule (2) recurring in a second lane; the helpers predate the steering core by two months (28c5474 2026-04-23 vs 2530bfd 2026-06-21). FIX: one roll_knob_into(&mut KnobRollCounters, &SteeringConfig, rng, knob, prob) primitive (the borrow shape the hierarchy planner needs — its module is reached through ctx.top while g is live, which is WHY it forked); delete the 7 named helpers (7 one-line KnobId wrappers are themselves a shadow, decision 0033); privatize KnobRollCounters::record into the primitive's module so a second primitive cannot compile (R2 — R4 rejected: a registered doctrine is a mechanism maintained forever for something the type system enforces free). Retro-editing .2a's false "single integration point" note REJECTED (layer-B history, NEVER REWRITE HISTORY). Docs-only ⇒ DUT byte-identical.`
+  Commit: `COVERAGE-STEERED-GENERATION.3a — design ADR (decision 0034)`
+
+- ID: `COVERAGE-STEERED-GENERATION.3b`
+  Status: `pending`
+  Goal: `The FIX (code): extract roll_knob_into into src/ir/knob_roll.rs beside KnobRollCounters and privatize record; make cone::roll_knob a one-line wrapper (its 37 call sites untouched); delete the seven roll_hierarchy_* helpers and re-point their seven call sites at the primitive with an explicit KnobId::… at each decision site.`
+  Acceptance: `set at .3a (decision 0034). Proofs: (i) a hierarchy-category distribution-shift test — an up-weighted hierarchy steer raises a helper-rolled knob's recorded fire rate (the direct regression for this defect, and the sibling .2a's state-category proof lacked); (ii) neutral weight 1.0 byte-identical; (iii) unsteered byte-identical (tests/snapshots.rs 6/6 untouched); (iv) architectural — one gen_bool per roll preserved (rules-first, no filter, no extra draw). Full COMMIT.md cargo gate (check --all-targets / test / clippy -D warnings / fmt --check).`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `COVERAGE-STEERED-GENERATION.3c`
+  Status: `pending`
+  Goal: `DOCS + close .3: book/src/algorithm.md's steering section states the one-primitive invariant and the compile-time guard (it currently says the prior applies "at the roll_knob site", which was true of 16 of 22 knobs); book/src/knobs.md + USER_GUIDE.md steering rows reflect that every KnobId is steerable at every roll site; a KM card; mark .3 done and refresh docs/TASK_TREE.md.`
+  Acceptance: `book + USER_GUIDE state the invariant accurately with a runnable hierarchy-steer example; mdbook build clean; cargo test --test book_examples green; KM regen+check green; .3 marked done. Docs-only ⇒ DUT byte-identical.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `COVERAGE-STEERED-GENERATION.4`
+  Status: `pending`
+  Goal: `The decision-0023 follow-up proper — steering's WIDTH, not its reach. Give the 16 remaining Bernoulli knobs a KnobId and route them through the one .3b primitive so they gain construction-time telemetry AND steerability together: 7 module-level motif rolls (width_parameterization_prob, memory_prob, fsm_prob, fsm_mealy_prob, multi_clock_prob, aggregate_prob, aggregate_array_prob) + 9 emit-projection rolls (soft_union_slice_prob, function_emit_prob, generate_loop_emit_prob, task_emit_prob, multi_output_task_emit_prob, cone_function_emit_prob, mux_if_emit_prob, case_mux_if_emit_prob, casez_mux_if_emit_prob). Their symptom is LOUD (--steer memory_prob=2.0 errors "unknown steer key"), so this is a feature gap, not a defect — which is why it is separate from .3.`
+  Acceptance: `to be set at .4a. Must decide: whether the 16 join the existing six categories or introduce motifs/emission; whether widening coverage_readout's key set warrants an introspection schema MINOR bump; and how the emit-projection passes obtain &SteeringConfig (they currently take only &mut Module + rng + p). EXCLUDED by kind: operand_duplication_rate / mux_arm_duplication_rate (dedup thresholds compared in ir/compact.rs + metrics.rs, not Bernoulli rolls — there is no roll to apply a prior to) and library_prob (no reader anywhere in src/; a documented-reserved orphan recorded by COVERAGE-INSTRUMENTATION.3). Default-off/unsteered must stay byte-identical.`
+  Verification: `pending`
+  Commit: `pending`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
@@ -120,10 +155,15 @@ design space while preserving every lane invariant.
 | 4 | `COVERAGE-STEERED-GENERATION.2c.1` | `done` | Outer-loop CODE landed: the pure `derive_steering_from_coverage(&CoverageReadout, &DeriveParams) -> SteeringConfig` helper (decision `0023` §4, milli-quantized weights) + `SteeringConfig::set_weight` + the repeatable `--steer <key>=<weight>` CLI shim into `Config.steering` (preset-then-explicit in `resolve_config`). Unsteered default byte-identical (snapshots 6/6); CLI smoke proves steered≠unsteered, neutral=unsteered, bad-key errors. Full cargo gate green. |
 | 5 | `COVERAGE-STEERED-GENERATION.2c.2` | `done` | The DOCS + close landed: book steering section (`algorithm.md`) + `agent-mcp.md` coverage-steering section + the schema-`1.12` book-example refresh (`agent-mcp`/`api-tools`/`api-introspection`/`api-reference`) + knobs.md cross-ref + USER_GUIDE `--steer`/recipe + KM (decision `0023` enriched). mdbook clean; book_examples 3/3 (runnable `--steer` example). **`.2c` + `.2` + the tree CLOSED.** |
 
-**Tree status: `done` (`2026-06-22`).** No open frontier. Optional open-ended
-follow-ups (decision `0023`): the in-generator adaptive schedule; routing the
-remaining raw `gen_bool` / weighted-choice sites through `roll_knob` — each a
-future `.N` that does not reopen the closed scope.
+| 6 | `COVERAGE-STEERED-GENERATION.3a` | `done` | Design ADR (decision `0034`) for the `.3` node: the measured silent no-op (6 of 22 `KnobId`s unreachable by the prior; a 9× steer leaves the recorded fire counts bit-identical; an 800× spread emits byte-identical SV), the root cause (a second roll primitive predating the steering core by two months, missed because the `.1` survey searched by shape instead of from `knob_rolls.record(`), the one-primitive fix, the **R2** compile-time guard, and the `.3`/`.4` scope boundary. Docs-only. |
+| 7 | `COVERAGE-STEERED-GENERATION.3b` | `pending` | **Next.** The fix: `roll_knob_into` in `src/ir/knob_roll.rs` + privatized `record` (a second primitive becomes a compile error), `cone::roll_knob` reduced to a wrapper, the seven `roll_hierarchy_*` helpers deleted and their call sites re-pointed. Regression proof: an up-weighted `hierarchy` steer raises a helper-rolled knob's fire rate. Unsteered + neutral-weight byte-identical. |
+| 8 | `COVERAGE-STEERED-GENERATION.3c` | `pending` | Docs + close `.3`: `book/src/algorithm.md`'s steering section currently says the prior applies "at the `roll_knob` site" — true of 16 of 22 knobs until `.3b`. Restate as the one-primitive invariant + the compile-time guard; `knobs.md` + USER_GUIDE + a KM card. |
+| 9 | `COVERAGE-STEERED-GENERATION.4` | `pending` | Steering's **width**: give the 16 remaining Bernoulli knobs (7 motif + 9 emit-projection) a `KnobId` and route them through the `.3b` primitive so they gain telemetry and steerability together. Follows `.3` because it needs the single primitive to route into. |
+
+**Tree status: `active` (`2026-07-30`).** The `.1`/`.2` scope stays closed
+(`2026-06-22`) and is not revisited. Open frontier: `.3b`, then `.3c`, then `.4`.
+The remaining decision-`0023` follow-up — the in-generator adaptive schedule — is
+still a future `.N` and is unaffected by either.
 
 ## Decisions
 
@@ -142,6 +182,27 @@ future `.N` that does not reopen the closed scope.
   weights); achieved-coverage readout = SCHEMA-DERIVED from
   `knob_roll_attempts`/`fires` + histograms (zero new truth); feedback = an
   **outer** measure→derive→re-steer loop. Pre-split `.2a`/`.2b`/`.2c`.
+- `2026-07-30` (`.3a`): Tree returns to `active` for a new `.3` node. Design ADR
+  landed as decision [`0034`](../decisions/0034-one-steering-aware-knob-roll-primitive.md):
+  there is to be **exactly one** knob-roll primitive and it is steering-aware; a
+  second one becomes a **compile error** (`KnobRollCounters::record` privatized
+  into the primitive's module — repair rung **R2**; a registered doctrine check
+  was rejected as a mechanism maintained forever for something the type system
+  enforces for free). The seven `roll_hierarchy_*` helpers are deleted rather than
+  re-pointed, because seven one-line `KnobId` wrappers are themselves a shadow of
+  the `KnobId` set (decision `0033`). `.3` is scoped to steering's **reach** over
+  the existing 22-knob universe; its **width** (the 16 Bernoulli knobs with no
+  `KnobId`) is `.4`, because that symptom is *loud* (`unknown steer key`) and is a
+  feature gap rather than a defect.
+- `2026-07-30` (`.3a`): **The `.2a` "Implementation Notes" below are preserved
+  unedited even though their central claim is now known to be false.** They state
+  *"All 31 steerable rolls funnel through one function … No call site changes"*;
+  seven further roll primitives already existed in `src/gen/hierarchy.rs` when that
+  was written. Task files are layer-B **history** (`MEMORY_ARCHITECTURE.md` §3) and
+  the `NEVER REWRITE HISTORY` directive is absolute — and here the historical text
+  is the most useful artifact in the file, because it records the exact shape of the
+  reasoning error (searching by known shape rather than from the authoritative set).
+  Decision `0034` carries the correction; the note stays raw.
 
 ## Open Questions
 
@@ -157,8 +218,29 @@ future `.N` that does not reopen the closed scope.
   target is expressed in the API. *(Resolved at `.1`: a `SteeringConfig` keyed by
   the existing `KnobId::name()` strings + a small fixed category taxonomy, settable
   via the `--config` JSON `steering` block + MCP + a `--steer` CLI shim.)*
+- (`.3a`, open) Should `HierarchyParentFlopProb` be **split into two `KnobId`s**? It
+  currently labels two different decisions: the `cfg.flop_prob`-swap cone rolls
+  inside parent-side cone construction (`hierarchy.rs:1533`, `:1673`) and the
+  dedicated parent-flop helper roll (`:934`). Its reported fire rate therefore
+  conflates them. Once `.3b` lands, both sites obey the same steering weight, so
+  this stops being a steering defect — but it remains a telemetry-honesty question.
+  *(Recorded at `.3a`, deliberately not decided there: it is orthogonal to the fix
+  and would change `coverage_readout` key membership, which belongs with `.4`'s
+  `KnobId`-universe work.)*
+- (`.3a`, open) Where the shared primitive lives — `src/ir/knob_roll.rs` beside
+  `KnobRollCounters` (proposed; it is what makes `record` privatizable, since
+  `pub(in path)` requires an ancestor module) vs `src/gen/roll.rs` with the counters
+  left in `ir::types` (which cannot deliver the R2 guard). *(To be settled by `.3b`
+  against the real borrow checker.)*
 
 ## Implementation Notes (for `.2a` — captured during the `.1` design pass)
+
+> **Historical, and known-false in one load-bearing claim** (`.3a`, `2026-07-30`).
+> The "Single integration point … No call site changes" bullet below was already
+> wrong when written: `src/gen/hierarchy.rs` had defined seven further roll
+> primitives since `2026-04-23`. Preserved unedited per `NEVER REWRITE HISTORY` /
+> `MEMORY_ARCHITECTURE.md` §3 (task files are layer-B history). The correction lives
+> in decision [`0034`](../decisions/0034-one-steering-aware-knob-roll-primitive.md).
 
 A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 
@@ -207,6 +289,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2a` | `SteeringConfig + KnobId::category() + roll_knob prior multiplier + ConfigError::SteeringWeight; cargo check --all-targets, cargo test (snapshots 6/6 + new steering unit/integration tests), cargo clippy -D warnings, cargo fmt --check all green; rules-first / DUT byte-identical when unset` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2b` | `src/introspect/coverage.rs (CoverageReadout + module_coverage/design_coverage) + KnobId::all()/category_of_name() + IntrospectionPayload::coverage_readout + CoverageDocument + MCP coverage tool; schema 1.11→1.12 + schema doc §5/§6.8/changelog; fire_rate integer-ppm determinism fix (caught by introspect_tool_round_trips); cargo check --all-targets, cargo test (snapshots 6/6 + new coverage unit + introspect/mcp coverage tests), cargo clippy -D warnings, cargo fmt --check all green; SCHEMA-DERIVED / DUT .sv byte-identical` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2c.1` | `src/introspect/coverage.rs derive_steering_from_coverage + DeriveParams; src/config.rs SteeringConfig::set_weight + pub validate + Overrides.steer + resolve_config steer application + ConfigError::UnknownSteerKey; src/main.rs --steer flag + parse_steer_arg + cli_overrides; 9 new tests (3 derive + 4 config steer + 2 main CLI); cargo check --all-targets, cargo test (snapshots 6/6), cargo clippy -D warnings, cargo fmt --check all green; CLI smoke (steered≠unsteered, neutral=unsteered, bad-key error); unsteered default DUT byte-identical` | `done` |
+| `2026-07-30` | `COVERAGE-STEERED-GENERATION.3a` | `decision 0034 written + INDEX row; tree reopened (.3 container + .3a/.3b/.3c + .4) ; docs/TASK_TREE.md row refreshed; MEMORY/CHANGES/DEVELOPMENT_NOTES/ROADMAP synced; KM regen+check green; scripts/check_doctrines.sh all 7 PASS. Measurement re-run at ff506e1 against target/release/anvil: 16/22 KnobIds steered, 6 unreachable, hierarchy fire counts bit-identical under a 9x steer (0/5 vs the demanded 5/5), 800x category spread byte-identical, --steer state=8.0 positive control effective. Docs-only ⇒ DUT byte-identical (no src/ touched).` | `done` |
 | `2026-06-22` | `COVERAGE-STEERED-GENERATION.2c.2` | `book/src/{algorithm.md steering section, agent-mcp.md coverage-steering section + coverage tool + --introspect coverage_readout, api-tools.md coverage tool, api-introspection.md coverage_readout schema, api-reference.md, knobs.md cross-ref} + schema 1.11→1.12 example refresh; USER_GUIDE.md (--steer row + Coverage steering subsection + recipe); decision 0023 enriched (4 shipped-surface answer keys + status delivered) = KM card. mdbook build clean; cargo test --test book_examples 3/3 (runnable --steer example exit 0); KM regen+check green. Docs-only / DUT byte-identical. Closes .2c + .2 + the tree.` | `done` |
 
 ## Commit Log
@@ -218,6 +301,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `COVERAGE-STEERED-GENERATION.2a` | `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)` | First code slice: `KnobId::category()` (exhaustive 21-variant taxonomy), `SteeringConfig` (`per_knob`/`per_category` weights + `weight()`/`effective_prob()`/`is_empty()`/`validate()`), `Config.steering` (only `skip_serializing_if`), `ConfigError::SteeringWeight`, the `roll_knob` prior multiplier. Three proofs green (byte-identical default; distribution shift; no-filter) + full cargo gate. Rules-first / DUT byte-identical when unset. |
 | `COVERAGE-STEERED-GENERATION.2b` | `COVERAGE-STEERED-GENERATION.2b — achieved-coverage readout (--introspect section + MCP coverage query)` | Second code slice (the READ half): `src/introspect/coverage.rs` (`CoverageReadout` + `module_coverage`/`design_coverage`), `KnobId::all()`/`category_of_name()`, the `coverage_readout` payload section (schema `1.11→1.12`), the `CoverageDocument` envelope + the pure MCP `coverage` tool (one projection feeding both). Schema doc §5/§6.8/changelog. `fire_rate` integer-ppm for byte-stable determinism (1-ULP fix caught by the pre-existing round-trip test, not weakened). SCHEMA-DERIVED / DUT `.sv` byte-identical; full cargo gate green. |
 | `COVERAGE-STEERED-GENERATION.2c.1` | `COVERAGE-STEERED-GENERATION.2c.1 — outer-loop derive helper + --steer CLI shim` | Third code slice (the steering-OUT half): the pure `derive_steering_from_coverage` helper (decision `0023` §4, milli-quantized weights) + `SteeringConfig::set_weight` (one classifier) + `pub validate` + `Overrides.steer` + the repeatable `--steer <key>=<weight>` CLI shim (preset-then-explicit in `resolve_config`). 9 new proofs + CLI smoke (steered≠unsteered, neutral=unsteered, bad-key error). Unsteered default DUT byte-identical; full cargo gate green. |
+| `COVERAGE-STEERED-GENERATION.3a` | `COVERAGE-STEERED-GENERATION.3a — design ADR (decision 0034)` | Reopens the tree with `.3`. Design-only: records the measured silent no-op (the `hierarchy` steering category biases nothing; 6 of 22 `KnobId`s never reach the prior), root-causes it to a second roll primitive that the `.1` shape-keyed survey missed (decision `0033` rule 2 recurring), and pins the one-primitive fix + the **R2** compile-time guard + the `.3`/`.4` scope boundary. Docs-only ⇒ DUT byte-identical. |
 | `COVERAGE-STEERED-GENERATION.2c.2` | `COVERAGE-STEERED-GENERATION.2c.2 — steering-lane docs + close .2 (book/USER_GUIDE/KM)` | The docs/close slice: book steering section (`algorithm.md`) + `agent-mcp.md` coverage-steering section + the coverage tool + the schema-`1.12` book-example refresh across the API reference chapters + knobs.md cross-ref; USER_GUIDE `--steer` + the measure→derive→re-steer recipe; decision `0023` enriched (KM card) + marked delivered. mdbook clean; book_examples 3/3 (runnable `--steer` example). Docs-only / DUT byte-identical. **Closes `.2c`, `.2`, and the tree.** |
 
 ## Changelog
@@ -261,3 +345,28 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
   criterion met; optional open-ended follow-ups (in-generator adaptive schedule;
   routing raw `gen_bool` sites through `roll_knob`) are future `.N` leaves that do not
   reopen the closed scope.
+- `2026-07-30`: **Tree reopened as `active`** with a new `.3` node; `.3a` design ADR
+  landed (decision `0034`). The `.1`/`.2` scope stays closed and is not revisited.
+  Opened on a measured defect in the shipped steering surface: `src/gen/hierarchy.rs`
+  defines **seven roll primitives of its own** that record the same `m.knob_rolls`
+  telemetry as `roll_knob` while omitting `SteeringConfig::effective_prob`. Measured
+  at `ff506e1`: **16 of 22 `KnobId`s** are reached by `roll_knob` and **6 never are**
+  (all hierarchy), with `HierarchyParentFlopProb` steered at its two
+  `cfg.flop_prob`-swap cone scopes but not at its dedicated helper — so the whole
+  documented `hierarchy` steering category is inert. A 9× per-knob or per-category
+  steer leaves the recorded fire counts **bit-identical** (`hierarchy_child_input_cone_prob`
+  stays `0/5` where `clamp01(0.3 × 9) = 1.0` demands `5/5`); `--steer hierarchy=8.0`
+  vs `=0.01` — an 800× spread — emits **byte-identical** SV; the positive control
+  `--steer state=8.0` does change output. Silent by every surface: `--steer` accepts
+  the key, validates it, stores it in `Config.steering`, and echoes it in
+  `--dump-config`/`--introspect`. Root cause: the `.1` survey enumerated roll sites by
+  the **shape** it knew (`roll_knob(` call sites) rather than from the **authoritative
+  set** (`knob_rolls.record(` — 8 sites in 2 files), decision `0033` rule (2) recurring;
+  the helpers predate the steering core by two months (`28c5474` `2026-04-23` vs
+  `2530bfd` `2026-06-21`). Fix pinned for `.3b`: one shared
+  `roll_knob_into(&mut KnobRollCounters, &SteeringConfig, rng, knob, prob)` primitive
+  (the borrow shape the hierarchy planner can actually call), the seven helpers deleted,
+  and `KnobRollCounters::record` privatized into the primitive's module so a second
+  primitive is a **compile error** (rung **R2**; no new registered doctrine). `.4`
+  registered for the separate, louder gap: the 16 Bernoulli knobs with no `KnobId`.
+  Docs-only ⇒ DUT byte-identical.

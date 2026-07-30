@@ -5,6 +5,67 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Search from the site that COMMITS the fact, not from the call you already know — `COVERAGE-STEERED-GENERATION.3a`
+
+`COVERAGE-STEERED-GENERATION.2a` shipped coverage steering as *"one multiplier at one
+place"*. Its pre-implementation survey is still in the tree file:
+
+> **Single integration point.** All 31 steerable rolls funnel through one function,
+> `roll_knob(g, m, knob, prob)` … `.2a` changes ONLY this function … **No call site
+> changes.**
+
+It was wrong. `src/gen/hierarchy.rs` had defined seven more roll primitives two months
+earlier, each recording the same `m.knob_rolls` telemetry and omitting only
+`SteeringConfig::effective_prob`. Result: 6 of 22 `KnobId`s were never steered, and the
+whole documented `hierarchy` category was inert — a 9× weight left the recorded fire counts
+bit-identical and an 800× spread emitted byte-identical SV.
+
+**The transferable lesson.** The survey searched for `roll_knob(` — the *shape it already
+knew*. The authoritative set is `knob_rolls.record(`: the site that **commits the fact the
+feature reads back**. When you are about to claim "all X funnel through one place", do not
+search for the funnel. Search for the **effect** — the write, the record, the insert, the
+emit — because a second funnel is defined precisely by producing the same effect a
+different way. Searching from the effect returns 8 sites in 2 files here; searching from
+the funnel returns 1 file and a false premise. (Decision `0033` rule (2), now observed in
+its second lane.)
+
+**A corollary about proofs.** `.2a`'s distribution-shift test up-weights `state` and
+asserts `flop_prob`'s rate rises. `flop_prob` is a `roll_knob` knob, so the test lives
+entirely inside the steered half. *A proof that samples one member of a set cannot detect
+that the set is partitioned.* When a mechanism is claimed to be universal over a
+hand-enumerable set, the proof should be parameterized over that set — or at minimum pick a
+member from each structurally distinct region (here: one `cone.rs` knob and one
+`hierarchy.rs` knob would have caught it on day one).
+
+**Why the fix is a compile error and not a doctrine check.** The repair ladder
+(`MEMORY.md`) ranks R1 derive → R2 compile error → R3 derived test → R4 registered
+doctrine. R1 is unavailable: a decision site cannot be derived from data. R2 *is*
+available — move `KnobRollCounters::record` into the primitive's own module and make it
+private, and a second primitive stops compiling. That costs one module move, once. R4
+would cost a grep check that this project maintains, negative-controls, and re-reads
+forever, to enforce something the borrow-and-visibility rules enforce for free. **Do not
+spend a registered doctrine on a property the type system can hold.**
+
+**Why the helpers get deleted rather than fixed.** Patching seven functions to call
+`effective_prob` fixes the six knobs and leaves the shape — a second primitive that records
+the same telemetry — intact, documented by example, and one code review away from an
+eighth. Seven one-line functions whose entire content is a `KnobId` are also a shadow of
+the `KnobId` set in their own right (decision `0033`), and they push the knob identity one
+indirection away from the decision site. `cone.rs` names its knob inline at 37 call sites;
+`hierarchy.rs` will read the same.
+
+**A boundary worth stating.** The same sweep found 16 further `Config` Bernoulli knobs with
+no `KnobId` at all (7 motif rolls, 9 emit-projection rolls). Those are **not** the same
+defect: `--steer memory_prob=2.0` fails loudly with `unknown steer key`. Loudly-absent is a
+feature gap (`.4`); silently-inert is a defect (`.3`). Do not let a fix wait behind a
+feature, and do not bill a feature as a fix. Two further knobs measured in that sweep —
+`operand_duplication_rate` and `mux_arm_duplication_rate` — are excluded by *kind*: they
+are dedup thresholds compared against in `ir/compact.rs`/`metrics.rs`, not Bernoulli rolls.
+There is no roll there to apply a prior to, and calling them "unsteered" would have
+inflated the finding.
+
+---
+
 ## 2026-07-30 — A count beside a list is a shadow of that list — `SHADOW-ENUMERATION-SWEEP.7`
 
 Two of the sites this leaf repaired said the same thing twice:

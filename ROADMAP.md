@@ -2787,9 +2787,25 @@ other five remain `active` with a design-first `.1` ADR frontier:
    maintainer adds one `uses:` step and gets red CI + reproducer-bundle artifacts
    on any finding; user-installed tools (no vendoring). CI-infra only ⇒ DUT
    byte-identical. The lane stays `active` with no current frontier.
-6. `COVERAGE-STEERED-GENERATION` — **DONE (`2026-06-22`, tree closed; decision
-   [`0023`](docs/decisions/0023-coverage-steered-generation.md)).**
-   Construction-time coverage-feedback steering (rules-first, never
+6. `COVERAGE-STEERED-GENERATION` — the `.1`/`.2` scope **DONE (`2026-06-22`, closed;
+   decision [`0023`](docs/decisions/0023-coverage-steered-generation.md)); the tree
+   REOPENED `2026-07-30` as `active` with a new `.3` node** (decision
+   [`0034`](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md)) on a
+   measured defect in the shipped surface: `src/gen/hierarchy.rs` defines **seven roll
+   primitives of its own** that record the same `knob_rolls` telemetry as `roll_knob`
+   while omitting the steering multiplier, so **6 of the 22 `KnobId`s never reach the
+   prior** and the whole documented `hierarchy` steering category is a **silent no-op**
+   (a 9× weight leaves the recorded fire counts bit-identical; an 800× category spread
+   emits byte-identical SV). This is steering gap 3 in miniature — *"the probability
+   knobs must be exercised without hidden bias from whichever implementation path is
+   currently easiest"* — and it is why the lane's API-completeness claim (decision
+   `0017`) held for 16 of 22 knobs rather than all of them. `.3b` folds every roll onto
+   one steering-aware primitive and makes a second primitive a compile error; `.4` then
+   takes steering's *width* (the 16 Bernoulli knobs with no `KnobId` at all — the
+   recorded decision-`0023` follow-up). The closed `.1`/`.2` scope is not revisited.
+
+   The delivered `.1`/`.2` scope: construction-time coverage-feedback steering
+   (rules-first, never
    generate-then-filter; byte-stable per steering-config) with an API-settable
    target + API-queryable achieved coverage. Delivered as `.2a` (the `roll_knob`
    per-category/per-knob probability-prior **multiplier** — measurable
@@ -2798,11 +2814,11 @@ other five remain `active` with a design-first `.1` ADR frontier:
    schema `1.12`), `.2c.1` (the `derive_steering_from_coverage` helper + the
    `--steer` CLI shim; target also settable via `Config.steering` over
    MCP/`--config` per decision `0017`), and `.2c.2` (book/USER_GUIDE/KM). Every
-   acceptance criterion met; snapshots 6/6 byte-identical throughout. The
-   in-generator adaptive schedule + routing the remaining raw `gen_bool` /
-   weighted-choice sites through `roll_knob` are open-ended follow-ups (decision
-   `0023`'s Rejected alternatives) that land as optional new `.N` leaves without
-   reopening the closed scope.
+   acceptance criterion met; snapshots 6/6 byte-identical throughout. Routing the
+   remaining raw `gen_bool` / weighted-choice sites through `roll_knob` is now
+   **owned by `.4`** (registered `2026-07-30`); the in-generator adaptive schedule
+   remains an open-ended follow-up (decision `0023`'s Rejected alternatives) that
+   lands as an optional new `.N` leaf without reopening the closed `.1`/`.2` scope.
 7. `CAPABILITY-BREADTH-EXPANSION` — two strands. (`.2`) **Mealy FSM outputs**
    (extending the Phase-6 Moore-only `Fsm`) are **delivered** (decision
    [`0024`](docs/decisions/0024-mealy-fsm-outputs.md)): the default-off

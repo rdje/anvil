@@ -1,6 +1,107 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.3a — the steering category that steers nothing
+
+**Landed as:** `<pending>` (previous: `ff506e1`, `SHADOW-ENUMERATION-SWEEP.7` hash backfill).
+**No `src/` change** ⇒ **DUT byte-identical** by construction. **Reopens the
+`COVERAGE-STEERED-GENERATION` tree** with a new `.3` node; the closed `.1`/`.2`
+scope is untouched.
+
+**What.** A design leaf (decision
+[`0034`](docs/decisions/0034-one-steering-aware-knob-roll-primitive.md)) recording a
+**measured live defect** in a shipped, documented feature: `--steer hierarchy=<w>` — one
+of the six advertised coverage-steering categories — biases nothing.
+
+**Why (root cause).** `COVERAGE-STEERED-GENERATION.2a` added the steering prior at
+`roll_knob` on the recorded premise that *"All 31 steerable rolls funnel through one
+function … No call site changes."* That premise was **false when written**.
+`src/gen/hierarchy.rs:883-938` had defined **seven roll primitives of its own** since
+`2026-04-23` (`28c5474`) — two months before the steering core (`2530bfd`,
+`2026-06-21`). Each records the identical `m.knob_rolls` telemetry and omits exactly one
+thing: `SteeringConfig::effective_prob`.
+
+The survey enumerated roll sites by searching for the **shape it already knew**
+(`roll_knob(` call sites) instead of from the **authoritative set** — `knob_rolls.record(`,
+the site that commits a roll to the telemetry the steering loop reads back. Searching from
+*that* returns 8 sites in 2 files, and the second file is the entire finding. This is
+decision `0033` rule (2) recurring in a second lane, which is the argument for a structural
+fix rather than patching seven functions.
+
+**Measured (at `ff506e1`, against `target/release/anvil`).**
+
+- **16 of the 22 `KnobId`s** are reached by `roll_knob` and therefore steered; **6 never
+  are** — `HierarchySiblingRouteProb`, `HierarchyRegisteredSiblingRouteProb`,
+  `HierarchyRegisteredSiblingMixedSupportProb`, `HierarchyRegisteredChildInputConeProb`,
+  `HierarchyChildInputConeProb`, `HierarchyParentConeInstanceProb`.
+- The `hierarchy` category has exactly **seven** members, so it is inert. The seventh,
+  `HierarchyParentFlopProb`, is **half-steered**: it obeys the weight at the two
+  `cfg.flop_prob`-swap cone scopes (`hierarchy.rs:1533`, `:1673`, which do go through
+  `roll_knob`) and ignores it at its own helper (`:934`).
+- A **9× weight leaves the recorded fire counts bit-identical** —
+  `hierarchy_child_input_cone_prob` stays `0 fires / 5 attempts` where
+  `clamp01(0.3 × 9) = 1.0` demands `5/5` — under a per-knob steer, a sibling-knob steer,
+  **and** a whole-category steer.
+- `--steer hierarchy=8.0` vs `--steer hierarchy=0.01` — an **800× spread** — emits
+  **byte-identical** SV. Positive control: `--steer state=8.0` does change output, so the
+  mechanism itself is sound.
+- Silent by every surface: `--steer hierarchy=9.0` is accepted by
+  `SteeringConfig::set_weight` (the category *is* valid — it is derived from
+  `KnobId::category()`, which those six knobs do declare), validated, stored in
+  `Config.steering`, and echoed by `--dump-config` / `--introspect`. Nothing reports that
+  it changed nothing.
+
+**Why the existing proofs missed it.** `.2a`'s distribution-shift test up-weights the
+`state` category and asserts `flop_prob`'s fire rate rises. `flop_prob` is a `roll_knob`
+knob, so the proof runs entirely inside the steered half of the codebase. **A proof that
+picks one member of a set cannot detect that the set is partitioned.**
+
+**Decided (decision `0034`).**
+
+- **One primitive, shared.** Extract
+  `roll_knob_into(&mut KnobRollCounters, &SteeringConfig, rng, knob, prob)` — a signature
+  that does *not* require holding `&mut Generator` and `&mut Module` at once, which is the
+  borrow shape that caused the fork (the hierarchy planner reaches its module through
+  `ctx.top` while `g` is live). `cone::roll_knob` becomes a one-line wrapper; its 37 call
+  sites are untouched.
+- **The seven helpers are deleted, not re-pointed.** Seven one-line functions whose only
+  content is a `KnobId` are themselves a shadow of the `KnobId` set (decision `0033`), and
+  they hide the knob identity from the decision site. Each call site names its
+  `KnobId::…` inline, matching `cone.rs`.
+- **The guard is a compile error (rung R2), not a doctrine check (R4).**
+  `KnobRollCounters::record` moves with the primitive into `src/ir/knob_roll.rs` and
+  becomes private to that module, so recording a knob roll from anywhere else in the crate
+  stops compiling. A registered doctrine was rejected: it would be a mechanism maintained
+  forever for something the type system enforces for free.
+- **Scope boundary.** `.3` fixes steering's **reach** over the existing 22-knob universe.
+  Its **width** — the **16 further `Config` Bernoulli knobs that have no `KnobId` at all**
+  (7 module-level motif rolls + 9 emit-projection rolls) — is registered as `.4`, because
+  that symptom is *loud*: `--steer memory_prob=2.0` errors with `unknown steer key`. Loudly
+  absent is a feature gap; silently inert is a defect. `operand_duplication_rate` /
+  `mux_arm_duplication_rate` are excluded by kind (dedup thresholds compared in
+  `ir/compact.rs` + `metrics.rs`, not Bernoulli rolls — there is no roll to apply a prior
+  to), as is `library_prob` (no reader anywhere in `src/`).
+- **`.2a`'s false implementation note is preserved unedited.** Task files are layer-B
+  history (`MEMORY_ARCHITECTURE.md` §3) and `NEVER REWRITE HISTORY` is absolute — and here
+  the historical text is the *most useful artifact in the file*, because it records the
+  exact shape of the reasoning error. A pointer note marks it; decision `0034` carries the
+  correction.
+
+**Validation.** Docs-only leaf. `scripts/check_doctrines.sh` — all 7 registered doctrines
+PASS. Knowledge Map regenerated + checked. `cargo build --release` clean (the binary the
+measurements were taken with). No `src/`, `tests/`, or `examples/` file touched ⇒ DUT
+byte-identical without needing the generator gate.
+
+**Impact.** The `COVERAGE-STEERED-GENERATION` tree returns to `active`. ROADMAP lane 6 and
+`docs/TASK_TREE.md` restate the lane's status honestly: its decision-`0017`
+API-completeness claim held for 16 of 22 knobs, not all of them. No user-visible behaviour
+changes in this leaf — `.3b` is where `--steer hierarchy` starts working.
+
+**Files touched.** `docs/decisions/0034-one-steering-aware-knob-roll-primitive.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`,
+`KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.7 — the doctrine that found three stale copies of itself
 
 **Landed as:** `8f94cf0` (previous: `75057a4`, `SHADOW-ENUMERATION-SWEEP.6`).
