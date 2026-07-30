@@ -1,6 +1,72 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree
+
+**Landed as:** (backfilled next slice). Previous: `bd7dba2`.
+**Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
+
+**What.** Registered a task tree to split `src/ir/types.rs` by ownership, on the
+owner's `2026-07-31` directive: *"why not break it down into smaller .rs files by
+ownership, I mean by who does what?"* No code moved — the doctrine is that the
+owning leaf exists **before** the edit, so registration is its own commit.
+
+**The measurement that justifies it** (at `bd7dba2`). `src/ir/types.rs` is **4069
+lines**, second-largest in the crate. Per region:
+
+| region | lines | share | answers |
+| --- | ---: | ---: | --- |
+| `#[cfg(test)] mod tests` | 1258 | 30.9 % | — (~95 % test the interning engine) |
+| `flatten_associative` + `intern_gate` | 680 | 16.7 % | *what is the canonical form?* |
+| `struct Module` decl | 417 | 10.2 % | *what is a module?* |
+| `enum KnobId` + `impl` | 378 | 9.3 % | *what can be steered?* |
+| `Node`/`GateOp`/`Flop`/`DepSet` | 363 | 8.9 % | *what is a node?* |
+| `Instance`/`Memory`/`Fsm` | 152 | 3.7 % | *what is a block?* |
+| port/domain predicates | ~649 | 16.0 % | *what does a module expose?* |
+
+**Two tenants are foreign to a types file and together are 55 % of it.** The
+canonicalization engine (behaviour, not a data model) plus its tests is ~1830
+lines. And `KnobId` is not circuit IR — the giveaway is external:
+`scripts/check_enumeration_parity.sh` hard-codes
+`sed -n '/pub fn category(&self)/,/…/p' src/ir/types.rs`. **When a doctrine check
+has to know that a file called `types.rs` contains a steering taxonomy, the thing
+is in the wrong house.**
+
+**Why the split is cheap.** `src/ir/mod.rs` already does `pub use types::*`, so
+callers name `crate::ir::X`. Measured: only **2** sites in the entire repo write
+`types::` explicitly. So no call site changes — and that is also the review
+criterion: *if a call site changed, the move was not pure.*
+
+**Ordering decided now, not later.** `KnobId` carries **five parallel tables of
+the same 38 variants** (`enum`, `all()`, `index()`, `name()`, `category()`) —
+precisely what `COVERAGE-STEERED-GENERATION.6` (rung R1, decision `0033`) exists
+to collapse, and the next queued roadmap action. So `.2` (extract `KnobId`) runs
+**before** `CSG.6`, putting that macro table in a file that owns one thing and
+making the ~340 → ~40-line diff readable instead of buried in 4069 lines. `.3`
+(the 1830-line interning move) runs **after**, so a large mechanical move is
+never interleaved with a semantic change to a different type.
+
+**Registration had to be a leaf, and the hook said so.** The first attempt used
+the bare tree name as the commit subject and `.githooks/commit-msg` rejected it:
+it requires `^[A-Z][A-Z0-9-]+(\.[0-9A-Za-z]+)+`, i.e. every commit names a
+**leaf**, never just a tree. So this is `.1` (audit + register), matching
+`README-POLICY-ADOPTION.1`'s established `.1 = audit + design` shape, and the
+execution leaves shift to `.2`/`.3`/`.4`. The E3 layer working exactly as
+designed — and worth recording, because the same rejection also re-triggered the
+documented `cmd; truncate` gotcha (the brief was emptied after a *failed*
+commit).
+
+**Non-goals recorded, because the framing is the owner's and it is the right
+one.** Split by ownership, never by line count: `.4` re-measures and may
+legitimately conclude the remainder is one coherent data model and close without
+splitting further. No renames (a rename hides a move inside a thousand call-site
+diffs). No revisiting `src/ir/`'s existing per-pass decomposition, which is good.
+
+**Validation.** `scripts/check_doctrines.sh` 8/8 PASS. Docs-only.
+
+**Files touched:** `docs/tasks/IR-TYPES-DECOMPOSITION.md` (new),
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — README-POLICY-ADOPTION.3 — the README-GROWTH doctrine, and the tree closes
 
 **Landed as:** `5775766`. Previous: `1287b8d`.
