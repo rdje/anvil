@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — IR-TYPES-DECOMPOSITION.2 — refresh the resume pointer for handoff
 
-**Landed as:** (backfilled next slice). Previous: `472b8da`.
+**Landed as:** `a195978`. Previous: `472b8da`.
 **Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
 
 **What.** Session-end refresh of `MEMORY.md`'s current-state block so a cold
