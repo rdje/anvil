@@ -7,7 +7,7 @@ corpus itself is not tracked (bulk), this digest is.
 - bank: `anvil-emit-surface-interaction-r1`
 - claim: The nine structured-emission surfaces are downstream-clean IN COMBINATION, and genuinely co-occur: 8 surfaces in every module of the three universal scenarios, 9 in the Verilator-only 2023 scenario, and exactly 3 under saturation — the first end-to-end exercise of the mutual-exclusion invariant that makes stacking nine projections sound (decision 0032).
 - owning_leaf: `EMIT-SURFACE-INTERACTION-GATE.3`
-- commit: `d73b1545a577`
+- commit: `401d72de3425`
 - date: `2026-07-30`
 - command: `cargo run --release --bin tool_matrix -- --emit-surface-interaction-gate --yosys-mode both --iverilog-compile --out .cache/anvil-sandbox/anvil-emit-surface-interaction-r1`
 - report_sha256: `996fae2885e7e31e7700d65c64d120b29bff297e48c75c7790f14b929f58d386`
@@ -57,7 +57,16 @@ corpus itself is not tracked (bulk), this digest is.
 
 ## Re-verification
 
-Re-run `command` above at commit `d73b1545a577`. The numbers here are what a clean
+Re-run `command` above at commit `401d72de3425`. The numbers here are what a clean
 re-run must reproduce; a divergence is a finding, not a stale digest.
 Later commits may legitimately produce different numbers — that is why the
 commit is recorded alongside them.
+
+> **Corrected by hand after derivation.** `scripts/evidence_digest.sh` fills
+> `commit:` from `HEAD` *at derivation time*, which is the **parent** of the commit
+> that banks the digest. That is harmless for a gate that already existed, but wrong
+> for one introduced by the same commit as its first bank: at the parent
+> (`d73b1545a577`) the `--emit-surface-interaction-gate` flag does not exist, so the
+> re-verification instruction could not be followed. The value above is the commit
+> that actually contains both the gate and this digest. Tracked as a defect in the
+> deriver — see `EVIDENCE-BANK-DURABILITY` "Reopened findings".

@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `EVIDENCE-BANK-DURABILITY`
-- Status: `done`
+- Status: `active` (reopened `2026-07-30`)
 - Roadmap lane: Quality / evidence architecture (cross-cutting; no phase reopened)
 - Created: `2026-07-25`
-- Last updated: `2026-07-29`
+- Last updated: `2026-07-30`
 - Owner: repo-local workflow
 
 ## Goal
@@ -91,12 +91,30 @@ evidence citations absolute and volatile.
 ## Task Tree
 
 - ID: `EVIDENCE-BANK-DURABILITY`
-  Status: `done`
+  Status: `active` (reopened `2026-07-30` — see "Reopened findings")
   Goal: make closure evidence durable / re-derivable, or explicitly
         redefine what a closure citation means.
   Children: `EVIDENCE-BANK-DURABILITY.1`, `EVIDENCE-BANK-DURABILITY.2`,
         `EVIDENCE-BANK-DURABILITY.3`, `EVIDENCE-BANK-DURABILITY.4`,
-        `EVIDENCE-BANK-DURABILITY.5`
+        `EVIDENCE-BANK-DURABILITY.5`, `EVIDENCE-BANK-DURABILITY.6`
+
+- ID: `EVIDENCE-BANK-DURABILITY.6`
+  Status: `pending`
+  Goal: repair the two deriver defects the second real digest exposed
+        (see "Reopened findings"): (A) `scripts/evidence_digest.sh`
+        reconstructs `--command` from a **hardcoded** list of `*_gate`
+        report fields, so a gate added later yields a command with no gate
+        flag at all — a silently wrong re-verification instruction; derive
+        it from the report's own `*_gate` keys and fail loudly when exactly
+        one true flag cannot be identified. (B) `commit:` is `HEAD` at
+        derivation time, i.e. the **parent** of the banking commit, which
+        is unusable when the gate is introduced by that same commit.
+  Acceptance: a gate flag unknown to the old enumeration is reconstructed
+        correctly; a report with zero or several true gate flags is a loud
+        failure, not a flagless command; the `commit:` semantics are
+        settled and the check validates them; negative controls for both;
+        `docs/evidence/anvil-emit-surface-interaction-r1.md` regenerates to
+        the hand-corrected value.
 
 - ID: `EVIDENCE-BANK-DURABILITY.1`
   Status: `done`
@@ -289,13 +307,52 @@ and `-microdesign-parity-phase7-` line-wrap truncation).
   MCP `validate` sandbox path inside a book API-reference example. The
   `.4` sweep must NOT breadcrumb-label it; it is not a claim.
 
+## Reopened findings — `2026-07-30`, from the second real digest
+
+The tree closed on `2026-07-30` after `.5` banked the first real digest. Banking the
+**second** one (`EMIT-SURFACE-INTERACTION-GATE.3`) surfaced two defects in
+`scripts/evidence_digest.sh` that the first bank could not have exposed, because that
+gate already existed when its digest was taken. Both are recorded here rather than
+fixed in passing, per the no-code-change-without-an-owning-leaf doctrine. Tree status
+moves back to `active` with one open leaf.
+
+**Defect A — the reconstructed `--command` is a hardcoded gate-flag enumeration.**
+`evidence_digest.sh` derives the re-runnable command by scanning a literal list of
+fourteen `*_gate` report fields. A gate added after the script was written is absent
+from that list, so the deriver emits a command with **no gate flag at all** —
+`cargo run --release --bin tool_matrix -- --yosys-mode both --out …` — which runs the
+*default* scenario set. A future reader would "re-verify" a completely different run
+and see numbers that do not match, with nothing to indicate why. This is the most
+dangerous failure shape available to an evidence mechanism: silent, plausible, and
+wrong. `EMIT-SURFACE-INTERACTION-GATE.3` escaped it only because `--command` was
+passed explicitly. The fix is the `EMIT-SURFACE-INTERACTION-GATE.2` lesson applied
+here: derive the flag from the report's own `*_gate` keys (every one of which is
+`true`/`false` in the JSON) instead of enumerating them, and fail loudly when exactly
+one true gate flag cannot be identified.
+
+**Defect B — `commit:` is `HEAD` at derivation time, i.e. the parent of the banking
+commit.** For a gate that already existed this is harmless. For a gate introduced by
+the *same* commit that banks its first digest, the recorded commit is one where the
+flag does not exist, so the digest's own re-verification instruction cannot be
+followed. Hit exactly this on `anvil-emit-surface-interaction-r1`, whose `commit:`
+field was corrected by hand from `d73b1545a577` to `401d72de3425` with a note in the
+digest. The fix needs a decision: either the deriver takes an explicit
+`--commit`, or the digest records "the commit that adds this file" as a convention
+the check can validate.
+
+Both defects share a root: **the deriver guesses at facts the report and the commit
+already know.** That is the same shape as the `EVIDENCE-CITATIONS` design rule already
+recorded in this tree — *a doctrine check must classify, never guess* — applied one
+layer down, to the tool that produces the artifact the check validates.
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `EVIDENCE-BANK-DURABILITY.3` | `done` | Mechanized `2026-07-30`; `EVIDENCE-CITATIONS` is live in the driver (6/6). |
-| 2 | `EVIDENCE-BANK-DURABILITY.4` | `done` | Re-scoped to a pointer-per-doc; landed `2026-07-30`. |
-| 3 | `EVIDENCE-BANK-DURABILITY.5` | `done` | Taken before `.4` (`2026-07-30`): the real run is the end-to-end proof of `.3`, and it found a real deriver bug a fixture would not have. |
+| 1 | `EVIDENCE-BANK-DURABILITY.6` | `pending` | **Current frontier (reopened).** Fix defects A and B in `scripts/evidence_digest.sh`: derive the gate flag from the report's own `*_gate` keys and fail loudly rather than emitting a flagless command; settle the `commit:` semantics. Negative-control both. |
+| — | `EVIDENCE-BANK-DURABILITY.3` | `done` | Mechanized `2026-07-30`; `EVIDENCE-CITATIONS` is live in the driver (6/6). |
+| — | `EVIDENCE-BANK-DURABILITY.4` | `done` | Re-scoped to a pointer-per-doc; landed `2026-07-30`. |
+| — | `EVIDENCE-BANK-DURABILITY.5` | `done` | Taken before `.4` (`2026-07-30`): the real run is the end-to-end proof of `.3`, and it found a real deriver bug a fixture would not have. |
 
 ## Decisions
 

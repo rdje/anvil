@@ -1,6 +1,47 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — Correct the new digest's commit pointer; reopen EVIDENCE-BANK-DURABILITY
+
+**Landed as:** this commit (previous: `401d72d`, `EMIT-SURFACE-INTERACTION-GATE.3`).
+Docs-only — an evidence-digest correction plus a tree reopening; no code ⇒ **DUT
+byte-identical**.
+
+**Why this is a separate commit.** `NEVER REWRITE HISTORY` (decision `0031`) rules out
+`--amend`, and the correct value was not knowable until `401d72d` existed. This is the same
+follow-up pattern `COMMIT.md` already sanctions for backfilling a commit hash into `MEMORY.md`.
+
+**The correction.** `docs/evidence/anvil-emit-surface-interaction-r1.md` said *"Re-run `command`
+above at commit `d73b1545a577`."* At that commit the `--emit-surface-interaction-gate` flag does
+not exist — it is introduced by `401d72d`, the commit that also banks the digest. A digest whose
+whole purpose is durable re-verifiability had a re-verification instruction that could not be
+followed. Corrected to `401d72de3425`, with a note in the digest explaining the hand edit so a
+reader does not mistake it for deriver output.
+
+**Two defects found in `scripts/evidence_digest.sh`, recorded rather than fixed in passing.**
+The tree that owns that script (`EVIDENCE-BANK-DURABILITY`) closed earlier today; it is
+**reopened** with one leaf `.6` rather than the script being patched under an unrelated tree.
+
+- **A — the reconstructed `--command` is a hardcoded gate-flag enumeration.** The deriver scans a
+  literal list of fourteen `*_gate` report fields. A gate added after the script was written is
+  absent, so the deriver emits a command with **no gate flag at all**
+  (`cargo run --release --bin tool_matrix -- --yosys-mode both --out …`), which runs the
+  *default* scenario set. A future reader would re-verify a different run entirely and see
+  numbers that do not match, with nothing indicating why. Silent, plausible, and wrong — the
+  worst failure shape an evidence mechanism can have. `EMIT-SURFACE-INTERACTION-GATE.3` escaped
+  it only because `--command` was passed explicitly.
+- **B — `commit:` is `HEAD` at derivation time**, i.e. the parent of the banking commit. Harmless
+  for a pre-existing gate; unusable for one introduced alongside its first bank (the case above).
+
+Both share a root worth naming: **the deriver guesses at facts the report and the commit already
+know.** That is this tree's own `EVIDENCE-CITATIONS` rule — *a check must classify, never guess*
+— one layer down, in the tool that produces the artifact the check validates. Defect A is also
+the third instance this session of the same decay pattern the `EMIT-SURFACE-INTERACTION-GATE.2`
+note names: a hand-maintained enumeration of a growing set rots by default.
+
+**Files touched.** `docs/evidence/anvil-emit-surface-interaction-r1.md`,
+`docs/tasks/EVIDENCE-BANK-DURABILITY.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.3 — prove the nine surfaces together
 
 **Landed as:** this commit (previous: `d73b154`, `EMIT-SURFACE-INTERACTION-GATE.2`).
