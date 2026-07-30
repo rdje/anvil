@@ -177,7 +177,7 @@ silently rot). This is now load-bearing because the repo is public
 | --- | --- | --- |
 | `BOOK-EXAMPLES-RUNNABLE.1` | `Docs: BOOK-EXAMPLES-RUNNABLE.1 book-examples-runnable design + tree` | Tree created + registered; design-only DEVELOPMENT_NOTES.md entry; architecture + 3 rejected alternatives. No code. |
 | `BOOK-EXAMPLES-RUNNABLE.2.1` | `Docs: BOOK-EXAMPLES-RUNNABLE.2.1 migrate book examples to cargo run --release --` | 45 bash heads migrated + 9 rust sketches `rust,ignore` + shorthand note; missed=0; spot-runs pass. Book/docs only, no code. |
-| `BOOK-EXAMPLES-RUNNABLE.3` | `BOOK-EXAMPLES-RUNNABLE.3 — the no-silent-skips guard can now see a silent skip` | Extracts `skip_sentinel_reason` with the delimiter-before-punctuation trim order, adds the 14-shape table test, and negative-controls both ways. Test-code only ⇒ DUT byte-identical. |
+| `BOOK-EXAMPLES-RUNNABLE.3` | `973f615` — `BOOK-EXAMPLES-RUNNABLE.3 — the no-silent-skips guard can now see a silent skip` | Extracts `skip_sentinel_reason` with the delimiter-before-punctuation trim order, adds the 14-shape table test, and negative-controls both ways. Test-code only ⇒ DUT byte-identical. |
 | `BOOK-EXAMPLES-RUNNABLE.2.2` | `BOOK-EXAMPLES-RUNNABLE.2.2 book-examples harness + embedded migration + mdbook-test CI` | `tests/book_examples.rs` (new code, leaf-owned) + embedded migration + 9 skip sentinels + bare→text + `ci.yml` `mdbook test` step; pipe-deadlock root-caused & fixed; 3/3 green, 54 runnable exit-0. Tree closed. |
 
 ## Changelog

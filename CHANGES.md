@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — BOOK-EXAMPLES-RUNNABLE.3 — the no-silent-skips guard can now see a silent skip
 
-**Landed as:** `<pending>` (previous: `2db95f9`, `COVERAGE-STEERED-GENERATION.3` hash backfill).
+**Landed as:** `973f615` (previous: `2db95f9`, `COVERAGE-STEERED-GENERATION.3` hash backfill).
 **Test-code only** — no `src/` or `examples/` change ⇒ **DUT byte-identical**.
 **Re-closes the `BOOK-EXAMPLES-RUNNABLE` tree**, reopened hours earlier the same day.
 
