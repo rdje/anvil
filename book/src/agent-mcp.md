@@ -210,7 +210,13 @@ existing hardened invocations:
   `supports_facts = true` in the catalog). Both are absent on
   most hosts today, so selecting them is a friendly no-op until the binary is on
   `PATH`; the adapter catalog's `present` field tells you which tools are
-  installed.);
+  installed.) That allow-list is **derived** from the closed adapter registry
+  wherever the API states it — the `tools` argument's JSON-schema `enum` on all
+  four controlled tools, the unknown-tool error, `validate`'s description, and
+  the server `instructions` — so the API can never advertise fewer tools than it
+  accepts (`SHADOW-ENUMERATION-SWEEP.6`; before that leaf the `instructions`
+  named three adapters and `validate`'s description four, against a registry of
+  five). Registering an adapter is the only edit a new tool needs;
 - a **sandboxed** per-run temp directory (the agent never supplies a path);
 - the **RAM guard** declines to start more work under memory pressure;
 - **no arbitrary shell** is ever exposed;

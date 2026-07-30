@@ -5,6 +5,61 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — An audit keyed to the *shape* under-counts; key it to the *content* — `SHADOW-ENUMERATION-SWEEP.6`
+
+Decision `0033`'s 20-site audit recorded "four hardcoded adapter-id JSON-schema `enum`
+literals in `src/mcp/mod.rs`". The number was wrong, and the way it was wrong is the
+transferable part.
+
+The audit swept for the **shape** of the instance it already knew: a JSON `enum` array of
+adapter ids. That finds exactly the four `enum`s. Sweeping instead for the **content** —
+any non-test line naming two or more registry ids — finds seven:
+
+```
+:278 :303 :327 :458   the four schema `enum`s          (the known shape)
+:1649                 the unknown-tool error message   (a format! literal)
+:520                  `validate`'s tool description    (prose)
+:210                  the server `instructions`         (prose)
+```
+
+And the three the shape-keyed sweep missed are precisely the three that had **already
+rotted**: the `instructions` named three adapters, `validate`'s description four, against a
+registry of five. Every other leaf in this tree hardened a list that was still correct.
+This one found a list that had been wrong for two adapter-landing slices, in the one place
+decision `0017` says must never understate the API.
+
+**Why the shape-keyed sweep is the natural mistake.** You audit *from* the instance you
+found. The instance was a schema `enum`, so the query becomes "where else is there a schema
+`enum`?" — which silently redefines the defect class as *structured* copies. But rule (a)
+of decision `0033` says nothing about structure: derivable ∧ growth-coupled ∧ silent. A
+sentence in a tool description satisfies all three. The rule was already right; the search
+was narrower than the rule.
+
+**Consequence recorded for the next audit:** derive the search key from the *authoritative
+set* (grep for its members), never from the *shadow* you happened to find first.
+
+### The related rule for the guard itself
+
+`every_controlled_tool_schema_advertises_the_whole_adapter_registry` walks the emitted
+`tools/list` and checks **every** tool that takes a `tools` argument, rather than checking
+`validate`/`minimize`/`hunt`/`divergence` by name. That is deliberate: a guard listing the
+four known sites would be a *fifth copy of the same growing set*, sitting inside the test
+written to abolish copies of it. Walking the real output means a tool added next year is
+covered by a test written today. The cost is that the walk can silently match nothing, so
+it carries a `>= 4` floor — the same anti-decay pin `.4` and `.5` used.
+
+### One site audited and deliberately not fixed
+
+`AcceptanceTool::from_name`'s `_ => None` catch-all looks like the same defect: add a
+variant, forget an arm, and the tool is silently unparseable by name. It was left alone
+because `adapter_registry_lists_the_originals_then_new_adapters` already loops every
+`adapters()` id through `from_name` — a derived assertion, not a hand list. Adding a second
+guard would be a second mechanism for one job (`feedback_full_factorization`). Worth
+recording, because the site reads as unguarded until the *loop inside an existing test* is
+read; the next sweep would otherwise "fix" it into a duplicate.
+
+---
+
 ## 2026-07-30 — The blind spot reproduced on a second site — `SHADOW-ENUMERATION-SWEEP.4`
 
 `.5` predicted, from one measurement on `apply_cli_overrides`, that a whole-struct

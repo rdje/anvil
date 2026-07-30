@@ -1,9 +1,111 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.6 — the allow-list the API now reads back
+
+**Landed as:** this commit (previous: `25b4ebf`, `SHADOW-ENUMERATION-SWEEP.4`).
+`src/mcp/mod.rs` only, and MCP lives beside the generator ⇒ **DUT byte-identical**,
+`tests/snapshots.rs` untouched (6/6).
+
+**What.** Decision `0033`'s audit recorded four hardcoded adapter-id JSON-schema `enum`
+literals in `src/mcp/mod.rs` shadowing the closed 5-entry `ADAPTER_REGISTRY`. Re-measured
+against the registry rather than against the known shape, there were **seven** copies:
+
+| site | what it is |
+| --- | --- |
+| `:278` `:303` `:327` `:458` | the `tools` argument's JSON-schema `enum` in `validate` / `divergence` / `minimize` / `hunt` |
+| `:1649` | the unknown-tool error in `parse_validate_tools` |
+| `:520` | `validate`'s agent-facing tool **description** |
+| `:210` | the server **`instructions`** returned by `initialize` |
+
+**The find: two of them had already fallen behind. This is the tree's first *live* defect.**
+
+Measured before the fix, against a registry of five:
+
+- the server `instructions` named **three** adapters — `verilator / yosys / iverilog`;
+- `validate`'s description named **four** — it had picked up `sv2v` and missed `slang`.
+
+So ANVIL's own API told an agent it accepts fewer downstream tools than it accepts, and had
+done since the `sv2v` and `slang` adapters landed. Nothing failed. Decision `0033` ranked
+this site S1 on the theory it was *"one omission away"*; the honest reading is that two
+omissions had already happened, silently, in the one place decision `0017` says must never
+understate the API. Every earlier leaf in this tree fixed a list that was still correct;
+this one fixed a list that was already wrong.
+
+**Why a shape-keyed audit missed it.** `.2` swept for the *shape* of the known instance — a
+JSON `enum` array — and found four. Sweeping for the *content* (any non-test line naming two
+or more adapter ids) found seven, and the three extra were the ones that had rotted. Prose
+was not in `.2`'s classification; it is now, on the grounds that under decision `0017` a
+tool description **is** the contract — it is what an agent reads before it ever inspects a
+schema — and it satisfies all three tests of decision `0033` rule (a) exactly as a schema
+does (derivable ∧ growth-coupled ∧ silent).
+
+**The fix — R1 (derive) at all seven sites.** One `registered_adapter_ids()` projects
+`downstream::adapters()` into the id list; the schema `enum`s, the error message, and both
+prose strings are rendered from it. The copies stop existing, so a sixth adapter advertises
+itself. No new hand-maintained list anywhere.
+
+**Audited and deliberately left alone.** `AcceptanceTool::from_name`'s `_ => None` catch-all
+reads as the same shadow — a new variant would silently be unparseable by name — but
+`adapter_registry_lists_the_originals_then_new_adapters` (`src/downstream/mod.rs:2360`)
+already loops **every** `adapters()` id through `from_name` and asserts it parses. That is a
+derived guard, not a hand list. A second one would be a second mechanism for one job
+(`feedback_full_factorization`). Recorded because the site reads as unguarded until the
+existing test's loop is read.
+
+**Three derived guards, none introducing a new list.**
+
+- `every_controlled_tool_schema_advertises_the_whole_adapter_registry` walks the **real**
+  `tools/list` output and checks every tool that takes a `tools` argument — not the four by
+  name — so a *future* tool that retypes the array is caught by a test written before it
+  exists. Checking the four known sites would itself have been a fifth copy of the set. A
+  `>= 4` floor keeps a walk that silently matches nothing from passing vacuously.
+- `agent_facing_prose_names_every_registered_adapter` covers the `instructions` and
+  `validate`'s description — the guard that caught a real defect rather than a hypothetical.
+- `the_unknown_tool_error_names_every_registered_adapter` generalizes the two per-adapter
+  `sv2v` / `slang` assertions, which stay as landing-slice regression pins.
+
+**Validation.**
+
+- `cargo check --all-targets` **0** · `cargo clippy --all-targets -- -D warnings` **0** ·
+  `cargo fmt --all --check` **0** · `cargo test --lib mcp::` **103 passed, 0 failed**
+  (was 100 — the three new guards) · `cargo test --test snapshots` **6 passed, 0 failed**
+  — byte-identical · full `cargo test` under `scripts/ram_guard.sh --threshold 90`:
+  **17 test binaries, 1045 passed, 0 failed, 18 ignored** (exit `0`; was 1042 — the
+  three new guards).
+- Read back from a live `anvil-mcp` process (`initialize` + `tools/list` over stdio): all
+  four `tools` `enum`s = `[verilator, yosys, iverilog, sv2v, slang]`; the instructions and
+  `validate`'s description name all five.
+- **NC-A (the live defect, replayed):** retype the pre-fix three-adapter `instructions`
+  prose ⇒ **FAILED** — *"the server instructions must name every vetted adapter; missing
+  `sv2v`"*.
+- **NC-B:** restore ⇒ green; `diff` vs backup byte-identical.
+- **NC-C:** retype `hunt`'s schema `enum` as a hand-written four-entry literal ⇒ **FAILED**
+  — *"tool `hunt` advertises a `tools` allow-list that is not the adapter registry"*, with
+  both sides printed. It names the offending tool, not just the mismatch.
+- **NC-D:** restore ⇒ green; `diff` vs backup byte-identical.
+- **NC-E (the acceptance criterion, demonstrated):** add a sixth `ProbeAdapter` to
+  `ADAPTER_REGISTRY` and change **nothing** under `src/mcp/` ⇒ all four schema `enum`s, both
+  prose sites and the allow-list error picked up `probe`, and the three derived guards
+  stayed **green** because they derive too. Separately confirmed that the registry's own
+  landing pin fails on a sixth entry, so the registry itself is not silently growable.
+  `src/downstream/mod.rs` restored byte-identical.
+
+**Impact.** The MCP API can no longer advertise fewer downstream tools than it accepts;
+registering an adapter is the only edit a new tool needs. The frontier advances to `.7`
+(the two docs/script pairs and the `ENUMERATION-PARITY` doctrine), which inherits one more
+candidate pair: `book/src/api-tools.md`'s hand-written `tools` `enum`, now the only copy of
+the adapter-id list left outside the registry. No phase labels move.
+
+**Files touched.** `src/mcp/mod.rs`, `book/src/agent-mcp.md`,
+`docs/tasks/SHADOW-ENUMERATION-SWEEP.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
+---
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed
 
-**Landed as:** this commit (previous: `9a082e9`, `SHADOW-ENUMERATION-SWEEP.5`).
+**Landed as:** `25b4ebf` (previous: `9a082e9`, `SHADOW-ENUMERATION-SWEEP.5`).
 `src/bin/tool_matrix.rs` only — the run path is untouched apart from two inert derives on
 a private struct ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 

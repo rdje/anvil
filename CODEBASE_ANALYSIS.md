@@ -1563,7 +1563,23 @@ src/
 │                     same guardrails + an optional `max_oracle_calls`,
 │                     audit-logged); the shared `tools`/`yosys_mode` parsing is
 │                     factored into `parse_validate_tools`/`parse_yosys_mode_arg`
-│                     so `validate`/`minimize` cannot drift. `.6` adds the third
+│                     so `validate`/`minimize` cannot drift.
+│                     **Current mechanism (`SHADOW-ENUMERATION-SWEEP.6`):** every
+│                     agent-facing statement of the tool allow-list is **derived**
+│                     from `downstream::adapters()` through the one
+│                     `registered_adapter_ids() -> Vec<&'static str>` helper — the
+│                     `tools` argument's JSON-schema `enum` in all four controlled
+│                     tools, the `parse_validate_tools` unknown-tool error,
+│                     `validate`'s tool description, and the server `instructions`.
+│                     Those were seven hand-typed copies of the registry, two of
+│                     which had already fallen behind it (the `instructions` named
+│                     three adapters, `validate`'s description four, vs a registry
+│                     of five); registering an adapter is now the only edit a new
+│                     tool needs. Guarded by three derived tests, the schema one
+│                     walking the emitted `tools/list` rather than the four sites by
+│                     name. Earlier `.2b.1`/`.2c.1` notes below describe those enums
+│                     as hand-updated, which is what those slices did at the time.
+│                     `.6` adds the third
 │                     MCP primitive — **prompts** (`prompts/list`/`prompts/get`,
 │                     advertised in `initialize`): a fixed `PROMPTS` registry of
 │                     `PromptSpec { name, description, args, render: PromptRender }`

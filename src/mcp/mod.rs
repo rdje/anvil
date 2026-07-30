@@ -161,6 +161,10 @@ impl McpServer {
     }
 
     fn on_initialize(&mut self, id: Value) -> Value {
+        // The vetted-tool list the instructions quote, derived from the closed
+        // adapter registry (`SHADOW-ENUMERATION-SWEEP.6`) rather than retyped —
+        // this sentence had already fallen three adapters behind it.
+        let adapter_ids = registered_adapter_ids().join(" / ");
         ok(
             id,
             json!({
@@ -170,7 +174,7 @@ impl McpServer {
                     "name": "anvil-mcp",
                     "version": introspect::anvil_version(),
                 },
-                "instructions":
+                "instructions": format!(
                     "ANVIL agent-introspection. Pure tools: generate, introspect, \
                      dump_config (construction-truth derived from existing \
                      metrics/config; no side effects); coverage_gaps projects the \
@@ -207,8 +211,8 @@ impl McpServer {
                      node to a boundary sink) by \
                      pure traversal — relations, not behaviour. \
                      Controlled tools: validate \
-                     runs the vetted downstream tools (verilator / yosys / \
-                     iverilog) on a (seed, knobs) artifact inside a sandboxed temp \
+                     runs the vetted downstream tools ({adapter_ids}) on a \
+                     (seed, knobs) artifact inside a sandboxed temp \
                      dir — a fixed allow-list, no arbitrary shell; minimize \
                      delta-debugs a failing (seed, knobs) to a smaller reproducer \
                      using validate as the oracle (deterministic, budget-bounded, \
@@ -219,11 +223,16 @@ impl McpServer {
                      close_coverage_gap, minimize_reproducer, triage_tool_failures, \
                      explain_artifact — each renders an ordered chain over the tools \
                      above."
+                ),
             }),
         )
     }
 
     fn tools_list(&self) -> Value {
+        // The `tools` allow-list every controlled tool advertises, derived once
+        // from the closed adapter registry (`SHADOW-ENUMERATION-SWEEP.6`) so a
+        // new adapter cannot ship unadvertised. See [`registered_adapter_ids`].
+        let adapter_ids = registered_adapter_ids();
         let knob_schema = json!({
             "type": "object",
             "properties": {
@@ -275,7 +284,7 @@ impl McpServer {
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
+                    "items": { "type": "string", "enum": adapter_ids },
                     "description": "Vetted downstream tools to run (default: verilator + yosys). \
                                     A fixed allow-list — no arbitrary commands or binary paths."
                 },
@@ -300,7 +309,7 @@ impl McpServer {
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
+                    "items": { "type": "string", "enum": adapter_ids },
                     "description": "Vetted downstream tools to compare (default: verilator + yosys). \
                                     >= 2 labelled tools must run for a divergence to be possible \
                                     (yosys_mode=both alone yields two labels). A fixed allow-list."
@@ -324,7 +333,7 @@ impl McpServer {
                             "description": "Full effective Config (as emitted by dump_config). Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
+                    "items": { "type": "string", "enum": adapter_ids },
                     "description": "Vetted downstream tools used as the failure oracle \
                                     (default: verilator + yosys). A fixed allow-list."
                 },
@@ -455,7 +464,7 @@ impl McpServer {
                                             knob profile every seed is generated under. Omit for defaults." },
                 "tools": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["verilator", "yosys", "iverilog", "sv2v", "slang"] },
+                    "items": { "type": "string", "enum": adapter_ids },
                     "description": "Vetted downstream tools to run (default: verilator + yosys). \
                                     A fixed allow-list — no arbitrary commands or binary paths."
                 },
@@ -515,11 +524,14 @@ impl McpServer {
                 },
                 {
                     "name": "validate",
-                    "description": "Generate the (seed, config) DUT artifact into a sandboxed temp dir \
-                                    and run the selected vetted downstream tools \
-                                    (verilator/yosys/iverilog/sv2v) \
-                                    on it; returns structured per-tool reports + an overall verdict. \
-                                    Audit-logged; no arbitrary shell.",
+                    "description": format!(
+                        "Generate the (seed, config) DUT artifact into a sandboxed temp dir \
+                         and run the selected vetted downstream tools \
+                         ({}) \
+                         on it; returns structured per-tool reports + an overall verdict. \
+                         Audit-logged; no arbitrary shell.",
+                        adapter_ids.join("/")
+                    ),
                     "inputSchema": validate_schema,
                 },
                 {
@@ -1631,6 +1643,29 @@ fn parse_yosys_mode(s: &str) -> Option<YosysMode> {
     }
 }
 
+/// The ids of the vetted downstream adapters, **derived** from the closed
+/// [`downstream::adapters`] registry — the one authoritative set
+/// (`DOWNSTREAM-ADAPTER-EXPANSION`, decision `0020`).
+///
+/// Every agent-facing surface that spells the allow-list out reads this instead
+/// of repeating it: the `tools` argument's JSON-schema `enum` in the four
+/// controlled tools (`validate` / `divergence` / `minimize` / `hunt`), the
+/// unknown-tool error in [`parse_validate_tools`], the `validate` tool
+/// description, and the server `instructions`.
+///
+/// Before `SHADOW-ENUMERATION-SWEEP.6` those were seven hand-written copies of
+/// one five-entry list, and two of them had **already fallen behind** the
+/// registry — the `instructions` named three adapters and `validate`'s
+/// description four, so an agent reading the API was told less than the API
+/// accepts. That is the decision-`0033` shadow-enumeration failure mode
+/// (derivable ∧ growth-coupled ∧ silent) landing against decision `0017`'s
+/// API-first mandate: a capability an agent can invoke must be a capability the
+/// API advertises. Deriving is repair **R1** — the copies stop existing, so a
+/// sixth adapter advertises itself.
+fn registered_adapter_ids() -> Vec<&'static str> {
+    downstream::adapters().iter().map(|a| a.id()).collect()
+}
+
 /// Parse the shared `tools` argument used by both `validate` and `minimize`
 /// into the fixed [`AcceptanceTool`] allow-list. Absent ⇒ the default
 /// `verilator + yosys`. Any off-allow-list name is a clean error, never a
@@ -1645,9 +1680,8 @@ fn parse_validate_tools(args: &Value) -> Result<Vec<AcceptanceTool>, String> {
                     .as_str()
                     .ok_or_else(|| "`tools` entries must be strings".to_string())?;
                 let tool = AcceptanceTool::from_name(name).ok_or_else(|| {
-                    format!(
-                        "unknown tool '{name}': allowed = verilator, yosys, iverilog, sv2v, slang"
-                    )
+                    let allowed = registered_adapter_ids().join(", ");
+                    format!("unknown tool '{name}': allowed = {allowed}")
                 })?;
                 selected.push(tool);
             }
@@ -3711,6 +3745,101 @@ mod tests {
             err.contains("slang"),
             "the allow-list error must name slang: {err}"
         );
+    }
+
+    /// `SHADOW-ENUMERATION-SWEEP.6` (decision `0033`, repair **R1** + its **R3**
+    /// guard) — every controlled tool that takes a `tools` argument must
+    /// advertise the **whole** closed adapter registry in its JSON-schema
+    /// `enum`, in registry order.
+    ///
+    /// The four `enum`s used to be hand-typed copies of one five-entry list, so
+    /// a sixth adapter would have been selectable by `validate`/`hunt`/
+    /// `divergence` yet invisible to an agent reading the schema — an
+    /// API-contract divergence against decision `0017`, and one the compiler
+    /// cannot see (they were string literals inside a JSON blob). The expected
+    /// set is derived from [`downstream::adapters`] here too, so this guard
+    /// introduces no second list; it exists to catch a *future* tool that
+    /// retypes the array instead of reading [`registered_adapter_ids`].
+    #[test]
+    fn every_controlled_tool_schema_advertises_the_whole_adapter_registry() {
+        let expected: Vec<Value> = downstream::adapters()
+            .iter()
+            .map(|a| json!(a.id()))
+            .collect();
+        let listed = McpServer::new().tools_list();
+        let mut checked = 0usize;
+        for tool in listed["tools"].as_array().unwrap() {
+            let name = tool["name"].as_str().unwrap();
+            let Some(tools_arg) = tool["inputSchema"]["properties"].get("tools") else {
+                continue;
+            };
+            let advertised = tools_arg["items"]["enum"].as_array().unwrap_or_else(|| {
+                panic!("tool `{name}` takes a `tools` argument with no string `enum` allow-list")
+            });
+            assert_eq!(
+                advertised, &expected,
+                "tool `{name}` advertises a `tools` allow-list that is not the adapter registry"
+            );
+            checked += 1;
+        }
+        // Anti-decay: a walk that silently matches nothing would pass vacuously.
+        // Four controlled tools take `tools` today (validate / minimize / hunt /
+        // divergence); a fifth is welcome, none is a broken derivation.
+        assert!(
+            checked >= 4,
+            "expected at least the four controlled tools to advertise a `tools` \
+             allow-list, found {checked}"
+        );
+    }
+
+    /// `SHADOW-ENUMERATION-SWEEP.6` — the two agent-facing **prose** surfaces
+    /// that spell the allow-list out must name every registered adapter.
+    ///
+    /// This is the guard that caught a **live** defect rather than a latent one:
+    /// before the fix the server `instructions` named three adapters and
+    /// `validate`'s description four, against a registry of five. Prose is a
+    /// contract too — it is what an agent reads before it ever inspects a
+    /// schema — so it derives from the registry like the `enum`s do.
+    #[test]
+    fn agent_facing_prose_names_every_registered_adapter() {
+        let mut s = McpServer::new();
+        let init = s.handle(&req(1, "initialize", json!({}))).unwrap();
+        let instructions = init["result"]["instructions"].as_str().unwrap().to_string();
+        let listed = s.tools_list();
+        let validate_description = listed["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == json!("validate"))
+            .expect("the validate tool must be listed")["description"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        for id in registered_adapter_ids() {
+            assert!(
+                instructions.contains(id),
+                "the server instructions must name every vetted adapter; missing `{id}`"
+            );
+            assert!(
+                validate_description.contains(id),
+                "validate's description must name every vetted adapter; missing `{id}`"
+            );
+        }
+    }
+
+    /// `SHADOW-ENUMERATION-SWEEP.6` — the off-allow-list error must name every
+    /// registered adapter, so a rejected agent is told the *whole* set it may
+    /// choose from. Generalizes the two per-adapter assertions above
+    /// (`sv2v`/`slang`), which stay as the landing-slice regression pins.
+    #[test]
+    fn the_unknown_tool_error_names_every_registered_adapter() {
+        let err = parse_validate_tools(&json!({ "tools": ["nope"] })).unwrap_err();
+        for id in registered_adapter_ids() {
+            assert!(
+                err.contains(id),
+                "the allow-list error must name every vetted adapter; missing `{id}`: {err}"
+            );
+        }
     }
 
     #[test]

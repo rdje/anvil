@@ -6,8 +6,8 @@
 - Status: `active`
 - Roadmap lane: Quality / defect-class elimination (cross-cutting; no phase reopened)
 - Created: `2026-07-30`
-- Last updated: `2026-07-30` (`.1`/`.2`/`.3`/`.4`/`.5` done — decision
-  [`0033`](../decisions/0033-shadow-enumeration-classification.md); frontier `.6`)
+- Last updated: `2026-07-30` (`.1`/`.2`/`.3`/`.4`/`.5`/`.6` done — decision
+  [`0033`](../decisions/0033-shadow-enumeration-classification.md); frontier `.7`)
 - Owner: repo-local workflow (owner-directed `2026-07-30`: *"the only way to have any
   defect handled is to have it task-tree tracked"*)
 
@@ -268,7 +268,7 @@ report — it is a 149-entry list that is one omission away from being one.
         `tests/snapshots.rs` untouched (6/6).
 
 - ID: `SHADOW-ENUMERATION-SWEEP.6`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: **execution order 4** (S1). The four hardcoded adapter-id JSON-schema `enum`
         literals in `src/mcp/mod.rs` (`:278`, `:303`, `:327`, `:458`) shadow the
         closed `ADAPTER_REGISTRY` (`src/downstream/mod.rs:1080`, 5 entries). A sixth
@@ -280,6 +280,52 @@ report — it is a 149-entry list that is one omission away from being one.
         asserts each `enum` equals the registry's ids.
   Acceptance: adding a registry entry cannot leave a schema behind; negative-controlled;
         `tests/snapshots.rs` untouched.
+  Delivered: **R1 at every site, and the audit grew from four copies to seven** —
+        `registered_adapter_ids()` (`src/mcp/mod.rs`) is the one derivation from
+        `downstream::adapters()`, read by:
+        - the `tools` JSON-schema `enum` in all four controlled tools
+          (`validate` / `divergence` / `minimize` / `hunt`) — computed once per
+          `tools_list()` call;
+        - the unknown-tool error in `parse_validate_tools` (was a retyped
+          `"allowed = verilator, yosys, iverilog, sv2v, slang"` literal);
+        - `validate`'s **tool description**, and the server **`instructions`** —
+          two prose sites `.2`'s audit did not count.
+        - **The shadow had already failed — this is the tree's first LIVE defect,
+          not a latent one.** Measured before the fix: the `instructions` named
+          **three** adapters (`verilator / yosys / iverilog`) and `validate`'s
+          description **four** (missing `slang`), against a registry of five. So an
+          agent reading ANVIL's own API description was told it accepts less than it
+          accepts, for two adapter-landing slices running. Decision `0033` ranked this
+          site S1 *"one omission away"*; the honest reading is that two omissions had
+          already happened and nothing anywhere noticed. **Prose is a contract too**
+          — it is what an agent reads before it ever inspects a schema — so it now
+          derives like the `enum`s do, and the new prose guard is the one that caught
+          a defect rather than a hypothetical (NC-A replays it).
+        - **`AcceptanceTool::from_name`'s `_ => None` catch-all was audited and
+          deliberately left alone.** It looks like the same shadow, but
+          `adapter_registry_lists_the_originals_then_new_adapters`
+          (`src/downstream/mod.rs:2360`) already loops **every registry id** through
+          `from_name` and asserts it parses — derived from `adapters()`, not
+          hand-listed. Adding a second guard would be a second mechanism for one job
+          (`feedback_full_factorization`). Recorded because the site reads as unguarded
+          until the existing test's loop is read.
+        - Three derived guards, none introducing a new hand-maintained list (each
+          builds its expectation from `adapters()`):
+          `every_controlled_tool_schema_advertises_the_whole_adapter_registry` (walks
+          the real `tools/list` output and checks **every** tool that takes a `tools`
+          argument, so a *future* tool that retypes the array is caught too, plus a
+          `>= 4` anti-decay floor so a walk that silently matches nothing cannot pass
+          vacuously), `agent_facing_prose_names_every_registered_adapter`, and
+          `the_unknown_tool_error_names_every_registered_adapter` (which generalizes
+          the two per-adapter `sv2v`/`slang` pins, kept as landing-slice regressions).
+        - No new hand-written list anywhere: the schema `enum`s, the error, and both
+          prose strings are all rendered from the same `Vec<&'static str>`.
+  Verification: five controls, all confirmed — see the Verification Log. The decisive
+        one is **NC-E**: a sixth adapter added to `ADAPTER_REGISTRY` **and nothing
+        else** propagated to all four schemas, both prose sites, and the error message
+        with zero edits under `src/mcp/` — the leaf's acceptance criterion demonstrated
+        rather than argued. `src/mcp/mod.rs` only, and MCP is beside the generator ⇒
+        **DUT byte-identical**; `tests/snapshots.rs` untouched.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.7`
   Status: `pending`
@@ -400,11 +446,11 @@ report — it is a 149-entry list that is one omission away from being one.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.6` | `pending` | **Current frontier. S1.** Four MCP adapter-id JSON-schema `enum` literals (`src/mcp/mod.rs:278,303,327,458`) shadowing the 5-entry `ADAPTER_REGISTRY`; a sixth adapter would be usable by `validate`/`hunt`/`divergence` yet unadvertised to agents — an API-contract divergence against decision `0017`, invisible to the compiler because they are string literals inside a JSON blob. Prefer **R1** (build the array from `adapters()`); fallback **R3** (parse the emitted schema and compare to the registry ids). |
+| — | `.6` | `done` | **S1**, closed by **R1** at seven sites, not the four `.2` counted: the schema `enum`s plus the unknown-tool error and two prose strings, all rendered from one `registered_adapter_ids()`. The find: **two of them had already fallen behind** — the tree's first *live* defect. NC-E is the payoff — a sixth registry entry propagated everywhere with zero edits under `src/mcp/`. |
 | — | `.4` | `done` | **S1**, closed with the `.5` pattern reused verbatim: an exhaustive 149-field `CoverageSummary` fixture the compiler maintains, a serde-projection leg-1 equality, and a per-fact leg 2. NC-C is the payoff — a cross-wired merge line left leg 1 **green**. |
 | — | `.3` | `done` | The only **S3** site in the audit, closed by **R1**: one `static GATES` table, four sites derived from it, and `fail_on_coverage_gap` reduced to *"some registered gate is enabled"*. Negative-controlled both ways, and the S3 defect reproduced on purpose before the guard was proven to catch it. |
 | — | `.5` | `done` | **S2**, closed by **R3 with an R2-protected fixture**: an exhaustive `Overrides` literal the compiler maintains, a serde-derived expectation, a pinned not-overridable complement, and a second leg catching leaky applier lines the first cannot see. Five negative controls. |
-| 2 | `.7` | `pending` | **S1.** The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). |
+| 1 | `.7` | `pending` | **Current frontier. S1**, and the last leaf. The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). `.6` adds a third candidate pair for its table: `book/src/api-tools.md`'s hand-written `tools` `enum` (now the only remaining copy of the adapter-id list outside the registry). |
 | — | `.2` | `done` | The classification rule, the repair ladder, the mechanizability verdict, the severity tiers, and the 20-site audit — decision `0033`. |
 | — | `.1` | `done` | Registered + audited. |
 
@@ -501,12 +547,32 @@ report — it is a 149-entry list that is one omission away from being one.
   (every knob still moves). The second, single-knob leg catches it, and NC-D demonstrates
   that rather than asserting it. `.4` should carry the same two legs.
 
-**Open for `.4`+:**
+**Answered by `.6`:**
 
-- Whether `.6` should derive the four JSON-schema enums from `adapters()` (eliminating
-  the literals) or guard them with a test that parses the emitted schema.
+- ~~Whether `.6` should derive the four JSON-schema enums from `adapters()` (eliminating
+  the literals) or guard them with a test that parses the emitted schema.~~ **Answered:
+  derive (R1), and the count was wrong — there were seven copies, not four.** `.2`'s
+  audit swept for the *schema* shape and found the four `enum` literals; sweeping instead
+  for *every line naming ≥ 2 adapter ids* found three more — the unknown-tool error and
+  two prose strings. And the prose is where the shadow had **already failed**: the server
+  `instructions` named three adapters and `validate`'s description four. The reusable
+  lesson is that an audit keyed to the *shape* of the known instance under-counts; keying
+  it to the *content* (the ids themselves) is what found the live one.
+- Also learned: **a derived guard should walk the real output, not the known sites.**
+  `every_controlled_tool_schema_advertises_the_whole_adapter_registry` enumerates every
+  tool in the emitted `tools/list` that takes a `tools` argument rather than checking the
+  four by name, so a *future* tool that retypes the array is caught by a test written
+  before it existed. Checking the four known sites would have been a fifth copy of the
+  same set.
+
+**Open for `.7`:**
+
 - Should `ENUMERATION-PARITY`'s declared-pairs table live inside the check script, or in
   a small tracked data file the check reads?
+- `.6` leaves one adapter-id copy outside the registry: `book/src/api-tools.md`'s
+  hand-written `tools` `enum` (`"verilator" | "yosys" | …`). It is a docs pair with no
+  compiler and no `cargo test`, so it is a candidate row for `.7`'s pairs table alongside
+  the `DOCTRINE_ENFORCEMENT.md` §10 and `SUMMARY.md` pairs.
 
 ## Blockers
 
@@ -561,6 +627,20 @@ report — it is a 149-entry list that is one omission away from being one.
 | `2026-07-30` | `.4` | **NC-C** — cross-wire `dst.saw_flop_merge \|= src.saw_semantic_gate_merge` (the slip leg 1 **cannot** see) | **leg 1 stayed GREEN** (7 passed / 1 failed); only leg 2 fired: *"merging only `saw_flop_merge` must move only `saw_flop_merge` — left: [], right: [\"saw_flop_merge\"]"*. The two-leg design justified by measurement, not assertion |
 | `2026-07-30` | `.4` | **NC-D** (the R2 leg) — add a field to `CoverageSummary`, touch nothing else | **`E0063`** at the fixture — compiler-maintained; restored byte-identical |
 | `2026-07-30` | `.4` | Diff scope | `src/bin/tool_matrix.rs` only (two derives + a `#[serde(default)]` on a private struct, inert for the run path; the rest is the test module) ⇒ **DUT byte-identical** |
+| `2026-07-30` | `.6` | Every non-test line in `src/mcp/mod.rs` naming ≥ 2 adapter ids, vs `adapters()` | **7 copies**, not the 4 `.2` counted: the four schema `enum`s (`:278`/`:303`/`:327`/`:458`), the `parse_validate_tools` error (`:1649`), `validate`'s description (`:520`), the server `instructions` (`:210`) |
+| `2026-07-30` | `.6` | **The shadow measured against the registry — a LIVE defect, not a latent one** | `instructions` named **3 of 5** (missing `sv2v`, `slang`); `validate`'s description **4 of 5** (missing `slang`). The API described itself as accepting less than it accepts, undetected across two adapter-landing slices |
+| `2026-07-30` | `.6` | `AcceptanceTool::from_name`'s `_ => None` catch-all — a candidate shadow | **already guarded, no new test**: `adapter_registry_lists_the_originals_then_new_adapters` (`src/downstream/mod.rs:2360`) loops every `adapters()` id through `from_name`. A second guard would duplicate a mechanism (`feedback_full_factorization`) |
+| `2026-07-30` | `.6` | Live `anvil-mcp` `initialize` + `tools/list`, read back | all four `tools` `enum`s = `[verilator, yosys, iverilog, sv2v, slang]`; instructions + `validate` description name all five |
+| `2026-07-30` | `.6` | `cargo check --all-targets` · `clippy --all-targets -- -D warnings` · `fmt --all --check` | exit `0` / `0` / `0` |
+| `2026-07-30` | `.6` | `cargo test --lib mcp::` | **103 passed, 0 failed** (was 100 — the three new guards) |
+| `2026-07-30` | `.6` | `cargo test` (full suite, under `ram_guard.sh --threshold 90`) | exit `0` — **17 test binaries, 1045 passed, 0 failed, 18 ignored** |
+| `2026-07-30` | `.6` | `cargo test --test snapshots` | **6 passed, 0 failed** — byte-identical |
+| `2026-07-30` | `.6` | **NC-A (the live defect, replayed)** — retype the pre-fix 3-adapter `instructions` prose | **FAILED** — *"the server instructions must name every vetted adapter; missing `sv2v`"*. The guard reproduces the defect that was actually shipped, not a hypothetical |
+| `2026-07-30` | `.6` | **NC-B** — restore | green; `diff` vs the pre-NC backup byte-identical |
+| `2026-07-30` | `.6` | **NC-C** — retype `hunt`'s schema `enum` as a hand-written 4-entry literal (the realistic future regression) | **FAILED** — *"tool `hunt` advertises a `tools` allow-list that is not the adapter registry"*, with both sides printed. Names the offending tool, not just the mismatch |
+| `2026-07-30` | `.6` | **NC-D** — restore | green; `diff` vs backup byte-identical |
+| `2026-07-30` | `.6` | **NC-E (the acceptance criterion, demonstrated)** — add a sixth `ProbeAdapter` to `ADAPTER_REGISTRY` and change **nothing** under `src/mcp/` | all four schema `enum`s, both prose sites, and the allow-list error picked up `probe`; the three derived guards stayed **green** because they derive too. Separately confirmed the registry's own landing pin (`adapter_registry_lists_the_originals_then_new_adapters`) fails on the 6th entry ⇒ the registry itself is not silently growable. `src/downstream/mod.rs` restored byte-identical |
+| `2026-07-30` | `.6` | Diff scope | `src/mcp/mod.rs` only; MCP is beside the generator (no `src/gen`/`src/emit`/`src/ir`/`src/config`) ⇒ **DUT byte-identical** |
 
 ## Commit Log
 
@@ -570,7 +650,8 @@ report — it is a 149-entry list that is one omission away from being one.
 | `.2` | `SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not` (`9ffabea`) | Docs-only design ADR; adds `.5`/`.6`/`.7`, re-scopes `.4` |
 | `.3` | `SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail` (`4f9720f`) | The S3 fix: `static GATES` + four derived sites + four derived guards |
 | `.5` | `SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains` (`9a082e9`) | The S2 fix: an E0063-enforced fixture + a serde-derived expectation |
-| `.4` | `SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed` | The S1 fix: the `.5` pattern reused; NC-C proves leg 2's independent value |
+| `.4` | `SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed` (`25b4ebf`) | The S1 fix: the `.5` pattern reused; NC-C proves leg 2's independent value |
+| `.6` | `SHADOW-ENUMERATION-SWEEP.6 — the allow-list the API now reads back` | The S1 fix: one `registered_adapter_ids()` behind seven sites; the tree's first **live** defect (two prose sites already stale) |
 
 ## Changelog
 
@@ -580,6 +661,18 @@ report — it is a 149-entry list that is one omission away from being one.
   `EVIDENCE-BANK-DURABILITY.6` gate-flag list), plus two further sites measured while
   registering: the seven per-gate `tool_matrix` enumerations (five silent, one of
   which yields a gate that cannot fail) and the 149-field `merge_coverage`.
+- `2026-07-30` (`.6`): **prose is in scope.** `.2`'s audit classified only structured
+  copies (a `enum` array, a `match`, a merge line). `.6` extends the class to
+  natural-language API text — the server `instructions` and a tool `description` — on the
+  grounds that under decision `0017` those *are* the contract an agent reads first, and
+  they satisfy all three tests of rule (a) exactly as a schema does. That extension is
+  what surfaced the tree's first live defect; a shape-keyed audit had walked past it
+  twice.
+- `2026-07-30` (`.6`): **an existing derived guard is not re-guarded.**
+  `AcceptanceTool::from_name`'s `_ => None` catch-all reads as an unguarded shadow, but
+  `adapter_registry_lists_the_originals_then_new_adapters` already loops every registry id
+  through it. Left alone per `feedback_full_factorization` (one mechanism per job), and
+  recorded here so the next audit does not "fix" it into a duplicate.
 - `2026-07-30`: `.2` done — decision
   [`0033`](../decisions/0033-shadow-enumeration-classification.md). Supplies the
   three-question classification rule (derivable ∧ growth-coupled ∧ silent), the
@@ -590,3 +683,11 @@ report — it is a 149-entry list that is one omission away from being one.
   enums, `.7` the `ENUMERATION-PARITY` docs/script doctrine) and re-scopes `.4` from
   "largest surface" to S1 after measuring that `merge_coverage` is monotone and 134 of
   its 149 fields are gated. Docs-only ⇒ DUT byte-identical.
+- `2026-07-30`: `.6` done — the MCP adapter-id allow-list is now **derived** from the
+  closed `ADAPTER_REGISTRY` at every agent-facing site (`registered_adapter_ids()`), and
+  the audit's four copies turned out to be seven. Two of them — the server `instructions`
+  and `validate`'s description — had **already fallen behind the registry**, making this
+  the tree's first *live* defect rather than a latent one: the API advertised three and
+  four adapters respectively against a registry of five. Three derived guards added, none
+  a new list; NC-E adds a sixth adapter to the registry alone and watches all seven sites
+  follow. Frontier `.7`, the last leaf. `src/mcp/mod.rs` only ⇒ DUT byte-identical.
