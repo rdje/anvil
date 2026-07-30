@@ -1,6 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.1 — register: lists that shadow a growing set
+
+**Landed as:** this commit (previous: `04be90b`, `EVIDENCE-BANK-DURABILITY.6` backfill).
+Docs-only registration + audit; no code ⇒ **DUT byte-identical**.
+
+**Opened on owner directive**, and the directive itself is the lesson. This finding was raised at
+the end of the previous turn as a suggestion and parked in `MEMORY.md`. Owner: *"If you just
+record in MEMORY.md it will be lost there… to me the only way to have any defect handled is to
+have it task-tree tracked."*
+
+That is not a preference, it is mechanical. `MEMORY_ARCHITECTURE.md` §71 defines layer A as
+**"Overwritten each update; hard size cap."** A finding stored only there is not retained — it is
+*queued for deletion* by the next state refresh, which in this repo is the next commit. The
+layers that persist are B (task trees), C (decision records) and git history. Recorded as a new
+standing directive in `MEMORY.md`: **surfacing a finding is step one; opening the tree is step
+two, in the same turn.**
+
+**What the tree owns: the class, not the instances.** Three same-shape bugs landed in one
+session, each in a different subsystem, each already fixed in its own leaf:
+
+| where | the shadow list | the real set it shadowed | how it failed |
+| --- | --- | --- | --- |
+| `--profile structured-emission-max` | 4 hand-listed `*_emit_prob` knobs | the `structured_emission` group of `knob_catalog()` | set 4 knobs, **emitted 1** |
+| `compute_use_counts` | hand-listed consumer kinds | the `NodeId`-bearing fields of `Module` | absorption became unsound-in-waiting |
+| `evidence_digest.sh` | 14 hand-listed `*_gate` fields | the report's own `"*_gate": true` keys | emitted a **flagless** re-verification command |
+
+In every case the authoritative set was **already reachable** — a catalog, a struct definition,
+the JSON being parsed. The list was a second copy, and nothing failed when it fell behind.
+
+**Two further sites measured while registering**, so the tree opens on data rather than on the
+anecdote:
+
+- **`src/bin/tool_matrix.rs` enumerates the gate flags in seven production sites**, five of them
+  silent on omission. The severe one is the `fail_on_coverage_gap` or-chain: `:1490` reads
+  `if plan.fail_on_coverage_gap && !report.coverage_gaps.is_empty() { bail!(…) }`, so a gate
+  missing from that chain **runs, produces a report with coverage gaps, and exits 0**. It would
+  be banked as clean closure evidence. A gate that cannot fail is worse than no gate — it
+  manufactures confidence, and the digest mechanism would faithfully record it. Each gate does
+  have an `assert!(plan.fail_on_coverage_gap)` test, but writing that test is *itself* part of
+  the same hand-maintained set, so the guard decays at exactly the rate of the thing it guards.
+- **`merge_coverage` hand-merges 149 of 149 `CoverageSummary` fields.** Complete today; guarded
+  by nothing. A forgotten 150th line means a coverage fact never unions across scenarios.
+
+**Neither is a live bug**, and the entry says so plainly. All seven `tool_matrix` sites are
+currently complete for all fifteen gates. The defect is that correctness rests on diligence, and
+this session contains three proofs that diligence is not sufficient.
+
+**Explicit non-goals, because the failure mode of this tree is over-reach.** Some enumerations
+*are* the authoritative set and must stay hand-written: the `DOCTRINES` registry in
+`check_doctrines.sh`, the `presets()` table. And two allow-lists are **load-bearing by design** —
+`check_no_boot_volume_refs.sh`'s (policy docs must be able to name what they forbid) and the
+frozen `EVIDENCE-CITATIONS` §1 pin (its membership is a historical fact). "Improving" either into
+derivation would break a doctrine. `.2` must therefore deliver the **classification rule** before
+any site is touched.
+
+**Leaves.** `.1` register + audit (this commit) → `.2` design ADR: the classification rule, the
+standard repair per class, an honest verdict on whether the class is mechanizable as a registered
+doctrine at all (`DOCTRINE_ENFORCEMENT.md` §9 documents honest limits, and "not mechanizable,
+here is why" is an acceptable outcome), and the `.3`+ order by severity of *silent* failure →
+`.3` the gate-flag sites → `.4` a `merge_coverage` round-trip guard that needs no per-field list.
+
+**Validation.** Docs-only leaf, so per decision `0003` the check set is focused: the four
+measurements recorded in the tree's Verification Log (149/149 merge coverage; the seven per-gate
+sites and their failure modes; `:1490` read directly; `MEMORY_ARCHITECTURE.md` §71), plus
+`scripts/check_doctrines.sh` 6/6 after staging.
+
+**No phase labels changed.**
+
+**Files touched.** `docs/tasks/SHADOW-ENUMERATION-SWEEP.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — EVIDENCE-BANK-DURABILITY.6 — backfill the resume pointer
 
 **Landed as:** this commit (previous: `3d27711`, `EVIDENCE-BANK-DURABILITY.6`). Docs-only ⇒ **DUT
