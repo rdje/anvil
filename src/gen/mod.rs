@@ -16,7 +16,6 @@ pub mod pool;
 
 use crate::config::{Config, FactorizationLevel, IdentityMode};
 use crate::ir::{Design, KnobId, Module, ModuleInterfaceProfile};
-use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -51,6 +50,10 @@ pub struct Generator {
     pub(crate) cfg: Config,
     next_module_index: u64,
     pub(crate) active_flop_knob: KnobId,
+    /// Scratch counters for knob rolls made *before* the module they describe
+    /// exists (`COVERAGE-STEERED-GENERATION.4b.1`). Drained into that module
+    /// by [`Generator::drain_pending_rolls`]. Empty on the default path.
+    pending_knob_rolls: crate::ir::KnobRollCounters,
 }
 
 impl Generator {
@@ -61,6 +64,7 @@ impl Generator {
             cfg,
             next_module_index: 0,
             active_flop_knob: KnobId::FlopProb,
+            pending_knob_rolls: crate::ir::KnobRollCounters::default(),
         }
     }
 
@@ -86,6 +90,39 @@ impl Generator {
         )
     }
 
+    /// Roll a knob whose decision is made **before the module it describes
+    /// exists** (`COVERAGE-STEERED-GENERATION.4b.1`, decision `0035`).
+    ///
+    /// `width_parameterization_prob`, `memory_prob` and `fsm_prob` each choose
+    /// *which builder to call*, and each builder returns a different `Module` —
+    /// so there is nothing to record into at the moment of the roll. The
+    /// outcome goes into a scratch counter here and is moved into the finished
+    /// module by [`Generator::drain_pending_rolls`].
+    ///
+    /// Splitting roll-from-record at the *call site* is exactly what decision
+    /// `0034` forbids, so the split lives inside the guarded module instead:
+    /// `pending_knob_rolls` can only be filled by the one primitive, and only
+    /// `ir::knob_roll::KnobRollCounters::absorb` can move it.
+    pub(crate) fn roll_knob_pending(&mut self, knob: KnobId, prob: f64) -> bool {
+        crate::ir::knob_roll::roll_knob_into(
+            &mut self.pending_knob_rolls,
+            &self.cfg.steering,
+            &mut self.rng,
+            knob,
+            prob,
+        )
+    }
+
+    /// Move any [`roll_knob_pending`](Generator::roll_knob_pending) outcomes
+    /// into the module they described. A no-op when nothing is pending, which
+    /// is the default path (every motif knob defaults to `0.0`, and the
+    /// `> 0.0` guards mean no roll happens at all).
+    pub(crate) fn drain_pending_rolls(&mut self, m: &mut Module) {
+        if !self.pending_knob_rolls.is_empty() {
+            m.knob_rolls.absorb(&mut self.pending_knob_rolls);
+        }
+    }
+
     pub fn generate_module(&mut self) -> Module {
         let idx = self.reserve_module_index();
         let mut m = module::generate_leaf_module(self, idx);
@@ -96,14 +133,13 @@ impl Generator {
         // passes; here we apply it inline since the single-module
         // flow has no design-level passes to interleave with.
         // Default `multi_clock_prob = 0.0` ⇒ skip ⇒ byte-identical.
-        if self.cfg.multi_clock_prob > 0.0 {
-            let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
-            if self.rng.gen_bool(p) {
-                let _ = multi_clock::promote_to_multi_clock_with_stages(
-                    &mut m,
-                    self.cfg.cdc_synchronizer_stages,
-                );
-            }
+        if self.cfg.multi_clock_prob > 0.0
+            && self.roll_knob(&mut m, KnobId::MultiClockProb, self.cfg.multi_clock_prob)
+        {
+            let _ = multi_clock::promote_to_multi_clock_with_stages(
+                &mut m,
+                self.cfg.cdc_synchronizer_stages,
+            );
         }
         // `SV-VERSION-TARGETING.3b.2` — opt-in: mark proper low-bits `Slice`
         // gates for the IEEE-1800-2023 `union soft` overlay (the emitter only
@@ -215,14 +251,13 @@ impl Generator {
             module::generate_leaf_module_with_interface_profile(self, idx, interface_profile);
         // Same single-module-path promotion as `generate_module`
         // — keep parity per `MULTI-CLOCK-CDC.3b.2`.
-        if self.cfg.multi_clock_prob > 0.0 {
-            let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
-            if self.rng.gen_bool(p) {
-                let _ = multi_clock::promote_to_multi_clock_with_stages(
-                    &mut m,
-                    self.cfg.cdc_synchronizer_stages,
-                );
-            }
+        if self.cfg.multi_clock_prob > 0.0
+            && self.roll_knob(&mut m, KnobId::MultiClockProb, self.cfg.multi_clock_prob)
+        {
+            let _ = multi_clock::promote_to_multi_clock_with_stages(
+                &mut m,
+                self.cfg.cdc_synchronizer_stages,
+            );
         }
         m
     }
@@ -321,9 +356,9 @@ impl Generator {
         // generator RNG (reproducible; never `thread_rng`),
         // mirroring the `aggregate_prob` pattern below.
         if self.cfg.multi_clock_prob > 0.0 {
-            let p = self.cfg.multi_clock_prob.clamp(0.0, 1.0);
+            let p = self.cfg.multi_clock_prob;
             for module in &mut design.modules {
-                if self.rng.gen_bool(p) {
+                if self.roll_knob(module, KnobId::MultiClockProb, p) {
                     let _ = multi_clock::promote_to_multi_clock_with_stages(
                         module,
                         self.cfg.cdc_synchronizer_stages,
@@ -332,13 +367,13 @@ impl Generator {
             }
         }
         if self.cfg.aggregate_prob > 0.0 {
-            let p = self.cfg.aggregate_prob.clamp(0.0, 1.0);
+            let p = self.cfg.aggregate_prob;
             // AGGREGATE-ARRAY-PACKING.3: a second, conditional seeded
             // roll selects a packed *array* over a packed `struct` when
             // the projected group is uniform-width. Guarded by `> 0.0`
             // so the default (`aggregate_array_prob == 0.0`) draws
             // nothing extra from the RNG ⇒ byte-identical stream + output.
-            let array_p = self.cfg.aggregate_array_prob.clamp(0.0, 1.0);
+            let array_p = self.cfg.aggregate_array_prob;
             // `.2.1` scaffold scoping: only project modules that are
             // **not instantiated** by any other module. A projected
             // child would change its emitted port surface while the
@@ -357,8 +392,9 @@ impl Generator {
                 if instantiated.contains(&module.name) {
                     continue;
                 }
-                if self.rng.gen_bool(p) {
-                    let prefer_array = array_p > 0.0 && self.rng.gen_bool(array_p);
+                if self.roll_knob(module, KnobId::AggregateProb, p) {
+                    let prefer_array = array_p > 0.0
+                        && self.roll_knob(module, KnobId::AggregateArrayProb, array_p);
                     crate::ir::aggregate::annotate_aggregate_with_kind(module, prefer_array);
                 }
             }

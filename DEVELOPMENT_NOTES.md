@@ -5,6 +5,56 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Read the raw counts, not the derived rate — `COVERAGE-STEERED-GENERATION.4b.1`
+
+Two lessons from one slice, both about **how the bug was seen** rather than what it was.
+
+**1. A derived metric can hide the defect that produced it.** Routing the motif knobs
+through the roll primitive, the first cut drained the pending counters only inside the
+three *firing* branches. The steering sweep still looked right — fire counts moved
+`8 → 25 → 1` across a 30-seed sweep exactly as an up- and down-weight should. What gave
+it away was printing `fires/attempts` instead of `fire_rate`: every rate was a constant
+**`1.000`**, because only the modules where the roll fired reported at all, so
+`attempts == fires` by construction.
+
+*A ratio whose numerator and denominator share a failure mode cannot show you that
+failure.* When validating telemetry, print the raw counts at least once. The rate is what
+you ship; the counts are what you debug.
+
+The fix was structural rather than three patches: wrap the dispatcher so there is **one**
+drain outside every exit path. The inner function has four exits and a missed one is
+silent — the same "one place, not N places" reasoning as `0034`'s single primitive, one
+level down.
+
+**2. A guard is not finished until its negative control fails.** The `KnobId::all()`
+guard shipped here started as an exhaustive `index()` match *plus* a length assertion
+(`all().len() == max_index + 1`) meant to catch an omission. Negative control: drop the
+last entry from `all()` — **the test stayed green**. The expected count was derived from
+`all()` itself, so it shrank right along with the list. The assertion could not fail.
+
+That is precisely the S3 defect (decision `0033`) the surrounding tree exists to remove,
+and it very nearly shipped **inside the guard against it**. It was deleted rather than
+kept as decoration. What survives is honest: the exhaustive `index()` makes a new variant
+a compile error, the ordering test catches misordering and middle omissions, and the
+**tail-truncation gap is written down at the test** with the reason a length check cannot
+close it (any count derived from `all()` shrinks with it; a hand-written count is the
+second list `0033` forbids as a repair).
+
+The real repair is R1 — generate the enum, `all`, `name` and `category` from one macro
+table so the list stops existing and there is nothing to omit from. Registered as `.6`
+rather than bolted onto this slice. **Prefer a small honest guard plus a registered R1
+over a large guard that cannot fail.**
+
+**A note on the pending-counter detour.** Three motif knobs roll before their module
+exists, so their outcome is buffered and moved later — which looks a lot like the "roll
+here, record there" split `0034` forbids. It is not, and the distinction is worth being
+precise about: the buffer can *only* be filled by the one primitive, and the move is a
+function inside the guarded module. What `0034` forbids is a **call site** deciding to
+record; what this does is let the guarded module decide *when*. The invariant "every
+recorded roll carried the steering prior" is untouched.
+
+---
+
 ## 2026-07-30 — An R2 guard must cover every write to the state, not every call to the API — `COVERAGE-STEERED-GENERATION.5` (recon)
 
 `COVERAGE-STEERED-GENERATION.3b` made "there is exactly one knob-roll primitive" a

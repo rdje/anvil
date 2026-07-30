@@ -8,8 +8,8 @@ use super::{
 };
 use crate::config::ConstructionStrategy;
 use crate::ir::{
-    DepSet, Direction, Fsm, FsmEncoding, GateOp, MemKind, Memory, Module, ModuleInterfaceProfile,
-    Node, NodeId, Port, PortId,
+    DepSet, Direction, Fsm, FsmEncoding, GateOp, KnobId, MemKind, Memory, Module,
+    ModuleInterfaceProfile, Node, NodeId, Port, PortId,
 };
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -328,25 +328,26 @@ fn build_fsm_block(g: &mut Generator, index: u64) -> Module {
     // byte-identical. The table is a pure (state, sel_value) formula so the
     // output genuinely varies with the input (no extra RNG draw / no
     // stream perturbation beyond the one gating roll).
-    let mealy_outputs: Option<Vec<Vec<u128>>> =
-        if g.cfg.fsm_mealy_prob > 0.0 && g.rng.gen_bool(g.cfg.fsm_mealy_prob.clamp(0.0, 1.0)) {
-            Some(
-                (0..num_states)
-                    .map(|s| {
-                        (0..fanout)
-                            .map(|j| {
-                                ((s as u128).wrapping_mul(0x9E37_79B1)
-                                    ^ (j as u128).wrapping_mul(0x85EB_CA6B)
-                                    ^ 0x5A5A)
-                                    & out_mask
-                            })
-                            .collect()
-                    })
-                    .collect(),
-            )
-        } else {
-            None
-        };
+    let mealy_outputs: Option<Vec<Vec<u128>>> = if g.cfg.fsm_mealy_prob > 0.0
+        && g.roll_knob(&mut m, KnobId::FsmMealyProb, g.cfg.fsm_mealy_prob)
+    {
+        Some(
+            (0..num_states)
+                .map(|s| {
+                    (0..fanout)
+                        .map(|j| {
+                            ((s as u128).wrapping_mul(0x9E37_79B1)
+                                ^ (j as u128).wrapping_mul(0x85EB_CA6B)
+                                ^ 0x5A5A)
+                                & out_mask
+                        })
+                        .collect()
+                })
+                .collect(),
+        )
+    } else {
+        None
+    };
     m.fsms.push(Fsm {
         id: 0,
         num_states,
@@ -367,7 +368,31 @@ fn build_fsm_block(g: &mut Generator, index: u64) -> Module {
     m
 }
 
+/// Build one leaf module, then move any *pre-module* knob rolls into it.
+///
+/// `COVERAGE-STEERED-GENERATION.4b.1`: the motif-selection rolls below decide
+/// **which builder to call**, so they happen before any `Module` exists and
+/// land in `Generator::pending_knob_rolls`. This wrapper is the single drain
+/// point — the inner function has four exits, and an attempt stranded on any
+/// one of them would silently vanish from the coverage readout.
+///
+/// That is not hypothetical: the first cut of `.4b.1` drained only inside the
+/// three *firing* branches, so a motif roll that came up **false** recorded an
+/// attempt nobody ever saw. Measured, it turned `memory_prob`'s fire rate into
+/// a constant `1.000` (only the modules where it fired reported at all) instead
+/// of the true `8/30`. One drain, outside every branch, makes the omission
+/// unconstructible.
 pub(super) fn generate_leaf_module_with_interface_profile(
+    g: &mut Generator,
+    index: u64,
+    interface_profile: Option<&ModuleInterfaceProfile>,
+) -> Module {
+    let mut m = build_leaf_module_dispatch(g, index, interface_profile);
+    g.drain_pending_rolls(&mut m);
+    m
+}
+
+fn build_leaf_module_dispatch(
     g: &mut Generator,
     index: u64,
     interface_profile: Option<&ModuleInterfaceProfile>,
@@ -384,8 +409,10 @@ pub(super) fn generate_leaf_module_with_interface_profile(
     // so emission stays byte-identical.
     if interface_profile.is_none()
         && g.cfg.width_parameterization_prob > 0.0
-        && g.rng
-            .gen_bool(g.cfg.width_parameterization_prob.clamp(0.0, 1.0))
+        && g.roll_knob_pending(
+            KnobId::WidthParameterizationProb,
+            g.cfg.width_parameterization_prob,
+        )
     {
         let mut m = build_parameterizable_leaf(g, index);
         crate::ir::param::annotate_parameterized(&mut m, &g.cfg);
@@ -399,7 +426,7 @@ pub(super) fn generate_leaf_module_with_interface_profile(
     // never enters here, so emission stays byte-identical.
     if interface_profile.is_none()
         && g.cfg.memory_prob > 0.0
-        && g.rng.gen_bool(g.cfg.memory_prob.clamp(0.0, 1.0))
+        && g.roll_knob_pending(KnobId::MemoryProb, g.cfg.memory_prob)
     {
         return build_memory_leaf(g, index);
     }
@@ -412,7 +439,7 @@ pub(super) fn generate_leaf_module_with_interface_profile(
     // byte-identical.
     if interface_profile.is_none()
         && g.cfg.fsm_prob > 0.0
-        && g.rng.gen_bool(g.cfg.fsm_prob.clamp(0.0, 1.0))
+        && g.roll_knob_pending(KnobId::FsmProb, g.cfg.fsm_prob)
     {
         return build_fsm_block(g, index);
     }

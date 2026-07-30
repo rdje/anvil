@@ -8099,6 +8099,160 @@ fn neutral_hierarchy_steering_is_byte_identical_on_designs() {
     }
 }
 
+/// COVERAGE-STEERED-GENERATION.4b.1 (decision 0035): the **`motifs`** category
+/// is a real dial.
+///
+/// Before `.4b.1` the seven module-level motif knobs had no `KnobId` at all, so
+/// `--steer memory_prob=…` errored and `memory_prob` never appeared in the
+/// coverage readout — with `--memory-prob 0.5` the whole readout came back
+/// **empty**, because a memory leaf is built entirely by rule and rolls no
+/// cone knobs.
+///
+/// Asserts **both** weight directions on the achieved fire rate, and — the part
+/// the first cut of `.4b.1` got wrong — that **`attempts` counts every module**,
+/// not just the ones where the roll fired. That bug drained the pending counters
+/// only inside the firing branches, which made the fire rate a constant `1.000`
+/// (only firing modules reported at all) and looked plausible until the raw
+/// counts were read.
+#[test]
+fn steering_shifts_motif_category_construct_distribution() {
+    const SEEDS: u64 = 24;
+    const BASE_PROB: f64 = 0.25;
+
+    fn memory_rolls(steering: anvil::config::SteeringConfig) -> (u64, u64) {
+        let (mut fires, mut attempts) = (0u64, 0u64);
+        for seed in 0..SEEDS {
+            let cfg = Config {
+                seed,
+                memory_prob: BASE_PROB,
+                steering: steering.clone(),
+                ..Config::default()
+            };
+            cfg.validate().expect("motif steering config is valid");
+            let m = anvil::Generator::new(cfg).generate_module();
+            let metrics = anvil::metrics::compute(&m);
+            fires += metrics
+                .knob_roll_fires
+                .get("memory_prob")
+                .copied()
+                .unwrap_or(0);
+            attempts += metrics
+                .knob_roll_attempts
+                .get("memory_prob")
+                .copied()
+                .unwrap_or(0);
+        }
+        (fires, attempts)
+    }
+
+    fn category(weight: f64) -> anvil::config::SteeringConfig {
+        let mut per_category = std::collections::BTreeMap::new();
+        per_category.insert("motifs".to_string(), weight);
+        anvil::config::SteeringConfig {
+            per_category,
+            ..Default::default()
+        }
+    }
+
+    let (base_fires, base_attempts) = memory_rolls(Default::default());
+    let (up_fires, up_attempts) = memory_rolls(category(3.0));
+    let (down_fires, down_attempts) = memory_rolls(category(0.05));
+
+    // Every module rolls the knob exactly once, whether or not it fires. This
+    // is the regression for the drained-only-on-fire bug: without it the
+    // attempts counts would equal the fire counts and every rate would be 1.0.
+    for (label, attempts) in [
+        ("unsteered", base_attempts),
+        ("up-weighted", up_attempts),
+        ("down-weighted", down_attempts),
+    ] {
+        assert_eq!(
+            attempts, SEEDS,
+            "{label}: memory_prob must record one attempt per module ({SEEDS}), \
+             got {attempts} — a non-firing roll is being dropped instead of counted"
+        );
+    }
+
+    let base_rate = base_fires as f64 / base_attempts as f64;
+    let up_rate = up_fires as f64 / up_attempts as f64;
+    let down_rate = down_fires as f64 / down_attempts as f64;
+
+    assert!(
+        up_rate > base_rate + 0.15,
+        "a 3x `motifs` weight must raise memory_prob's achieved rate \
+         ({BASE_PROB} -> ~0.75); got up={up_rate:.3} base={base_rate:.3}"
+    );
+    assert!(
+        down_rate < base_rate - 0.15,
+        "a 0.05x `motifs` weight must lower it; got down={down_rate:.3} \
+         base={base_rate:.3}"
+    );
+}
+
+/// COVERAGE-STEERED-GENERATION.4b.1: every motif knob is reachable by name
+/// through `--steer`'s key classifier, and the `motifs` category resolves.
+/// A knob that has a `KnobId` but no route from a user-supplied key would be
+/// steerable in principle and unreachable in practice.
+#[test]
+fn every_motif_knob_is_reachable_by_steer_key() {
+    let motif_knobs: Vec<&'static str> = anvil::ir::KnobId::all()
+        .iter()
+        .filter(|k| k.category() == "motifs")
+        .map(|k| k.name())
+        .collect();
+
+    assert_eq!(
+        motif_knobs.len(),
+        7,
+        "expected the 7 module-level motif knobs decision 0035 names, got {motif_knobs:?}"
+    );
+
+    for name in &motif_knobs {
+        let mut steering = anvil::config::SteeringConfig::default();
+        steering
+            .set_weight(name, 2.0)
+            .unwrap_or_else(|e| panic!("--steer {name}=2.0 must classify, got {e:?}"));
+        steering.validate().expect("weight 2.0 is valid");
+    }
+
+    let mut by_category = anvil::config::SteeringConfig::default();
+    by_category
+        .set_weight("motifs", 2.0)
+        .expect("`motifs` must classify as a category");
+    assert!(
+        by_category.per_knob.is_empty(),
+        "`motifs` is a category, not a knob name — it must not land in per_knob"
+    );
+}
+
+/// COVERAGE-STEERED-GENERATION.4b.1: with every motif knob at its `0.0`
+/// default, no motif roll happens at all — so the coverage readout gains no
+/// entries and, critically, the RNG stream is untouched. The `> 0.0` guards
+/// are load-bearing for reproducibility, not an optimisation (decision 0035).
+#[test]
+fn default_motif_knobs_record_no_rolls_and_consume_no_draws() {
+    for seed in 0..8u64 {
+        let m = anvil::Generator::new(Config {
+            seed,
+            ..Config::default()
+        })
+        .generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        for knob in anvil::ir::KnobId::all() {
+            if knob.category() != "motifs" {
+                continue;
+            }
+            assert!(
+                !metrics.knob_roll_attempts.contains_key(knob.name()),
+                "seed {seed}: {} recorded an attempt at its 0.0 default — the \
+                 `> 0.0` guard has been removed, which also consumes an RNG \
+                 draw and breaks byte-identity",
+                knob.name()
+            );
+        }
+    }
+}
+
 /// Doctrine guard: the `compact_node_ids` pass keeps Rule 18
 /// (zero orphan gates) holding across all strategies and seeds,
 /// and records a non-zero `nodes_compacted` count whenever the

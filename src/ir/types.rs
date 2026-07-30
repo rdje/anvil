@@ -658,6 +658,33 @@ pub enum KnobId {
     /// `Config::flop_qfeedback_prob` — ZeroDefault vs QFeedback
     /// flop kind.
     FlopQFeedbackProb,
+
+    // --- `motifs` (COVERAGE-STEERED-GENERATION.4b.1, decision 0035) ------
+    // These seven select *what kind of module this is*. Each rolls at most
+    // ONCE per module, so their `attempts` counts are low-resolution
+    // compared with the per-gate knobs above — meaningful over a `--count`
+    // sweep, not within one module.
+    /// `Config::width_parameterization_prob` — chance that a free-standing
+    /// leaf is built as a width-parameterizable module (Phase 5).
+    WidthParameterizationProb,
+    /// `Config::memory_prob` — chance that a free-standing leaf is built as
+    /// an inferrable-memory module (Phase 6).
+    MemoryProb,
+    /// `Config::fsm_prob` — chance that a free-standing leaf is built as a
+    /// generated-encoding FSM module (Phase 6).
+    FsmProb,
+    /// `Config::fsm_mealy_prob` — chance that an FSM block's output decode
+    /// is Mealy (input-dependent) rather than Moore.
+    FsmMealyProb,
+    /// `Config::multi_clock_prob` — chance that a module is promoted to
+    /// multiple clock domains with a by-construction CDC synchronizer.
+    MultiClockProb,
+    /// `Config::aggregate_prob` — chance that a module gains a packed
+    /// aggregate emitter projection (Phase 5b).
+    AggregateProb,
+    /// `Config::aggregate_array_prob` — given an aggregate, the chance it
+    /// is rendered array-packed rather than struct-packed.
+    AggregateArrayProb,
 }
 
 impl KnobId {
@@ -695,7 +722,67 @@ impl KnobId {
             KnobId::HierarchyParentConeInstanceProb,
             KnobId::HierarchyParentFlopProb,
             KnobId::FlopQFeedbackProb,
+            KnobId::WidthParameterizationProb,
+            KnobId::MemoryProb,
+            KnobId::FsmProb,
+            KnobId::FsmMealyProb,
+            KnobId::MultiClockProb,
+            KnobId::AggregateProb,
+            KnobId::AggregateArrayProb,
         ]
+    }
+
+    /// Dense position of this knob in [`all`](KnobId::all).
+    ///
+    /// **The guard on `all()`** (`COVERAGE-STEERED-GENERATION.4b.1`, decision
+    /// `0035`). `all()` is a hand-written list, and `name()`/`category()` are
+    /// exhaustive matches — so a new variant is forced to declare a name and a
+    /// category, but *not* to appear in `all()`. Omitting it there used to be
+    /// silent: the knob would simply vanish from the per-category coverage
+    /// roll-up and from `--steer`'s key classification.
+    ///
+    /// This match is **exhaustive**, so a new variant fails to compile until it
+    /// is given an index; `all_is_complete_and_ordered` then fails until `all()`
+    /// carries it at that index. The pair turns a silent omission into a red
+    /// build plus a red test (repair rung **R2**, decision `0033`).
+    ///
+    /// `dead_code` is allowed deliberately: this function's value is the
+    /// **exhaustiveness of its match**, not its call sites. It is called only
+    /// by the guard test, and it must stay compiled in every profile so that a
+    /// new variant is a hard error rather than a test-only one.
+    #[allow(dead_code)]
+    fn index(self) -> usize {
+        match self {
+            KnobId::FlopProb => 0,
+            KnobId::CombMuxProb => 1,
+            KnobId::PriorityEncoderProb => 2,
+            KnobId::CaseMuxProb => 3,
+            KnobId::CasezMuxProb => 4,
+            KnobId::ForFoldProb => 5,
+            KnobId::CoefficientProb => 6,
+            KnobId::ConstShiftAmountProb => 7,
+            KnobId::ConstComparandProb => 8,
+            KnobId::ConstantProb => 9,
+            KnobId::TerminalReuseProb => 10,
+            KnobId::CombMuxEncodingProb => 11,
+            KnobId::FlopMuxEncodingProb => 12,
+            KnobId::ShareProb => 13,
+            KnobId::HierarchySiblingRouteProb => 14,
+            KnobId::HierarchyRegisteredSiblingRouteProb => 15,
+            KnobId::HierarchyRegisteredSiblingMixedSupportProb => 16,
+            KnobId::HierarchyRegisteredChildInputConeProb => 17,
+            KnobId::HierarchyChildInputConeProb => 18,
+            KnobId::HierarchyParentConeInstanceProb => 19,
+            KnobId::HierarchyParentFlopProb => 20,
+            KnobId::FlopQFeedbackProb => 21,
+            KnobId::WidthParameterizationProb => 22,
+            KnobId::MemoryProb => 23,
+            KnobId::FsmProb => 24,
+            KnobId::FsmMealyProb => 25,
+            KnobId::MultiClockProb => 26,
+            KnobId::AggregateProb => 27,
+            KnobId::AggregateArrayProb => 28,
+        }
     }
 
     /// The [`category`](KnobId::category) of the knob whose
@@ -743,6 +830,13 @@ impl KnobId {
             KnobId::HierarchyParentConeInstanceProb => "hierarchy_parent_cone_instance_prob",
             KnobId::HierarchyParentFlopProb => "hierarchy_parent_flop_prob",
             KnobId::FlopQFeedbackProb => "flop_qfeedback_prob",
+            KnobId::WidthParameterizationProb => "width_parameterization_prob",
+            KnobId::MemoryProb => "memory_prob",
+            KnobId::FsmProb => "fsm_prob",
+            KnobId::FsmMealyProb => "fsm_mealy_prob",
+            KnobId::MultiClockProb => "multi_clock_prob",
+            KnobId::AggregateProb => "aggregate_prob",
+            KnobId::AggregateArrayProb => "aggregate_array_prob",
         }
     }
 
@@ -752,8 +846,14 @@ impl KnobId {
     /// knobs with one `per_category` entry instead of naming each
     /// `KnobId` individually. The taxonomy is intentionally small and
     /// fixed: `state`, `selectors`, `datapath`, `terminals`, `sharing`,
-    /// `hierarchy`. Every `KnobId` maps to exactly one category (the
-    /// match is exhaustive, so a new knob must declare its category).
+    /// `hierarchy`, and — since `COVERAGE-STEERED-GENERATION.4b.1`
+    /// (decision `0035`) — `motifs`, which selects *what kind of module
+    /// this is* rather than how a cone inside one is built. Every
+    /// `KnobId` maps to exactly one category (the match is exhaustive, so
+    /// a new knob must declare its category).
+    ///
+    /// The six original categories keep their **exact** membership, so a
+    /// steering config written before `.4b.1` still means what it meant.
     pub fn category(&self) -> &'static str {
         match self {
             KnobId::FlopProb | KnobId::FlopQFeedbackProb => "state",
@@ -776,6 +876,13 @@ impl KnobId {
             | KnobId::HierarchyChildInputConeProb
             | KnobId::HierarchyParentConeInstanceProb
             | KnobId::HierarchyParentFlopProb => "hierarchy",
+            KnobId::WidthParameterizationProb
+            | KnobId::MemoryProb
+            | KnobId::FsmProb
+            | KnobId::FsmMealyProb
+            | KnobId::MultiClockProb
+            | KnobId::AggregateProb
+            | KnobId::AggregateArrayProb => "motifs",
         }
     }
 }
@@ -2632,6 +2739,85 @@ pub struct Design {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `COVERAGE-STEERED-GENERATION.4b.1` — the guard on `KnobId::all()`
+    /// (decision `0035`, repair rung **R2** per decision `0033`).
+    ///
+    /// `all()` is a hand-written list, and it grew from 22 to 29 entries in
+    /// this slice. `name()` and `category()` are exhaustive matches, so a new
+    /// variant *is* forced to declare both — but nothing forced it into
+    /// `all()`, and omitting it there is **silent**: the knob simply vanishes
+    /// from the per-category coverage roll-up and from `--steer`'s key
+    /// classification, which is precisely the class of bug this tree exists to
+    /// eliminate.
+    ///
+    /// `index()` is exhaustive, so a new variant **cannot compile** without
+    /// declaring an index; this test then fails unless `all()` lists every
+    /// index it declares, exactly once, in order.
+    ///
+    /// **Known residual gap, stated rather than papered over.** This catches a
+    /// misordering, a duplicate, and an omission *from the middle* (the entry
+    /// at that position then declares the wrong index). It does **not** catch
+    /// truncation at the **tail**: drop the highest-index variant from `all()`
+    /// and the remaining `0..n-1` are still contiguous and in order. Verified
+    /// by negative control — removing the last entry leaves this test green.
+    ///
+    /// A length assertion cannot close it either, because any "expected count"
+    /// derived from `all()` shrinks with it, and a hand-written count would be
+    /// a second copy of the very list being guarded (decision `0033`: a repair
+    /// may not introduce a new hand-maintained list). Closing it properly means
+    /// making `all()` **derived** — generating the enum, `all`, `name` and
+    /// `category` from one macro table so the list stops existing (rung **R1**).
+    /// Registered as `COVERAGE-STEERED-GENERATION.6`.
+    #[test]
+    fn all_is_complete_and_ordered() {
+        let all = KnobId::all();
+        for (position, knob) in all.iter().enumerate() {
+            assert_eq!(
+                knob.index(),
+                position,
+                "KnobId::all() is out of order at position {position}: {} declares \
+                 index {} — all() must list every variant exactly once, in index order",
+                knob.name(),
+                knob.index()
+            );
+        }
+    }
+
+    /// Names and categories are both total and unambiguous over `all()`:
+    /// every knob round-trips through `category_of_name`, no two knobs share a
+    /// name, and no knob name collides with a category name (the `--steer` key
+    /// classifier depends on that disjointness to decide `per_knob` vs
+    /// `per_category`).
+    #[test]
+    fn knob_names_and_categories_are_disjoint_and_total() {
+        let all = KnobId::all();
+
+        let mut names: Vec<&str> = all.iter().map(|k| k.name()).collect();
+        names.sort_unstable();
+        let unique = names.len();
+        names.dedup();
+        assert_eq!(unique, names.len(), "two KnobId variants share a name");
+
+        let mut categories: Vec<&str> = all.iter().map(|k| k.category()).collect();
+        categories.sort_unstable();
+        categories.dedup();
+
+        for knob in all {
+            assert_eq!(
+                KnobId::category_of_name(knob.name()),
+                Some(knob.category()),
+                "{} does not round-trip through category_of_name",
+                knob.name()
+            );
+            assert!(
+                !categories.contains(&knob.name()),
+                "knob name {} collides with a category name — --steer could not \
+                 classify the key unambiguously",
+                knob.name()
+            );
+        }
+    }
 
     fn port(id: u32, name: &str, width: u32, dir: Direction) -> Port {
         Port {

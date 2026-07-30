@@ -1,6 +1,99 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.4b.1 — the `motifs` category is a real dial
+
+**Landed as:** `<pending>` (previous: `2d447c3`, `COVERAGE-STEERED-GENERATION.5`).
+**17 configurations byte-identical** against a `HEAD` binary built in an isolated
+git worktree — including every motif knob turned on.
+
+**What.** The seven module-level motif knobs become steerable **and** measurable.
+`--memory-prob 0.5 --introspect` used to return an **empty** `coverage_readout` —
+the exact symptom that opened this session, because a memory leaf is built
+entirely by rule and rolls no cone knobs, so nothing was recorded at all. It now
+returns:
+
+```json
+"knob_fire_rates":     {"memory_prob": {"attempts": 1, "fires": 1, "fire_rate": 1.0}},
+"category_fire_rates": {"motifs":      {"attempts": 1, "fires": 1, "fire_rate": 1.0}}
+```
+
+and the category is a working dial — measured over 24–30 seeds at a base
+probability of `0.25`:
+
+| steering | achieved `memory_prob` rate |
+| --- | --- |
+| *(unsteered)* | `8/30 = 0.267` |
+| `--steer motifs=3.0` | `25/30 = 0.833` |
+| `--steer motifs=0.05` | `1/30 = 0.033` |
+
+`--steer bogus=2` now lists seven categories, so the addition is discoverable
+from the error message users already hit.
+
+**How.**
+
+- 7 new `KnobId` variants + the new `motifs` category. The six existing
+  categories keep their **exact** membership, so a steering config written
+  yesterday still means what it meant.
+- All 7 roll sites routed through the one primitive: 4 in `gen/module.rs`, 3 in
+  `gen/mod.rs` (`multi_clock` at both single-module entry points *and* the
+  design loop; `aggregate` + `aggregate_array` in the design loop).
+- **The three pre-module rolls.** `width_parameterization_prob`, `memory_prob`
+  and `fsm_prob` decide *which builder to call*, so they fire before any
+  `Module` exists (decision `0035`'s Correction). They use a new
+  `Generator::roll_knob_pending` writing to a `pending_knob_rolls` buffer,
+  drained by `KnobRollCounters::absorb` — which lives **inside** `ir::knob_roll`,
+  so `pending` can only ever have been filled by the one primitive and the
+  "every recorded roll carried the steering prior" invariant survives the detour.
+  Splitting roll-from-record at the *call site* is what decision `0034` forbids;
+  splitting it inside the guarded module is not the same thing.
+
+**A bug found and fixed mid-slice, by reading the raw counts.** The first cut
+drained the pending buffer only inside the three *firing* branches. A motif roll
+that came up **false** therefore recorded an attempt nobody ever saw. The fire
+counts still moved correctly with the steer (8 → 25 → 1 of 30), so the feature
+looked like it worked — but `attempts` equalled `fires`, which made every
+reported `fire_rate` a constant **`1.000`**. It was visible only because the
+sweep printed `fires/attempts` rather than the rate.
+
+Fixed structurally rather than by patching the three branches: the dispatcher is
+wrapped, so there is **one** drain outside every exit path and a missed branch is
+unconstructible. Negative-controlled — restoring the old shape fails the new
+assertion with `got 7` instead of `24`.
+
+**The guard on `KnobId::all()`, and an honest statement of what it does not
+cover.** `all()` grew from 22 to 29 hand-written entries. It is now guarded by an
+exhaustive private `index()` (a new variant is `error[E0004]`, negative-controlled)
+plus `all_is_complete_and_ordered` (a middle omission fails with *"out of order at
+position 20"*, negative-controlled).
+
+It does **not** catch truncation at the **tail**: drop the highest-index variant
+and the remaining `0..n-1` are still contiguous and in order — verified, the test
+stays green. My first draft included a length assertion intended to catch exactly
+that; the negative control showed it **could not fail**, because the expected count
+was derived from `all()` itself and shrank with it. A hand-written count would be a
+second copy of the guarded list, which decision `0033` forbids as a repair. So the
+assertion was **removed rather than shipped** — a check that cannot fail is the
+defect this whole tree exists to eliminate — the gap is documented at the test, and
+the real fix (macro-derive `all()` so the list stops existing, rung **R1**) is
+registered as `.6`.
+
+**Proofs.** `steering_shifts_motif_category_construct_distribution` (both weight
+directions **and** the one-attempt-per-module assertion that catches the drain
+bug), `every_motif_knob_is_reachable_by_steer_key` (all 7 classify; `motifs`
+resolves as a category, not a knob name), `default_motif_knobs_record_no_rolls_and_consume_no_draws`
+(the `> 0.0` guards are load-bearing for reproducibility), plus
+`all_is_complete_and_ordered` and `knob_names_and_categories_are_disjoint_and_total`
+in `src/ir/types.rs`.
+
+**Gate.** `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
+`cargo check --all-targets` all clean (0 warnings); `cargo test` green.
+
+**Files touched.** `src/ir/types.rs`, `src/ir/knob_roll.rs`, `src/gen/mod.rs`,
+`src/gen/module.rs`, `tests/pipeline.rs`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.5 — the guard covers the state, not just the API
 
 **Landed as:** `<pending>` (previous: `d86475f`, `.4a` corrections hash backfill).

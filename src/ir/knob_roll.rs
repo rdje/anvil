@@ -103,6 +103,35 @@ impl KnobRollCounters {
         &self.fires
     }
 
+    /// `true` when nothing has been recorded yet.
+    pub fn is_empty(&self) -> bool {
+        self.attempts.is_empty() && self.fires.is_empty()
+    }
+
+    /// Move every counter out of `pending` and add it into `self`, leaving
+    /// `pending` empty (`COVERAGE-STEERED-GENERATION.4b.1`, decision `0035`).
+    ///
+    /// Needed because three motif rolls happen **before the module they
+    /// describe exists**: `width_parameterization_prob`, `memory_prob` and
+    /// `fsm_prob` each decide *which builder to call*, and each builder
+    /// returns a different `Module`. Those rolls go into a scratch counter on
+    /// the `Generator` and are absorbed here once the module is built.
+    ///
+    /// This is a **move between two counter sets**, not a way to author one:
+    /// `pending` can only have been filled by [`roll_knob_into`], because
+    /// `record` and both fields are private to this module. So the "every
+    /// recorded roll carried the steering prior" invariant survives the
+    /// detour — which is the whole reason the drain lives here rather than at
+    /// the call site.
+    pub(crate) fn absorb(&mut self, pending: &mut KnobRollCounters) {
+        for (knob, count) in pending.attempts.drain() {
+            *self.attempts.entry(knob).or_insert(0) += count;
+        }
+        for (knob, count) in pending.fires.drain() {
+            *self.fires.entry(knob).or_insert(0) += count;
+        }
+    }
+
     /// Record one probability-roll outcome.
     ///
     /// **Private to this module by design** — see the module docs. Callers
