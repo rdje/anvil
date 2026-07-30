@@ -8,7 +8,7 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`SHADOW-ENUMERATION-SWEEP.6`** (`75057a4`). Prior: `25b4ebf` (`.4`), `9a082e9` (`.5`), `4f9720f` (`.3`), `9ffabea` (decision `0033`). Session history: `git log --oneline` (do not re-narrate it here).
+- latest_commit: **`SHADOW-ENUMERATION-SWEEP.7`** (`8f94cf0`) — tree closed. Prior: `75057a4` (`.6`), `25b4ebf` (`.4`), `9a082e9` (`.5`), `4f9720f` (`.3`). Session history: `git log --oneline` (do not re-narrate it here).
 - active_work_unit: **none — `SHADOW-ENUMERATION-SWEEP` is CLOSED** (all 7 leaves; `.7` shipped the `ENUMERATION-PARITY` doctrine, now the **7th** registered doctrine). The class is held by the full repair ladder: R1 derive (`tool_matrix` `GATES`, the MCP allow-list), R2 compile error (the two exhaustive fixtures), R3 derived `#[test]` (config applier, coverage merger), R4 registered doctrine (docs/script pairs). Also closed this session: `CARGO-TMPDIR-SWEEP-REGRESSION`, `EMIT-SURFACE-INTERACTION-GATE`, `EVIDENCE-BANK-DURABILITY`.
 - next_action: **pick a new work unit** — no tree is mid-flight. Candidates in `docs/TASK_TREE.md`'s index; `ROADMAP.md` phases 0–9 are all `done`, so the live lanes are the post-phase follow-up trees. Whatever is chosen, open/refresh its tree **before** the first edit (task-tree ownership is gated).
 - in_flight_uncommitted: none. Tree clean, self-checks green, resume pointer current.

@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.7 — the doctrine that found three stale copies of itself
 
-**Landed as:** this commit (previous: `75057a4`, `SHADOW-ENUMERATION-SWEEP.6`).
+**Landed as:** `8f94cf0` (previous: `75057a4`, `SHADOW-ENUMERATION-SWEEP.6`).
 **No `src/` change at all** ⇒ **DUT byte-identical** by construction;
 `tests/snapshots.rs` 6/6 and `mdbook build` clean anyway. **Closes the
 `SHADOW-ENUMERATION-SWEEP` tree** (all seven leaves).

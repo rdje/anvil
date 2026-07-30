@@ -735,7 +735,7 @@ report — it is a 149-entry list that is one omission away from being one.
 | `.5` | `SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains` (`9a082e9`) | The S2 fix: an E0063-enforced fixture + a serde-derived expectation |
 | `.4` | `SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed` (`25b4ebf`) | The S1 fix: the `.5` pattern reused; NC-C proves leg 2's independent value |
 | `.6` | `SHADOW-ENUMERATION-SWEEP.6 — the allow-list the API now reads back` (`75057a4`) | The S1 fix: one `registered_adapter_ids()` behind seven sites; the tree's first **live** defect (two prose sites already stale) |
-| `.7` | `SHADOW-ENUMERATION-SWEEP.7 — the doctrine that found three stale copies of itself` | The last leaf: one `ENUMERATION-PARITY` doctrine over a declared `PAIRS` table; three already-stale registry copies fixed |
+| `.7` | `SHADOW-ENUMERATION-SWEEP.7 — the doctrine that found three stale copies of itself` (`8f94cf0`) | The last leaf: one `ENUMERATION-PARITY` doctrine over a declared `PAIRS` table; three already-stale registry copies fixed. **Tree closed.** |
 
 ## Changelog
 
