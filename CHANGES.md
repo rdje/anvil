@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4b.1 — the `motifs` category is a real dial
 
-**Landed as:** `<pending>` (previous: `2d447c3`, `COVERAGE-STEERED-GENERATION.5`).
+**Landed as:** `af8bd9c` (previous: `2d447c3`, `COVERAGE-STEERED-GENERATION.5`).
 **17 configurations byte-identical** against a `HEAD` binary built in an isolated
 git worktree — including every motif knob turned on.
 
