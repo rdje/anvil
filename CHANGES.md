@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.4b.2 — nine emission surfaces, measurable per gate
+
+**Landed as:** `<pending>` (previous: `ed3ed29`, `.5` hash backfill).
+**16 configurations byte-identical** against a `HEAD` binary built in an isolated
+git worktree. **Completes steering's width**; `.4c` (docs) closes `.4`.
+
+**What.** ANVIL's nine structured-emission surfaces — the family decision `0032`
+identifies as the DUT lane's best bug-bait — become measurable per-gate and
+steerable as one family.
+
+`--profile structured-emission-max --introspect` previously reported **no**
+emission knob at all. It now reports every non-version-gated surface with its own
+attempts count:
+
+| surface | fires/attempts | achieved rate |
+| --- | --- | --- |
+| `function_emit_prob` | 881/3420 | `0.258` |
+| `task_emit_prob` | 626/2463 | `0.254` |
+| `multi_output_task_emit_prob` | 401/1631 | `0.246` |
+| `case_mux_if_emit_prob` | 120/425 | `0.282` |
+| `casez_mux_if_emit_prob` | 77/285 | `0.270` |
+| `cone_function_emit_prob` | 78/305 | `0.256` |
+| `generate_loop_emit_prob` | 76/325 | `0.234` |
+| `mux_if_emit_prob` | 61/253 | `0.241` |
+| **category `emission`** | **2320/9107** | **`0.255`** |
+
+Every rate lands on `0.25` — the value decision `0032` chose by *external*
+measurement (a max-min sweep over per-surface counts). It is now observable from
+the artifact itself, which is what turns that calibration from a recorded finding
+into something the measure→derive→re-steer loop can act on.
+
+The category steers, both directions: `emission 0.397` unsteered →
+`0.069` at `--steer emission=0.2`. `--steer bogus=1` now lists all eight
+categories.
+
+**How.** 9 new `KnobId` variants + the `emission` category. All nine `annotate_*`
+passes gained a `steering: &SteeringConfig` parameter and route their single
+per-gate roll through `crate::ir::knob_roll::roll_knob_into`. ~99 in-crate call
+sites updated — 18 production sites in `src/gen/mod.rs` (each pass is invoked from
+both the single-module and the design path), the remainder each pass's own
+`#[cfg(test)]` callers.
+
+`emission` is a **separate category from `motifs`** for a measured reason: these
+roll once per *candidate gate* (thousands of attempts per module) against the
+motif knobs' once per *module*. A single merged category would have made any
+per-category rate meaningless — decision `0035` rejected exactly that, and the
+numbers above are why.
+
+**Byte-identity.** 16 configurations compared against `HEAD`: default ×2, each of
+the nine surfaces individually (including the version-gated 2023 `soft_union`
+up-opt), `--profile structured-emission-max`, all eight at `0.25` together, a
+hierarchy design with emission on, the motif knobs, and a steered run. All
+identical. The `> 0.0` call-site guards mean a default run still consumes no
+emission draws at all.
+
+**Proofs.** `steering_shifts_emission_category_construct_distribution` (both
+weight directions, with a `> 100 attempts` assertion that fails if the rolls stop
+being per-gate), `every_emission_surface_is_individually_measurable_and_steerable`
+(all nine classify as `--steer` keys; at least eight report their own attempts
+count in one module), `default_emission_knobs_record_no_rolls`.
+
+**Gate.** `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
+`cargo check --all-targets` all clean (0 warnings); `cargo test` green.
+
+**Files touched.** `src/ir/types.rs`, the nine `src/ir/*` emit passes,
+`src/gen/mod.rs`, `tests/pipeline.rs`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4b.1 — the `motifs` category is a real dial
 
 **Landed as:** `af8bd9c` (previous: `2d447c3`, `COVERAGE-STEERED-GENERATION.5`).

@@ -194,7 +194,12 @@ fn independent_of_all(m: &Module, gc: NodeId, members: &[NodeId]) -> bool {
 /// byte-identical (draws nothing). Single-call per module (mirrors the
 /// `task_emit` / `cone_function` call-site roll). Must run **after**
 /// `annotate_task_emit_gates` and **before** `annotate_cone_function_gates`.
-pub fn annotate_multi_output_task_groups(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_multi_output_task_groups(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Scope: leave Phase 5 parameterized modules out (symbolic widths; the
     // param/structured cross-product is out of scope). Mirrors the task_emit pass.
     if m.param_env.is_some() {
@@ -219,7 +224,13 @@ pub fn annotate_multi_output_task_groups(m: &mut Module, rng: &mut impl Rng, pro
         // One roll per ungrouped leader (the per-leader roll is unchanged by the
         // k>2 widening; at the gate's prob=1.0 `gen_bool` short-circuits and draws
         // nothing, and the default prob=0.0 path never calls this pass).
-        if !rng.gen_bool(p) {
+        if !crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::MultiOutputTaskEmitProb,
+            p,
+        ) {
             continue;
         }
         // Greedily build the group: start with the leader, then admit each
@@ -318,7 +329,7 @@ mod tests {
     #[test]
     fn prob_one_groups_a_co_supported_pair() {
         let mut m = module_two_co_supported_gates();
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1);
         // Keyed by the lower-NodeId leader (3) → the partner (4).
         assert_eq!(m.multi_output_task_groups.get(&3), Some(&vec![4]));
@@ -327,7 +338,7 @@ mod tests {
     #[test]
     fn prob_zero_groups_nothing_byte_identical() {
         let mut m = module_two_co_supported_gates();
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 0.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(n, 0);
         assert!(m.multi_output_task_groups.is_empty());
     }
@@ -362,7 +373,7 @@ mod tests {
         }); // id 5
         m.drives.push((0, 4));
         m.drives.push((1, 5));
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(
             n, 0,
             "no shared non-constant operand ⇒ no co-supported group"
@@ -401,7 +412,7 @@ mod tests {
         }); // id 4
         m.drives.push((0, 3));
         m.drives.push((1, 4));
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "a shared constant is not a shared formal");
     }
 
@@ -439,7 +450,7 @@ mod tests {
         m.drives.push((1, 3));
         assert!(in_fanin(&m, 2, 3), "g0 is in g1's fan-in");
         assert!(!in_fanin(&m, 3, 2), "g1 is not in g0's fan-in");
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "fan-in-dependent members must not pair (cycle)");
     }
 
@@ -453,7 +464,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         };
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "a Slice member is excluded ⇒ no pair");
     }
 
@@ -462,7 +473,7 @@ mod tests {
         // A gate already marked for a sibling projection is never a member.
         let mut m = module_two_co_supported_gates();
         m.task_emit_gates.insert(3);
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(
             n, 0,
             "a task-emit-marked gate cannot also be a multi-output member"
@@ -479,7 +490,7 @@ mod tests {
             max: 8,
             design_value: 4,
         });
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "parameterized modules are out of scope");
     }
 
@@ -545,7 +556,7 @@ mod tests {
         let mut m = module_two_co_supported_gates();
         let nodes_before = m.nodes.len();
         let sig_before = crate::metrics::canonical_module_signature(&m);
-        annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(m.nodes.len(), nodes_before, "no new IR node");
         assert_eq!(
             crate::metrics::canonical_module_signature(&m),
@@ -644,7 +655,7 @@ mod tests {
     #[test]
     fn prob_one_groups_a_co_supported_triple() {
         let mut m = module_three_co_supported_gates();
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1, "the three connected independent gates form ONE group");
         // Keyed by the lowest-NodeId leader (4) → the two higher partners (5, 6),
         // ascending. The k=2 first cut would have stopped at [5]; the widening
@@ -687,7 +698,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         }); // id 7 (e&f) — shares no operand with 5 or 6
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(
             n, 1,
             "only the connected pair groups; the disjoint gate cannot"
@@ -744,7 +755,7 @@ mod tests {
             shares_nonconst_operand(&m, 3, 5),
             "g2 co-supports g0 (both read b) — only independence excludes it"
         );
-        let n = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let n = annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(
             n, 1,
             "the independent pair groups; the dependent gate is excluded"
@@ -763,7 +774,8 @@ mod tests {
         // ungrouped (it has no remaining un-used partner).
         let n_gates = (MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS + 1) as u32;
         let mut m = module_n_co_supported_independent_gates(n_gates);
-        let groups = annotate_multi_output_task_groups(&mut m, &mut rng(), 1.0);
+        let groups =
+            annotate_multi_output_task_groups(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(
             groups, 1,
             "one capped group; the surplus gate has no partner"

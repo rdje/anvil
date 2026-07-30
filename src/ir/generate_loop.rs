@@ -107,7 +107,12 @@ fn gate_qualifies(m: &Module, id: NodeId, node: &Node) -> bool {
 /// Single-call per module (mirrors the `function_emit` / `soft_union`
 /// call-site roll). Must run **after** `annotate_function_emit_gates` so the
 /// function-emit marks are visible and excluded here.
-pub fn annotate_generate_loop_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_generate_loop_gates(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Scope: leave Phase 5 parameterized modules out (their emitted widths
     // are symbolic). Mirrors the soft_union / function_emit pass scoping.
     if m.param_env.is_some() {
@@ -125,7 +130,14 @@ pub fn annotate_generate_loop_gates(m: &mut Module, rng: &mut impl Rng, prob: f6
         .collect();
     let mut marked = 0usize;
     for id in candidates {
-        if rng.gen_bool(p) && m.generate_loop_gates.insert(id) {
+        if crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::GenerateLoopEmitProb,
+            p,
+        ) && m.generate_loop_gates.insert(id)
+        {
             marked += 1;
         }
     }
@@ -176,7 +188,7 @@ mod tests {
     #[test]
     fn prob_one_marks_a_1bit_replication_gate() {
         let mut m = module_1bit_replication(4);
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 1);
         assert!(m.generate_loop_gates.contains(&1));
     }
@@ -184,7 +196,7 @@ mod tests {
     #[test]
     fn prob_zero_marks_nothing_byte_identical() {
         let mut m = module_1bit_replication(4);
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 0.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(marked, 0);
         assert!(m.generate_loop_gates.is_empty());
     }
@@ -193,7 +205,7 @@ mod tests {
     fn single_operand_concat_does_not_qualify() {
         // A single-operand Concat is the identity, not a replication.
         let mut m = module_1bit_replication(1);
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 0);
     }
 
@@ -224,7 +236,7 @@ mod tests {
             width: 2,
             deps: DepSet::new(),
         }); // id 2
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 0);
     }
 
@@ -251,7 +263,7 @@ mod tests {
             width: 32,
             deps: DepSet::from_port(0),
         }); // id 1
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 1);
         assert!(m.generate_loop_gates.contains(&1));
     }
@@ -277,7 +289,7 @@ mod tests {
             width: 30,
             deps: DepSet::from_port(0),
         }); // id 1
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 0);
     }
 
@@ -287,7 +299,7 @@ mod tests {
         // is never also generate-loop-emitted (mutually exclusive on a gate).
         let mut m = module_1bit_replication(4);
         m.function_emit_gates.insert(1);
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 0);
         assert!(m.generate_loop_gates.is_empty());
     }
@@ -302,7 +314,7 @@ mod tests {
             max: 8,
             design_value: 4,
         });
-        let marked = annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        let marked = annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(marked, 0, "parameterized modules are out of scope");
     }
 
@@ -313,7 +325,7 @@ mod tests {
         let mut m = module_1bit_replication(4);
         let nodes_before = m.nodes.len();
         let sig_before = crate::metrics::canonical_module_signature(&m);
-        annotate_generate_loop_gates(&mut m, &mut rng(), 1.0);
+        annotate_generate_loop_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(m.nodes.len(), nodes_before, "no new IR node");
         assert_eq!(
             crate::metrics::canonical_module_signature(&m),

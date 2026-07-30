@@ -148,7 +148,12 @@ impl Generator {
         // output. Mirrors the `aggregate_prob` call-site roll.
         if self.cfg.soft_union_slice_prob > 0.0 {
             let p = self.cfg.soft_union_slice_prob;
-            crate::ir::soft_union::annotate_soft_union_slices(&mut m, &mut self.rng, p);
+            crate::ir::soft_union::annotate_soft_union_slices(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
         // `STRUCTURED-EMISSION-EXPANSION.2b.1` — opt-in combinational
         // `function automatic` emit-projection marker (decision `0012`).
@@ -159,7 +164,12 @@ impl Generator {
         // roll.
         if self.cfg.function_emit_prob > 0.0 {
             let p = self.cfg.function_emit_prob;
-            crate::ir::function_emit::annotate_function_emit_gates(&mut m, &mut self.rng, p);
+            crate::ir::function_emit::annotate_function_emit_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
         // `STRUCTURED-EMISSION-EXPANSION.4b` — opt-in `generate for` loop
         // emit-projection marker for `{N{x}}` 1-bit-lane replications
@@ -170,7 +180,12 @@ impl Generator {
         // + output. Mirrors the function_emit call-site roll.
         if self.cfg.generate_loop_emit_prob > 0.0 {
             let p = self.cfg.generate_loop_emit_prob;
-            crate::ir::generate_loop::annotate_generate_loop_gates(&mut m, &mut self.rng, p);
+            crate::ir::generate_loop::annotate_generate_loop_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
         // `STRUCTURED-EMISSION-EXPANSION.6b.1` — opt-in combinational
         // `task automatic` emit-projection marker (decision `0014`). Runs
@@ -180,7 +195,12 @@ impl Generator {
         // output. Mirrors the generate_loop call-site roll.
         if self.cfg.task_emit_prob > 0.0 {
             let p = self.cfg.task_emit_prob;
-            crate::ir::task_emit::annotate_task_emit_gates(&mut m, &mut self.rng, p);
+            crate::ir::task_emit::annotate_task_emit_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
         // `STRUCTURED-EMISSION-EXPANSION.12b` — opt-in multi-output combinational
         // `task automatic` emit-projection marker (decision `0025`). Runs AFTER
@@ -192,6 +212,7 @@ impl Generator {
             let p = self.cfg.multi_output_task_emit_prob;
             crate::ir::multi_output_task_emit::annotate_multi_output_task_groups(
                 &mut m,
+                &self.cfg.steering,
                 &mut self.rng,
                 p,
             );
@@ -204,7 +225,12 @@ impl Generator {
         // stream + output. Mirrors the task_emit call-site roll.
         if self.cfg.cone_function_emit_prob > 0.0 {
             let p = self.cfg.cone_function_emit_prob;
-            crate::ir::cone_function_emit::annotate_cone_function_gates(&mut m, &mut self.rng, p);
+            crate::ir::cone_function_emit::annotate_cone_function_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
         // `STRUCTURED-EMISSION-EXPANSION.15b` — opt-in procedural `always_comb`
         // `if`/`else` emit-projection marker for 2:1 `Mux` gates (decision
@@ -214,7 +240,12 @@ impl Generator {
         // stream + output. Mirrors the cone_function call-site roll.
         if self.cfg.mux_if_emit_prob > 0.0 {
             let p = self.cfg.mux_if_emit_prob;
-            crate::ir::mux_if_emit::annotate_mux_if_gates(&mut m, &mut self.rng, p);
+            crate::ir::mux_if_emit::annotate_mux_if_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
 
         // `STRUCTURED-EMISSION-EXPANSION.17b` — mark dynamic-selector `CaseMux`
@@ -225,7 +256,12 @@ impl Generator {
         // byte-identical stream + output. Mirrors the mux_if call-site roll.
         if self.cfg.case_mux_if_emit_prob > 0.0 {
             let p = self.cfg.case_mux_if_emit_prob;
-            crate::ir::case_mux_if_emit::annotate_case_mux_if_gates(&mut m, &mut self.rng, p);
+            crate::ir::case_mux_if_emit::annotate_case_mux_if_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
 
         // `STRUCTURED-EMISSION-EXPANSION.19b` — mark dynamic-selector `CasezMux`
@@ -237,7 +273,12 @@ impl Generator {
         // output. Mirrors the case_mux_if call-site roll.
         if self.cfg.casez_mux_if_emit_prob > 0.0 {
             let p = self.cfg.casez_mux_if_emit_prob;
-            crate::ir::casez_mux_if_emit::annotate_casez_mux_if_gates(&mut m, &mut self.rng, p);
+            crate::ir::casez_mux_if_emit::annotate_casez_mux_if_gates(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                p,
+            );
         }
         m
     }
@@ -408,7 +449,12 @@ impl Generator {
         if self.cfg.soft_union_slice_prob > 0.0 {
             let p = self.cfg.soft_union_slice_prob;
             for module in &mut design.modules {
-                crate::ir::soft_union::annotate_soft_union_slices(module, &mut self.rng, p);
+                crate::ir::soft_union::annotate_soft_union_slices(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
         // `STRUCTURED-EMISSION-EXPANSION.2b.1` — opt-in combinational
@@ -420,7 +466,12 @@ impl Generator {
         if self.cfg.function_emit_prob > 0.0 {
             let p = self.cfg.function_emit_prob;
             for module in &mut design.modules {
-                crate::ir::function_emit::annotate_function_emit_gates(module, &mut self.rng, p);
+                crate::ir::function_emit::annotate_function_emit_gates(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
         // `STRUCTURED-EMISSION-EXPANSION.4b` — opt-in `generate for` loop
@@ -432,7 +483,12 @@ impl Generator {
         if self.cfg.generate_loop_emit_prob > 0.0 {
             let p = self.cfg.generate_loop_emit_prob;
             for module in &mut design.modules {
-                crate::ir::generate_loop::annotate_generate_loop_gates(module, &mut self.rng, p);
+                crate::ir::generate_loop::annotate_generate_loop_gates(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
         // `STRUCTURED-EMISSION-EXPANSION.6b.1` — opt-in combinational
@@ -443,7 +499,12 @@ impl Generator {
         if self.cfg.task_emit_prob > 0.0 {
             let p = self.cfg.task_emit_prob;
             for module in &mut design.modules {
-                crate::ir::task_emit::annotate_task_emit_gates(module, &mut self.rng, p);
+                crate::ir::task_emit::annotate_task_emit_gates(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
         // `STRUCTURED-EMISSION-EXPANSION.12b` — opt-in multi-output combinational
@@ -457,6 +518,7 @@ impl Generator {
             for module in &mut design.modules {
                 crate::ir::multi_output_task_emit::annotate_multi_output_task_groups(
                     module,
+                    &self.cfg.steering,
                     &mut self.rng,
                     p,
                 );
@@ -473,6 +535,7 @@ impl Generator {
             for module in &mut design.modules {
                 crate::ir::cone_function_emit::annotate_cone_function_gates(
                     module,
+                    &self.cfg.steering,
                     &mut self.rng,
                     p,
                 );
@@ -485,7 +548,12 @@ impl Generator {
         if self.cfg.mux_if_emit_prob > 0.0 {
             let p = self.cfg.mux_if_emit_prob;
             for module in &mut design.modules {
-                crate::ir::mux_if_emit::annotate_mux_if_gates(module, &mut self.rng, p);
+                crate::ir::mux_if_emit::annotate_mux_if_gates(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
 
@@ -496,7 +564,12 @@ impl Generator {
         if self.cfg.case_mux_if_emit_prob > 0.0 {
             let p = self.cfg.case_mux_if_emit_prob;
             for module in &mut design.modules {
-                crate::ir::case_mux_if_emit::annotate_case_mux_if_gates(module, &mut self.rng, p);
+                crate::ir::case_mux_if_emit::annotate_case_mux_if_gates(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
 
@@ -507,7 +580,12 @@ impl Generator {
         if self.cfg.casez_mux_if_emit_prob > 0.0 {
             let p = self.cfg.casez_mux_if_emit_prob;
             for module in &mut design.modules {
-                crate::ir::casez_mux_if_emit::annotate_casez_mux_if_gates(module, &mut self.rng, p);
+                crate::ir::casez_mux_if_emit::annotate_casez_mux_if_gates(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    p,
+                );
             }
         }
         design

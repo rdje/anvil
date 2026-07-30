@@ -147,7 +147,12 @@ fn gate_qualifies(m: &Module, id: NodeId, node: &Node) -> bool {
 /// byte-identical (draws nothing). Single-call per module (mirrors the
 /// `case_mux_if_emit` call-site roll). Must run **last** — after every sibling
 /// projection pass — so their marks are visible and excluded here.
-pub fn annotate_casez_mux_if_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_casez_mux_if_gates(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Scope: leave Phase 5 parameterized modules out (their emitted widths are
     // symbolic; the param/structured cross-product is out of scope). Mirrors the
     // case_mux_if pass scoping.
@@ -166,7 +171,14 @@ pub fn annotate_casez_mux_if_gates(m: &mut Module, rng: &mut impl Rng, prob: f64
         .collect();
     let mut marked = 0usize;
     for id in candidates {
-        if rng.gen_bool(p) && m.casez_mux_if_gates.insert(id) {
+        if crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::CasezMuxIfEmitProb,
+            p,
+        ) && m.casez_mux_if_gates.insert(id)
+        {
             marked += 1;
         }
     }
@@ -236,7 +248,7 @@ mod tests {
     #[test]
     fn prob_one_marks_a_dynamic_casez_mux() {
         let mut m = module_casez_mux_gate();
-        let n = annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1);
         assert!(m.casez_mux_if_gates.contains(&6));
     }
@@ -244,7 +256,7 @@ mod tests {
     #[test]
     fn constant_selector_casez_mux_is_excluded() {
         let mut m = module_static_casez_mux_gate();
-        let n = annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "a constant-selector CasezMux is statically collapsed");
         assert!(m.casez_mux_if_gates.is_empty());
     }
@@ -252,7 +264,7 @@ mod tests {
     #[test]
     fn prob_zero_marks_nothing_byte_identical() {
         let mut m = module_casez_mux_gate();
-        let n = annotate_casez_mux_if_gates(&mut m, &mut rng(), 0.0);
+        let n = annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(n, 0);
         assert!(m.casez_mux_if_gates.is_empty());
     }
@@ -283,7 +295,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         });
-        let n = annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.casez_mux_if_gates.is_empty());
     }
@@ -321,7 +333,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         });
-        let n = annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.casez_mux_if_gates.is_empty());
     }
@@ -333,7 +345,10 @@ mod tests {
         // Includes the eighth surface's `case_mux_if_gates`.
         let mut m = module_casez_mux_gate();
         m.case_mux_if_gates.insert(6);
-        assert_eq!(annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0), 0);
+        assert_eq!(
+            annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0),
+            0
+        );
         assert!(m.casez_mux_if_gates.is_empty());
     }
 
@@ -347,7 +362,7 @@ mod tests {
             max: 8,
             design_value: 4,
         });
-        let n = annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "parameterized modules are out of scope");
     }
 
@@ -358,7 +373,7 @@ mod tests {
         let mut m = module_casez_mux_gate();
         let nodes_before = m.nodes.len();
         let sig_before = crate::metrics::canonical_module_signature(&m);
-        annotate_casez_mux_if_gates(&mut m, &mut rng(), 1.0);
+        annotate_casez_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(m.nodes.len(), nodes_before, "no new IR node");
         assert_eq!(
             crate::metrics::canonical_module_signature(&m),

@@ -685,6 +685,41 @@ pub enum KnobId {
     /// `Config::aggregate_array_prob` — given an aggregate, the chance it
     /// is rendered array-packed rather than struct-packed.
     AggregateArrayProb,
+
+    // --- `emission` (COVERAGE-STEERED-GENERATION.4b.2, decision 0035) ----
+    // The nine richer-structured emit-projections. Each rolls once per
+    // CANDIDATE GATE, so these are the highest-resolution knobs in the set —
+    // hundreds of attempts per module, against the motif knobs' one. They are
+    // a separate category from `motifs` for exactly that reason: a
+    // per-category average over both would be dominated by these.
+    /// `Config::soft_union_slice_prob` — per qualifying low-bits `Slice`, the
+    /// chance it renders through an IEEE-1800-2023 `union soft` overlay.
+    SoftUnionSliceProb,
+    /// `Config::function_emit_prob` — per qualifying gate, the chance it is
+    /// re-rendered as a `function automatic` over its direct operands.
+    FunctionEmitProb,
+    /// `Config::generate_loop_emit_prob` — per qualifying `{N{x}}`
+    /// replication, the chance it is re-rendered as a `generate for` loop.
+    GenerateLoopEmitProb,
+    /// `Config::task_emit_prob` — per qualifying gate, the chance it is
+    /// re-rendered as a combinational `task automatic`.
+    TaskEmitProb,
+    /// `Config::multi_output_task_emit_prob` — per ungrouped qualifying gate,
+    /// the chance it leads a co-supported multi-output `task automatic` group.
+    MultiOutputTaskEmitProb,
+    /// `Config::cone_function_emit_prob` — per qualifying cone root, the
+    /// chance the whole cone is re-rendered as one `function automatic`.
+    ConeFunctionEmitProb,
+    /// `Config::mux_if_emit_prob` — per qualifying 2:1 `Mux`, the chance it is
+    /// re-expressed as a procedural `always_comb` `if`/`else` block.
+    MuxIfEmitProb,
+    /// `Config::case_mux_if_emit_prob` — per qualifying dynamic-selector
+    /// `CaseMux`, the chance its `case` body becomes an `if`/`else if` chain.
+    CaseMuxIfEmitProb,
+    /// `Config::casez_mux_if_emit_prob` — per qualifying dynamic-selector
+    /// `CasezMux`, the chance its `casez` body becomes a **masked**
+    /// `if`/`else if` chain.
+    CasezMuxIfEmitProb,
 }
 
 impl KnobId {
@@ -729,6 +764,15 @@ impl KnobId {
             KnobId::MultiClockProb,
             KnobId::AggregateProb,
             KnobId::AggregateArrayProb,
+            KnobId::SoftUnionSliceProb,
+            KnobId::FunctionEmitProb,
+            KnobId::GenerateLoopEmitProb,
+            KnobId::TaskEmitProb,
+            KnobId::MultiOutputTaskEmitProb,
+            KnobId::ConeFunctionEmitProb,
+            KnobId::MuxIfEmitProb,
+            KnobId::CaseMuxIfEmitProb,
+            KnobId::CasezMuxIfEmitProb,
         ]
     }
 
@@ -782,6 +826,15 @@ impl KnobId {
             KnobId::MultiClockProb => 26,
             KnobId::AggregateProb => 27,
             KnobId::AggregateArrayProb => 28,
+            KnobId::SoftUnionSliceProb => 29,
+            KnobId::FunctionEmitProb => 30,
+            KnobId::GenerateLoopEmitProb => 31,
+            KnobId::TaskEmitProb => 32,
+            KnobId::MultiOutputTaskEmitProb => 33,
+            KnobId::ConeFunctionEmitProb => 34,
+            KnobId::MuxIfEmitProb => 35,
+            KnobId::CaseMuxIfEmitProb => 36,
+            KnobId::CasezMuxIfEmitProb => 37,
         }
     }
 
@@ -837,6 +890,15 @@ impl KnobId {
             KnobId::MultiClockProb => "multi_clock_prob",
             KnobId::AggregateProb => "aggregate_prob",
             KnobId::AggregateArrayProb => "aggregate_array_prob",
+            KnobId::SoftUnionSliceProb => "soft_union_slice_prob",
+            KnobId::FunctionEmitProb => "function_emit_prob",
+            KnobId::GenerateLoopEmitProb => "generate_loop_emit_prob",
+            KnobId::TaskEmitProb => "task_emit_prob",
+            KnobId::MultiOutputTaskEmitProb => "multi_output_task_emit_prob",
+            KnobId::ConeFunctionEmitProb => "cone_function_emit_prob",
+            KnobId::MuxIfEmitProb => "mux_if_emit_prob",
+            KnobId::CaseMuxIfEmitProb => "case_mux_if_emit_prob",
+            KnobId::CasezMuxIfEmitProb => "casez_mux_if_emit_prob",
         }
     }
 
@@ -848,7 +910,8 @@ impl KnobId {
     /// fixed: `state`, `selectors`, `datapath`, `terminals`, `sharing`,
     /// `hierarchy`, and — since `COVERAGE-STEERED-GENERATION.4b.1`
     /// (decision `0035`) — `motifs`, which selects *what kind of module
-    /// this is* rather than how a cone inside one is built. Every
+    /// this is*, and `emission`, which selects how an already-built cone is
+    /// *rendered*. Every
     /// `KnobId` maps to exactly one category (the match is exhaustive, so
     /// a new knob must declare its category).
     ///
@@ -883,6 +946,15 @@ impl KnobId {
             | KnobId::MultiClockProb
             | KnobId::AggregateProb
             | KnobId::AggregateArrayProb => "motifs",
+            KnobId::SoftUnionSliceProb
+            | KnobId::FunctionEmitProb
+            | KnobId::GenerateLoopEmitProb
+            | KnobId::TaskEmitProb
+            | KnobId::MultiOutputTaskEmitProb
+            | KnobId::ConeFunctionEmitProb
+            | KnobId::MuxIfEmitProb
+            | KnobId::CaseMuxIfEmitProb
+            | KnobId::CasezMuxIfEmitProb => "emission",
         }
     }
 }

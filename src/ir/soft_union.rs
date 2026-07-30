@@ -74,7 +74,12 @@ fn slice_qualifies(m: &Module, node: &Node) -> bool {
 /// the number newly marked. Callers must gate on `prob > 0.0` so the default
 /// path is byte-identical (draws nothing). Single-call per module (mirrors the
 /// `aggregate_prob` call-site roll).
-pub fn annotate_soft_union_slices(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_soft_union_slices(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Scope: leave Phase 5 parameterized modules out (the param/up-opt
     // cross-product is out of scope; their emitted widths are symbolic). The
     // param/aggregate cross-product is excluded for the same reason.
@@ -93,7 +98,14 @@ pub fn annotate_soft_union_slices(m: &mut Module, rng: &mut impl Rng, prob: f64)
         .collect();
     let mut marked = 0usize;
     for id in candidates {
-        if rng.gen_bool(p) && m.soft_union_slice_gates.insert(id) {
+        if crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::SoftUnionSliceProb,
+            p,
+        ) && m.soft_union_slice_gates.insert(id)
+        {
             marked += 1;
         }
     }
@@ -137,7 +149,7 @@ mod tests {
     #[test]
     fn prob_one_marks_a_proper_low_bits_slice() {
         let mut m = module_with_low_bits_slice(4);
-        let n = annotate_soft_union_slices(&mut m, &mut rng(), 1.0);
+        let n = annotate_soft_union_slices(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1);
         assert!(m.soft_union_slice_gates.contains(&1));
     }
@@ -145,7 +157,7 @@ mod tests {
     #[test]
     fn prob_zero_marks_nothing_byte_identical() {
         let mut m = module_with_low_bits_slice(4);
-        let n = annotate_soft_union_slices(&mut m, &mut rng(), 0.0);
+        let n = annotate_soft_union_slices(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(n, 0);
         assert!(m.soft_union_slice_gates.is_empty());
     }
@@ -154,7 +166,7 @@ mod tests {
     fn full_width_slice_does_not_qualify() {
         // hi+1 == src_width (8) → no narrowing → no heterogeneous members.
         let mut m = module_with_low_bits_slice(8);
-        let n = annotate_soft_union_slices(&mut m, &mut rng(), 1.0);
+        let n = annotate_soft_union_slices(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
     }
 
@@ -179,7 +191,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         });
-        let n = annotate_soft_union_slices(&mut m, &mut rng(), 1.0);
+        let n = annotate_soft_union_slices(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
     }
 
@@ -200,7 +212,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         });
-        let n = annotate_soft_union_slices(&mut m, &mut rng(), 1.0);
+        let n = annotate_soft_union_slices(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
     }
 
@@ -214,7 +226,7 @@ mod tests {
             max: 8,
             design_value: 8,
         });
-        let n = annotate_soft_union_slices(&mut m, &mut rng(), 1.0);
+        let n = annotate_soft_union_slices(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "parameterized modules are out of scope");
     }
 

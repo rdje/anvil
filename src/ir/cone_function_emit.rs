@@ -246,7 +246,12 @@ fn collect_cone(
 /// Must run **after** the sibling projection passes (`soft_union` /
 /// `function_emit` / `generate_loop` / `task_emit`) so their marks are visible
 /// and excluded. Mirrors the `annotate_function_emit_gates` call-site roll.
-pub fn annotate_cone_function_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_cone_function_gates(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Phase-5 parameterized modules are out of scope (symbolic widths; the
     // param/structured cross-product is out of scope). Mirrors the sibling
     // passes' scoping.
@@ -274,7 +279,13 @@ pub fn annotate_cone_function_gates(m: &mut Module, rng: &mut impl Rng, prob: f6
         if interior.is_empty() {
             continue;
         }
-        if rng.gen_bool(p) {
+        if crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::ConeFunctionEmitProb,
+            p,
+        ) {
             for &g in &interior {
                 claimed.insert(g);
             }
@@ -341,7 +352,7 @@ mod tests {
     #[test]
     fn prob_one_marks_a_cone_with_its_interior() {
         let mut m = module_cone();
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1);
         assert_eq!(
             m.cone_function_gates.get(&4),
@@ -353,7 +364,7 @@ mod tests {
     #[test]
     fn prob_zero_marks_nothing_byte_identical() {
         let mut m = module_cone();
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 0.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(n, 0);
         assert!(m.cone_function_gates.is_empty());
     }
@@ -388,7 +399,7 @@ mod tests {
             deps: DepSet::new(),
         }); // id 2 — root, no interior
         m.drives.push((2, 2));
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "a single-gate cone has no interior to absorb");
         assert!(m.cone_function_gates.is_empty());
     }
@@ -438,7 +449,7 @@ mod tests {
         }); // id 4 — root1
         m.drives.push((2, 3));
         m.drives.push((3, 4));
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "a multi-use interior gate stays a boundary param");
         assert!(m.cone_function_gates.is_empty());
     }
@@ -449,7 +460,7 @@ mod tests {
         // cone root nor an absorbable interior — the cone is empty.
         let mut m = module_cone();
         m.function_emit_gates.insert(3);
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.cone_function_gates.is_empty());
     }
@@ -491,7 +502,7 @@ mod tests {
             "the memory's wdata port must be counted as a consumer of node 3"
         );
 
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(
             n, 0,
             "node 3 has two consumers, so the cone has no absorbable interior"
@@ -523,7 +534,7 @@ mod tests {
             "the FSM's sel port must be counted as a consumer of node 3"
         );
 
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "node 3 has two consumers, so nothing is absorbable");
         assert!(m.cone_function_gates.is_empty());
     }
@@ -535,7 +546,7 @@ mod tests {
     fn adding_the_block_census_leaves_gate_only_modules_unchanged() {
         let mut m = module_cone();
         assert!(m.memories.is_empty() && m.fsms.is_empty());
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1, "a gate-only module is unaffected by the block census");
         assert_eq!(m.cone_function_gates.get(&4), Some(&vec![3]));
     }
@@ -550,7 +561,7 @@ mod tests {
             max: 8,
             design_value: 4,
         });
-        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "parameterized modules are out of scope");
     }
 
@@ -561,7 +572,7 @@ mod tests {
         let mut m = module_cone();
         let nodes_before = m.nodes.len();
         let sig_before = crate::metrics::canonical_module_signature(&m);
-        annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        annotate_cone_function_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(m.nodes.len(), nodes_before, "no new IR node");
         assert_eq!(
             crate::metrics::canonical_module_signature(&m),

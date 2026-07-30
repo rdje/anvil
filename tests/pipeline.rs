@@ -8253,6 +8253,166 @@ fn default_motif_knobs_record_no_rolls_and_consume_no_draws() {
     }
 }
 
+/// COVERAGE-STEERED-GENERATION.4b.2 (decision 0035): the **`emission`**
+/// category is a real dial, and ANVIL's nine structured-emission surfaces are
+/// measurable per-gate for the first time.
+///
+/// These are the highest-resolution knobs in the set — hundreds of attempts per
+/// module against the motif knobs' one — which is precisely why they are a
+/// separate category from `motifs` rather than folded in with them.
+#[test]
+fn steering_shifts_emission_category_construct_distribution() {
+    fn emission_rolls(steering: anvil::config::SteeringConfig) -> (u64, u64) {
+        let (mut fires, mut attempts) = (0u64, 0u64);
+        for seed in 0..8u64 {
+            let cfg = Config {
+                seed,
+                function_emit_prob: 0.4,
+                task_emit_prob: 0.4,
+                mux_if_emit_prob: 0.4,
+                comb_mux_prob: 0.6,
+                steering: steering.clone(),
+                ..Config::default()
+            };
+            cfg.validate().expect("emission steering config is valid");
+            let m = anvil::Generator::new(cfg).generate_module();
+            let metrics = anvil::metrics::compute(&m);
+            for knob in anvil::ir::KnobId::all() {
+                if knob.category() != "emission" {
+                    continue;
+                }
+                fires += metrics
+                    .knob_roll_fires
+                    .get(knob.name())
+                    .copied()
+                    .unwrap_or(0);
+                attempts += metrics
+                    .knob_roll_attempts
+                    .get(knob.name())
+                    .copied()
+                    .unwrap_or(0);
+            }
+        }
+        (fires, attempts)
+    }
+
+    fn category(weight: f64) -> anvil::config::SteeringConfig {
+        let mut per_category = std::collections::BTreeMap::new();
+        per_category.insert("emission".to_string(), weight);
+        anvil::config::SteeringConfig {
+            per_category,
+            ..Default::default()
+        }
+    }
+
+    let (base_fires, base_attempts) = emission_rolls(Default::default());
+    assert!(
+        base_attempts > 100,
+        "expected the emission knobs to roll per-gate (hundreds of attempts); \
+         got {base_attempts} — the passes are no longer routed through the \
+         knob-roll primitive"
+    );
+    let base_rate = base_fires as f64 / base_attempts as f64;
+
+    let (up_fires, up_attempts) = emission_rolls(category(2.0));
+    let up_rate = up_fires as f64 / up_attempts as f64;
+    let (down_fires, down_attempts) = emission_rolls(category(0.15));
+    let down_rate = down_fires as f64 / down_attempts as f64;
+
+    assert!(
+        up_rate > base_rate + 0.15,
+        "a 2x `emission` weight must raise the achieved rate (0.4 -> ~0.8); \
+         got up={up_rate:.3} base={base_rate:.3}"
+    );
+    assert!(
+        down_rate < base_rate - 0.15,
+        "a 0.15x `emission` weight must lower it; got down={down_rate:.3} \
+         base={base_rate:.3}"
+    );
+}
+
+/// COVERAGE-STEERED-GENERATION.4b.2: each of the nine emission surfaces
+/// reports its **own** per-gate fire rate, and every one is reachable by name
+/// through `--steer`. A family that steered only in aggregate would be a much
+/// weaker instrument than nine independently-measurable surfaces.
+#[test]
+fn every_emission_surface_is_individually_measurable_and_steerable() {
+    let emission: Vec<&'static str> = anvil::ir::KnobId::all()
+        .iter()
+        .filter(|k| k.category() == "emission")
+        .map(|k| k.name())
+        .collect();
+    assert_eq!(
+        emission.len(),
+        9,
+        "expected the 9 emit-projection surfaces decision 0035 names, got {emission:?}"
+    );
+
+    for name in &emission {
+        let mut steering = anvil::config::SteeringConfig::default();
+        steering
+            .set_weight(name, 2.0)
+            .unwrap_or_else(|e| panic!("--steer {name}=2.0 must classify, got {e:?}"));
+    }
+
+    // The eight non-version-gated surfaces all fire in one module at the
+    // decision-0032 calibrated probability, each with its own attempts count.
+    let cfg = Config {
+        seed: 7,
+        function_emit_prob: 0.25,
+        generate_loop_emit_prob: 0.25,
+        task_emit_prob: 0.25,
+        multi_output_task_emit_prob: 0.25,
+        cone_function_emit_prob: 0.25,
+        mux_if_emit_prob: 0.25,
+        case_mux_if_emit_prob: 0.25,
+        casez_mux_if_emit_prob: 0.25,
+        comb_mux_prob: 0.35,
+        case_mux_prob: 0.35,
+        casez_mux_prob: 0.35,
+        ..Config::default()
+    };
+    let m = anvil::Generator::new(cfg).generate_module();
+    let metrics = anvil::metrics::compute(&m);
+
+    let reported = emission
+        .iter()
+        .filter(|n| metrics.knob_roll_attempts.contains_key(**n))
+        .count();
+    assert!(
+        reported >= 8,
+        "expected at least the 8 non-version-gated emission surfaces to report \
+         their own attempts count in one module; only {reported} did"
+    );
+}
+
+/// COVERAGE-STEERED-GENERATION.4b.2: with every emission knob at its `0.0`
+/// default, no emission roll happens — the `> 0.0` call-site guards keep the
+/// RNG stream untouched, which is what makes the default DUT byte-identical.
+#[test]
+fn default_emission_knobs_record_no_rolls() {
+    for seed in 0..8u64 {
+        let m = anvil::Generator::new(Config {
+            seed,
+            ..Config::default()
+        })
+        .generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        for knob in anvil::ir::KnobId::all() {
+            if knob.category() != "emission" {
+                continue;
+            }
+            assert!(
+                !metrics.knob_roll_attempts.contains_key(knob.name()),
+                "seed {seed}: {} recorded an attempt at its 0.0 default — the \
+                 `> 0.0` guard has been removed, which consumes RNG draws and \
+                 breaks byte-identity",
+                knob.name()
+            );
+        }
+    }
+}
+
 /// Doctrine guard: the `compact_node_ids` pass keeps Rule 18
 /// (zero orphan gates) holding across all strategies and seeds,
 /// and records a non-zero `nodes_compacted` count whenever the

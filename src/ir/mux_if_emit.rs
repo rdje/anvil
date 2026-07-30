@@ -104,7 +104,12 @@ fn gate_qualifies(m: &Module, id: NodeId, node: &Node) -> bool {
 /// Single-call per module (mirrors the `task_emit` / `function_emit`
 /// call-site roll). Must run **last** — after every sibling projection pass —
 /// so their marks are visible and excluded here.
-pub fn annotate_mux_if_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_mux_if_gates(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Scope: leave Phase 5 parameterized modules out (their emitted widths are
     // symbolic; the param/structured cross-product is out of scope). Mirrors the
     // task_emit pass scoping.
@@ -123,7 +128,14 @@ pub fn annotate_mux_if_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> u
         .collect();
     let mut marked = 0usize;
     for id in candidates {
-        if rng.gen_bool(p) && m.mux_if_gates.insert(id) {
+        if crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::MuxIfEmitProb,
+            p,
+        ) && m.mux_if_gates.insert(id)
+        {
             marked += 1;
         }
     }
@@ -188,7 +200,7 @@ mod tests {
     #[test]
     fn prob_one_marks_a_mux_gate() {
         let mut m = module_mux_gate();
-        let n = annotate_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1);
         assert!(m.mux_if_gates.contains(&3));
     }
@@ -196,7 +208,7 @@ mod tests {
     #[test]
     fn prob_zero_marks_nothing_byte_identical() {
         let mut m = module_mux_gate();
-        let n = annotate_mux_if_gates(&mut m, &mut rng(), 0.0);
+        let n = annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(n, 0);
         assert!(m.mux_if_gates.is_empty());
     }
@@ -228,7 +240,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         }); // id 2
-        let n = annotate_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.mux_if_gates.is_empty());
     }
@@ -240,7 +252,7 @@ mod tests {
         // after function_emit).
         let mut m = module_mux_gate();
         m.function_emit_gates.insert(3);
-        let n = annotate_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.mux_if_gates.is_empty());
     }
@@ -249,7 +261,7 @@ mod tests {
     fn task_emit_marked_mux_is_excluded() {
         let mut m = module_mux_gate();
         m.task_emit_gates.insert(3);
-        let n = annotate_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.mux_if_gates.is_empty());
     }
@@ -259,12 +271,18 @@ mod tests {
         // A Mux that is a cone-function root (a key) is excluded.
         let mut root = module_mux_gate();
         root.cone_function_gates.insert(3, vec![]);
-        assert_eq!(annotate_mux_if_gates(&mut root, &mut rng(), 1.0), 0);
+        assert_eq!(
+            annotate_mux_if_gates(&mut root, &Default::default(), &mut rng(), 1.0),
+            0
+        );
         assert!(root.mux_if_gates.is_empty());
         // A Mux that is an absorbed cone interior (a value) is excluded too.
         let mut interior = module_mux_gate();
         interior.cone_function_gates.insert(99, vec![3]);
-        assert_eq!(annotate_mux_if_gates(&mut interior, &mut rng(), 1.0), 0);
+        assert_eq!(
+            annotate_mux_if_gates(&mut interior, &Default::default(), &mut rng(), 1.0),
+            0
+        );
         assert!(interior.mux_if_gates.is_empty());
     }
 
@@ -273,12 +291,18 @@ mod tests {
         // A Mux that is a multi-output-task leader (a key) is excluded.
         let mut leader = module_mux_gate();
         leader.multi_output_task_groups.insert(3, vec![99]);
-        assert_eq!(annotate_mux_if_gates(&mut leader, &mut rng(), 1.0), 0);
+        assert_eq!(
+            annotate_mux_if_gates(&mut leader, &Default::default(), &mut rng(), 1.0),
+            0
+        );
         assert!(leader.mux_if_gates.is_empty());
         // A Mux that is a multi-output-task partner (a value) is excluded too.
         let mut partner = module_mux_gate();
         partner.multi_output_task_groups.insert(99, vec![3]);
-        assert_eq!(annotate_mux_if_gates(&mut partner, &mut rng(), 1.0), 0);
+        assert_eq!(
+            annotate_mux_if_gates(&mut partner, &Default::default(), &mut rng(), 1.0),
+            0
+        );
         assert!(partner.mux_if_gates.is_empty());
     }
 
@@ -292,7 +316,7 @@ mod tests {
             max: 8,
             design_value: 4,
         });
-        let n = annotate_mux_if_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "parameterized modules are out of scope");
     }
 
@@ -303,7 +327,7 @@ mod tests {
         let mut m = module_mux_gate();
         let nodes_before = m.nodes.len();
         let sig_before = crate::metrics::canonical_module_signature(&m);
-        annotate_mux_if_gates(&mut m, &mut rng(), 1.0);
+        annotate_mux_if_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(m.nodes.len(), nodes_before, "no new IR node");
         assert_eq!(
             crate::metrics::canonical_module_signature(&m),

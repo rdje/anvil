@@ -81,7 +81,12 @@ fn gate_qualifies(m: &Module, id: NodeId, node: &Node) -> bool {
 /// call-site roll). Must run **after**
 /// `annotate_soft_union_slices` so the `union soft` marks are visible and
 /// excluded here.
-pub fn annotate_function_emit_gates(m: &mut Module, rng: &mut impl Rng, prob: f64) -> usize {
+pub fn annotate_function_emit_gates(
+    m: &mut Module,
+    steering: &crate::config::SteeringConfig,
+    rng: &mut impl Rng,
+    prob: f64,
+) -> usize {
     // Scope: leave Phase 5 parameterized modules out (their emitted
     // widths are symbolic; the param/structured cross-product is out of
     // scope). Mirrors the soft_union pass scoping.
@@ -100,7 +105,14 @@ pub fn annotate_function_emit_gates(m: &mut Module, rng: &mut impl Rng, prob: f6
         .collect();
     let mut marked = 0usize;
     for id in candidates {
-        if rng.gen_bool(p) && m.function_emit_gates.insert(id) {
+        if crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            steering,
+            rng,
+            crate::ir::KnobId::FunctionEmitProb,
+            p,
+        ) && m.function_emit_gates.insert(id)
+        {
             marked += 1;
         }
     }
@@ -158,7 +170,7 @@ mod tests {
     #[test]
     fn prob_one_marks_a_candidate_gate() {
         let mut m = module_and_gate();
-        let n = annotate_function_emit_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 1);
         assert!(m.function_emit_gates.contains(&2));
     }
@@ -166,7 +178,7 @@ mod tests {
     #[test]
     fn prob_zero_marks_nothing_byte_identical() {
         let mut m = module_and_gate();
-        let n = annotate_function_emit_gates(&mut m, &mut rng(), 0.0);
+        let n = annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 0.0);
         assert_eq!(n, 0);
         assert!(m.function_emit_gates.is_empty());
     }
@@ -194,7 +206,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         }); // id 3
-        let n = annotate_function_emit_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.function_emit_gates.is_empty());
     }
@@ -221,7 +233,7 @@ mod tests {
             width: 4,
             deps: DepSet::new(),
         }); // id 1
-        let n = annotate_function_emit_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.function_emit_gates.is_empty());
     }
@@ -233,7 +245,7 @@ mod tests {
         // exclusive on a gate).
         let mut m = module_and_gate();
         m.soft_union_slice_gates.insert(2);
-        let n = annotate_function_emit_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.function_emit_gates.is_empty());
     }
@@ -248,7 +260,7 @@ mod tests {
             max: 8,
             design_value: 4,
         });
-        let n = annotate_function_emit_gates(&mut m, &mut rng(), 1.0);
+        let n = annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(n, 0, "parameterized modules are out of scope");
     }
 
@@ -259,7 +271,7 @@ mod tests {
         let mut m = module_and_gate();
         let nodes_before = m.nodes.len();
         let sig_before = crate::metrics::canonical_module_signature(&m);
-        annotate_function_emit_gates(&mut m, &mut rng(), 1.0);
+        annotate_function_emit_gates(&mut m, &Default::default(), &mut rng(), 1.0);
         assert_eq!(m.nodes.len(), nodes_before, "no new IR node");
         assert_eq!(
             crate::metrics::canonical_module_signature(&m),
