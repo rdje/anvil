@@ -96,7 +96,7 @@ in `src/ir/types.rs`.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.5 — the guard covers the state, not just the API
 
-**Landed as:** `<pending>` (previous: `d86475f`, `.4a` corrections hash backfill).
+**Landed as:** `2d447c3` (previous: `d86475f`, `.4a` corrections hash backfill).
 **No generation path touched** — visibility plus two accessors ⇒ **DUT
 byte-identical** (`tests/snapshots.rs` 6/6).
 
