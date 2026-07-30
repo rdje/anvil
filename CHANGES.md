@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — README-POLICY-ADOPTION.2 — restore the landing page (1771 → 156 lines)
 
-**Landed as:** (backfilled next slice). Previous: `55b84d2`.
+**Landed as:** `d6cca64`. Previous: `55b84d2`.
 **Comment-only `src/` touch** (two stale doc-comment cross-references) ⇒
 **DUT byte-identical**; `cargo test` incl. `tests/snapshots.rs` green.
 

@@ -140,7 +140,7 @@ back, because a mechanical cap fails the commit.
 | --- | --- | --- |
 | `README-POLICY-ADOPTION` | `7a1fc50` — `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | Registered (not started) in the docs slice that surfaced it; no README content moved in that commit. |
 | `README-POLICY-ADOPTION.1` | `b50ff9e` — `README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)` | Docs-only; hash backfilled by `55b84d2`. |
-| `README-POLICY-ADOPTION.2` | `README-POLICY-ADOPTION.2 — restore the landing page by deletion (1771 -> 156)` | Hash backfilled next slice. Comment-only `src/` touch ⇒ DUT byte-identical. |
+| `README-POLICY-ADOPTION.2` | `d6cca64` — `README-POLICY-ADOPTION.2 — restore the landing page by deletion` | Comment-only `src/` touch ⇒ DUT byte-identical. |
 
 ## Changelog
 
