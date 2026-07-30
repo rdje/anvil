@@ -5,6 +5,53 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Trim order is a correctness property — `BOOK-EXAMPLES-RUNNABLE.3`
+
+Two lines that look like ordinary string hygiene, in the guard whose whole job is
+to stop an example being skipped without a reason:
+
+```rust
+let reason = rest.trim_start_matches([' ', '—', '-', ':']).trim();
+let reason = reason.trim_end_matches("-->").trim();
+```
+
+The punctuation set the front-trim strips **contains `'-'`**, and the closing
+delimiter it is supposed to leave alone **is made of hyphens**. For a reasonless
+`<!-- book-test: skip -->` the front-trim reaches `" -->"`, eats the space and
+both hyphens, and hands back `">"` — non-empty, so the guard passes and the block
+silently leaves the suite.
+
+**The generalisable rule: strip delimiters before content, never after.** A
+front-trim over a character class that overlaps the *closing* delimiter can reach
+it once the payload between them is empty. Every "trim the noise, then find the
+end marker" pair has this shape, and it only fails on the **empty-payload** case —
+which is exactly the case the guard exists to catch. Order the passes so the
+structure (delimiters) is consumed first and the content second.
+
+**Choose the fail direction explicitly.** A sentinel missing its `-->` now returns
+`None`, which classifies the block as *runnable*. A typo therefore makes an
+example execute — and fail loudly if it genuinely cannot run — instead of quietly
+dropping out of the suite. When a parser is deciding *whether a check applies*,
+malformed input must land on the side where the check still happens.
+
+**A test over the live tree cannot prove a rejection.**
+`skip_sentinels_have_reasons` iterates the book's actual sentinels. It can only
+ever say "the ones present are fine" — it is structurally incapable of proving the
+extractor would reject a bad one, which is why it passed for two months while the
+extractor could not reject anything. Any guard whose contract is *"input of shape
+X is refused"* needs a test that **supplies shape X**, i.e. a table over
+constructed inputs, not a walk over the corpus. (Sibling of the same day's
+`COVERAGE-STEERED-GENERATION.3b` lesson: a proof that samples one member of a set
+cannot detect the set is partitioned.)
+
+**Found by accident, which is the uncomfortable part.** The bug surfaced only
+because a new example was written with a lazy sentinel and the suite stayed green
+when it should not have. Nothing was looking for it. That is the argument for the
+decision-`0033` habit of asking, of every guard: *what is the exact input this is
+supposed to reject, and does anything supply it?*
+
+---
+
 ## 2026-07-30 — A private helper is an invitation to fork it — `COVERAGE-STEERED-GENERATION.3b`
 
 `.3a` guessed the wrong root cause, and the compiler said so in one build. Worth

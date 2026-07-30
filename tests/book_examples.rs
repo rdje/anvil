@@ -71,6 +71,34 @@ struct Block {
     body: String,
 }
 
+/// Extract the reason from a candidate skip-sentinel line
+/// (`BOOK-EXAMPLES-RUNNABLE.3`).
+///
+/// `None` ⇒ `line` is not a well-formed sentinel, so the block **runs**. That
+/// is the safe direction: a malformed sentinel makes an example execute (and
+/// fail loudly if it cannot), never silently disappear from the suite.
+/// `Some(reason)` ⇒ a well-formed sentinel; the caller asserts `reason` is
+/// non-empty.
+///
+/// **Order is load-bearing.** The original implementation trimmed the reason
+/// punctuation (`' '`, `'—'`, `'-'`, `':'`) off the *front* before stripping
+/// the closing `-->` off the back — so a reasonless `<!-- book-test: skip -->`
+/// left `" -->"`, the front-trim ate both hyphens of the delimiter, and the
+/// reason came out as the non-empty `">"`. The guard that exists specifically
+/// to reject an unexplained skip could not see one. Strip the delimiter
+/// **first**, then the punctuation.
+fn skip_sentinel_reason(line: &str) -> Option<String> {
+    let rest = line.trim().strip_prefix("<!-- book-test: skip")?;
+    // A sentinel without its closing delimiter is malformed, not a skip.
+    let body = rest.trim_end().strip_suffix("-->")?;
+    Some(
+        body.trim()
+            .trim_start_matches([' ', '—', '-', ':'])
+            .trim()
+            .to_string(),
+    )
+}
+
 fn parse_blocks(md: &Path) -> Vec<Block> {
     let text = fs::read_to_string(md).unwrap();
     let lines: Vec<&str> = text.split('\n').collect();
@@ -81,19 +109,13 @@ fn parse_blocks(md: &Path) -> Vec<Block> {
         if lines[i].trim() == "```bash" {
             // Sentinel must be the line IMMEDIATELY before the fence.
             let skip_reason = if i > 0 {
-                let prev = lines[i - 1].trim();
-                if let Some(rest) = prev.strip_prefix("<!-- book-test: skip") {
-                    let reason = rest.trim_start_matches([' ', '—', '-', ':']).trim();
-                    let reason = reason.trim_end_matches("-->").trim();
+                skip_sentinel_reason(lines[i - 1]).inspect(|reason| {
                     assert!(
                         !reason.is_empty(),
                         "{name}:{}: book-test skip sentinel must carry a reason",
                         i
                     );
-                    Some(reason.to_string())
-                } else {
-                    None
-                }
+                })
             } else {
                 None
             };
@@ -275,6 +297,64 @@ fn harness_detects_a_broken_command() {
         r.is_err(),
         "harness MUST fail on a broken command — a green run would be vacuous"
     );
+}
+
+/// BOOK-EXAMPLES-RUNNABLE.3 — the extractor itself, table-driven.
+///
+/// `skip_sentinels_have_reasons` below walks the *live* book, so it can only
+/// ever prove that the sentinels currently in the tree are fine. It cannot
+/// prove the extractor would **reject** a bad one — and for two months it did
+/// not: a reasonless `<!-- book-test: skip -->` parsed to the non-empty reason
+/// `">"` because the front-trim ate the closing delimiter's hyphens. This test
+/// pins the classification of each shape directly, so the hole cannot reopen
+/// without a red test.
+#[test]
+fn skip_sentinel_reason_rejects_reasonless_sentinels() {
+    // (line, expected) — `None` = not a sentinel (block runs);
+    // `Some("")` = a sentinel the caller must reject; `Some(r)` = accepted.
+    let cases: &[(&str, Option<&str>)] = &[
+        // The regression: no reason at all. Must extract EMPTY, not ">".
+        ("<!-- book-test: skip -->", Some("")),
+        ("<!-- book-test: skip-->", Some("")),
+        ("<!-- book-test: skip    -->", Some("")),
+        // Punctuation-only reasons are equally unexplained.
+        ("<!-- book-test: skip —  -->", Some("")),
+        ("<!-- book-test: skip - -->", Some("")),
+        ("<!-- book-test: skip : -->", Some("")),
+        // Well-formed reasons survive, with the leading punctuation trimmed.
+        (
+            "<!-- book-test: skip — requires verilator -->",
+            Some("requires verilator"),
+        ),
+        (
+            "<!-- book-test: skip - requires verilator -->",
+            Some("requires verilator"),
+        ),
+        (
+            "<!-- book-test: skip: needs network -->",
+            Some("needs network"),
+        ),
+        // Leading/trailing whitespace on the line is irrelevant.
+        (
+            "   <!-- book-test: skip — install shorthand -->   ",
+            Some("install shorthand"),
+        ),
+        // Not sentinels at all — the block runs.
+        ("<!-- book-test: run -->", None),
+        ("some prose", None),
+        ("<!-- an ordinary comment -->", None),
+        // Malformed: no closing delimiter. Fail SAFE — the block runs rather
+        // than vanishing from the suite on a typo.
+        ("<!-- book-test: skip — requires verilator", None),
+    ];
+
+    for (line, expected) in cases {
+        assert_eq!(
+            skip_sentinel_reason(line).as_deref(),
+            *expected,
+            "skip_sentinel_reason({line:?}) misclassified"
+        );
+    }
 }
 
 /// Every skip sentinel carries a non-empty reason (no silent skips).

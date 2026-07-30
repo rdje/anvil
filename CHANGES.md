@@ -1,6 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — BOOK-EXAMPLES-RUNNABLE.3 — the no-silent-skips guard can now see a silent skip
+
+**Landed as:** `<pending>` (previous: `2db95f9`, `COVERAGE-STEERED-GENERATION.3` hash backfill).
+**Test-code only** — no `src/` or `examples/` change ⇒ **DUT byte-identical**.
+**Re-closes the `BOOK-EXAMPLES-RUNNABLE` tree**, reopened hours earlier the same day.
+
+**What.** `tests/book_examples.rs`'s guarantee that *no book example is skipped
+without a stated reason* did not hold. A skip sentinel written with no reason at
+all — `<!-- book-test: skip -->` — was accepted, and the block silently dropped
+out of the suite.
+
+**Why.** The reason was extracted by trimming the reason punctuation
+(`' '`, `'—'`, `'-'`, `':'`) off the **front** and *then* stripping the closing
+`-->` off the back:
+
+```rust
+let reason = rest.trim_start_matches([' ', '—', '-', ':']).trim();
+let reason = reason.trim_end_matches("-->").trim();
+```
+
+For a reasonless sentinel `rest` is `" -->"`. The front-trim eats the space and
+then **both hyphens of the closing delimiter**, leaving `">"` — which the
+back-strip cannot match and which `!reason.is_empty()` happily accepts. Both the
+inline `assert!` and the dedicated `skip_sentinels_have_reasons` test passed.
+This is the decision-`0033` **S3** tier — *a gate that reports success it did not
+earn* — reached through trim **order** rather than a missing enumeration entry.
+
+**How it was found.** By writing exactly that sentinel while documenting
+`COVERAGE-STEERED-GENERATION.3c`, and noticing the suite stayed green when it
+should not have. Root-caused with a compiled probe over the real extraction code
+rather than a mental trace — the repo's *"the fixture agrees with you; the tool
+does not"* rule.
+
+**Fixed.**
+
+- The inline parse becomes a named, testable
+  `skip_sentinel_reason(line) -> Option<String>`, with the order corrected:
+  **strip the closing `-->` first, then the reason punctuation.**
+- A sentinel with **no closing delimiter** now returns `None` — meaning the block
+  **runs**. That direction is deliberate: a typo should make an example execute
+  and fail loudly, never silently disappear from the suite.
+- New table test `skip_sentinel_reason_rejects_reasonless_sentinels` pins 14
+  shapes — 6 that must extract **empty** (reasonless with and without padding,
+  em-dash-only, hyphen-only, colon-only), 4 well-formed reasons across the three
+  separator styles plus surrounding line whitespace, 3 non-sentinels, and 1
+  malformed-no-delimiter. The existing `skip_sentinels_have_reasons` walks the
+  *live* book, so it could only ever prove the current sentinels are fine; it
+  could not prove the extractor **rejects** a bad one. Now something does.
+
+**Validation — both negative controls, both directions.**
+
+1. Restoring the pre-`.3` trim order fails the table test with exactly
+   `left: Some(">")  right: Some("")`; reverting passes.
+2. Appending a reasonless `<!-- book-test: skip -->` to a live chapter now fails
+   the suite with `faq.md:320: book-test skip sentinel must carry a reason` — the
+   case that passed silently before — and removing it restores green with the
+   chapter byte-identical.
+
+**The audit that came free.** `skip_sentinels_have_reasons` *is* the audit of the
+34 live sentinels, once the extractor is correct. It passes, so none of them had
+a punctuation-only reason hiding behind the bug.
+
+**Gate.** `cargo fmt --all --check` clean, `cargo clippy --all-targets -- -D
+warnings` clean, `cargo check --all-targets` clean, `cargo test` green
+(`book_examples` 3/3 + the new table test; snapshots 6/6 untouched — no `src/`
+change).
+
+**Files touched.** `tests/book_examples.rs`,
+`docs/tasks/BOOK-EXAMPLES-RUNNABLE.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.3c — steering docs + close `.3`
 
 **Landed as:** `7a1fc50` (previous: `c4c7843`, `COVERAGE-STEERED-GENERATION.3b`).
