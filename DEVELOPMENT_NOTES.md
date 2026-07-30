@@ -5,6 +5,69 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — A private helper is an invitation to fork it — `COVERAGE-STEERED-GENERATION.3b`
+
+`.3a` guessed the wrong root cause, and the compiler said so in one build. Worth
+recording because the guess was *plausible*, which is what makes that failure mode
+expensive.
+
+**The guess.** The seven `roll_hierarchy_*` helpers must exist because
+`roll_knob(g, m, ..)` needs `&mut Generator` and `&mut Module` at once, and the
+hierarchy planner reaches its module through `ctx.top` while `g` is live — a borrow
+conflict. It reads well. It matches the shape of the call sites (they pass
+`ctx.top` and `&mut g.rng` separately, which *looks* like someone working around
+exactly that).
+
+**The truth.** `g.roll_knob(ctx.top, KnobId::X, g.cfg.x)` compiles at all seven
+sites with zero warnings — Rust's two-phase borrows have covered that form since
+2018. The pre-`.3b` `roll_knob` was simply a **module-private `fn` in
+`gen::cone`**, so its sibling `gen::hierarchy` could not see it and wrote its own.
+
+**The lesson that generalises.** *A private helper in one module is an invitation
+to fork it in the next.* When a helper encodes a **cross-cutting invariant** — here
+"every knob roll carries the steering prior and lands in the telemetry" — module
+privacy is not encapsulation, it is a fork generator. Either give it crate
+visibility from the start, or (better, and what `.3b` does) make the *effect* it
+guards unreachable by any other route.
+
+**How to tell the two apart, cheaply.** Both stories predict the same code. Only
+one survives a compile. When a root cause is a claim about the *compiler*, spend
+the sixty seconds to make the compiler answer — do not ship the plausible one into
+a decision record. (`.3a` did; decision `0034` now carries a dated Correction
+section rather than a quiet edit, because the wrong guess is itself the useful
+artifact.)
+
+**Why the guard is placed on the effect, not on the function.** Making
+`Generator::roll_knob` crate-visible fixes today's fork and prevents nothing: a
+future module that does not *think* to look for it will still write
+`rng.gen_bool(p); m.knob_rolls.record(k, fired)` — the exact four lines that caused
+this. Privatising `KnobRollCounters::record` into the primitive's own module makes
+those four lines a build failure (`error[E0624]`). **Guard the write, not the
+wrapper.** The same reasoning applies anywhere a "single point of truth" helper
+exists: ask what the helper *does* that nobody else may do, and see whether the
+type system can make that unreachable.
+
+**On the test that caught it — and the one that did not.** `.2a`'s
+distribution-shift proof up-weights `state` and watches `flop_prob`, a `cone.rs`
+knob. It passed throughout the two months the hierarchy knobs were inert. *A proof
+that samples one member of a set cannot detect that the set is partitioned.* The
+`.3b` replacement is per-knob, spans both regions of the roll surface, and asserts
+**both** weight directions — a one-sided proof is satisfied by a mechanism that only
+ever raises a probability, which is not what a multiplier is.
+
+**A calibration note on the first attempt at that test.** Aggregating fire rates
+across the whole `hierarchy` category made the assertion fail even though the fix
+worked (0.0226 → 0.0370, a 64 % relative rise, but only +0.014 absolute). The
+denominator was flooded by `HierarchyParentFlopProb`, which the parent-cone scopes
+roll thousands of times at `cfg.flop_prob = hierarchy_parent_flop_prob = 0.0` —
+un-movable rolls, since any weight times zero is zero. Two takeaways: an aggregate
+fire rate is a bad control metric when the population mixes live and zero-probability
+knobs (the same reason `.2b`'s share sweep normalises `shared_node_fraction`); and
+`HierarchyParentFlopProb` labelling two different decisions is a real telemetry
+conflation, now recorded as an open question on the tree.
+
+---
+
 ## 2026-07-30 — Search from the site that COMMITS the fact, not from the call you already know — `COVERAGE-STEERED-GENERATION.3a`
 
 `COVERAGE-STEERED-GENERATION.2a` shipped coverage steering as *"one multiplier at one

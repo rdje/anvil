@@ -7949,6 +7949,156 @@ fn neutral_steering_weight_is_byte_identical_to_unsteered() {
     }
 }
 
+/// COVERAGE-STEERED-GENERATION.3b (decision 0034): **the regression proof for
+/// the `hierarchy` steering category.**
+///
+/// `.2a`'s sibling proof above up-weights `state` and watches `flop_prob` —
+/// a knob rolled in `gen/cone.rs`. Every hierarchy knob is rolled in
+/// `gen/hierarchy.rs`, which until `.3b` carried seven roll primitives of its
+/// own that recorded the same telemetry while skipping
+/// `SteeringConfig::effective_prob`. The result was measured, at `ff506e1`,
+/// as an exact no-op: a 9x weight on `hierarchy_child_input_cone_prob` left
+/// its recorded counts at `0 fires / 5 attempts` when `clamp01(0.3 * 9) = 1.0`
+/// demands `5/5`, and an 800x spread across the whole category emitted
+/// byte-identical SV.
+///
+/// A proof that samples one member of a set cannot detect that the set is
+/// partitioned — so this one samples the *other* region of the roll surface,
+/// end to end through `generate_design`.
+#[test]
+fn steering_shifts_hierarchy_category_construct_distribution() {
+    // The three hierarchy-category knobs a depth-1 wrapper actually rolls,
+    // each given the same live, sub-saturated base probability so an
+    // up-weight has room to move it and a down-weight has room to cut it.
+    const BASE_PROB: f64 = 0.3;
+    const PROBED: [&str; 3] = [
+        "hierarchy_sibling_route_prob",
+        "hierarchy_child_input_cone_prob",
+        "hierarchy_parent_cone_instance_prob",
+    ];
+
+    /// Achieved `(fires, attempts)` per probed knob over a fixed seed sweep.
+    fn hierarchy_rolls(
+        steering: anvil::config::SteeringConfig,
+    ) -> std::collections::BTreeMap<&'static str, (u64, u64)> {
+        let mut out: std::collections::BTreeMap<&'static str, (u64, u64)> =
+            PROBED.iter().map(|k| (*k, (0, 0))).collect();
+        for seed in 0..12u64 {
+            let cfg = Config {
+                seed,
+                hierarchy_depth: 1,
+                num_leaf_modules: 2,
+                num_child_instances: 6,
+                hierarchy_sibling_route_prob: BASE_PROB,
+                hierarchy_child_input_cone_prob: BASE_PROB,
+                hierarchy_parent_cone_instance_prob: BASE_PROB,
+                max_parent_cone_instances_per_module: 3,
+                steering: steering.clone(),
+                ..Config::default()
+            };
+            cfg.validate().expect("hierarchy steering config is valid");
+
+            let design = anvil::Generator::new(cfg).generate_design();
+            let top = design
+                .modules
+                .iter()
+                .find(|module| module.name == design.top)
+                .expect("top module must exist");
+            let metrics = anvil::metrics::compute(top);
+
+            for knob in PROBED {
+                let entry = out.get_mut(knob).expect("probed knob");
+                entry.0 += metrics.knob_roll_fires.get(knob).copied().unwrap_or(0);
+                entry.1 += metrics.knob_roll_attempts.get(knob).copied().unwrap_or(0);
+            }
+        }
+        out
+    }
+
+    fn category_steering(weight: f64) -> anvil::config::SteeringConfig {
+        let mut per_category = std::collections::BTreeMap::new();
+        per_category.insert("hierarchy".to_string(), weight);
+        anvil::config::SteeringConfig {
+            per_category,
+            ..Default::default()
+        }
+    }
+
+    let baseline = hierarchy_rolls(Default::default());
+    let up = hierarchy_rolls(category_steering(3.0));
+    let down = hierarchy_rolls(category_steering(0.05));
+
+    // Both directions are asserted: a mechanism that only ever raises a
+    // probability would satisfy a one-sided proof, and steering is a
+    // multiplier.
+    for knob in PROBED {
+        let (bf, ba) = baseline[knob];
+        let (uf, ua) = up[knob];
+        let (df, da) = down[knob];
+
+        assert!(
+            ba > 0,
+            "expected `{knob}` to be rolled by the probe design; got 0 \
+             attempts — the probe no longer reaches that hierarchy decision"
+        );
+        let base_rate = bf as f64 / ba as f64;
+
+        assert!(
+            ua > 0 && uf as f64 / ua as f64 > base_rate + 0.15,
+            "a 3x `hierarchy` category weight must raise `{knob}`'s achieved \
+             fire rate (base {BASE_PROB} -> ~0.9); got {uf}/{ua} vs baseline \
+             {bf}/{ba}. If these match, a hierarchy roll site has been forked \
+             back out of `Generator::roll_knob` and no longer applies the \
+             steering prior (decision 0034)."
+        );
+        assert!(
+            da > 0 && (df as f64 / da as f64) < base_rate - 0.15,
+            "a 0.05x `hierarchy` category weight must lower `{knob}`'s \
+             achieved fire rate (base {BASE_PROB} -> ~0.015); got {df}/{da} \
+             vs baseline {bf}/{ba}"
+        );
+    }
+}
+
+/// COVERAGE-STEERED-GENERATION.3b: an explicit **neutral** (`1.0`) weight on
+/// the `hierarchy` category emits byte-identical designs. The sibling proof
+/// above (`neutral_steering_weight_is_byte_identical_to_unsteered`) only
+/// exercises the single-module lane, which contains no hierarchy roll at all.
+#[test]
+fn neutral_hierarchy_steering_is_byte_identical_on_designs() {
+    fn design_sv(steering: anvil::config::SteeringConfig, seed: u64) -> String {
+        let cfg = Config {
+            seed,
+            hierarchy_depth: 1,
+            num_leaf_modules: 2,
+            num_child_instances: 4,
+            hierarchy_sibling_route_prob: 0.5,
+            hierarchy_child_input_cone_prob: 0.5,
+            hierarchy_parent_cone_instance_prob: 0.5,
+            hierarchy_parent_flop_prob: 0.5,
+            steering,
+            ..Config::default()
+        };
+        anvil::emit::to_sv_design(&anvil::Generator::new(cfg).generate_design())
+    }
+
+    for seed in 0..8u64 {
+        let mut per_category = std::collections::BTreeMap::new();
+        per_category.insert("hierarchy".to_string(), 1.0);
+        let neutral = anvil::config::SteeringConfig {
+            per_category,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            design_sv(Default::default(), seed),
+            design_sv(neutral, seed),
+            "explicit neutral hierarchy steering (weight 1.0) must be \
+             byte-identical to unsteered design output at seed {seed}"
+        );
+    }
+}
+
 /// Doctrine guard: the `compact_node_ids` pass keeps Rule 18
 /// (zero orphan gates) holding across all strategies and seeds,
 /// and records a non-zero `nodes_compacted` count whenever the

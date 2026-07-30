@@ -468,6 +468,29 @@ src/
 │                     proper low-bits Slice gates render as an internal
 │                     `union soft` overlay (see `ir/soft_union.rs`).
 │
+├── ir/knob_roll.rs   COVERAGE-STEERED-GENERATION.3b (decision 0034) — the
+│                     crate's SINGLE knob-roll primitive, and the module
+│                     that makes "single" structural. Holds
+│                     `KnobRollCounters` (moved here from `ir/types.rs`,
+│                     re-exported so `Module.knob_rolls` and every
+│                     `crate::ir::KnobRollCounters` path are unchanged) plus
+│                     `roll_knob_into(&mut KnobRollCounters,
+│                     &SteeringConfig, &mut impl Rng, KnobId, f64) -> bool`:
+│                     one `SteeringConfig::effective_prob` multiply, one
+│                     `gen_bool` draw, one telemetry write.
+│                     `KnobRollCounters::record` is **private to this
+│                     module**, so a second (unsteered) roll primitive is a
+│                     COMPILE ERROR — repair rung R2, negative-controlled
+│                     both ways at `.3b` (`error[E0624]: method 'record' is
+│                     private`). Before `.3b` the primitive was a
+│                     module-private `fn` in `gen/cone.rs`, invisible to
+│                     `gen/hierarchy.rs`, which had forked seven unsteered
+│                     copies — leaving 6 of 22 KnobIds and the whole
+│                     documented `hierarchy` steering category silently
+│                     inert for two months. Reached crate-wide through the
+│                     `Generator::roll_knob(&mut self, m, knob, prob)` shim
+│                     in `gen/mod.rs`.
+│
 ├── ir/soft_union.rs  SV-VERSION-TARGETING.3b.2a first up-opt. Gen-time
 │                     `annotate_soft_union_slices(m, rng, prob)` pass
 │                     (rolled at the `gen/mod.rs` call site like
@@ -2289,8 +2312,9 @@ In code (constructors / generator):
 - Associative operators (`And`, `Or`, `Xor`, `Add`, `Mul`) are N-arity with N drawn from `[cfg.min_gate_arity, cfg.max_gate_arity]` each emission. `Sub` stays strictly 2-arity (not associative). Non-operators retain their natural operand counts. See `book/src/structural-rules.md` Rule 14 and the "Operators vs blocks" preamble.
 - The full catalog of enforced invariants lives in `book/src/structural-rules.md`. This file's invariants lists above are a summary with pointers to the catalog.
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
-- `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every leaf/cone probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`. Hierarchy binding helpers separately record the hierarchy probability knobs into the same `m.knob_rolls` sink: `hierarchy_sibling_route_prob`, `hierarchy_registered_sibling_route_prob`, `hierarchy_registered_child_input_cone_prob`, `hierarchy_child_input_cone_prob`, `hierarchy_parent_cone_instance_prob`, and `hierarchy_parent_flop_prob`.
-- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): `roll_knob` now applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: `state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
+- `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every leaf/cone probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`. The hierarchy binding decisions in `gen/hierarchy.rs` roll the hierarchy probability knobs through **the same** primitive, naming their `KnobId` inline at each of their seven decision sites: `hierarchy_sibling_route_prob`, `hierarchy_registered_sibling_route_prob`, `hierarchy_registered_sibling_mixed_support_prob`, `hierarchy_registered_child_input_cone_prob`, `hierarchy_child_input_cone_prob`, `hierarchy_parent_cone_instance_prob`, and `hierarchy_parent_flop_prob`. *(Until `COVERAGE-STEERED-GENERATION.3b` they did **not** — seven local `roll_hierarchy_*` helpers recorded into the same `m.knob_rolls` sink while skipping the steering prior, which is exactly the split this sentence used to describe as ordinary structure. See decision `0034`.)*
+- `COVERAGE-STEERED-GENERATION.3b` (decision `0034`): the roll primitive moved to `src/ir/knob_roll.rs` as `roll_knob_into(&mut KnobRollCounters, &SteeringConfig, &mut impl Rng, KnobId, f64)`, reached crate-wide through the `Generator::roll_knob(&mut self, m, knob, prob)` shim in `gen/mod.rs`; `cone::roll_knob(g, m, knob, prob)` survives only as a free-function alias so its 37 call sites keep their spelling. `KnobRollCounters::record` is **private to `ir::knob_roll`**, so a second roll primitive is a compile error (`error[E0624]`) rather than a review question — the structural close of the two-month window in which `gen/hierarchy.rs`'s seven local helpers left 6 of the 22 `KnobId`s, and the whole documented `hierarchy` steering category, unreachable by the prior. Unsteered emission byte-identical (snapshots 6/6); steered hierarchy emission now changes, proven by `steering_shifts_hierarchy_category_construct_distribution` (both weight directions, per-knob) and negative-controlled by reintroducing the pre-`.3b` shape.
+- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): the roll primitive applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: `state`/`selectors`/`datapath`/`terminals`/`sharing`/`hierarchy`) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
 - `Config::validate()` still enforces the legacy exact wrapper lane
   (`hierarchy_depth ∈ {0,1}`, `num_leaf_modules >= 1` when exact

@@ -8,6 +8,7 @@ pub mod cone_function_emit;
 pub mod dedup;
 pub mod function_emit;
 pub mod generate_loop;
+pub mod knob_roll;
 pub mod multi_output_task_emit;
 pub mod mux_if_emit;
 pub mod param;

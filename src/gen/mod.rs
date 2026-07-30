@@ -64,6 +64,28 @@ impl Generator {
         }
     }
 
+    /// Roll one construction-time knob against `m`, applying this
+    /// generator's coverage-steering prior and recording the attempt +
+    /// outcome. **The one generator-side entry point for a knob roll**
+    /// (`COVERAGE-STEERED-GENERATION.3b`, decision `0034`).
+    ///
+    /// A shim over the crate's single primitive,
+    /// [`crate::ir::knob_roll::roll_knob_into`], which owns both the prior
+    /// and the telemetry write. It lives on `Generator` — not privately in
+    /// `gen::cone` as it did before `.3b` — because that privacy is what
+    /// pushed `gen::hierarchy` into forking seven unsteered copies of the
+    /// same roll, leaving `--steer hierarchy=<weight>` a silent no-op for two
+    /// months. Every generator module reaches the same roll from here.
+    pub(crate) fn roll_knob(&mut self, m: &mut Module, knob: KnobId, prob: f64) -> bool {
+        crate::ir::knob_roll::roll_knob_into(
+            &mut m.knob_rolls,
+            &self.cfg.steering,
+            &mut self.rng,
+            knob,
+            prob,
+        )
+    }
+
     pub fn generate_module(&mut self) -> Module {
         let idx = self.reserve_module_index();
         let mut m = module::generate_leaf_module(self, idx);

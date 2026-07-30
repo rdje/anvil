@@ -228,6 +228,47 @@ There is no roll to apply a prior to. `library_prob` has **no reader anywhere in
 it is one of the documented-reserved orphan knobs recorded by `COVERAGE-INSTRUMENTATION.3`
 and stays out of scope here.
 
+## Correction (`2026-07-30`, at `.3b` — an explicit amendment, not a silent rewrite)
+
+Two claims above were **wrong**, and are corrected here rather than edited away
+(`NEVER REWRITE HISTORY`; a decision record shows its own reasoning, including where that
+reasoning was mistaken). Everything else in this record stands, and the fix it pins is
+unchanged.
+
+**1. The stated reason for the fork was wrong.** §Decision (a) says the seven helpers
+existed because `roll_knob` "forces the caller to hold a `&mut Generator` and a
+`&mut Module` simultaneously — the borrow shape that is *why* the hierarchy planner wrote
+its own". Measured at `.3b`: **it is not.** `Generator::roll_knob(&mut self, m: &mut Module,
+…)` compiles unchanged at **all seven** hierarchy call sites — Rust's two-phase borrows
+accept `g.roll_knob(ctx.top, KnobId::X, g.cfg.x)` — with zero warnings.
+
+The real reason is duller and more instructive: the pre-`.3b` `roll_knob` was a
+**module-private `fn` in `gen::cone`**. `gen::hierarchy` is a *sibling* module, so it could
+not see the function at all, and wrote its own rather than widen the visibility. **A
+private helper in one module is an invitation to fork it in the next.** That is the
+transferable lesson, and it is a better one than the borrow theory it replaces.
+
+The fix is unaffected — if anything it is simpler than designed. The ergonomic shim is
+`Generator::roll_knob` in `src/gen/mod.rs` (crate-visible, so every generator module reaches
+the same roll), `cone::roll_knob` survives only as a free-function alias keeping its 37 call
+sites' spelling, and `gen/hierarchy.rs` ends up with **zero** roll helpers, calling
+`g.roll_knob(m, KnobId::…, prob)` inline at each of its seven decision sites.
+
+**2. "16 of 22 `KnobId`s reached by `roll_knob`" over-counted by one in effect.** The
+reachability table counts `HierarchyParentFlopProb` in the reached column because *two* of
+its three roll sites go through `roll_knob`. Its dedicated helper site did not, which the
+table's footnote says but its arithmetic does not. The honest statement is: **15 knobs were
+fully steered, 6 were not steered at all, and 1 was steered at 2 of its 3 sites.** Every
+measurement quoted in §2 is unaffected (they are per-knob, not derived from that count).
+
+**What this changes about the guard.** Nothing — it strengthens the case for it. The
+mechanism that failed was *visibility*, and a visibility mistake is exactly what the R2
+guard now catches: after `.3b`, a module that cannot see `Generator::roll_knob` still cannot
+record a roll, because `KnobRollCounters::record` is private to `ir::knob_roll`.
+Negative-controlled at `.3b` in both directions: re-introducing the pre-`.3b` helper shape
+fails with `error[E0624]: method 'record' is private`, and removing the probe restores a
+clean build.
+
 ## Decisive test applied
 
 "Would a reviewer reading only the shipped docs be misled about what the product does?"

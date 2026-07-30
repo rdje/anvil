@@ -793,9 +793,9 @@ fn bind_child_input_from_parent_sources(
         .iter()
         .any(|entry| entry.deps.has_instance_output_virtuals())
         && (ctx.top.flops.len() as u32) < g.cfg.max_flops_per_module
-        && roll_hierarchy_registered_child_input_cone(
+        && g.roll_knob(
             ctx.top,
-            &mut g.rng,
+            KnobId::HierarchyRegisteredChildInputConeProb,
             g.cfg.hierarchy_registered_child_input_cone_prob,
         )
     {
@@ -811,9 +811,9 @@ fn bind_child_input_from_parent_sources(
 
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
         && (ctx.top.flops.len() as u32) < g.cfg.max_flops_per_module
-        && roll_hierarchy_registered_sibling_route(
+        && g.roll_knob(
             ctx.top,
-            &mut g.rng,
+            KnobId::HierarchyRegisteredSiblingRouteProb,
             g.cfg.hierarchy_registered_sibling_route_prob,
         )
     {
@@ -832,9 +832,9 @@ fn bind_child_input_from_parent_sources(
         .parent_source_pool
         .iter()
         .any(|entry| !entry.deps.is_empty())
-        && roll_hierarchy_child_input_cone(
+        && g.roll_knob(
             ctx.top,
-            &mut g.rng,
+            KnobId::HierarchyChildInputConeProb,
             g.cfg.hierarchy_child_input_cone_prob,
         )
     {
@@ -849,7 +849,11 @@ fn bind_child_input_from_parent_sources(
     }
 
     if ctx.instance_pool.iter().any(|entry| !entry.deps.is_empty())
-        && roll_hierarchy_sibling_route(ctx.top, &mut g.rng, g.cfg.hierarchy_sibling_route_prob)
+        && g.roll_knob(
+            ctx.top,
+            KnobId::HierarchySiblingRouteProb,
+            g.cfg.hierarchy_sibling_route_prob,
+        )
     {
         if let Some(parent_cone_instance_source) =
             maybe_add_parent_cone_instance_source(g, ctx, width)
@@ -881,71 +885,15 @@ fn bind_child_input_from_parent_sources(
     node_id
 }
 
-fn roll_hierarchy_sibling_route(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls
-        .record(KnobId::HierarchySiblingRouteProb, fired);
-    fired
-}
-
-fn roll_hierarchy_registered_sibling_route(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls
-        .record(KnobId::HierarchyRegisteredSiblingRouteProb, fired);
-    fired
-}
-
-fn roll_hierarchy_registered_sibling_mixed_support(
-    m: &mut Module,
-    rng: &mut impl Rng,
-    prob: f64,
-) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls
-        .record(KnobId::HierarchyRegisteredSiblingMixedSupportProb, fired);
-    fired
-}
-
-fn roll_hierarchy_registered_child_input_cone(
-    m: &mut Module,
-    rng: &mut impl Rng,
-    prob: f64,
-) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls
-        .record(KnobId::HierarchyRegisteredChildInputConeProb, fired);
-    fired
-}
-
-fn roll_hierarchy_child_input_cone(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls
-        .record(KnobId::HierarchyChildInputConeProb, fired);
-    fired
-}
-
-fn roll_hierarchy_parent_cone_instance(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls
-        .record(KnobId::HierarchyParentConeInstanceProb, fired);
-    fired
-}
-
-fn roll_hierarchy_parent_flop(m: &mut Module, rng: &mut impl Rng, prob: f64) -> bool {
-    let fired = rng.gen_bool(prob);
-    m.knob_rolls.record(KnobId::HierarchyParentFlopProb, fired);
-    fired
-}
-
 fn maybe_add_parent_cone_instance_source(
     g: &mut Generator,
     ctx: &mut ChildInputBindingContext<'_>,
     target_width: u32,
 ) -> Option<NodeId> {
     if *ctx.parent_cone_instances_inserted >= g.cfg.max_parent_cone_instances_per_module
-        || !roll_hierarchy_parent_cone_instance(
+        || !g.roll_knob(
             ctx.top,
-            &mut g.rng,
+            KnobId::HierarchyParentConeInstanceProb,
             g.cfg.hierarchy_parent_cone_instance_prob,
         )
     {
@@ -1149,9 +1097,9 @@ fn maybe_mix_registered_sibling_parent_port_support(
     {
         return d_node;
     }
-    if !roll_hierarchy_registered_sibling_mixed_support(
+    if !g.roll_knob(
         top,
-        &mut g.rng,
+        KnobId::HierarchyRegisteredSiblingMixedSupportProb,
         g.cfg.hierarchy_registered_sibling_mixed_support_prob,
     ) {
         return d_node;
@@ -1763,7 +1711,11 @@ fn maybe_register_parent_cone_instance_source(
     width: u32,
 ) -> Option<NodeId> {
     if (top.flops.len() as u32) >= g.cfg.max_flops_per_module
-        || !roll_hierarchy_parent_flop(top, &mut g.rng, g.cfg.hierarchy_parent_flop_prob)
+        || !g.roll_knob(
+            top,
+            KnobId::HierarchyParentFlopProb,
+            g.cfg.hierarchy_parent_flop_prob,
+        )
     {
         return None;
     }

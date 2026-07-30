@@ -33,24 +33,24 @@ pub(crate) use terminals::*;
 pub type FlopWorklist = Vec<FlopId>;
 
 /// Perform a probability-roll against a named knob and record the
-/// attempt + outcome in `m.knob_rolls`. Single place to add
-/// telemetry — every `gen_bool(cfg.<prob>)` site in this module
-/// routes through here so the empirical fire-rate
+/// attempt + outcome in `m.knob_rolls`, so the empirical fire-rate
 /// `fires / attempts` can be compared against the configured
-/// probability (knob-effectiveness validation per the
-/// measurability doctrine).
+/// probability (knob-effectiveness validation per the measurability
+/// doctrine).
+///
+/// A free-function alias for [`Generator::roll_knob`], kept only so this
+/// module's 37 call sites keep their `roll_knob(g, m, knob, prob)` form.
+///
+/// `COVERAGE-STEERED-GENERATION.3b`, decision `0034`: before `.3b` this
+/// function *was* the roll primitive, and being **module-private to
+/// `gen::cone`** it was unreachable from `gen::hierarchy` — which therefore
+/// forked seven unsteered copies of the same roll, silently disabling the
+/// whole `hierarchy` steering category. The primitive now lives in
+/// [`crate::ir::knob_roll`] with the counters, reached crate-wide through
+/// `Generator::roll_knob`; nothing here is private any more except this
+/// spelling.
 fn roll_knob(g: &mut Generator, m: &mut Module, knob: KnobId, prob: f64) -> bool {
-    // COVERAGE-STEERED-GENERATION.2a (decision 0023): apply the steering
-    // prior — a construction-time probability *multiplier* — before the
-    // single gen_bool draw. Rules-first: there is no rejection path and
-    // the draw count is unchanged (exactly one gen_bool per roll), so
-    // output stays byte-stable per (seed, knobs, steering-config). When
-    // steering is unset, effective_prob() short-circuits to today's exact
-    // `prob.min(1.0)`, so the unsteered path is byte-identical.
-    let effective_prob = g.cfg.steering.effective_prob(knob, prob);
-    let fired = g.rng.gen_bool(effective_prob);
-    m.knob_rolls.record(knob, fired);
-    fired
+    g.roll_knob(m, knob, prob)
 }
 
 /// Per-module construction-time node-budget check

@@ -1,6 +1,113 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.3b — one knob-roll primitive, and a compile error if a second appears
+
+**Landed as:** `<pending>` (previous: `3aabb1f`, `COVERAGE-STEERED-GENERATION.3a`).
+**Unsteered DUT emission byte-identical**; steered `hierarchy` emission now
+changes, which is the fix.
+
+**What.** `--steer hierarchy=<weight>` starts working. Every `KnobId` is now
+steered at **every** one of its roll sites, and a second unsteered roll
+primitive no longer compiles.
+
+- **New `src/ir/knob_roll.rs`** — the crate's single knob-roll primitive.
+  `KnobRollCounters` moves here from `ir/types.rs` (re-exported, so
+  `Module.knob_rolls` and every `crate::ir::KnobRollCounters` path is
+  unchanged) and gains
+  `roll_knob_into(&mut KnobRollCounters, &SteeringConfig, &mut impl Rng, KnobId, f64) -> bool`:
+  one `effective_prob` multiply, one `gen_bool` draw, one telemetry write.
+- **`KnobRollCounters::record` is now private to that module.** Recording a knob
+  roll from anywhere else in the crate stops compiling, so "there is one
+  primitive" is enforced by the type system instead of by review. Repair rung
+  **R2** (`MEMORY.md`'s ladder); no new registered doctrine — a permanently
+  maintained grep would be spent on something the visibility rules hold for free.
+- **`Generator::roll_knob(&mut self, m, knob, prob)`** in `src/gen/mod.rs` is the
+  crate-wide ergonomic shim over it. `cone::roll_knob(g, m, knob, prob)` survives
+  only as a free-function alias, so its **37 call sites are untouched**.
+- **The seven `roll_hierarchy_*` helpers are deleted.** `gen/hierarchy.rs` now
+  holds **zero** roll helpers; each of its seven decision sites calls
+  `g.roll_knob(m, KnobId::…, prob)` with the knob named inline — the `cone.rs`
+  convention, which puts the knob identity at the decision rather than one
+  indirection away.
+
+**Why.** Decision `0034` (`.3a`). The prior was added at `gen::cone::roll_knob`
+in `.2a` on the recorded premise that every steerable roll funnelled through it;
+`gen/hierarchy.rs` had, two months earlier, forked seven primitives that recorded
+the identical telemetry while skipping `SteeringConfig::effective_prob`. 6 of the
+22 `KnobId`s were therefore never steered, one was steered at 2 of its 3 sites,
+and the whole documented `hierarchy` steering category was a silent no-op.
+
+**Correction to `.3a`'s stated root cause (recorded in decision `0034`'s new
+"Correction" section, not edited away).** `.3a` claimed the fork was forced by a
+borrow conflict — that `roll_knob` needs `&mut Generator` and `&mut Module` at
+once while the planner holds its module through `ctx.top`. **Measured here: it is
+not.** `g.roll_knob(ctx.top, KnobId::X, g.cfg.x)` compiles at all seven sites with
+zero warnings (two-phase borrows). The real cause is duller: the pre-`.3b`
+`roll_knob` was a **module-private `fn` in `gen::cone`**, invisible to its sibling
+module, so `hierarchy` wrote its own rather than widen the visibility. *A private
+helper in one module is an invitation to fork it in the next* — a better lesson
+than the one it replaces, and one the R2 guard answers directly: a module that
+cannot see `Generator::roll_knob` still cannot record a roll.
+
+`.3a`'s reachability table is also corrected: "16 of 22 reached" counted
+`HierarchyParentFlopProb` as reached because 2 of its 3 sites were. The honest
+split is **15 fully steered, 6 not steered at all, 1 steered at 2 of 3 sites**.
+No measurement changes (they are all per-knob).
+
+**Validation.**
+
+- **The fix, end to end** (release binary, seed 42, depth-1 wrapper, 6 child
+  instances, both routes at `0.3`) — `--steer` now moves the recorded counts it
+  previously could not touch:
+
+  | steer | `sibling_route` | `child_input_cone` |
+  | --- | --- | --- |
+  | *(unsteered)* | `2/5` | `0/5` |
+  | `hierarchy_sibling_route_prob=9.0` | `3/3` | `2/5` |
+  | `hierarchy_child_input_cone_prob=9.0` | — | **`5/5`** |
+  | `hierarchy=9.0` | — | **`5/5`** |
+
+  `0/5 → 5/5` is exactly `clamp01(0.3 × 9) = 1.0`. Before `.3b` every row of this
+  table read `2/5` and `0/5`.
+- **Unsteered byte-identity**, against hashes measured from the pre-fix binary
+  earlier in the same session: default leaf `fdaad15b…`, simple hierarchy
+  `d6a7961e…`, all-seven-knobs hierarchy `f2ead3e2…` — all three unchanged.
+  `tests/snapshots.rs` 6/6.
+- **New proofs.** `tests/pipeline.rs`:
+  `steering_shifts_hierarchy_category_construct_distribution` (per-knob, **both**
+  weight directions — a 3× up-weight must raise and a 0.05× down-weight must lower
+  each of the three probed hierarchy knobs' achieved fire rate over a 12-seed
+  design sweep; a one-sided proof would be satisfied by a mechanism that only ever
+  raises) and `neutral_hierarchy_steering_is_byte_identical_on_designs` (the
+  existing neutral proof only exercises the single-module lane, which contains no
+  hierarchy roll at all). `src/ir/knob_roll.rs`: 3 unit proofs (attribution;
+  the prior reaches a hierarchy knob; a neutral weight yields the *identical roll
+  sequence*, not merely a similar rate).
+- **Both guards negative-controlled, both ways.** Re-introducing the pre-`.3b`
+  helper shape fails to build with `error[E0624]: method 'record' is private`, and
+  removing the probe restores a clean build. Rewiring one hierarchy call site back
+  to an unsteered roll makes
+  `steering_shifts_hierarchy_category_construct_distribution` FAIL, and restoring it
+  makes it pass.
+- **Full `COMMIT.md` gate:** `cargo check --all-targets` clean (no warnings),
+  `cargo clippy --all-targets -- -D warnings` clean, `cargo fmt --all --check`
+  clean, `cargo test` green (lib 748/0; `book_examples` 3/3; snapshots 6/6;
+  `pipeline` green including the two new proofs).
+
+**Impact.** The lane's decision-`0017` API-completeness claim becomes true as
+written rather than true for 15 of 22 knobs. The outer measure→derive→re-steer
+loop becomes sound over the hierarchy category —
+`derive_steering_from_coverage` was already emitting weights for it, and those
+weights were being computed, serialized, and discarded. Nothing is retired; no
+default changes; unsteered generation is byte-identical.
+
+**Files touched.** `src/ir/knob_roll.rs` (new), `src/ir/mod.rs`, `src/ir/types.rs`,
+`src/gen/mod.rs`, `src/gen/cone.rs`, `src/gen/hierarchy.rs`, `tests/pipeline.rs`,
+`docs/decisions/0034-one-steering-aware-knob-roll-primitive.md` (Correction
+section), `docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`,
+`CODEBASE_ANALYSIS.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.3a — the steering category that steers nothing
 
 **Landed as:** `<pending>` (previous: `ff506e1`, `SHADOW-ENUMERATION-SWEEP.7` hash backfill).

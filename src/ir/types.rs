@@ -9,6 +9,14 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+/// `COVERAGE-STEERED-GENERATION.3b` (decision `0034`): the roll counters live
+/// beside the **single** knob-roll primitive in [`crate::ir::knob_roll`], not
+/// here, so that `KnobRollCounters::record` can be private to that module and
+/// a second (unsteered) roll primitive becomes a compile error. Re-exported
+/// so `Module::knob_rolls` and every `crate::ir::KnobRollCounters` path are
+/// unchanged.
+pub use crate::ir::knob_roll::KnobRollCounters;
+
 pub type PortId = u32;
 pub type NodeId = u32;
 pub type FlopId = u32;
@@ -768,36 +776,6 @@ impl KnobId {
             | KnobId::HierarchyChildInputConeProb
             | KnobId::HierarchyParentConeInstanceProb
             | KnobId::HierarchyParentFlopProb => "hierarchy",
-        }
-    }
-}
-
-/// Live per-knob roll counters. `record(knob, fired)` is called
-/// at every probability-roll site; the empirical ratio
-/// `fires[knob] / attempts[knob]` should converge to the knob
-/// value as the module grows.
-#[derive(Debug, Clone, Default)]
-pub struct KnobRollCounters {
-    pub attempts: HashMap<KnobId, u64>,
-    pub fires: HashMap<KnobId, u64>,
-}
-
-impl KnobRollCounters {
-    /// Record one probability roll outcome.
-    ///
-    /// Called by the `roll_knob(g, m, knob, prob)` helper in
-    /// `src/gen/cone.rs` after every `gen_bool(cfg.<prob>)` site.
-    /// Increments `attempts[knob]`, and also `fires[knob]` when
-    /// the roll returned true. The empirical ratio
-    /// `fires[knob] / attempts[knob]` should converge to the
-    /// configured probability across a large seed sweep; the
-    /// `book/src/knobs.md` "Per-knob roll-rate validation"
-    /// subsection documents how to use this to verify knob
-    /// effectiveness.
-    pub fn record(&mut self, knob: KnobId, fired: bool) {
-        *self.attempts.entry(knob).or_insert(0) += 1;
-        if fired {
-            *self.fires.entry(knob).or_insert(0) += 1;
         }
     }
 }
