@@ -5,6 +5,69 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — A round-trip guard needs a fixture the compiler maintains — `SHADOW-ENUMERATION-SWEEP.5`
+
+`Config::apply_cli_overrides` is 87 hand-written `if let Some(v) = o.x { self.x = v; }`
+lines shadowing `Overrides`'s fields. The obvious guard is a round trip: populate every
+override, apply, assert every knob moved.
+
+The trap is the fixture. **A fully-populated `Overrides` written by hand is a fresh shadow
+of the very struct under test** — forget a field there and the guard silently stops
+covering it, which is the defect one level up. Decision `0033`'s binding constraint ("a
+repair may not introduce a new hand-maintained list") applies to the guard, not just to the
+thing guarded.
+
+The resolution is to make the fixture **compiler-maintained**: write it as an *exhaustive*
+struct literal with **no `..Default::default()`**. Adding a field to `Overrides` is then an
+`E0063` error at the fixture. It looks like a hand-written list and is not one — under
+decision `0033`'s rule it fails test (3), *silence*, so it is not a shadow at all.
+
+So the guard is **R3 (derived assertion) on an R2-protected fixture**, and the pairing is
+the reusable pattern:
+
+| part | rung | what maintains it |
+| --- | --- | --- |
+| the fixture (every field set) | **R2** | the compiler, via `E0063` |
+| the expectation (which knobs must move) | **R3** | serde — the `Overrides ∩ Config` key intersection |
+
+Reaching R2 for the *applier itself* would take a macro generating both the struct and the
+applier from one field list. Rejected: `Overrides` carries a doc comment and serde
+attributes per field, and burying 88 of those in a macro would cost real readability for a
+guarantee the fixture already delivers.
+
+### A whole-struct round trip is not sufficient — the leaky-line blind spot
+
+The round trip asserts *every knob moved*. It cannot see an applier line that moves its own
+knob **and a neighbour's**:
+
+```rust
+if let Some(v) = o.max_depth { self.max_depth = v; self.max_width = v; }   // both move
+```
+
+Every knob still moves, so the whole-struct test stays green. Measured, not assumed: with
+that line injected, the whole-struct test passed and only the single-knob leg failed
+(`left: ["max_depth", "max_width"], right: ["max_depth"]`).
+
+Hence two legs, and the second is not redundant: **"everything moved" and "only the right
+thing moved" are different properties, and a set-difference guard only ever proves the
+first.** Any future round-trip guard in this tree — `.4`'s `merge_coverage` above all —
+needs both.
+
+### Pin the complement, not just the set
+
+The test also pins which `Config` knobs are *not* CLI-overridable: `library_prob`,
+`max_nodes_per_module`, `use_async_reset` (the documented config-file-only three) and
+`seed` (stamped last by `resolve_config`). Without that, a knob quietly dropping out of
+`Overrides` would shrink the expectation and the guard would still pass — the classic way
+a derived test decays into a tautology. The complement makes the boundary a decision that
+has to be re-affirmed.
+
+Same reasoning behind the `expected.len() > 50` assert: a derivation that silently yields
+the empty set passes every downstream assertion. **A derived guard must prove it still
+measures something.**
+
+---
+
 ## 2026-07-30 — The obvious derivation would have disarmed the Phase 1 gate — `SHADOW-ENUMERATION-SWEEP.3`
 
 Decision `0033` left one question open for `.3`: could `fail_on_coverage_gap` be derived

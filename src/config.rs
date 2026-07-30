@@ -2486,6 +2486,243 @@ pub fn resolve_config(
 mod tests {
     use super::*;
 
+    use std::collections::BTreeSet;
+
+    // --- SHADOW-ENUMERATION-SWEEP.5 (decision `0033`): the override applier ----
+
+    /// Every [`Overrides`] field set to a value that differs from
+    /// [`Config::default`]'s — the fixture for
+    /// `apply_cli_overrides_moves_every_overridable_config_field`.
+    ///
+    /// **This literal is deliberately exhaustive** (no `..Default::default()`),
+    /// which makes it decision `0033`'s rung **R2**: adding a field to
+    /// `Overrides` without adding it here is an `E0063` compile error, so the
+    /// fixture cannot fall behind the struct it populates. That is what keeps
+    /// the guard below from being a second hand-maintained list — the compiler
+    /// maintains it.
+    ///
+    /// The values are uniform by type (`0.937` / `4243` / `true` / a non-default
+    /// enum variant), chosen only to differ from every current default; none
+    /// carries meaning. `apply_cli_overrides` does no validation, so
+    /// out-of-range values are fine and are never fed to `validate`.
+    fn every_override_set() -> Overrides {
+        Overrides {
+            min_inputs: Some(4243),
+            max_inputs: Some(4243),
+            min_outputs: Some(4243),
+            max_outputs: Some(4243),
+            min_width: Some(4243),
+            max_width: Some(4243),
+            max_depth: Some(4243),
+            terminal_reuse_prob: Some(0.937),
+            constant_prob: Some(0.937),
+            flop_prob: Some(0.937),
+            share_prob: Some(0.937),
+            max_flops_per_module: Some(4243),
+            min_mux_arms: Some(4243),
+            max_mux_arms: Some(4243),
+            flop_qfeedback_prob: Some(0.937),
+            flop_mux_encoding_prob: Some(0.937),
+            min_gate_arity: Some(4243),
+            max_gate_arity: Some(4243),
+            comb_mux_prob: Some(0.937),
+            comb_mux_encoding_prob: Some(0.937),
+            construction_strategy: Some(ConstructionStrategy::Sequential),
+            identity_mode: Some(IdentityMode::Relaxed),
+            sv_version: Some(SvVersion::Sv2023),
+            graph_first_pool_size: Some(4243),
+            coefficient_prob: Some(0.937),
+            min_coefficient: Some(4243),
+            max_coefficient: Some(4243),
+            const_shift_amount_prob: Some(0.937),
+            gate_bitwise_weight: Some(4243),
+            gate_arith_weight: Some(4243),
+            gate_struct_weight: Some(4243),
+            gate_compare_weight: Some(4243),
+            gate_reduce_weight: Some(4243),
+            min_shift_amount: Some(4243),
+            max_shift_amount: Some(4243),
+            gate_shift_weight: Some(4243),
+            const_comparand_prob: Some(0.937),
+            min_comparand: Some(4243),
+            max_comparand: Some(4243),
+            priority_encoder_prob: Some(0.937),
+            case_mux_prob: Some(0.937),
+            casez_mux_prob: Some(0.937),
+            for_fold_prob: Some(0.937),
+            max_ast_instances: Some(4243),
+            mux_arm_duplication_rate: Some(0.937),
+            operand_duplication_rate: Some(0.937),
+            factorization_level: Some(FactorizationLevel::None),
+            hierarchy_depth: Some(4243),
+            num_leaf_modules: Some(4243),
+            num_child_instances: Some(4243),
+            hierarchy_child_source_mode: Some(HierarchyChildSourceMode::OnDemand),
+            min_hierarchy_depth: Some(4243),
+            max_hierarchy_depth: Some(4243),
+            min_child_instances_per_module: Some(4243),
+            max_child_instances_per_module: Some(4243),
+            child_instances_per_module_by_depth: Some(BTreeMap::from([(
+                0u32,
+                CountRange { min: 2, max: 3 },
+            )])),
+            hierarchy_sibling_route_prob: Some(0.937),
+            hierarchy_registered_sibling_route_prob: Some(0.937),
+            hierarchy_registered_sibling_mixed_support_prob: Some(0.937),
+            hierarchy_registered_child_input_cone_prob: Some(0.937),
+            hierarchy_child_input_cone_prob: Some(0.937),
+            hierarchy_parent_cone_instance_prob: Some(0.937),
+            max_parent_cone_instances_per_module: Some(4243),
+            hierarchy_parent_flop_prob: Some(0.937),
+            max_rss_mb: Some(12_648_430),
+            ram_abort_pct: Some(4243),
+            function_emit_prob: Some(0.937),
+            generate_loop_emit_prob: Some(0.937),
+            task_emit_prob: Some(0.937),
+            cone_function_emit_prob: Some(0.937),
+            multi_output_task_emit_prob: Some(0.937),
+            mux_if_emit_prob: Some(0.937),
+            case_mux_if_emit_prob: Some(0.937),
+            casez_mux_if_emit_prob: Some(0.937),
+            soft_union_slice_prob: Some(0.937),
+            width_parameterization_prob: Some(0.937),
+            aggregate_prob: Some(0.937),
+            aggregate_array_prob: Some(0.937),
+            memory_prob: Some(0.937),
+            fsm_prob: Some(0.937),
+            fsm_mealy_prob: Some(0.937),
+            multi_clock_prob: Some(0.937),
+            cdc_synchronizer_stages: Some(4243),
+            hierarchy_module_dedup: Some(true),
+            hierarchy_semantic_module_dedup: Some(true),
+            hierarchy_sequential_module_dedup: Some(true),
+            bisimulation_flop_merge: Some(true),
+            steer: vec![("flop_prob".to_string(), 2.0)],
+        }
+    }
+
+    /// `SHADOW-ENUMERATION-SWEEP.5` (decision `0033`, severity **S2**) —
+    /// [`Config::apply_cli_overrides`] applies **every** overridable knob.
+    ///
+    /// **The defect this guards.** The applier is 87 hand-written
+    /// `if let Some(v) = o.x { self.x = v; }` lines shadowing `Overrides`'s
+    /// fields. Adding a field and forgetting its line compiles cleanly and
+    /// passes every other test — and the knob's `--flag` *and every `--profile`
+    /// preset that sets it* then silently do nothing, because presets are
+    /// applied through this same applier ([`resolve_config`]). That is exactly
+    /// the shape of the decision-`0032` bug, where `structured-emission-max`
+    /// set four surfaces and emitted one.
+    ///
+    /// **The expectation is derived, not listed.** The set of knobs that must
+    /// move is computed by intersecting the serde projections of `Overrides`
+    /// and `Config` — so a new knob joins the expectation by existing, not by
+    /// being remembered here.
+    #[test]
+    fn apply_cli_overrides_moves_every_overridable_config_field() {
+        let overrides = every_override_set();
+
+        let override_keys: BTreeSet<String> = match serde_json::to_value(&overrides).unwrap() {
+            serde_json::Value::Object(map) => map.keys().cloned().collect(),
+            _ => panic!("Overrides is not a JSON object"),
+        };
+        let before = match serde_json::to_value(Config::default()).unwrap() {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("Config is not a JSON object"),
+        };
+
+        // `steer` is the one override that is NOT a `Config` field: it is a
+        // repeatable list folded into `Config.steering` by `resolve_config`,
+        // not a single-value knob. Pinning it by name keeps the "no orphan
+        // override" assertion below exact rather than approximate.
+        let expected: BTreeSet<&String> = override_keys
+            .iter()
+            .filter(|key| key.as_str() != "steer")
+            .collect();
+        let orphans: Vec<&&String> = expected
+            .iter()
+            .filter(|key| !before.contains_key(key.as_str()))
+            .collect();
+        assert!(
+            orphans.is_empty(),
+            "these Overrides fields name no Config knob: {orphans:?}"
+        );
+        assert!(
+            expected.len() > 50,
+            "the derived expectation collapsed to {} knobs — the probe has \
+             stopped measuring anything and must be repaired, not deleted",
+            expected.len()
+        );
+
+        let mut cfg = Config::default();
+        cfg.apply_cli_overrides(&overrides);
+        let after = match serde_json::to_value(&cfg).unwrap() {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("Config is not a JSON object"),
+        };
+
+        let unmoved: Vec<&&String> = expected
+            .iter()
+            .filter(|key| before.get(key.as_str()) == after.get(key.as_str()))
+            .collect();
+        assert!(
+            unmoved.is_empty(),
+            "apply_cli_overrides ignored these knobs — their --flag and any \
+             --profile preset that sets them are silently inert: {unmoved:?}"
+        );
+
+        // The complement, pinned so the boundary is a decision and not an
+        // accident: exactly these four Config knobs are not CLI-overridable.
+        // `seed` is stamped last by `resolve_config`; the other three are the
+        // documented config-file-only knobs (decision `0021`).
+        let not_overridable: BTreeSet<&str> = before
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !override_keys.contains(*key))
+            .collect();
+        assert_eq!(
+            not_overridable,
+            BTreeSet::from([
+                "library_prob",
+                "max_nodes_per_module",
+                "seed",
+                "use_async_reset"
+            ]),
+            "the CLI-overridable boundary moved; if that is intended, update \
+             this pin and `knob_catalog()`'s cli_flag/config_only partition"
+        );
+    }
+
+    /// The applier is not cross-wired: one override moves **its own** knob and
+    /// nothing else. A copy-paste slip (`if let Some(v) = o.min_width { self.max_width = v }`)
+    /// leaves the whole-struct test above green, because both knobs move.
+    #[test]
+    fn apply_cli_overrides_moves_only_the_knob_it_was_given() {
+        let before = match serde_json::to_value(Config::default()).unwrap() {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("Config is not a JSON object"),
+        };
+
+        let mut cfg = Config::default();
+        cfg.apply_cli_overrides(&Overrides {
+            max_depth: Some(4243),
+            ..Overrides::default()
+        });
+        let after = match serde_json::to_value(&cfg).unwrap() {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("Config is not a JSON object"),
+        };
+
+        let moved: Vec<&String> = before
+            .keys()
+            .filter(|key| before.get(key.as_str()) != after.get(key.as_str()))
+            .collect();
+        assert_eq!(
+            moved,
+            vec!["max_depth"],
+            "a single override must move exactly its own knob"
+        );
+    }
+
     // --- KNOB-ERGONOMICS-AND-PRESETS.2b.1: presets + the shared resolver ------
 
     /// The registry has exactly the four curated presets, in order, and every

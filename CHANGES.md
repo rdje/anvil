@@ -1,6 +1,89 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains
+
+**Landed as:** this commit (previous: `4f9720f`, `SHADOW-ENUMERATION-SWEEP.3`).
+`src/config.rs` **test module only** — no production line changed ⇒ **DUT byte-identical**,
+`tests/snapshots.rs` untouched (6/6).
+
+**What.** The **S2** site of decision `0033`'s audit, and the one the tree opened with as an
+unanswered question: `Config::apply_cli_overrides` is 87 hand-written
+`if let Some(v) = o.x { self.x = v; }` lines shadowing `Overrides`'s fields, complete today
+and guarded by nothing.
+
+**Why it is S2.** Add a field to `Overrides`, forget its applier line, and everything
+compiles and every other test passes — but the knob's `--flag` **and every `--profile`
+preset that sets it** then silently do nothing, because presets are applied through this
+same applier (`resolve_config`, `src/config.rs:2465`). That is exactly the shape of the
+decision-`0032` bug, where `structured-emission-max` set four surfaces and emitted one.
+
+**The fix — R3 (derived assertion) on an R2-protected fixture.** The pairing is the point.
+A round-trip guard needs a fully-populated `Overrides`, and hand-writing one would be a
+*fresh shadow of the very struct under test*. So the fixture is written as an **exhaustive
+struct literal with no `..Default::default()`**: adding a field to `Overrides` without
+adding it there is an `E0063` compile error. It reads like a hand-written list and is not
+one — under decision `0033`'s rule it fails test (3), *silence*, so it is not a shadow.
+
+| part | rung | maintained by |
+| --- | --- | --- |
+| `every_override_set()` — every field set | **R2** | the compiler (`E0063`) |
+| which knobs must move | **R3** | serde — the `Overrides ∩ Config` key intersection |
+
+`apply_cli_overrides_moves_every_overridable_config_field` derives the expectation from the
+two serde projections, applies the fixture to `Config::default()`, and asserts every knob in
+the intersection moved. A new knob joins the expectation *by existing*.
+
+**Two legs, because a set-difference guard only proves half the property.** A *leaky*
+applier line — one that writes its own knob **and** a neighbour's — leaves the whole-struct
+test green, since every knob still moves. `apply_cli_overrides_moves_only_the_knob_it_was_given`
+is the second leg, and NC-D below **demonstrates** its independent value rather than
+asserting it.
+
+**Two anti-decay pins.** A derived guard that silently yields an empty expectation passes
+everything downstream, so the test (i) asserts the derivation still measures something
+(`expected.len() > 50`) and (ii) pins the **complement** — exactly four `Config` knobs are
+not CLI-overridable: `library_prob`, `max_nodes_per_module`, `use_async_reset` (the
+documented config-file-only three, decision `0021`) and `seed` (stamped last by
+`resolve_config`). Without (ii), a knob quietly dropping out of `Overrides` would shrink the
+expectation and the guard would still pass.
+
+**Measured while writing it:** `Overrides` has **88** fields, not the 87 decision `0033`
+recorded. The 88th is `steer` — the one override that is **not** a `Config` field, being a
+repeatable list folded into `Config.steering` by `resolve_config` rather than a single-value
+knob. It is pinned by name so the "no orphan override" assertion stays exact. (`Config` has
+91 keys; `Overrides − Config = {steer}`; `Config − Overrides` = the four above.)
+
+**Validation.**
+
+- `cargo check --all-targets` **0** · `cargo clippy --all-targets -- -D warnings` **0** ·
+  `cargo fmt --all --check` **0** · `cargo test --lib` **742 passed, 0 failed** (was 740) ·
+  `cargo test --test snapshots` **6 passed, 0 failed** — byte-identical · full `cargo test`
+  under `scripts/ram_guard.sh --threshold 90`: **17 test binaries, 1040 passed, 0 failed,
+  18 ignored** (exit `0`).
+- **NC-A:** delete the `max_depth` applier line ⇒ **2 failures**, the guard naming it —
+  *"apply_cli_overrides ignored these knobs — their --flag and any --profile preset that
+  sets them are silently inert: [\"max_depth\"]"*.
+- **NC-B:** restore ⇒ **38 passed, 0 failed**; `diff` vs backup byte-identical.
+- **NC-C:** cross-wire `o.min_width → self.max_width` ⇒ failure naming `min_width`.
+- **NC-D (the second leg's reason to exist):** make the `max_depth` line *also* write
+  `self.max_width`. The whole-struct test stayed **green**; only the single-knob leg fired —
+  *"a single override must move exactly its own knob — left: [\"max_depth\", \"max_width\"],
+  right: [\"max_depth\"]"*.
+- **NC-E (the R2 leg):** add a field to `Overrides` and touch nothing else ⇒ **`E0063`** at
+  the fixture *and* at `main.rs:1066`, proving the fixture is compiler-maintained.
+- Source restored byte-identical after every control.
+
+**Impact.** A forgotten override line now fails `cargo test` instead of shipping an inert
+CLI flag and an inert preset knob. No production behaviour changes at all — the diff is
+confined to `src/config.rs`'s `#[cfg(test)]` module. The tree's frontier advances to `.4`.
+No phase labels move.
+
+**Files touched.** `src/config.rs` (test module), `docs/tasks/SHADOW-ENUMERATION-SWEEP.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
+---
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail
 
 **Landed as:** this commit (previous: `9ffabea`, `SHADOW-ENUMERATION-SWEEP.2`).

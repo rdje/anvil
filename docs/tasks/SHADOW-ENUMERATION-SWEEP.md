@@ -225,7 +225,7 @@ report — it is a 149-entry list that is one omission away from being one.
   Verification: docs-only ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.5`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: **execution order 2** (S2). Guard `Config::apply_cli_overrides`
         (`src/config.rs:1734`) — 87 `if let Some(v) = o.x { self.x = v }` lines shadowing
         `Overrides`'s 87 fields, with no guard of any kind. A forgotten line makes the
@@ -237,6 +237,35 @@ report — it is a 149-entry list that is one omission away from being one.
         deriving the field set from the serde projection, never from a hand-written list.
   Acceptance: the test fails when one applier line is deleted and passes when restored;
         no new hand-maintained list introduced; `tests/snapshots.rs` untouched.
+  Delivered: **R3 for the applier, with an R2-protected fixture** — the combination is
+        the point, because the naive R3 needs a fully-populated `Overrides`, and writing
+        that by hand would be a *fresh* shadow of the very struct under test.
+        - `every_override_set()` is an **exhaustive** `Overrides { … }` literal with no
+          `..Default::default()`, so adding a field to `Overrides` without adding it here
+          is an `E0063` compile error. The compiler maintains the fixture; nobody has to.
+          Values are uniform by type (`0.937` / `4243` / `true` / a non-default enum
+          variant), chosen only to differ from every current default.
+        - `apply_cli_overrides_moves_every_overridable_config_field` derives the
+          expectation by intersecting the **serde projections** of `Overrides` and
+          `Config`, applies the fixture to `Config::default()`, and asserts every knob in
+          that intersection moved. A new knob joins the expectation *by existing*.
+        - It also pins the **complement** as a decision rather than an accident: exactly
+          four `Config` knobs are not CLI-overridable — `library_prob`,
+          `max_nodes_per_module`, `use_async_reset` (the documented config-file-only three,
+          decision `0021`) and `seed` (stamped last by `resolve_config`). Moving that
+          boundary now fails loudly and points at `knob_catalog()`'s `cli_flag` /
+          `config_only` partition.
+        - `apply_cli_overrides_moves_only_the_knob_it_was_given` is the second, independent
+          leg: a *leaky* applier line (one that also writes a neighbouring field) leaves the
+          whole-struct test green — every knob still moves — and only this one catches it.
+          Demonstrated, not assumed (NC-D below).
+        - Measured while writing it: `Overrides` has **88** fields, not 87. The 88th is
+          `steer`, the one override that is **not** a `Config` field — it is a repeatable
+          list folded into `Config.steering` by `resolve_config`, not a single-value knob.
+          Pinned by name so the "no orphan override" assertion stays exact.
+  Verification: five negative controls, all confirmed — see the Verification Log.
+        `src/config.rs` test-module + no production change ⇒ **DUT byte-identical**;
+        `tests/snapshots.rs` untouched (6/6).
 
 - ID: `SHADOW-ENUMERATION-SWEEP.6`
   Status: `pending`
@@ -348,11 +377,11 @@ report — it is a 149-entry list that is one omission away from being one.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.5` | `pending` | **Current frontier. S2.** `Config::apply_cli_overrides`, 87 fields, guarded by nothing; an omission makes a CLI flag *and every preset that sets that knob* silently inert — the exact shape of the decision-`0032` preset bug, since presets apply through the same applier (`src/config.rs:2465`). |
+| 1 | `.4` | `pending` | **Current frontier. S1.** Re-scoped by decision `0033` §3: monotone merges + 134/149 gated ⇒ loud; 15 genuinely-silent fields, under-reporting only. Cheap round-trip guard; real but not urgent. The `.5` pattern — an exhaustive, compiler-enforced fixture plus a serde-derived assertion — transfers directly. |
 | — | `.3` | `done` | The only **S3** site in the audit, closed by **R1**: one `static GATES` table, four sites derived from it, and `fail_on_coverage_gap` reduced to *"some registered gate is enabled"*. Negative-controlled both ways, and the S3 defect reproduced on purpose before the guard was proven to catch it. |
-| 3 | `.4` | `pending` | **S1.** Re-scoped by decision `0033` §3: monotone merges + 134/149 gated ⇒ loud; 15 genuinely-silent fields, under-reporting only. Cheap round-trip guard; real but not urgent. |
-| 4 | `.6` | `pending` | **S1.** Four MCP adapter-id JSON-schema `enum` literals shadowing `ADAPTER_REGISTRY`; a sixth adapter would be usable but unadvertised to agents (decision `0017`). |
-| 5 | `.7` | `pending` | **S1.** The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). |
+| — | `.5` | `done` | **S2**, closed by **R3 with an R2-protected fixture**: an exhaustive `Overrides` literal the compiler maintains, a serde-derived expectation, a pinned not-overridable complement, and a second leg catching leaky applier lines the first cannot see. Five negative controls. |
+| 2 | `.6` | `pending` | **S1.** Four MCP adapter-id JSON-schema `enum` literals shadowing `ADAPTER_REGISTRY`; a sixth adapter would be usable but unadvertised to agents (decision `0017`). |
+| 3 | `.7` | `pending` | **S1.** The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). |
 | — | `.2` | `done` | The classification rule, the repair ladder, the mechanizability verdict, the severity tiers, and the 20-site audit — decision `0033`. |
 | — | `.1` | `done` | Registered + audited. |
 
@@ -433,11 +462,24 @@ report — it is a 149-entry list that is one omission away from being one.
   enabled"* is behaviour-preserving for all fifteen. Recorded because the rejected form
   reads as obviously correct until `phase1`'s arm is looked for and found missing.
 
+**Answered by `.5`:**
+
+- ~~Can `.5`'s guard reach R2, or must it be R3?~~ **Answered: R3 for the applier, but
+  with an R2-protected *fixture* — and that pairing is the reusable pattern.** A pure R3
+  round-trip needs a fully-populated `Overrides`, and hand-writing that would be a fresh
+  shadow of the struct under test. Writing it as an **exhaustive literal** (no
+  `..Default::default()`) makes the compiler maintain it (`E0063`, demonstrated by NC-E),
+  so the guard introduces no hand-maintained list. Reaching R2 for the *applier itself*
+  would take a macro generating both the struct and the applier from one field list —
+  rejected: it would obscure an 88-field, per-field-documented public struct for a
+  guarantee the fixture already provides.
+- Also learned: a whole-struct round trip is **not sufficient on its own**. A *leaky*
+  applier line — one that writes its own field and a neighbour's — leaves it green
+  (every knob still moves). The second, single-knob leg catches it, and NC-D demonstrates
+  that rather than asserting it. `.4` should carry the same two legs.
+
 **Open for `.4`+:**
 
-- Whether `.5`'s guard can reach R2 (an exhaustive `match` over a generated field enum)
-  or must be R3 (a round-trip test: set every `Overrides` field to a non-default `Some`,
-  apply, assert every corresponding `Config` field moved).
 - Whether `.6` should derive the four JSON-schema enums from `adapters()` (eliminating
   the literals) or guard them with a test that parses the emitted schema.
 - Should `ENUMERATION-PARITY`'s declared-pairs table live inside the check script, or in
@@ -475,6 +517,17 @@ report — it is a 149-entry list that is one omission away from being one.
 | `2026-07-30` | `.3` | **NC-C** — point the `--casez-mux-if-gate` row at the `case` scenario set (the realistic copy-paste error) | **FAILED** — *"--casez-mux-if-gate reuses scenario set case-mux-if-sweep"*; restored byte-identical |
 | `2026-07-30` | `.3` | R2-via-`ScenarioSet` evaluated against the code (`.2` open question 2) | **rejected**: `--phase1-gate` maps to `ScenarioSet::Default`, so `fail_on_coverage_gap = set != Default` would have silently **disarmed the Phase 1 gate** |
 | `2026-07-30` | `.3` | Diff scope | `src/bin/tool_matrix.rs` only — no `src/gen`, `src/emit`, `src/ir`, `src/config` ⇒ **DUT byte-identical** |
+| `2026-07-30` | `.5` | `Overrides` fields vs `apply_cli_overrides` vs `Config` keys | **88** override fields = **87** applied + `steer`; `Config` has **91** keys; `Overrides − Config = {steer}` (a repeatable list folded into `Config.steering` by `resolve_config`, not a knob); `Config − Overrides = {library_prob, max_nodes_per_module, seed, use_async_reset}` — now pinned by the test |
+| `2026-07-30` | `.5` | `cargo check --all-targets` · `clippy --all-targets -- -D warnings` · `fmt --all --check` | exit `0` / `0` / `0` |
+| `2026-07-30` | `.5` | `cargo test --lib` | **742 passed, 0 failed** (was 740 — the two new guards) |
+| `2026-07-30` | `.5` | `cargo test` (full suite, under `ram_guard.sh --threshold 90`) | exit `0` — **17 test binaries, 1040 passed, 0 failed, 18 ignored** |
+| `2026-07-30` | `.5` | `cargo test --test snapshots` | **6 passed, 0 failed** — byte-identical |
+| `2026-07-30` | `.5` | **NC-A** — delete the `max_depth` applier line | **FAILED 2** — *"apply_cli_overrides ignored these knobs … : [\"max_depth\"]"* |
+| `2026-07-30` | `.5` | **NC-B** — restore | **38 passed, 0 failed**; `diff` vs backup byte-identical |
+| `2026-07-30` | `.5` | **NC-C** — cross-wire `o.min_width → self.max_width` | **FAILED** — *"… : [\"min_width\"]"*; restored byte-identical |
+| `2026-07-30` | `.5` | **NC-D** — a *leaky* applier line (`o.max_depth` also writes `self.max_width`), the slip the whole-struct test **cannot** see | whole-struct test stayed **green**; the second leg caught it: *"a single override must move exactly its own knob — left: [\"max_depth\", \"max_width\"], right: [\"max_depth\"]"*. Proves the second test's independent value rather than assuming it |
+| `2026-07-30` | `.5` | **NC-E** (the R2 leg) — add a field to `Overrides`, touch nothing else | **`E0063`** at the fixture *and* at `main.rs:1066` — the fixture is compiler-maintained, not hand-maintained; restored byte-identical |
+| `2026-07-30` | `.5` | Diff scope | `src/config.rs` **test module only**, no production line changed ⇒ **DUT byte-identical** |
 
 ## Commit Log
 
@@ -482,7 +535,8 @@ report — it is a 149-entry list that is one omission away from being one.
 | --- | --- | --- |
 | `.1` | `SHADOW-ENUMERATION-SWEEP.1 — register: lists that shadow a growing set` | Docs-only registration + audit |
 | `.2` | `SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not` (`9ffabea`) | Docs-only design ADR; adds `.5`/`.6`/`.7`, re-scopes `.4` |
-| `.3` | `SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail` | The S3 fix: `static GATES` + four derived sites + four derived guards |
+| `.3` | `SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail` (`4f9720f`) | The S3 fix: `static GATES` + four derived sites + four derived guards |
+| `.5` | `SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains` | The S2 fix: an E0063-enforced fixture + a serde-derived expectation |
 
 ## Changelog
 
