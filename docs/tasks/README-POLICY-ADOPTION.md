@@ -126,7 +126,7 @@ back, because a mechanical cap fails the commit.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `README-POLICY-ADOPTION` | `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | Registered (not started) in the docs slice that surfaced it; no README content moved in that commit. |
+| `README-POLICY-ADOPTION` | `7a1fc50` — `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | Registered (not started) in the docs slice that surfaced it; no README content moved in that commit. |
 
 ## Changelog
 

@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.3c — steering docs + close `.3`
 
-**Landed as:** `<pending>` (previous: `c4c7843`, `COVERAGE-STEERED-GENERATION.3b`).
+**Landed as:** `7a1fc50` (previous: `c4c7843`, `COVERAGE-STEERED-GENERATION.3b`).
 **Docs-only** — no `src/`, `tests/`, or `examples/` file touched ⇒ **DUT
 byte-identical** by construction. **Closes `.3c` and `.3`.**
 
@@ -92,7 +92,7 @@ previously-unowned defects are now tracked.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.3b — one knob-roll primitive, and a compile error if a second appears
 
-**Landed as:** `<pending>` (previous: `3aabb1f`, `COVERAGE-STEERED-GENERATION.3a`).
+**Landed as:** `c4c7843` (previous: `3aabb1f`, `COVERAGE-STEERED-GENERATION.3a`).
 **Unsteered DUT emission byte-identical**; steered `hierarchy` emission now
 changes, which is the fix.
 
@@ -199,7 +199,7 @@ section), `docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`,
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.3a — the steering category that steers nothing
 
-**Landed as:** `<pending>` (previous: `ff506e1`, `SHADOW-ENUMERATION-SWEEP.7` hash backfill).
+**Landed as:** `3aabb1f` (previous: `ff506e1`, `SHADOW-ENUMERATION-SWEEP.7` hash backfill).
 **No `src/` change** ⇒ **DUT byte-identical** by construction. **Reopens the
 `COVERAGE-STEERED-GENERATION` tree** with a new `.3` node; the closed `.1`/`.2`
 scope is untouched.
