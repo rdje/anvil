@@ -1681,6 +1681,41 @@ src/
 │   │                (loopback default + a non-loopback stderr warning). All
 │   │                logic lives in `mcp`; this is transport selection only.
 │   └── tool_matrix.rs
+│                     **Gate registry (`SHADOW-ENUMERATION-SWEEP.3`,
+│                     decision `0033`).** A gate is declared exactly
+│                     once, in `static GATES: &[GateSpec]` — `flag`,
+│                     `enabled: fn(&Cli) -> bool`, `scenario_set`, and a
+│                     `UnitFloor::{TotalAtLeast, PerScenario}` (the two
+│                     unit shapes are modelled, not flattened: Phase
+│                     1/2/3 specify a total corpus size, every later
+│                     gate a per-scenario floor). `select_scenario_set`
+│                     and `derive_run_plan` both read it through the one
+│                     `enabled_gates` iterator, so the scenario-set
+│                     selection, the unit floor, the mutual-exclusion
+│                     check and its message can no longer fall behind
+│                     the flag set. Above all,
+│                     `RunPlan.fail_on_coverage_gap` is now **derived** —
+│                     `cli.fail_on_coverage_gap || gate.is_some()` —
+│                     where it used to be a fifteen-term disjunction
+│                     whose omission left the coverage-gap `bail!`
+│                     disarmed, i.e. **a gate that could not fail**
+│                     (decision `0033` severity S3: its clean exit would
+│                     be banked as a `0030` digest and cited). Deriving
+│                     it from `ScenarioSet` instead was evaluated and
+│                     rejected — `--phase1-gate` maps to
+│                     `ScenarioSet::Default`, so that form would have
+│                     silently disarmed the Phase 1 gate. The table
+│                     itself cannot fall behind the CLI:
+│                     `every_cli_gate_flag_is_registered` derives the
+│                     expected flag set from clap's own `Cli` metadata
+│                     (no second hand-written list), and three sibling
+│                     guards pin distinct scenario sets, the
+│                     arms-the-gate + raises-units invariant per gate
+│                     (turning each flag on through `Cli::try_parse_from`,
+│                     which also proves the `flag` strings are real), and
+│                     the `MatrixReport` gate-field coverage.
+│                     `MatrixReport` derives `Default` solely for that
+│                     last test; the run path still fills every field.
 │                     Repo-owned downstream-tool matrix harness. Its
 │                     Verilator/Yosys/iverilog invocation primitives now live
 │                     in `anvil::downstream` (`AGENT-INTROSPECTION-MCP.5.1`);

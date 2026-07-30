@@ -8,9 +8,9 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`SHADOW-ENUMERATION-SWEEP.1`** (`dc3a178`). Prior: `04be90b`, `3d27711`, `be0c23a`, `99e6cc0`, `401d72d`. Session history: `git log --oneline` (do not re-narrate it here).
-- active_work_unit: **`SHADOW-ENUMERATION-SWEEP`** → `.1`+`.2` **done** (`.2` = decision `0033`), frontier **`.3`**; tree grew to 7 leaves, execution order `.3`→`.5`→`.4`→`.6`→`.7`. Closed this session: `CARGO-TMPDIR-SWEEP-REGRESSION`, **`EMIT-SURFACE-INTERACTION-GATE`** (4 leaves), **`EVIDENCE-BANK-DURABILITY`**.
-- next_action: `SHADOW-ENUMERATION-SWEEP.3` — the only **S3** (false-green) site in the 20-site audit: the six silent gate-flag enumerations in `src/bin/tool_matrix.rs`. Prefer **R2** if reachable — derive `fail_on_coverage_gap` from the already-compiler-enforced `ScenarioSet` instead of a parallel or-chain over flags, which makes the site *disappear* rather than be guarded; else **R1** (one `const GATES: &[GateSpec]` all six sites read) or **R3** (a test deriving the flag set from `Cli`). Negative-control both ways; `tests/snapshots.rs` untouched.
+- latest_commit: **`SHADOW-ENUMERATION-SWEEP.2`** (`9ffabea`, decision `0033`). Prior: `dc3a178`, `04be90b`, `3d27711`, `be0c23a`, `99e6cc0`. Session history: `git log --oneline` (do not re-narrate it here).
+- active_work_unit: **`SHADOW-ENUMERATION-SWEEP`** → `.1`/`.2`/`.3` **done**, frontier **`.5`**; 7 leaves, execution order `.3`→`.5`→`.4`→`.6`→`.7` (numbers = creation order; the frontier table carries severity order). Closed this session: `CARGO-TMPDIR-SWEEP-REGRESSION`, **`EMIT-SURFACE-INTERACTION-GATE`**, **`EVIDENCE-BANK-DURABILITY`**.
+- next_action: `SHADOW-ENUMERATION-SWEEP.5` (**S2**) — guard `Config::apply_cli_overrides` (`src/config.rs:1734`): 87 `if let Some(v) = o.x { self.x = v }` lines shadowing `Overrides`'s 87 fields, guarded by nothing; an omission makes the knob's CLI flag **and every `--profile` preset that sets it** silently inert (presets apply through the same applier, `:2465`). Repair **R2** if an exhaustive form exists, else **R3**: a round-trip test setting every `Overrides` field to a non-default `Some`, applying to `Config::default()`, asserting every corresponding field moved — field set from the serde projection, never a hand-written list. Negative-control both ways.
 - in_flight_uncommitted: none. Tree clean, self-checks green, resume pointer current.
 - blockers: none.
 

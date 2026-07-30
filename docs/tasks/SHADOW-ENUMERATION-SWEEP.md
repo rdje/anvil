@@ -270,7 +270,7 @@ report — it is a 149-entry list that is one omission away from being one.
         DUT byte-identical.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.3`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: the highest-severity fix — the `tool_matrix` gate-flag sites, above all the
         `fail_on_coverage_gap` or-chain whose omission yields a gate that cannot
         fail. Candidate shape: one `const GATES: &[GateSpec]` table (flag name,
@@ -279,6 +279,49 @@ report — it is a 149-entry list that is one omission away from being one.
         from the `Cli` struct and asserts every site covers it.
   Acceptance: adding a gate cannot silently miss a site; negative-controlled;
         `tests/snapshots.rs` untouched.
+  Delivered: **R1 (derive) for four of the five silent sites, plus R3 for the table
+        itself** — the shape the `.2` open question left to be decided against real code.
+        - `static GATES: &[GateSpec]` (`src/bin/tool_matrix.rs`) declares each gate
+          **once**: `flag`, `enabled: fn(&Cli) -> bool`, `scenario_set`, `unit_floor`.
+          `enabled_gates(cli)` is the one iterator both consumers read.
+        - `derive_run_plan`'s 15-arm `if`-chain → a `map_or` over that iterator, and the
+          **S3 line** becomes `cli.fail_on_coverage_gap || gate.is_some()` — *derived,
+          not enumerated*. Any registered gate now arms the `bail!` with nothing left
+          to forget.
+        - `select_scenario_set`'s 15-arm `if`-chain, its 15-term exclusivity sum, and
+          its retyped 15-flag `bail!` prose all collapse into the same iterator; the
+          message is joined from the table.
+        - **R2 via `ScenarioSet` was evaluated and rejected against the code** (`.2`
+          open question 2). `--phase1-gate` maps to `ScenarioSet::Default` — it raises
+          the corpus size over the *built-in* set rather than selecting a dedicated one
+          — so `fail_on_coverage_gap = scenario_set != Default` would have silently
+          **disarmed the Phase 1 gate**. Deriving from *"some registered gate is
+          enabled"* keeps every gate's behaviour identical. Recorded because the
+          rejected form looks obviously right until `phase1` is read.
+        - The one remaining silent site, `MatrixReport`'s 15 `*_gate` field
+          declarations, is guarded by a serde round-trip test keyed off a
+          flag→field-name derivation (`--phase1-gate` ⇒ `phase1_gate`); `MatrixReport`
+          gained `Default` **solely** so that test needs no hand-written literal (a
+          literal would be a fresh shadow of the struct). The report *assignment* site
+          was already E0063-enforced and is unchanged.
+        - Four derived guards, none introducing a new hand-maintained list:
+          `every_cli_gate_flag_is_registered` (expected set derived from **clap's own
+          `Cli` metadata** — the `knob_catalog_classifies_every_field` pattern),
+          `every_registered_gate_selects_a_distinct_scenario_set`,
+          `every_registered_gate_arms_the_coverage_gap_check_and_raises_units` (which
+          turns the flag on **through `Cli::try_parse_from`** rather than a
+          flag→field switch — that switch was drafted and deleted on realising it
+          would be a *seventh* copy of the same set, and parsing additionally proves
+          each `flag` string is a real CLI flag), and
+          `matrix_report_records_every_registered_gate_flag`.
+  Verification: see the Verification Log. Negative-controlled in **both** directions
+        and, separately, the S3 defect was **reproduced on purpose**: with the
+        fifteenth `GATES` row deleted, a temporary probe measured
+        `fail_on_coverage_gap = false, modules_per_scenario = 1` for
+        `--emit-surface-interaction-gate` — a gate that runs 1 unit per scenario and
+        **cannot fail** — while the new derived guard named the exact missing flag.
+        Harness binary only (no `src/gen`/`src/emit`/`src/ir`/`src/config` change) ⇒
+        **DUT byte-identical**; `tests/snapshots.rs` untouched.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.4`
   Status: `pending`
@@ -305,8 +348,8 @@ report — it is a 149-entry list that is one omission away from being one.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.3` | `pending` | **Current frontier.** The only **S3** site in the 20-site audit: a gate flag missing from the `fail_on_coverage_gap` or-chain (`src/bin/tool_matrix.rs:1564`) leaves `:1490`'s `bail!` disarmed, so the gate runs, computes gaps, ignores them and **exits 0** — a false green that decision `0030` then banks as a committed digest and `README.md` cites. With a missing `select_scenario_set` arm it is worse: the flag silently selects `ScenarioSet::Default`, so the gate runs the wrong scenarios and still exits 0. |
-| 2 | `.5` | `pending` | **S2.** `Config::apply_cli_overrides`, 87 fields, guarded by nothing; an omission makes a CLI flag *and every preset that sets that knob* silently inert — the exact shape of the decision-`0032` preset bug, since presets apply through the same applier. |
+| 1 | `.5` | `pending` | **Current frontier. S2.** `Config::apply_cli_overrides`, 87 fields, guarded by nothing; an omission makes a CLI flag *and every preset that sets that knob* silently inert — the exact shape of the decision-`0032` preset bug, since presets apply through the same applier (`src/config.rs:2465`). |
+| — | `.3` | `done` | The only **S3** site in the audit, closed by **R1**: one `static GATES` table, four sites derived from it, and `fail_on_coverage_gap` reduced to *"some registered gate is enabled"*. Negative-controlled both ways, and the S3 defect reproduced on purpose before the guard was proven to catch it. |
 | 3 | `.4` | `pending` | **S1.** Re-scoped by decision `0033` §3: monotone merges + 134/149 gated ⇒ loud; 15 genuinely-silent fields, under-reporting only. Cheap round-trip guard; real but not urgent. |
 | 4 | `.6` | `pending` | **S1.** Four MCP adapter-id JSON-schema `enum` literals shadowing `ADAPTER_REGISTRY`; a sixth adapter would be usable but unadvertised to agents (decision `0017`). |
 | 5 | `.7` | `pending` | **S1.** The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). |
@@ -372,16 +415,31 @@ report — it is a 149-entry list that is one omission away from being one.
   `87` written — complete today, guarded by nothing. `main.rs:1066`'s `cli_overrides`
   is the safe half (an exhaustive struct literal ⇒ E0063). Owned by `.5`.
 
-**Open for `.3`+:**
+**Answered by `.3`:**
 
-- `.3`'s shape: one `const GATES: &[GateSpec]` table that all six silent sites read
-  (**R1** — the flag stops being enumerable more than once) versus a derived test that
-  reads the `Cli` gate-flag set and asserts each site covers it (**R3**). R1 is preferred
-  by the ladder, but the six sites want different payloads (a `ScenarioSet`, a min-units
-  constant, a report field, a display name), so `.3` decides against the real code.
-- Can `.3` reach **R2** instead, by deriving `fail_on_coverage_gap` from the selected
-  `ScenarioSet` — already a compiler-enforced enum — rather than from a parallel
-  disjunction over flags? If so the S3 site **disappears** rather than being guarded.
+- ~~`.3`'s shape: R1 table versus R3 derived test?~~ **Answered: both, and they are not
+  alternatives.** R1 (`static GATES`) removes four of the five silent sites outright;
+  R3 (`every_cli_gate_flag_is_registered`, expectation derived from clap's `Cli`
+  metadata) is what stops the *table itself* becoming the next shadow. The differing
+  payloads the question worried about resolved into four fields — `flag`, `enabled`,
+  `scenario_set`, `unit_floor` — with the two incompatible unit shapes modelled
+  explicitly as `UnitFloor::{TotalAtLeast, PerScenario}` rather than flattened.
+- ~~Can `.3` reach **R2** by deriving `fail_on_coverage_gap` from the `ScenarioSet`?~~
+  **Answered: no — and the reason is a trap.** `--phase1-gate` maps to
+  `ScenarioSet::Default` (it raises the corpus size over the *built-in* scenario set
+  rather than selecting a dedicated one), so `fail_on_coverage_gap = set != Default`
+  would have silently **disarmed the Phase 1 gate** — introducing the exact S3 defect
+  the leaf exists to remove, inside the fix. Deriving from *"some registered gate is
+  enabled"* is behaviour-preserving for all fifteen. Recorded because the rejected form
+  reads as obviously correct until `phase1`'s arm is looked for and found missing.
+
+**Open for `.4`+:**
+
+- Whether `.5`'s guard can reach R2 (an exhaustive `match` over a generated field enum)
+  or must be R3 (a round-trip test: set every `Overrides` field to a non-default `Some`,
+  apply, assert every corresponding `Config` field moved).
+- Whether `.6` should derive the four JSON-schema enums from `adapters()` (eliminating
+  the literals) or guard them with a test that parses the emitted schema.
 - Should `ENUMERATION-PARITY`'s declared-pairs table live inside the check script, or in
   a small tracked data file the check reads?
 
@@ -407,13 +465,24 @@ report — it is a 149-entry list that is one omission away from being one.
 | `2026-07-30` | `.2` | `book/src/SUMMARY.md` links vs `book/src/*.md` | **29 vs 29** (30 files − `SUMMARY.md` itself) — complete, unguarded; an unlinked chapter is never rendered |
 | `2026-07-30` | `.2` | Rule (a) applied to the four must-stay-hand-written cases | `presets()` + `DOCTRINES` rejected on test (1) (no `S`); `check_no_boot_volume_refs.sh`'s allow-list + `EVIDENCE-CITATIONS` §1 pin rejected on test (2) (must differ / must not grow) — the rule's calibration holds |
 | `2026-07-30` | `.2` | Docs-only leaf | no `src/` change ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched |
+| `2026-07-30` | `.3` | `cargo check --all-targets` · `cargo clippy --all-targets -- -D warnings` · `cargo fmt --all --check` | exit `0` / `0` / `0` |
+| `2026-07-30` | `.3` | `cargo test --bin tool_matrix` (re-run after `cargo fmt`) | **111 passed, 0 failed** (4 new derived guards) |
+| `2026-07-30` | `.3` | `cargo test` (full suite, under `ram_guard.sh --threshold 90`) | exit `0` — **17 test binaries, 1038 passed, 0 failed, 18 ignored** |
+| `2026-07-30` | `.3` | `cargo test --test snapshots` | **6 passed, 0 failed** — byte-identical |
+| `2026-07-30` | `.3` | **NC-A** — delete the fifteenth `GATES` row, rerun | **FAILED 3** — `every_cli_gate_flag_is_registered` names the exact gap: *"missing here: [\"--emit-surface-interaction-gate\"]; stale here: []"* |
+| `2026-07-30` | `.3` | **NC-A′ (the S3 defect, reproduced on purpose)** — with that row deleted, a temporary probe read `derive_run_plan` for `--emit-surface-interaction-gate` | `fail_on_coverage_gap = false`, `modules_per_scenario = 1` — **a gate that runs 1 unit/scenario and cannot fail**, exactly the failure mode `.1` predicted. Probe removed; source restored byte-identical |
+| `2026-07-30` | `.3` | **NC-B** — restore the row, rerun | **111 passed, 0 failed**; `diff` vs the pre-NC backup byte-identical |
+| `2026-07-30` | `.3` | **NC-C** — point the `--casez-mux-if-gate` row at the `case` scenario set (the realistic copy-paste error) | **FAILED** — *"--casez-mux-if-gate reuses scenario set case-mux-if-sweep"*; restored byte-identical |
+| `2026-07-30` | `.3` | R2-via-`ScenarioSet` evaluated against the code (`.2` open question 2) | **rejected**: `--phase1-gate` maps to `ScenarioSet::Default`, so `fail_on_coverage_gap = set != Default` would have silently **disarmed the Phase 1 gate** |
+| `2026-07-30` | `.3` | Diff scope | `src/bin/tool_matrix.rs` only — no `src/gen`, `src/emit`, `src/ir`, `src/config` ⇒ **DUT byte-identical** |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `.1` | `SHADOW-ENUMERATION-SWEEP.1 — register: lists that shadow a growing set` | Docs-only registration + audit |
-| `.2` | `SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not` | Docs-only design ADR; adds `.5`/`.6`/`.7`, re-scopes `.4` |
+| `.2` | `SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not` (`9ffabea`) | Docs-only design ADR; adds `.5`/`.6`/`.7`, re-scopes `.4` |
+| `.3` | `SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail` | The S3 fix: `static GATES` + four derived sites + four derived guards |
 
 ## Changelog
 

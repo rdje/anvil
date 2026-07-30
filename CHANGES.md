@@ -1,6 +1,110 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail
+
+**Landed as:** this commit (previous: `9ffabea`, `SHADOW-ENUMERATION-SWEEP.2`).
+Harness binary only (`src/bin/tool_matrix.rs`) — no `src/gen`, `src/emit`, `src/ir` or
+`src/config` change ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** The highest-severity site in decision `0033`'s audit, and the only **S3**
+(false-green) one anywhere in the repo: `tool_matrix` enumerated the same growing set of
+gate flags in seven production places, five of them silent on omission.
+
+**Why it was S3.** `run_matrix`'s coverage-gap `bail!` is gated on `plan.fail_on_coverage_gap`:
+
+```rust
+if plan.fail_on_coverage_gap && !report.coverage_gaps.is_empty() { bail!(…) }
+```
+
+A gate flag missing from the fifteen-term or-chain that computed that field left it `false`,
+so the gate would **run, compute its coverage gaps, ignore them, and exit `0`**. Under
+decision `0030` that clean exit gets banked as a committed digest and cited in `README.md`.
+A gate that cannot fail is worse than no gate: it manufactures confidence, and every
+downstream mechanism records it faithfully.
+
+**The fix — R1 (derive) for four sites, R3 (derived guard) for the table itself.**
+
+`static GATES: &[GateSpec]` declares each gate exactly once — `flag`, `enabled: fn(&Cli) -> bool`,
+`scenario_set`, `unit_floor` — and one `enabled_gates(cli)` iterator serves both consumers:
+
+| site | before | after |
+| --- | --- | --- |
+| `derive_run_plan` unit floor | 15-arm `if`-chain | `map_or` over the iterator |
+| **`fail_on_coverage_gap`** | **15-term `\|\|` chain** | **`cli.fail_on_coverage_gap \|\| gate.is_some()`** |
+| `select_scenario_set` | 15-arm `if`-chain | `map_or` over the iterator |
+| mutual-exclusion count | 15-term `usize::from` sum | a second `next()` on the iterator |
+| exclusivity `bail!` prose | 15 flag names retyped | joined from the table |
+
+The two unit shapes are **modelled rather than flattened** — `UnitFloor::TotalAtLeast` for
+the Phase 1/2/3 gates (which specify a total corpus size and divide it across their scenario
+count) and `UnitFloor::PerScenario` for every later gate (the `PHASE4-HIERARCHY` lesson: a
+stale total budget silently weakened that gate when its scenario count grew).
+
+**The R2 form was evaluated and rejected — it would have disarmed the Phase 1 gate.**
+Decision `0033` left open whether `fail_on_coverage_gap` could be derived from the
+already-compiler-enforced `ScenarioSet` (`scenario_set != ScenarioSet::Default`), which
+would make the S3 site *disappear* rather than be guarded. It cannot: **`--phase1-gate` maps
+to `ScenarioSet::Default`** — it is the one gate that raises the corpus size over the
+*built-in* scenario set instead of selecting a dedicated one, and its old `select_scenario_set`
+arm was an *absence*, not a line. That form would therefore have introduced the exact S3
+defect into the largest gate in the file, while looking like the more principled version.
+Deriving from *"some registered gate is enabled"* is behaviour-preserving for all fifteen.
+Recorded in `DEVELOPMENT_NOTES.md` because the rejected form is what a reviewer would propose.
+
+**The guards — four, none introducing a new hand-maintained list.**
+
+- `every_cli_gate_flag_is_registered` — the expected set is derived from **clap's own `Cli`
+  metadata** (`Cli::command().get_arguments()`, filtered to long flags ending `-gate`) and
+  compared to the table. This is decision `0033`'s **R3** rung and the
+  `knob_catalog_classifies_every_field` pattern: a `*_gate` flag on `Cli` with no `GATES`
+  row fails the build. It also asserts the probe found *something*, so a future clap change
+  that breaks the derivation fails loudly instead of silently measuring nothing.
+- `every_registered_gate_selects_a_distinct_scenario_set` — catches the realistic
+  copy-paste error, and pins that `--phase1-gate` is the *only* gate allowed to map to
+  `ScenarioSet::Default`.
+- `every_registered_gate_arms_the_coverage_gap_check_and_raises_units` — per gate: the row
+  reads the right `Cli` field, selects the right set, arms the `bail!`, and meets its unit
+  floor. It turns each flag on **through `Cli::try_parse_from`**, not through a
+  flag→field switch. That switch was written first and deleted: it would have been a
+  *seventh* copy of the same set, inside the guard meant to collapse it. Parsing also
+  proves each `flag` string is a real CLI flag — something a `&mut` switch could not check,
+  since a typo would fall to the `panic!` arm and look like a missing registration.
+- `matrix_report_records_every_registered_gate_flag` — the one remaining silent site, the
+  `MatrixReport` gate-field declarations, keyed off a flag→field derivation
+  (`--phase1-gate` ⇒ `phase1_gate`). `MatrixReport` gained `Default` **solely** so this test
+  needs no hand-written literal, which would itself be a fresh shadow of the struct; the run
+  path still fills every field and stays E0063-enforced.
+
+**Validation.**
+
+- `cargo check --all-targets` **0** · `cargo clippy --all-targets -- -D warnings` **0** ·
+  `cargo fmt --all --check` **0** · `cargo test --bin tool_matrix` **111 passed, 0 failed**
+  (re-run after `cargo fmt`) · `cargo test --test snapshots` **6 passed, 0 failed** —
+  byte-identical · full `cargo test` under `scripts/ram_guard.sh --threshold 90`:
+  **17 test binaries, 1038 passed, 0 failed, 18 ignored** (exit `0`).
+- **NC-A (guard fires):** delete the fifteenth `GATES` row ⇒ **3 failures**, the new guard
+  naming the exact gap — *"missing here: [\"--emit-surface-interaction-gate\"]; stale here: []"*.
+- **NC-A′ (the S3 defect, reproduced on purpose):** with that row deleted, a temporary probe
+  read `derive_run_plan` for `--emit-surface-interaction-gate` and measured
+  `fail_on_coverage_gap = false, modules_per_scenario = 1` — a gate that runs one unit per
+  scenario and **cannot fail**, exactly the failure mode `.1` predicted from source. Probe
+  removed; source restored byte-identical to the backup.
+- **NC-B (guard passes):** restore the row ⇒ **111 passed, 0 failed**, `diff` clean.
+- **NC-C (copy-paste error):** point the `--casez-mux-if-gate` row at the `case` scenario
+  set ⇒ *"--casez-mux-if-gate reuses scenario set case-mux-if-sweep"*; restored.
+
+**Impact.** Adding a sixteenth gate now means one `GATES` row; forgetting it fails the
+build rather than producing a gate that silently cannot fail. No CLI flag, no report field,
+no gate behaviour and no message text changes — the derived exclusivity message renders the
+identical string. The tree's frontier advances to `.5`. No phase labels move.
+
+**Files touched.** `src/bin/tool_matrix.rs`, `docs/tasks/SHADOW-ENUMERATION-SWEEP.md`,
+`docs/TASK_TREE.md`, `CODEBASE_ANALYSIS.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`,
+`MEMORY.md`.
+
+---
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not
 
 **Landed as:** this commit (previous: `dc3a178`, `SHADOW-ENUMERATION-SWEEP.1`).

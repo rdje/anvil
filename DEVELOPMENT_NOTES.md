@@ -5,6 +5,67 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — The obvious derivation would have disarmed the Phase 1 gate — `SHADOW-ENUMERATION-SWEEP.3`
+
+Decision `0033` left one question open for `.3`: could `fail_on_coverage_gap` be derived
+from the **`ScenarioSet`** — already a compiler-enforced enum with an exhaustive `match` —
+instead of from a fifteen-term disjunction over `Cli` flags? That would be rung **R2**, the
+strongest available: the S3 site would *disappear* rather than be guarded.
+
+```rust
+// The tempting form.
+fail_on_coverage_gap: cli.fail_on_coverage_gap || scenario_set != ScenarioSet::Default,
+```
+
+It is wrong, and it is wrong in exactly the way the leaf exists to prevent. **`--phase1-gate`
+maps to `ScenarioSet::Default`.** It is the one gate that does not select a dedicated
+scenario set — it raises the corpus size and arms the coverage check over the *built-in*
+fifteen scenarios. Under the line above, `--phase1-gate` alone would compute its coverage
+gaps, ignore them, and exit `0`: the fix would have introduced the S3 defect into the
+largest gate in the repo, while looking like the principled version.
+
+Nothing in `select_scenario_set`'s old if-chain announced this. Phase 1 simply had no arm,
+so it fell through to `Ok(ScenarioSet::Default)` — an absence, which is precisely the shape
+that reads as "nothing to see here."
+
+The shipped form derives from the **registry**, not from the enum:
+
+```rust
+fail_on_coverage_gap: cli.fail_on_coverage_gap || gate.is_some(),
+```
+
+*Some registered gate is enabled* is the property that actually means "this run is a gate,"
+and it is behaviour-preserving for all fifteen including Phase 1.
+
+**The transferable lesson.** When collapsing a hand-maintained list into a derivation, the
+derivation's key must be the property the list was *really* keyed on — not a property that
+merely correlates with it on the rows you happen to read first. Fourteen of fifteen rows
+supported `scenario_set != Default`. The fifteenth is the one that matters, and it is the
+oldest gate in the file. **Check the row that predates the pattern.**
+
+Recorded as a rejected alternative rather than silently avoided, because the rejected form
+is what a reviewer would propose on reading the shipped one.
+
+### A second draft that was deleted for being a seventh copy
+
+The per-gate invariant test needs to turn each flag on. The first draft did it with a
+`match gate.flag { "--phase1-gate" => &mut cli.phase1_gate, … }` switch — fifteen arms,
+hand-maintained, **exactly the enumeration the leaf was collapsing**, reintroduced inside
+its own guard. Decision `0033`'s binding constraint ("a repair may not introduce a new
+hand-maintained list") caught it.
+
+The fix is better than the draft on its own merits: turn the flag on **through clap**,
+`Cli::try_parse_from(["tool_matrix", gate.flag])`. No switch, and it additionally proves
+every `GateSpec.flag` string is a *real* CLI flag rather than a plausible-looking typo —
+which a `&mut` switch could never check, because a typo'd flag string would simply fall to
+the `panic!` arm and look like a missing registration.
+
+Watch for this shape generally: **a guard written by hand against a list is often the same
+list again.** If the guard needs to enumerate what it is guarding, the expectation is coming
+from the wrong place.
+
+---
+
 ## 2026-07-30 — Severity is what an omission *does*, not how long the list is — `SHADOW-ENUMERATION-SWEEP.2`
 
 `.1` audited the shadow-enumeration class and ranked `merge_coverage` as *"the single

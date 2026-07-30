@@ -1132,7 +1132,12 @@ struct ScenarioReport {
     designs: Vec<DesignReport>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+/// `Default` is derived solely so `matrix_report_records_every_registered_gate_flag`
+/// (`SHADOW-ENUMERATION-SWEEP.3`) can serialize a report without hand-writing a
+/// literal — a literal would itself be a shadow of this struct. It is never
+/// constructed by the run path, which always fills every field explicitly (and
+/// is E0063-enforced in doing so).
+#[derive(Debug, Clone, Default, Serialize)]
 struct MatrixReport {
     base_seed: u64,
     modules_per_scenario: usize,
@@ -1523,116 +1528,197 @@ fn current_runtime_fingerprint() -> Result<String> {
     hash_file(&exe)
 }
 
+/// How a gate raises the unit count, since the two shapes are not
+/// interchangeable: the Phase 1/2/3 gates specify a **total** corpus size and
+/// divide it across however many scenarios their set happens to hold, while
+/// every later gate specifies a **per-scenario** floor directly (the
+/// `PHASE4-HIERARCHY` lesson — a stale total budget silently weakened the gate
+/// when its scenario count grew).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnitFloor {
+    /// Raise the per-scenario count until the whole sweep generates at least
+    /// this many units in total.
+    TotalAtLeast(usize),
+    /// Raise every scenario to at least this many units, independent of the
+    /// scenario count.
+    PerScenario(usize),
+}
+
+/// One registered `tool_matrix` gate — **the single declaration of a gate**
+/// (`SHADOW-ENUMERATION-SWEEP.3`, decision `0033`).
+///
+/// **Why this table exists.** Before it, adding a gate meant editing the same
+/// growing set of flags in seven places, and five of them were **silent** on
+/// omission: the run-plan unit floor, the `fail_on_coverage_gap` or-chain, the
+/// mutual-exclusion sum, the scenario-set selector, and the `bail!` prose. The
+/// severe one was `fail_on_coverage_gap` — [`run_matrix`]'s `bail!` is gated on
+/// it, so a gate missing from that chain would **run, compute its coverage gaps,
+/// ignore them, and exit `0`**. A gate that cannot fail is worse than no gate:
+/// its clean exit gets banked as a committed closure digest (decision `0030`)
+/// and cited in `README.md`. That is the only *false-green* site the decision
+/// `0033` audit found anywhere in the repo.
+///
+/// A gate is now declared **once**, here. [`select_scenario_set`] and
+/// [`derive_run_plan`] both read this table, so neither can fall behind it, and
+/// `fail_on_coverage_gap` is derived from *"some registered gate is enabled"*
+/// rather than from a parallel disjunction that has to be remembered.
+///
+/// The table itself cannot fall behind the CLI either:
+/// `every_cli_gate_flag_is_registered` derives the expected flag set from
+/// clap's own `Cli` metadata — decision `0033`'s **R3** rung, and the
+/// `knob_catalog_classifies_every_field` pattern — so a `*_gate` flag that
+/// exists on `Cli` but not here fails the build. No second hand-written list.
+///
+/// `--phase1-gate` deliberately maps to [`ScenarioSet::Default`]: it raises the
+/// corpus size and arms the coverage-gap check over the *built-in* scenario set
+/// rather than selecting a dedicated one.
+struct GateSpec {
+    /// The CLI flag exactly as clap renders it. Also the source of the
+    /// `MatrixReport` field name (`--phase1-gate` ⇒ `phase1_gate`) and of the
+    /// mutual-exclusion message, so neither is separately enumerated.
+    flag: &'static str,
+    /// Reads this gate's own `Cli` field. A fn pointer rather than a field
+    /// offset so the table stays a plain `static` with no macro.
+    enabled: fn(&Cli) -> bool,
+    /// The scenario set this gate selects.
+    scenario_set: ScenarioSet,
+    /// The unit floor this gate raises the run to.
+    unit_floor: UnitFloor,
+}
+
+static GATES: &[GateSpec] = &[
+    GateSpec {
+        flag: "--phase1-gate",
+        enabled: |c| c.phase1_gate,
+        scenario_set: ScenarioSet::Default,
+        unit_floor: UnitFloor::TotalAtLeast(PHASE1_MIN_TOTAL_MODULES),
+    },
+    GateSpec {
+        flag: "--phase2-share-gate",
+        enabled: |c| c.phase2_share_gate,
+        scenario_set: ScenarioSet::Phase2Share,
+        unit_floor: UnitFloor::TotalAtLeast(PHASE2_SHARE_MIN_TOTAL_MODULES),
+    },
+    GateSpec {
+        flag: "--phase3-structured-gate",
+        enabled: |c| c.phase3_structured_gate,
+        scenario_set: ScenarioSet::Phase3Structured,
+        unit_floor: UnitFloor::TotalAtLeast(PHASE3_STRUCTURED_MIN_TOTAL_MODULES),
+    },
+    GateSpec {
+        flag: "--phase4-hierarchy-gate",
+        enabled: |c| c.phase4_hierarchy_gate,
+        scenario_set: ScenarioSet::Phase4Hierarchy,
+        unit_floor: UnitFloor::PerScenario(PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--signoff-knob-sweep-gate",
+        enabled: |c| c.signoff_knob_sweep_gate,
+        scenario_set: ScenarioSet::SignoffKnobSweep,
+        unit_floor: UnitFloor::PerScenario(SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--sv-version-gate",
+        enabled: |c| c.sv_version_gate,
+        scenario_set: ScenarioSet::SvVersionSweep,
+        unit_floor: UnitFloor::PerScenario(SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--function-emit-gate",
+        enabled: |c| c.function_emit_gate,
+        scenario_set: ScenarioSet::FunctionEmitSweep,
+        unit_floor: UnitFloor::PerScenario(FUNCTION_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--generate-loop-gate",
+        enabled: |c| c.generate_loop_gate,
+        scenario_set: ScenarioSet::GenerateLoopSweep,
+        unit_floor: UnitFloor::PerScenario(GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--task-emit-gate",
+        enabled: |c| c.task_emit_gate,
+        scenario_set: ScenarioSet::TaskEmitSweep,
+        unit_floor: UnitFloor::PerScenario(TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--cone-function-gate",
+        enabled: |c| c.cone_function_gate,
+        scenario_set: ScenarioSet::ConeFunctionSweep,
+        unit_floor: UnitFloor::PerScenario(CONE_FUNCTION_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--multi-output-task-gate",
+        enabled: |c| c.multi_output_task_gate,
+        scenario_set: ScenarioSet::MultiOutputTaskSweep,
+        unit_floor: UnitFloor::PerScenario(MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--mux-if-gate",
+        enabled: |c| c.mux_if_gate,
+        scenario_set: ScenarioSet::MuxIfSweep,
+        unit_floor: UnitFloor::PerScenario(MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--case-mux-if-gate",
+        enabled: |c| c.case_mux_if_gate,
+        scenario_set: ScenarioSet::CaseMuxIfSweep,
+        unit_floor: UnitFloor::PerScenario(CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--casez-mux-if-gate",
+        enabled: |c| c.casez_mux_if_gate,
+        scenario_set: ScenarioSet::CasezMuxIfSweep,
+        unit_floor: UnitFloor::PerScenario(CASEZ_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
+        flag: "--emit-surface-interaction-gate",
+        enabled: |c| c.emit_surface_interaction_gate,
+        scenario_set: ScenarioSet::EmitSurfaceInteraction,
+        unit_floor: UnitFloor::PerScenario(EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO),
+    },
+];
+
+/// The registered gates this invocation enabled, in [`GATES`] order.
+fn enabled_gates(cli: &Cli) -> impl Iterator<Item = &'static GateSpec> + '_ {
+    GATES.iter().filter(|gate| (gate.enabled)(cli))
+}
+
+/// The `MatrixReport` field name a gate's flag maps to (`--phase1-gate` ⇒
+/// `phase1_gate`). Derived so the report's gate fields are not a second list.
+#[cfg(test)]
+fn gate_report_field(flag: &str) -> String {
+    flag.trim_start_matches("--").replace('-', "_")
+}
+
 fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
-    let gate_modules_per_scenario = if cli.phase1_gate {
-        PHASE1_MIN_TOTAL_MODULES.div_ceil(scenario_count)
-    } else if cli.phase2_share_gate {
-        PHASE2_SHARE_MIN_TOTAL_MODULES.div_ceil(scenario_count)
-    } else if cli.phase3_structured_gate {
-        PHASE3_STRUCTURED_MIN_TOTAL_MODULES.div_ceil(scenario_count)
-    } else if cli.phase4_hierarchy_gate {
-        PHASE4_HIERARCHY_MIN_DESIGNS_PER_SCENARIO
-    } else if cli.signoff_knob_sweep_gate {
-        SIGNOFF_KNOB_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.sv_version_gate {
-        SV_VERSION_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.function_emit_gate {
-        FUNCTION_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.generate_loop_gate {
-        GENERATE_LOOP_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.task_emit_gate {
-        TASK_EMIT_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.cone_function_gate {
-        CONE_FUNCTION_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.multi_output_task_gate {
-        MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.mux_if_gate {
-        MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.case_mux_if_gate {
-        CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.casez_mux_if_gate {
-        CASEZ_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
-    } else if cli.emit_surface_interaction_gate {
-        EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO
-    } else {
-        1
-    };
+    let gate = enabled_gates(cli).next();
+    let gate_modules_per_scenario = gate.map_or(1, |gate| match gate.unit_floor {
+        UnitFloor::TotalAtLeast(total) => total.div_ceil(scenario_count),
+        UnitFloor::PerScenario(per) => per,
+    });
     let modules_per_scenario = cli.modules_per_scenario.max(gate_modules_per_scenario);
     let total_modules = modules_per_scenario * scenario_count;
     RunPlan {
         modules_per_scenario,
-        fail_on_coverage_gap: cli.fail_on_coverage_gap
-            || cli.phase1_gate
-            || cli.phase2_share_gate
-            || cli.phase3_structured_gate
-            || cli.phase4_hierarchy_gate
-            || cli.signoff_knob_sweep_gate
-            || cli.sv_version_gate
-            || cli.function_emit_gate
-            || cli.generate_loop_gate
-            || cli.task_emit_gate
-            || cli.cone_function_gate
-            || cli.multi_output_task_gate
-            || cli.mux_if_gate
-            || cli.case_mux_if_gate
-            || cli.casez_mux_if_gate
-            || cli.emit_surface_interaction_gate,
+        // Derived, not enumerated: **any** registered gate arms the
+        // coverage-gap `bail!`. This is the line that used to be a
+        // fifteen-term disjunction, and omitting a term from it produced a
+        // gate that could not fail (decision `0033`, severity S3).
+        fail_on_coverage_gap: cli.fail_on_coverage_gap || gate.is_some(),
         total_modules,
     }
 }
 
 fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
-    let enabled_gates = usize::from(cli.phase1_gate)
-        + usize::from(cli.phase2_share_gate)
-        + usize::from(cli.phase3_structured_gate)
-        + usize::from(cli.phase4_hierarchy_gate)
-        + usize::from(cli.signoff_knob_sweep_gate)
-        + usize::from(cli.sv_version_gate)
-        + usize::from(cli.function_emit_gate)
-        + usize::from(cli.generate_loop_gate)
-        + usize::from(cli.task_emit_gate)
-        + usize::from(cli.cone_function_gate)
-        + usize::from(cli.multi_output_task_gate)
-        + usize::from(cli.mux_if_gate)
-        + usize::from(cli.case_mux_if_gate)
-        + usize::from(cli.casez_mux_if_gate)
-        + usize::from(cli.emit_surface_interaction_gate);
-    if enabled_gates > 1 {
-        bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, --generate-loop-gate, --task-emit-gate, --cone-function-gate, --multi-output-task-gate, --mux-if-gate, --case-mux-if-gate, --casez-mux-if-gate, and --emit-surface-interaction-gate are mutually exclusive"
-        );
+    let mut enabled = enabled_gates(cli);
+    let selected = enabled.next();
+    if enabled.next().is_some() {
+        let flags: Vec<&str> = GATES.iter().map(|gate| gate.flag).collect();
+        let (last, rest) = flags.split_last().expect("GATES is non-empty");
+        bail!("{}, and {last} are mutually exclusive", rest.join(", "));
     }
-    if cli.phase2_share_gate {
-        Ok(ScenarioSet::Phase2Share)
-    } else if cli.phase3_structured_gate {
-        Ok(ScenarioSet::Phase3Structured)
-    } else if cli.phase4_hierarchy_gate {
-        Ok(ScenarioSet::Phase4Hierarchy)
-    } else if cli.signoff_knob_sweep_gate {
-        Ok(ScenarioSet::SignoffKnobSweep)
-    } else if cli.sv_version_gate {
-        Ok(ScenarioSet::SvVersionSweep)
-    } else if cli.function_emit_gate {
-        Ok(ScenarioSet::FunctionEmitSweep)
-    } else if cli.generate_loop_gate {
-        Ok(ScenarioSet::GenerateLoopSweep)
-    } else if cli.task_emit_gate {
-        Ok(ScenarioSet::TaskEmitSweep)
-    } else if cli.cone_function_gate {
-        Ok(ScenarioSet::ConeFunctionSweep)
-    } else if cli.multi_output_task_gate {
-        Ok(ScenarioSet::MultiOutputTaskSweep)
-    } else if cli.mux_if_gate {
-        Ok(ScenarioSet::MuxIfSweep)
-    } else if cli.case_mux_if_gate {
-        Ok(ScenarioSet::CaseMuxIfSweep)
-    } else if cli.casez_mux_if_gate {
-        Ok(ScenarioSet::CasezMuxIfSweep)
-    } else if cli.emit_surface_interaction_gate {
-        Ok(ScenarioSet::EmitSurfaceInteraction)
-    } else {
-        Ok(ScenarioSet::Default)
-    }
+    Ok(selected.map_or(ScenarioSet::Default, |gate| gate.scenario_set))
 }
 
 fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scenario>> {
@@ -10441,6 +10527,168 @@ mod tests {
         assert!(gaps.iter().any(|gap| gap.contains("multi-clock module")));
         assert!(gaps.iter().any(|gap| gap.contains("2-flop CDC")));
         assert!(gaps.iter().any(|gap| gap.contains("N-flop CDC")));
+    }
+
+    /// `SHADOW-ENUMERATION-SWEEP.3` (decision `0033`, repair rung **R3**) — the
+    /// [`GATES`] table cannot fall behind the CLI.
+    ///
+    /// The expected set is **derived from clap's own `Cli` metadata**, not from a
+    /// second hand-written list — the `knob_catalog_classifies_every_field`
+    /// pattern. Adding a `*_gate` flag to `Cli` without registering it here
+    /// therefore fails the build, which is the whole point: before the table, such
+    /// a flag would silently run one unit per scenario, select
+    /// `ScenarioSet::Default`, and — worst — leave `fail_on_coverage_gap` unset, so
+    /// the gate would compute its coverage gaps, ignore them, and exit `0`.
+    #[test]
+    fn every_cli_gate_flag_is_registered() {
+        use clap::CommandFactory;
+
+        let from_cli: BTreeSet<String> = Cli::command()
+            .get_arguments()
+            .filter_map(|arg| arg.get_long())
+            .filter(|long| long.ends_with("-gate"))
+            .map(|long| format!("--{long}"))
+            .collect();
+        let from_table: BTreeSet<String> = GATES.iter().map(|gate| gate.flag.to_string()).collect();
+
+        assert!(
+            !from_cli.is_empty(),
+            "the clap-derived gate-flag probe found nothing — it has stopped \
+             measuring anything and must be repaired, not deleted"
+        );
+        assert_eq!(
+            from_table,
+            from_cli,
+            "every --*-gate flag on `Cli` must have exactly one GATES row \
+             (missing here: {:?}; stale here: {:?})",
+            from_cli.difference(&from_table).collect::<Vec<_>>(),
+            from_table.difference(&from_cli).collect::<Vec<_>>()
+        );
+    }
+
+    /// Each registered gate selects a **distinct** scenario set, so a copy-pasted
+    /// row cannot silently route a new gate at an existing gate's scenarios.
+    /// `--phase1-gate` is the one gate that legitimately maps to
+    /// [`ScenarioSet::Default`] — it raises the corpus size over the built-in set
+    /// rather than selecting a dedicated one.
+    #[test]
+    fn every_registered_gate_selects_a_distinct_scenario_set() {
+        let mut seen = BTreeSet::new();
+        for gate in GATES {
+            assert!(
+                seen.insert(scenario_set_slug(gate.scenario_set)),
+                "{} reuses scenario set {}",
+                gate.flag,
+                scenario_set_slug(gate.scenario_set)
+            );
+        }
+        assert_eq!(
+            GATES
+                .iter()
+                .find(|gate| gate.scenario_set == ScenarioSet::Default)
+                .map(|gate| gate.flag),
+            Some("--phase1-gate"),
+            "only --phase1-gate may run over the built-in scenario set"
+        );
+    }
+
+    /// Every registered gate arms the coverage-gap `bail!` **and** raises the unit
+    /// floor above the ungated default — the two properties whose per-gate
+    /// enumeration used to be silent on omission. Driven from the table, so it
+    /// covers a fifteenth gate and a sixteenth alike.
+    #[test]
+    fn every_registered_gate_arms_the_coverage_gap_check_and_raises_units() {
+        for gate in GATES {
+            // The flag is turned on **through clap**, not through a hand-written
+            // flag→field switch — which would be a seventh copy of the very set
+            // this leaf exists to collapse. It also proves each `GateSpec.flag`
+            // string is a real CLI flag rather than a plausible-looking typo.
+            let cli = Cli::try_parse_from(["tool_matrix", gate.flag])
+                .unwrap_or_else(|err| panic!("{} is not a parseable flag: {err}", gate.flag));
+
+            assert!(
+                (gate.enabled)(&cli),
+                "{}: the GATES row reads the wrong Cli field",
+                gate.flag
+            );
+            assert_eq!(
+                select_scenario_set(&cli).expect("select"),
+                gate.scenario_set,
+                "{}: selects the wrong scenario set",
+                gate.flag
+            );
+
+            let scenario_count = build_scenarios(0, gate.scenario_set)
+                .expect("build scenarios")
+                .len();
+            let plan = derive_run_plan(&cli, scenario_count);
+            assert!(
+                plan.fail_on_coverage_gap,
+                "{}: a gate that does not arm the coverage-gap bail! CANNOT FAIL",
+                gate.flag
+            );
+            match gate.unit_floor {
+                UnitFloor::TotalAtLeast(total) => assert!(
+                    plan.total_modules >= total,
+                    "{}: total {} < floor {total}",
+                    gate.flag,
+                    plan.total_modules
+                ),
+                UnitFloor::PerScenario(per) => assert!(
+                    plan.modules_per_scenario >= per,
+                    "{}: per-scenario {} < floor {per}",
+                    gate.flag,
+                    plan.modules_per_scenario
+                ),
+            }
+        }
+    }
+
+    /// The `MatrixReport` records **every** registered gate's flag, so a gate
+    /// cannot run without the report saying which gate produced it — the banked
+    /// digest reads this field. Derived from the flag (`--phase1-gate` ⇒
+    /// `phase1_gate`), so the report's gate fields are not a second list either.
+    #[test]
+    fn matrix_report_records_every_registered_gate_flag() {
+        let report = MatrixReport {
+            phase1_gate: true,
+            ..MatrixReport::default()
+        };
+        let value = serde_json::to_value(&report).expect("serialize report");
+        let object = value.as_object().expect("report is a JSON object");
+        for gate in GATES {
+            let field = gate_report_field(gate.flag);
+            assert!(
+                object.contains_key(&field),
+                "{} has no `{field}` field in MatrixReport",
+                gate.flag
+            );
+        }
+        assert_eq!(
+            object.get("phase1_gate"),
+            Some(&serde_json::Value::Bool(true)),
+            "the derived field name must address the real report field"
+        );
+    }
+
+    /// The mutual-exclusion message names every registered flag, derived from the
+    /// table rather than retyped — the sixth (cosmetic) site of the same
+    /// enumeration.
+    #[test]
+    fn two_gates_are_rejected_with_a_message_naming_every_registered_flag() {
+        let mut cli = test_cli();
+        cli.phase1_gate = true;
+        cli.mux_if_gate = true;
+        let err = select_scenario_set(&cli).expect_err("two gates must be rejected");
+        let message = err.to_string();
+        for gate in GATES {
+            assert!(
+                message.contains(gate.flag),
+                "the exclusivity message omits {}",
+                gate.flag
+            );
+        }
+        assert!(message.ends_with("are mutually exclusive"));
     }
 
     #[test]
