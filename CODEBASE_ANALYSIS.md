@@ -468,6 +468,22 @@ src/
 │                     proper low-bits Slice gates render as an internal
 │                     `union soft` overlay (see `ir/soft_union.rs`).
 │
+├── ir/knob_id.rs     IR-TYPES-DECOMPOSITION.2 — the STEERING TAXONOMY,
+│                     split out of `ir/types.rs` because it answers "what
+│                     can be steered, and in which coverage family?", not
+│                     "what is a module?". Holds `enum KnobId` (one variant
+│                     per `gen_bool(cfg.<prob>)` site) + `all()` / `name()` /
+│                     `category()` / `category_of_name()` + the two guard
+│                     tests. Verified severable in BOTH directions before the
+│                     move: nothing in the data model referenced `KnobId`,
+│                     and the block referenced nothing from the data model.
+│                     `scripts/check_enumeration_parity.sh` reads
+│                     `KnobId::category`'s arms from here as the
+│                     authoritative `--steer` taxonomy — that the check
+│                     previously had to name `types.rs` was the evidence for
+│                     the split. Re-exported by `crate::ir`, so every
+│                     `crate::ir::KnobId` path is unchanged.
+│
 ├── ir/knob_roll.rs   COVERAGE-STEERED-GENERATION.3b (decision 0034) — the
 │                     crate's SINGLE knob-roll primitive, and the module
 │                     that makes "single" structural. Holds

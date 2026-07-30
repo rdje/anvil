@@ -88,8 +88,15 @@ extract_adapter_ids() {
 # Authoritative: the steering category names in `KnobId::category`'s exhaustive
 # match. The match arms are the ONLY place the taxonomy is defined; every prose
 # copy of the list is a shadow of this (COVERAGE-STEERED-GENERATION.4c).
+#
+# The path moved from src/ir/types.rs to src/ir/knob_id.rs at
+# IR-TYPES-DECOMPOSITION.2. That this extractor had to name `types.rs` at all was
+# the decisive evidence FOR that split: a doctrine check should not have to know
+# that a file called "types" houses a steering taxonomy. The count floor below is
+# what makes repointing it safe — a wrong path yields 0 categories, which trips
+# `floor_or_fail` loudly instead of passing vacuously.
 extract_steering_categories() {
-  sed -n '/pub fn category(&self)/,/^    }$/p' src/ir/types.rs |
+  sed -n '/pub fn category(&self)/,/^    }$/p' src/ir/knob_id.rs |
     grep -oE '=> "[a-z]+"' | grep -oE '"[a-z]+"' | tr -d '"' | sort -u
 }
 

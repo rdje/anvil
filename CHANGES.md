@@ -1,6 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — IR-TYPES-DECOMPOSITION.2 — extract `KnobId` into `src/ir/knob_id.rs`
+
+**Landed as:** (backfilled next slice). Previous: `30e731b`.
+**Pure move** — no behaviour change ⇒ **DUT byte-identical**, `tests/snapshots.rs`
+untouched.
+
+**What.** `src/ir/types.rs` **4069 → 3607 lines** (−462). The steering taxonomy —
+`enum KnobId`, `impl KnobId` (`all` / `index` / `name` / `category` /
+`category_of_name`) and its two guard tests — moves to a new **483-line**
+`src/ir/knob_id.rs`. `#[test]` count is exactly conserved: 42 → 40 + 2.
+
+**Severability proven in both directions BEFORE cutting**, which is what makes
+this a pure move rather than a hopeful one:
+
+- no reference to `KnobId` anywhere in `types.rs` outside the moved block;
+- no reference from the moved block to **any** data-model type (`Module`, `Node`,
+  `Port`, `Flop`, `GateOp`, `Design`, `DepSet`, `Instance`, `Memory`, `Fsm`,
+  `WidthExpr`, `ParamEnv`, `ClockDomain`, `Direction`).
+
+Zero coupling both ways. A file that shares no names with its host is not a
+section of that file; it is a lodger.
+
+**Blast radius exactly as `.1` predicted.** The audit measured 2 sites repo-wide
+writing `types::` explicitly; both are in `src/ir/knob_roll.rs`. One is the single
+import that had to change (`use crate::ir::types::KnobId` →
+`crate::ir::knob_id::KnobId`); the other is a doc-comment mention of
+`ir::types::Module`, still correct. **Zero call sites outside `src/ir/` changed**
+— which was the acceptance criterion *and* the review criterion: a changed call
+site anywhere else would have proven the move impure. `src/ir/mod.rs` gains
+`pub mod knob_id;` + `pub use knob_id::*;`, so every `crate::ir::KnobId` path is
+byte-identical.
+
+**The doctrine extractor was repointed and negative-controlled.**
+`scripts/check_enumeration_parity.sh::extract_steering_categories` hard-coded
+`src/ir/types.rs` — the fact that it had to name that file is what made the split
+obviously right. It now names `src/ir/knob_id.rs`, and a deliberately wrong path
+yields 0 categories and trips `floor_or_fail` (exit 1), so a mis-repointed
+extractor fails loudly rather than passing vacuously.
+
+**Two pre-existing defects surfaced — both confirmed against `git show HEAD:`, so
+neither was caused by this move, and both are now task-tree-owned:**
+
+1. **`ENUMERATION-PARITY`'s steering extractor silently reads 7 of 8 categories.**
+   `datapath` is invisible to it: its regex `=> "[a-z]+"` assumes a one-line match
+   arm, and `rustfmt` renders that arm as a block because its three `|`-joined
+   patterns overflow the line. The floor (6) cannot catch it — 7 ≥ 6 — and
+   `covers_set` is per-category, so an unextracted category is verified at **no**
+   doc site. Measured: all four sites *do* name `datapath`, so the docs were fine
+   and only the gate was blind. → `docs/tasks/PARITY-EXTRACTOR-ARM-SHAPE-GAP.md`.
+2. **Four of five per-file test counts in `book/src/architecture.md` are stale**
+   (`metrics.rs` claims 18, actual 31 — 72 % understated). Every error is an
+   under-count, the signature of prose that decays as tests are added. Sharp
+   illustration of why *correcting* them is the wrong repair: this very move took
+   `types.rs` from 42 to 40 and thereby made the stale "40" accidentally true
+   again. → `docs/tasks/BOOK-TEST-COUNT-SHADOWS.md`.
+
+Both are residue of `SHADOW-ENUMERATION-SWEEP`'s `2026-07-30` closing claim that
+the class was fully handled. That claim is repaired by new trees that measure it,
+never by editing the closed one (decision `0031`: history stays raw).
+
+**Validation.** `cargo fmt --all --check` ✓ (one rustfmt fixup for the blank line
+the cut left in the test module) · `cargo check --all-targets` ✓ · `cargo clippy
+--all-targets -- -D warnings` ✓ · `cargo test` ✓ incl. `tests/snapshots.rs`
+untouched · `scripts/check_doctrines.sh` 8/8 · `README-GROWTH` still green at
+159 lines / 10,326 bytes.
+
+**Files touched:** `src/ir/knob_id.rs` (new), `src/ir/types.rs`, `src/ir/mod.rs`,
+`src/ir/knob_roll.rs`, `scripts/check_enumeration_parity.sh`, `README.md`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/IR-TYPES-DECOMPOSITION.md`,
+`docs/tasks/PARITY-EXTRACTOR-ARM-SHAPE-GAP.md` (new),
+`docs/tasks/BOOK-TEST-COUNT-SHADOWS.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-07-31 — IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree
 
 **Landed as:** (backfilled next slice). Previous: `bd7dba2`.

@@ -66,8 +66,10 @@ mirror them; see [Where content goes](#where-content-goes).
 ### Crate layout
 - `src/main.rs` — CLI entry point; `src/lib.rs` — library root
 - `src/config.rs` — knobs, CLI overlay, validation
-- `src/ir/types.rs` — `Module`, `Node`, `GateOp`, `Flop`, `DepSet`, `KnobId`
+- `src/ir/types.rs` — `Module`, `Node`, `GateOp`, `Flop`, `DepSet`
 - `src/ir/validate.rs` — IR invariant checker (safety net)
+- `src/ir/knob_id.rs` — `KnobId`: the steering taxonomy (what is steerable, and
+  in which coverage family)
 - `src/ir/knob_roll.rs` — the crate's single steering-aware knob-roll primitive
 - `src/ir/soft_union.rs`, `src/ir/function_emit.rs`, … — emit-projection
   annotation passes (one per structured-emission surface)

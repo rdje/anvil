@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Codebase hygiene / module ownership — owner-directed
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (`.1` audit + registration landed; frontier `.2`, extract `KnobId`)
+- Last updated: `2026-07-31` (`.2` landed — `KnobId` extracted, `types.rs` 4069 → 3607; frontier `COVERAGE-STEERED-GENERATION.6`, then `.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -102,11 +102,11 @@ call-site change anywhere.
   Commit: `IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree`
 
 - ID: `IR-TYPES-DECOMPOSITION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Extract KnobId + impl KnobId + its two tests (all_is_complete_and_ordered, knob_names_and_categories_are_disjoint_and_total) into src/ir/knob_id.rs. Pure move, doc comments verbatim. Re-export from src/ir/mod.rs so no call site changes. Repoint scripts/check_enumeration_parity.sh's extract_steering_categories at the new path.`
   Acceptance: `cargo test green incl. tests/snapshots.rs untouched; clippy + fmt clean; scripts/check_doctrines.sh 8/8 with ENUMERATION-PARITY still extracting 8 steering categories (count-floored at 6, so a broken extractor fails loudly rather than passing vacuously); zero call-site changes outside src/ir/.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done. SEVERABILITY PROVEN IN BOTH DIRECTIONS BEFORE CUTTING, which is what made this a pure move rather than a hopeful one: (a) no reference to KnobId anywhere in types.rs outside the block (lines 579-960) and its two tests (2815-2892); (b) no reference from that block to ANY data-model type (Module/Node/Port/Flop/GateOp/Design/DepSet/Instance/Memory/Fsm/WidthExpr/ParamEnv/ClockDomain/Direction). Zero coupling both ways. RESULT: src/ir/types.rs 4069 -> 3607 lines (-462); new src/ir/knob_id.rs 483 lines; #[test] count 42 -> 40 + 2, exactly conserved. src/ir/mod.rs gains `pub mod knob_id;` + `pub use knob_id::*;` so every crate::ir::KnobId path is unchanged. CALL-SITE BLAST RADIUS EXACTLY AS PREDICTED AT .1: the audit measured 2 sites writing `types::` explicitly and both are in src/ir/knob_roll.rs — one import (`use crate::ir::types::KnobId` -> `knob_id::KnobId`, the single line that had to change) and one doc-comment mention of ir::types::Module which remains correct. ZERO call sites outside src/ir/ changed, which was the acceptance criterion AND the review criterion: a changed call site would have proven the move impure. Doctrine extractor repointed at src/ir/knob_id.rs and negative-controlled — a deliberately wrong path yields 0 categories and trips floor_or_fail (exit 1), so a mis-repointed extractor fails loudly rather than passing vacuously. GATES: cargo fmt --all --check PASS (one rustfmt fixup for the blank line the cut left in the test module); cargo check --all-targets PASS; cargo clippy --all-targets -- -D warnings PASS; cargo test PASS incl. tests/snapshots.rs untouched => DUT byte-identical; scripts/check_doctrines.sh 8/8. FOUND WHILE DOING THIS, both pre-existing and both now task-tree-owned, neither caused by this move (each confirmed against `git show HEAD:`): (1) the ENUMERATION-PARITY steering extractor silently reads 7 of 8 categories -> PARITY-EXTRACTOR-ARM-SHAPE-GAP; (2) four of five per-file test counts in book/src/architecture.md are stale -> BOOK-TEST-COUNT-SHADOWS.`
+  Commit: `IR-TYPES-DECOMPOSITION.2 — extract KnobId into src/ir/knob_id.rs`
 
 - ID: `IR-TYPES-DECOMPOSITION.3`
   Status: `pending`
@@ -127,7 +127,8 @@ call-site change anywhere.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `IR-TYPES-DECOMPOSITION.1` | `done` | Audit + register. The measurement is the work product: two tenants foreign to a types file are **55 %** of it, the blast radius of a split is **zero call sites** (`pub use types::*`, only 2 explicit `types::` sites repo-wide), and one doctrine check hard-codes the path. Ordering fixed against `CSG.6`. |
-| 2 | `IR-TYPES-DECOMPOSITION.2` | `pending` | **Next.** Smallest, safest, and the **precondition for `COVERAGE-STEERED-GENERATION.6`** — the next queued roadmap action, which collapses `KnobId`'s five parallel tables into one macro table. Extract first so that macro lands in a file that owns one thing. |
+| 2 | `IR-TYPES-DECOMPOSITION.2` | `done` | `types.rs` **4069 → 3607**; `src/ir/knob_id.rs` is 483 lines; tests conserved exactly (42 → 40 + 2). Severability proven in **both** directions before cutting. Blast radius exactly as `.1` predicted: **one** import line, inside `src/ir/`. Surfaced two pre-existing defects, both now tree-owned. |
+| — | **`COVERAGE-STEERED-GENERATION.6`** | `pending` | **Next, and it is in a different tree.** `KnobId` now lives alone, so the rung-R1 macro table lands in a file that owns one thing. |
 | 3 | `IR-TYPES-DECOMPOSITION.3` | `pending` | The largest tenant (~1830 lines with tests, 45 %). Deliberately **after** `CSG.6`: it moves an `impl Module` block plus ~38 tests, and it should not be interleaved with a semantic change to a different type. |
 | 4 | `IR-TYPES-DECOMPOSITION.4` | `pending` | Re-measure and close. Splitting further without re-measuring would be splitting by line count, which this tree explicitly rejects. |
 
@@ -173,13 +174,15 @@ call-site change anywhere.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-31` | `IR-TYPES-DECOMPOSITION.2` | `severability proven both ways (no KnobId reference in types.rs outside the block; no data-model reference inside it); types.rs 4069 -> 3607, knob_id.rs 483, #[test] 42 -> 40+2 conserved; exactly ONE call site changed (an import in src/ir/knob_roll.rs), zero outside src/ir/; extractor repointed + negative-controlled (wrong path -> 0 categories -> floor trip, exit 1); cargo fmt/check/clippy/test all PASS with tests/snapshots.rs untouched; check_doctrines.sh 8/8` | `pure move; DUT byte-identical` |
 | `2026-07-31` | `IR-TYPES-DECOMPOSITION.1` | `tree registered (docs-only); measured src/ir/types.rs = 4069 lines at bd7dba2 with the per-region table above; confirmed src/ir/mod.rs already does pub use types::*, and that only 2 sites repo-wide write types:: explicitly; confirmed scripts/check_enumeration_parity.sh hard-codes src/ir/types.rs in extract_steering_categories; no code touched` | `registered` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `IR-TYPES-DECOMPOSITION.1` | `IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree` | Hash backfilled next slice. Docs-only; no code moved. |
+| `IR-TYPES-DECOMPOSITION.1` | `30e731b` — `IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree` | Docs-only; no code moved. |
+| `IR-TYPES-DECOMPOSITION.2` | `IR-TYPES-DECOMPOSITION.2 — extract KnobId into src/ir/knob_id.rs` | Hash backfilled next slice. Pure move ⇒ DUT byte-identical. |
 
 ## Changelog
 

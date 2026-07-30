@@ -60,7 +60,7 @@ use std::collections::HashMap;
 use rand::Rng;
 
 use crate::config::SteeringConfig;
-use crate::ir::types::KnobId;
+use crate::ir::knob_id::KnobId;
 
 /// Live per-knob roll counters. Written only by [`roll_knob_into`]; the
 /// empirical ratio `fires[knob] / attempts[knob]` should converge to the
