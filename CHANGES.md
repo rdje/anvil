@@ -1,6 +1,49 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — IR-TYPES-DECOMPOSITION.2 — refresh the resume pointer for handoff
+
+**Landed as:** (backfilled next slice). Previous: `472b8da`.
+**Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
+
+**What.** Session-end refresh of `MEMORY.md`'s current-state block so a cold
+session resumes correctly, plus a small artifact cleanup.
+
+**A factual error in the resume pointer, found and corrected.** It claimed *"26
+commits this session"*. The real count since this session's starting `HEAD`
+(`55b84d2`) is **8**. The number was inherited from the *previous* session's
+pointer and incremented rather than reset — and it was wrong under either reading
+(20 + 8 = 28, not 26). Corrected to `8` with the explicit range `55b84d2..HEAD`,
+so the claim is checkable rather than remembered. This is the same class as the
+recorded gotcha *never baseline a metric against a file you have already edited*:
+a carried-forward number is not a measurement.
+
+**`active_work_unit` rewritten** to name what this session actually did, which the
+previous text did not: **two trees closed** (`README-POLICY-ADOPTION`,
+`PARITY-EXTRACTOR-ARM-SHAPE-GAP`) and **two opened and still active**
+(`IR-TYPES-DECOMPOSITION` with `.3`/`.4` pending, `BOOK-TEST-COUNT-SHADOWS` with
+`.1` pending). Tree statuses were cross-checked between each `docs/tasks/*.md`
+file and its `docs/TASK_TREE.md` index row — they agree.
+
+**`in_flight_uncommitted`** now records the concrete validation state a cold
+session would otherwise have to re-derive: clean at `472b8da`, 8/8 doctrines,
+`cargo fmt`/`check`/`clippy`/`test` green at `218277d` (17 suites, 0 failures,
+`tests/snapshots.rs` untouched), `mdbook build` clean, brief empty.
+
+**Artifact cleanup (§8).** Removed `.cache/scratch/readme-probe/` — my own
+uncited probe fixtures, whose *results* are recorded in the task tree and in the
+`README-POLICY-ADOPTION.2` entry. Everything else in `.cache/scratch` is left in
+place deliberately: it holds `anvil-emit-surface-interaction-r1`, the bulk corpus
+behind a **committed** digest (decision `0030`), plus prior-session material this
+session did not create. Deleting an ambiguous shared scratch is exactly what the
+volume-locality policy forbids; "only delete when it is 100 % safe" is not
+satisfied for a cited evidence bank.
+
+**Validation.** `scripts/check_doctrines.sh` 8/8 PASS; `MEMORY.md` at the 50-line
+cap.
+
+**Files touched:** `MEMORY.md`, `CHANGES.md`.
+
 ## 2026-07-31 — PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout
 
 **Landed as:** `2ee8500`. Previous: `218277d`.
