@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4b.2 — nine emission surfaces, measurable per gate
 
-**Landed as:** `<pending>` (previous: `ed3ed29`, `.5` hash backfill).
+**Landed as:** `4a15ecd` (previous: `ed3ed29`, `.5` hash backfill).
 **16 configurations byte-identical** against a `HEAD` binary built in an isolated
 git worktree. **Completes steering's width**; `.4c` (docs) closes `.4`.
 
