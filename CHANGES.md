@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4a — steering's width (decision 0035)
 
-**Landed as:** `<pending>` (previous: `a42d3b5`, `BOOK-EXAMPLES-RUNNABLE.3` hash backfill).
+**Landed as:** `040ebc3` (previous: `a42d3b5`, `BOOK-EXAMPLES-RUNNABLE.3` hash backfill).
 **Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
 
 **What.** The design leaf for `.4`. `.3` fixed steering's *reach* (every knob with a
