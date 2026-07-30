@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / live-doc hygiene — owner-directed README policy
 - Created: `2026-07-30`
-- Last updated: `2026-07-30` (`.1` audit + design ADR landed — decision `0036`; frontier `.2`)
+- Last updated: `2026-07-30` (`.2` landed — README restored to 156 lines, `README_POLICY.md` at root; frontier `.3`, the `README-GROWTH` doctrine)
 - Owner: repo-local workflow
 
 ## Goal
@@ -58,11 +58,11 @@ back, because a mechanical cap fails the commit.
   Commit: `README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)`
 
 - ID: `README-POLICY-ADOPTION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Execute the relocation decided at .1. Move each classified block to its canonical home (USER_GUIDE.md / book/src/*.md / ROADMAP.md / docs/decisions/), leaving a navigation link where the content was. Land README_POLICY.md at the repo root.`
   Acceptance: `README.md within the .1 caps; every relocated block present at its destination and linked from the README; mdbook build clean; cargo test --test book_examples green (README is not book-tested, but relocated examples may become book examples); no code change.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done. README.md 1771 -> 156 lines and 122,767 -> 10,163 bytes (91% reduction), against caps 250/12288 => 62% / 83% used. COVERAGE PROBE RUN THREE WAYS BEFORE ANY DELETION (decision 0036 §3 named this the only place information could be lost): (a) 57 identifying flag/knob tokens, one per bullet -> 57/57 covered elsewhere; (b) 79 distinctive rationale phrases (__cv, care_mask, fan-in-independen, SvVersion::permits, exit code 99, MAX_MULTI_OUTPUT_TASK_GROUP_MEMBERS, ...) -> 79/79 covered, most better covered at the destination; (c) EXHAUSTIVE sweep of every backticked token in the deleted range, 879 distinct -> 32 uncovered, ALL 32 composite invocation strings whose components are individually covered => zero atomic facts lost; (d) the 78 saw_* Phase-4 facts -> 0 missing from all four of USER_GUIDE/book/ROADMAP/tasks. Sweep (c) is the load-bearing one: it searches from the AUTHORITATIVE SET (the README own tokens) not from the shape of the first duplicate found (decision 0033 rule 2). ONE THING ACTUALLY MOVED, and it was a GAP not a duplicate: USER_GUIDE.md documented every gate in prose but had runnable command lines for only 8 of the 15; it now carries a "### Gate invocations" subsection with all 15 plus the composable --resume/--yosys-mode/--iverilog-compile/--sv2v/--slang/--diff-sim forms, derived from tool_matrix.rs own gate registry rather than from the README list. USER_GUIDE.md owns gate invocations (the open question 0036 left to .2); TOOLBOX.md keeps its one-row catalog entry and hosts no command blocks - it is a 106-line instrument catalog and ~20 blocks would recreate the README problem in a second file. QUICK START VERIFIED, not asserted (policy adoption step 3): cargo build + cargo test + cargo run -- --seed 42 + cargo run -- --seed 42 --count 100 --out ./generated (100 .sv + manifest.json) + verilator --lint-only clean on Verilator 5.046; all 21 relative links resolve; ./generated removed, tree clean. RESULT VS PLAN: 0036 projected ~186 lines, landed 156, because the reading order compressed from 36 lines/4,256 B (118 B/line) to a 17-row table (~70 B/entry) - which mattered, because the survivors measured 10,297 B for 141 lines so the projected file was ~13.4 KB, OVER the 12,288 B cap while sitting at 74% of the line cap. Trimmed to fit the cap; cap not raised (README_POLICY.md "Mechanical growth guard"). ONE DOCTRINE SITE DROPPED DELIBERATELY: README.md was a declared site of ENUMERATION-PARITY pair 4 (--steer categories <-> KnobId::category); deleting the --steer bullet would have failed the hook, so the choice was re-add a category list to the landing page or drop the site. Site dropped - under README_POLICY.md a landing page does not enumerate a knob taxonomy, and a list kept alive solely to satisfy a doctrine grows by one line per future category, the exact growth-coupling that produced 1771 lines; this is decision 0033 own R1 rung (repair a shadow by DELETING it, never by gating it forever), and the four surviving sites are the canonical homes the policy routes that content to. Pair 1b UNTOUCHED: README still names all 7 registry ids (DOCTRINE_ENFORCEMENT.md E1 requires it). STALE CROSS-REFERENCES REPAIRED: src/bin/tool_matrix.rs twice claimed banked digests / Phase-4 facts are "cited in README.md" (comment-only edit, invisible to every docs-side check because it lives in Rust); book/src/structured-emission.md said --function-emit-gate is documented in USER_GUIDE.md AND README.md; ROADMAP.md single historical mention gets an APPENDED clarifier, not an edit (the sentence was true when written); CHANGES.md + DEVELOPMENT_NOTES.md mentions left raw (append-only, decision 0031). GATES: cargo fmt --all --check PASS; cargo check --all-targets PASS; cargo clippy --all-targets -- -D warnings PASS; cargo test PASS incl. tests/snapshots.rs untouched => DUT byte-identical; mdbook build book PASS; scripts/check_doctrines.sh 7/7 PASS.`
+  Commit: `README-POLICY-ADOPTION.2 — restore the landing page by deletion (1771 -> 156)`
 
 - ID: `README-POLICY-ADOPTION.3`
   Status: `pending`
@@ -76,8 +76,8 @@ back, because a mechanical cap fails the commit.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `README-POLICY-ADOPTION.1` | `done` | Decision `0036`. The measurement reframed the task: the compliant landing page **already exists** (141 lines) with two appendices bolted on, and `## Current CLI truth` is a **lossy copy** of `docs/decisions/` + the book (phrase probe), so the operation is **delete-and-link**, not relocation. A generated CLI reference is rejected — the SCHEMA-DERIVED one already exists. Caps `250` / `12,288`, derived from the survivors. |
-| 2 | `README-POLICY-ADOPTION.2` | `pending` | **Next.** Execute: run the phrase probe per bullet (the only place information could be lost), move the residue that is *not* already covered, delete the duplicated sections, land `README_POLICY.md` at the root, and expand the navigation section to replace what was removed. Expected: **1771 → ~186 lines**. |
-| 3 | `README-POLICY-ADOPTION.3` | `pending` | The `README-GROWTH` doctrine with the routing hint, registered in `DOCTRINE_ENFORCEMENT.md` §10, negative-controlled both ways; close the tree. A cap is only meaningful once the file is under it. |
+| 2 | `README-POLICY-ADOPTION.2` | `done` | Executed. **1771 → 156 lines / 122,767 → 10,163 bytes (91 %)**, at 62 % / 83 % of the caps. Probe run **three ways** (57 flag tokens, 79 rationale phrases, and an exhaustive sweep of all **879** backticked tokens in the deleted range) ⇒ **zero atomic facts lost**; the only 32 uncovered strings are composites of covered parts. One genuine *gap* filled: `USER_GUIDE.md` gains runnable invocations for all **15** gates (it had 8). `README_POLICY.md` landed. Quick start re-run end-to-end. One doctrine site dropped on purpose (see `.2` verification). |
+| 3 | `README-POLICY-ADOPTION.3` | `pending` | **Next.** The `README-GROWTH` doctrine (`scripts/check_readme_growth.sh`, caps `250` / `12,288`) with the routing hint, registered in `scripts/check_doctrines.sh` + `DOCTRINE_ENFORCEMENT.md` §10 and in every documented copy of the registry that `ENUMERATION-PARITY` gates (`README.md`, `book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md`, `CODEBASE_ANALYSIS.md`), negative-controlled both ways; close the tree. The file is now **under** the cap, so the cap is finally meaningful — and `README_POLICY.md` already cites the check as authoritative, so `.3` is what makes that citation true. |
 
 ## Decisions
 
@@ -99,18 +99,28 @@ back, because a mechanical cap fails the commit.
 
 ## Open Questions
 
-- Whether the growth guard becomes an **8th registered doctrine** (proposed —
-  the policy asks for hook + CI enforcement, which is precisely what
-  `DOCTRINE_ENFORCEMENT.md` provides) or a standalone script wired into CI only.
-  The doctrine route costs an entry in every documented copy of the registry, but
+- **RESOLVED at `.1`** (decision `0036`): the growth guard becomes the **8th
+  registered doctrine**, `README-GROWTH`. The policy asks for hook + CI
+  enforcement, which is precisely what `DOCTRINE_ENFORCEMENT.md` provides; the
+  cost is an entry in every documented copy of the registry, and
   `ENUMERATION-PARITY` already gates those copies, so the cost is mechanical.
-- Whether the caps apply to `README.md` alone or to a small set of landing-page
-  files. The policy is written for one README; ANVIL also has several long-form
-  live docs (`CHANGES.md` is append-only **by doctrine** and must be exempt).
-- Whether `## Current CLI truth` moves wholesale into `USER_GUIDE.md` (which
-  already documents most of it, so the move is largely a **de-duplication**) or
-  into a generated reference. A generated CLI reference would be the stronger
-  answer — it cannot drift — but it is a bigger change than the policy requires.
+- **RESOLVED at `.1`**: the caps apply to `README.md` **alone**. `CHANGES.md`
+  and `DEVELOPMENT_NOTES.md` are append-only *by doctrine* (decision `0031`) and
+  are exempt; `USER_GUIDE.md`'s length is its purpose. Recorded in
+  `README_POLICY.md`'s ANVIL adoption note.
+- **RESOLVED at `.1`**: `## Current CLI truth` neither moves wholesale nor is
+  generated — it is **deleted and linked**, because a phrase probe proved it a
+  lossy copy of layers that already own it. `.2` confirmed this exhaustively
+  (879 tokens, zero atomic facts unique to the README).
+- **RESOLVED at `.2`** (the question `0036` left open): **`USER_GUIDE.md` owns
+  the `tool_matrix --…-gate` invocations**, and now carries runnable command
+  lines for all 15 (it had 8). `TOOLBOX.md` keeps its single catalog row and
+  hosts no command blocks — it is a 106-line instrument catalog, and ~20 blocks
+  would recreate the README problem in a second file.
+- **Still open, for `.3`:** whether the byte cap is enforced on the rendered file
+  or on tracked bytes (identical today; they diverge only if binary content is
+  ever added). Proposed: tracked bytes, read with `wc -c` as the policy's own
+  reference check does.
 
 ## Blockers
 
@@ -121,12 +131,16 @@ back, because a mechanical cap fails the commit.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-07-30` | `README-POLICY-ADOPTION` | `tree registered (docs-only); measured README.md = 1771 lines / 122767 bytes (at HEAD ff506e1, before this session's net-neutral steering-bullet correction); confirmed no repo-root README_POLICY.md; no code touched` | `registered` |
+| `2026-07-30` | `README-POLICY-ADOPTION.2` | `coverage probe x4 before deletion: 57/57 flag tokens covered; 79/79 rationale phrases covered; 879 backticked tokens swept exhaustively -> 32 uncovered, all composite invocation strings; 78/78 saw_* facts covered. README.md 1771 -> 156 lines / 122767 -> 10163 bytes (caps 250/12288). Quick start re-run end-to-end: cargo build, cargo test, cargo run -- --seed 42, --count 100 --out ./generated (100 .sv + manifest.json), verilator --lint-only clean (5.046); ./generated removed. 21/21 relative links resolve. USER_GUIDE.md gains 15/15 runnable gate invocations (had 8). README_POLICY.md landed at root.` | `no information lost` |
+| `2026-07-30` | `README-POLICY-ADOPTION.2` | `cargo fmt --all --check; cargo check --all-targets; cargo clippy --all-targets -- -D warnings; cargo test (incl. tests/snapshots.rs, untouched); mdbook build book; scripts/check_doctrines.sh (7/7 incl. ENUMERATION-PARITY after dropping the README site from pair 4, and EVIDENCE-CITATIONS after removing ~40 bank citations)` | `all green; DUT byte-identical` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `README-POLICY-ADOPTION` | `7a1fc50` — `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | Registered (not started) in the docs slice that surfaced it; no README content moved in that commit. |
+| `README-POLICY-ADOPTION.1` | `b50ff9e` — `README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)` | Docs-only; hash backfilled by `55b84d2`. |
+| `README-POLICY-ADOPTION.2` | `README-POLICY-ADOPTION.2 — restore the landing page by deletion (1771 -> 156)` | Hash backfilled next slice. Comment-only `src/` touch ⇒ DUT byte-identical. |
 
 ## Changelog
 
@@ -156,3 +170,32 @@ back, because a mechanical cap fails the commit.
   link*. **The correct R1 already shipped; the README's job is to point at it.** Caps set
   at **250 lines / 12,288 bytes**, derived from the survivors and deliberately below the
   policy's illustrative numbers, which would leave 60 % headroom to regrow into.
+- `2026-07-30`: `.2` executed the deletion. **`README.md`: 1771 → 156 lines,
+  122,767 → 10,163 bytes (91 %)**, at 62 % / 83 % of the caps. The probe ran
+  **three ways** before anything was cut — 57 flag tokens, 79 rationale phrases,
+  and an **exhaustive sweep of all 879 backticked tokens** in the deleted range —
+  and the only 32 uncovered strings are composites of individually-covered parts,
+  so **no atomic fact was unique to the README**. `README_POLICY.md` landed at the
+  root with an ANVIL adoption note; the quick start was re-run end-to-end rather
+  than assumed.
+- `2026-07-30`: `.2` found the **one genuine gap** the audit's route table
+  predicted ("anything not already covered → move first"). It was not rationale:
+  `USER_GUIDE.md` documented every gate in prose but shipped runnable command
+  lines for only **8 of 15**. It now carries all 15, derived from
+  `tool_matrix.rs`'s own gate registry rather than from the README's list — so
+  the new section cannot inherit an omission the README already had.
+- `2026-07-30`: `.2` **dropped `README.md` as a declared site of
+  `ENUMERATION-PARITY` pair 4** rather than re-adding a `--steer` category list to
+  keep the gate green. A landing page does not enumerate a knob taxonomy, and a
+  list kept alive solely to satisfy a doctrine grows by one line per future
+  category — the exact growth-coupling that produced 1771 lines. Decision `0033`'s
+  R1 rung is repair-by-deletion; gating a copy forever is what it warns against.
+  Pair **1b** is untouched: the README still names all seven registry ids, which
+  `DOCTRINE_ENFORCEMENT.md` E1 (discovery) requires.
+- `2026-07-30`: `.2` recorded a cap-calibration finding for `.3`. The survivors
+  measured **10,297 bytes for 141 lines**, so the file `0036` projected (~186
+  lines) would have been ~**13.4 KB** — *over* the 12,288-byte cap while sitting
+  at 74 % of the line cap. **The byte cap had no headroom and the line cap had
+  25 %.** The trim was deepened to fit (the reading order became a table at ~70
+  B/entry instead of prose at 118 B/line); the cap was **not** raised. Both caps
+  stand as `0036` set them.

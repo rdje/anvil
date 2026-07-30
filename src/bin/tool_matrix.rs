@@ -1562,8 +1562,8 @@ enum UnitFloor {
 /// it, so a gate missing from that chain would **run, compute its coverage gaps,
 /// ignore them, and exit `0`**. A gate that cannot fail is worse than no gate:
 /// its clean exit gets banked as a committed closure digest (decision `0030`)
-/// and cited in `README.md`. That is the only *false-green* site the decision
-/// `0033` audit found anywhere in the repo.
+/// and cited as closure evidence in the live docs. That is the only
+/// *false-green* site the decision `0033` audit found anywhere in the repo.
 ///
 /// A gate is now declared **once**, here. [`select_scenario_set`] and
 /// [`derive_run_plan`] both read this table, so neither can fall behind it, and
@@ -10713,7 +10713,8 @@ mod tests {
     /// by [`compute_coverage_gaps`] — whose gaps are all `if !coverage.saw_x`
     /// — so a forgotten merge there yields a *spurious* gap and the gate bails
     /// **loudly**. The genuinely silent surface is the 15 ungated facts, several
-    /// of which `README.md` cites as Phase-4 hierarchy evidence. Hence S1, not
+    /// of which `ROADMAP.md`/`USER_GUIDE.md` cite as Phase-4 hierarchy
+    /// evidence. Hence S1, not
     /// S3 — but a guard that costs one test and needs no per-field list is
     /// still worth having.
     ///

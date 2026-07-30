@@ -229,6 +229,16 @@ fi
 # exists — the feature is delivered and invisible. The sites are NAMED rather
 # than discovered, because a grep for "any file mentioning two category words"
 # also matches ordinary prose about state and sharing.
+#
+# README.md was a fifth site until README-POLICY-ADOPTION.2 (decision 0036)
+# deleted the `--steer` bullet along with the rest of `## Current CLI truth`.
+# It is dropped from this pair rather than re-added to the README: under
+# README_POLICY.md the landing page does not enumerate a knob taxonomy, and a
+# list kept alive solely to satisfy a doctrine site would grow by one line per
+# future category — the exact growth-coupling that made that file 1771 lines.
+# This is decision 0033's own preferred rung: repair a shadow by DELETING it
+# (R1), not by gating it forever. The four surviving sites are the canonical
+# homes the policy routes this content to.
 steering_categories="$(extract_steering_categories)"
 if floor_or_fail 'KnobId steering categories' 6 "${steering_categories}"; then
   covers_set 'steer categories <-> KnobId::category' \
@@ -237,8 +247,6 @@ if floor_or_fail 'KnobId steering categories' 6 "${steering_categories}"; then
     "${steering_categories}" 'book/src/knobs.md'
   covers_set 'steer categories <-> KnobId::category' \
     "${steering_categories}" 'USER_GUIDE.md'
-  covers_set 'steer categories <-> KnobId::category' \
-    "${steering_categories}" 'README.md'
   covers_set 'steer categories <-> KnobId::category' \
     "${steering_categories}" 'docs/AGENT_INTROSPECTION_SCHEMA.md'
 fi

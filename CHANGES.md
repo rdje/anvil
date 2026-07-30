@@ -1,6 +1,101 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — README-POLICY-ADOPTION.2 — restore the landing page (1771 → 156 lines)
+
+**Landed as:** (backfilled next slice). Previous: `55b84d2`.
+**Comment-only `src/` touch** (two stale doc-comment cross-references) ⇒
+**DUT byte-identical**; `cargo test` incl. `tests/snapshots.rs` green.
+
+**What.** Executed decision `0036`: `README.md` goes from **1771 lines /
+122,767 bytes** to **156 lines / 10,163 bytes** — a **91 %** reduction — by
+**deleting** `## Current CLI truth` and the appendix half of `## Build and
+validation commands` and linking to the layers that already own them. The
+repo-owned `README_POLICY.md` lands at the root, per the policy's own storage
+clause.
+
+**Why deletion is safe — the probe, run three ways before anything was cut.**
+Decision `0036` §3 named this the *only* place information could be lost, so it
+was measured, not asserted:
+
+| probe | what it swept | result |
+| --- | --- | --- |
+| flag/knob names | 57 identifying tokens, one per bullet | **57/57** covered in `USER_GUIDE.md`, `book/src/`, `docs/decisions/`, `docs/tasks/` or `ROADMAP.md` |
+| rationale phrases (the §3 method) | 79 distinctive phrases (`__cv`, `care_mask`, `fan-in-independen`, `SvVersion::permits`, `exit code 99`, …) | **79/79** covered, most of them *better* covered at the destination |
+| exhaustive residue sweep | **every** backticked token in the deleted range — 879 distinct | **32** uncovered, and all 32 are **composite invocation strings** (`anvil --seed N --count M --out DIR`, `anvil --profile <name>`) whose components are individually covered |
+| the 78 `saw_*` Phase-4 facts | each fact name vs all four durable layers | **0** missing from all four |
+
+So no atomic fact was unique to the README. The third sweep is the load-bearing
+one: it searched from the **authoritative set** (the README's own tokens)
+rather than from the shape of the first duplicate found — decision `0033`
+rule (2), which is exactly the mistake that made `SHADOW-ENUMERATION-SWEEP.2`
+miss three prose copies.
+
+**What actually moved.** One thing, and it was a *gap*, not a duplicate:
+`USER_GUIDE.md` documented every gate in prose but carried **runnable command
+lines for only 8 of the 15**. It now has a `### Gate invocations` subsection
+with all 15 (plus `--resume` / `--yosys-mode` / `--iverilog-compile` /
+`--sv2v` / `--slang` / `--diff-sim` composition), derived from `tool_matrix.rs`'s
+own gate registry rather than from the README's list. **`USER_GUIDE.md` owns
+gate invocations**; `TOOLBOX.md` (the open question `0036` left to `.2`) keeps
+its one-row catalog entry and does not host command blocks — it is a 106-line
+instrument catalog, and filling it with ~20 blocks would recreate the README
+problem in a second file.
+
+**The quick start is verified, not asserted** (policy adoption step 3): all four
+commands were run at this commit — `cargo build`, `cargo test`, `cargo run --
+--seed 42`, `cargo run -- --seed 42 --count 100 --out ./generated` (100 `.sv` +
+`manifest.json`), then `verilator --lint-only generated/mod_42_0000.sv` clean on
+Verilator 5.046. All 21 relative links resolve.
+
+**Result vs the plan.** `0036` projected ~186 lines; the file landed at **156**,
+because the 36-line / 4,256-byte numbered reading order compressed to a 17-row
+table at 118 → ~70 bytes per entry. That matters for the **byte** cap: the
+survivors measured 10,297 bytes for 141 lines, so the projected file would have
+been ~13.4 KB — **over** the 12,288-byte cap `0036` derived. The line cap had
+25 % headroom while the byte cap had none. The trim was made to fit the cap, not
+the cap raised to fit the trim (`README_POLICY.md`, "Mechanical growth guard").
+Final: **62 %** of the line cap, **83 %** of the byte cap.
+
+**One doctrine site changed, deliberately.** `README.md` was a declared site of
+`ENUMERATION-PARITY`'s pair 4 (`--steer` categories ↔ `KnobId::category`).
+Deleting the `--steer` bullet would have failed the pre-commit hook, so the
+choice was: re-add a category list to the landing page, or drop the site. **Site
+dropped** — under `README_POLICY.md` a landing page does not enumerate a knob
+taxonomy, and a list kept alive solely to satisfy a doctrine would grow by one
+line per future category: the exact growth-coupling that produced 1771 lines.
+This is decision `0033`'s own preferred rung — repair a shadow by **deleting**
+it (R1), not by gating it forever — and the four surviving sites
+(`book/src/algorithm.md`, `book/src/knobs.md`, `USER_GUIDE.md`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`) are the canonical homes the policy routes
+that content to. Pair **1b** is untouched: the README still names all seven
+registry ids, and doctrine discovery (`DOCTRINE_ENFORCEMENT.md` E1) requires it.
+
+**Stale cross-references repaired** (drift is not acceptable just because it is
+in a comment): `src/bin/tool_matrix.rs` twice claimed banked digests / Phase-4
+coverage facts are *"cited in `README.md`"*; `book/src/structured-emission.md`
+said the `--function-emit-gate` is documented in `USER_GUIDE.md` **and**
+`README.md`. `ROADMAP.md`'s one historical mention of the section gets an
+appended clarifier rather than an edit — the sentence was true when written.
+`CHANGES.md` / `DEVELOPMENT_NOTES.md` mentions are left **raw** (append-only by
+decision `0031`).
+
+**Validation.** `cargo fmt --all --check` ✓ · `cargo check --all-targets` ✓ ·
+`cargo clippy --all-targets -- -D warnings` ✓ · `cargo test` ✓ (incl.
+`tests/snapshots.rs`, untouched) · `mdbook build book` ✓ ·
+`scripts/check_doctrines.sh` all 7 PASS · quick start re-run end-to-end ✓.
+
+**Impact.** The entry point is an entry point again. A contributor adding a knob
+no longer has a README bullet to write — the growth was structural, and this
+removes the structure that caused it. No information lost; no code behaviour
+changed; `README-GROWTH` (the mechanical cap that makes this stick) is `.3`.
+
+**Files touched:** `README.md` (rewritten), `README_POLICY.md` (new),
+`USER_GUIDE.md`, `scripts/check_enumeration_parity.sh`,
+`book/src/structured-emission.md`, `src/bin/tool_matrix.rs` (comments only),
+`ROADMAP.md`, `docs/tasks/README-POLICY-ADOPTION.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`, `DEVELOPMENT_NOTES.md`.
+
 ## 2026-07-30 — README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)
 
 **Landed as:** `b50ff9e` (previous: the `MEMORY.md` resume-pointer correction).

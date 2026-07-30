@@ -265,7 +265,9 @@ new capability lanes, each now task-tree-owned (`docs/TASK_TREE.md`):
    (**done `2026-06-16`**: the user-facing closeout — a new `How It Works` book
    chapter `book/src/structured-emission.md` with a byte-verified before/after
    example + the `function_emit_prob` knob entry in `book/src/knobs.md`,
-   `USER_GUIDE.md`, and the README "Current CLI truth"; a Knowledge Map how-to
+   `USER_GUIDE.md`, and the README "Current CLI truth" (that README section was
+   deleted as a duplicate by `README-POLICY-ADOPTION.2`, decision `0036`;
+   `USER_GUIDE.md` owns it now); a Knowledge Map how-to
    card `combinational-function-emit`; docs-only / DUT byte-identical). **The
    first structured surface (the combinational `function automatic`
    emit-projection) is now delivered end-to-end** — `.2`/`.2b`/`.2b.2` all

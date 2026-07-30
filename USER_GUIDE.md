@@ -1332,6 +1332,52 @@ Useful options:
   mandatorily; the per-axis subset gives signoff-quality coverage
   without 2h+ CI runtime.
 
+### Gate invocations
+
+Every repo-owned gate, as a runnable command. A gate auto-enables
+coverage-gap failure, so a clean exit means `coverage_gaps = []` **and**
+every enabled tool column passed with no warnings. `--yosys-mode both`
+is shown where the gate's banked evidence used it; the axis is
+independent and can be added to any of them.
+
+```bash
+# Base sweep: all built-in scenarios, Verilator + Yosys, no gating.
+cargo run --bin tool_matrix -- --out ./tool-matrix
+
+# Phase closure gates.
+cargo run --bin tool_matrix -- --out ./tm-phase1 --phase1-gate
+cargo run --bin tool_matrix -- --out ./tm-phase2 --phase2-share-gate      --yosys-mode both
+cargo run --bin tool_matrix -- --out ./tm-phase3 --phase3-structured-gate --yosys-mode both
+cargo run --bin tool_matrix -- --out ./tm-phase4 --phase4-hierarchy-gate  --yosys-mode both
+
+# Knob-sweep and emission-target gates.
+cargo run --bin tool_matrix -- --out ./tm-knobs --signoff-knob-sweep-gate --yosys-mode both
+cargo run --bin tool_matrix -- --out ./tm-svver --sv-version-gate
+
+# Structured-emission surface gates — one surface forced to 1.0 each.
+cargo run --bin tool_matrix -- --out ./tm-se1 --function-emit-gate
+cargo run --bin tool_matrix -- --out ./tm-se2 --generate-loop-gate
+cargo run --bin tool_matrix -- --out ./tm-se3 --task-emit-gate
+cargo run --bin tool_matrix -- --out ./tm-se5 --cone-function-gate
+cargo run --bin tool_matrix -- --out ./tm-se6 --multi-output-task-gate
+cargo run --bin tool_matrix -- --out ./tm-se7 --mux-if-gate
+cargo run --bin tool_matrix -- --out ./tm-se8 --case-mux-if-gate
+cargo run --bin tool_matrix -- --out ./tm-se9 --casez-mux-if-gate
+
+# The only gate that runs the emission surfaces TOGETHER (decision 0032).
+cargo run --bin tool_matrix -- --out ./tm-se-interaction --emit-surface-interaction-gate
+```
+
+Any gate can be resumed in place after an interruption, and any of them
+can take the optional tool columns:
+
+```bash
+cargo run --bin tool_matrix -- --out ./tm-phase1 --phase1-gate --resume
+cargo run --bin tool_matrix -- --out ./tool-matrix --yosys-mode both --iverilog-compile
+cargo run --bin tool_matrix -- --out ./tool-matrix --sv2v --slang
+cargo run --bin tool_matrix -- --out ./tool-matrix --diff-sim
+```
+
 Current focused smoke status after `SIGNOFF-SURFACE-EXPANSION.3`: the
 built-in matrix is clean across Verilator, both repo-owned Yosys modes,
 and the opt-in Icarus compile column:

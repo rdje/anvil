@@ -181,7 +181,8 @@ it. Two repo-owned mechanisms back this surface:
 
 See the [Knobs reference](knobs.md#structured-emission) for the knob
 itself; the `tool_matrix --function-emit-gate` acceptance gate is
-documented in `USER_GUIDE.md` and `README.md`.
+documented in `USER_GUIDE.md` ("Tool matrix sweeps" → "Gate
+invocations"), which owns every gate invocation.
 
 ## The second surface: a `generate for` loop
 

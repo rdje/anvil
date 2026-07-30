@@ -5,6 +5,55 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Four things learned deleting 1615 lines of README — `README-POLICY-ADOPTION.2`
+
+**1. A line cap and a byte cap can disagree, and the byte cap is the honest one.**
+Decision `0036` derived caps of `250` lines / `12,288` bytes from a measured 141
+surviving lines. Executing it, the survivors weighed **10,297 bytes for 141
+lines** — and the projected file (141 + ~45 new) would have been ~**13.4 KB**,
+*over* the byte cap, while sitting comfortably at 74 % of the line cap. The
+hidden variable is prose density: the numbered reading order ran at **118
+bytes/line** against 57 for the file-path list. A cap pair is not redundant
+belt-and-braces; each catches a different bloat. The fix was to compress the
+reading order into a 17-row table (~70 B/entry) and land at 156 lines / 10,163
+bytes — **trim to the cap, never raise the cap to fit the trim**. That is the
+policy's own rule, and the first time it bit was on the very slice adopting it.
+
+**2. Deleting a duplicate can break a doctrine, because a parity check turns
+"this file mentions X" into a dependency.** `README.md` was a declared site of
+`ENUMERATION-PARITY` pair 4 (the `--steer` category taxonomy). Removing the
+`--steer` bullet — an unremarkable line in a 1141-line deletion — would have
+failed the pre-commit hook. The tempting repair is to re-add a one-line category
+list "just to keep the gate green"; that is precisely wrong. It reinstates a
+shadow that grows by one line per future category, which is how the file reached
+1771 lines in the first place. **The site was dropped instead**: decision
+`0033`'s R1 rung is repair-by-deletion, and gating a copy forever is what `0033`
+explicitly warns against ("that keeps the shadow alive and spends a mechanism on
+it forever"). Rule of thumb: before deleting content, grep the *doctrine checks*
+for the file you are editing — they encode invisible content requirements that
+no reader would infer from the file itself.
+
+**3. Sweep every token, not a phrase list — and expect composites in the
+residue.** Decision `0036`'s §3 probe (count a distinctive phrase in the README
+vs its destination) is a *sampling* method: it proves the bullets it samples are
+duplicates, not that no bullet is unique. So `.2` ran a third sweep over **every
+backticked token in the deleted range — 879 distinct** — checking each for
+coverage anywhere else in the tree. 32 came back uncovered, and **all 32 were
+composite invocation strings** (`anvil --seed N --count M --out DIR`,
+`anvil --profile <name>`) whose components were individually covered. That
+signature is what a working exhaustive sweep looks like: the only "unique"
+strings are ones assembled from covered parts. Had a genuine atomic fact been
+unique to the README, it would have stood out in a set of 32 rather than hidden
+in a set of 879. Cheap, mechanical, and it converts "I read them all" into
+evidence.
+
+**4. A doc comment can encode *where a fact is cited*, and deleting the citation
+leaves a lie in `src/`.** Two `src/bin/tool_matrix.rs` comments explained gate
+severity by noting the result "is cited in `README.md`" — true when written,
+false the moment the section was deleted, and invisible to every docs-side
+check because it lives in Rust. Grep `src/` and `tests/` for the doc filename
+before deleting a section of it; the compiler will never tell you.
+
 ## 2026-07-30 — Read the raw counts, not the derived rate — `COVERAGE-STEERED-GENERATION.4b.1`
 
 Two lessons from one slice, both about **how the bug was seen** rather than what it was.
