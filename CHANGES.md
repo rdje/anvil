@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4a — corrections from the `.4b.1` recon
 
-**Landed as:** `<pending>` (previous: `cc817d6`, `COVERAGE-STEERED-GENERATION.4a` hash backfill).
+**Landed as:** `393c5e6` (previous: `cc817d6`, `COVERAGE-STEERED-GENERATION.4a` hash backfill).
 **Docs-only** — no `src/` change ⇒ **DUT byte-identical**. Amends decision `0035`
 with a dated *Correction* section and registers a new leaf `.5`.
 
