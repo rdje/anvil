@@ -801,6 +801,33 @@ src/
 │                     12 emitting a chain / 108 chains / `coverage_gaps = []` /
 │                     `saw_casez_mux_if_emit` / 12/0 Verilator + both Yosys +
 │                     Icarus).
+│                     EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — the
+│                     first gate over the surfaces' INTERACTION rather than any
+│                     one surface: `ScenarioSet::EmitSurfaceInteraction` + the
+│                     opt-in `--emit-surface-interaction-gate` +
+│                     `all_emit_surfaces_focus_config(strategy, seed, prob)`
+│                     (prob is a PARAMETER — the gate runs both the intermediate
+│                     and the 1.0 saturation extreme) +
+│                     `all_nine_emit_surfaces_focus_config` (the ninth,
+│                     version-gated surface; `soft_union_slice_prob > 0.0`
+│                     routes it down the existing `verilator_only` plan with no
+│                     gate-specific plumbing). Co-occurrence is a PROJECTION —
+│                     `distinct_emit_surfaces(&ModuleReport)` counts the nine
+│                     `emitted_*` booleans that already exist, so there is no
+│                     new token, no new metric, and `ModuleReport` (which is
+│                     also the `--resume` checkpoint payload) is unwidened.
+│                     Facts `saw_multi_surface_emit_interaction` (>= 2),
+│                     `saw_all_emit_surfaces_in_one_module` (>= 8), and the
+│                     Verilator-only `saw_all_nine_emit_surfaces_in_one_module`
+│                     (>= 9; requiring Yosys would make it unreachable, since
+│                     Yosys rejects `union soft`), plus the recorded-not-gated
+│                     `max_distinct_emit_surfaces` (merged with `max`). Banked
+│                     clean with a committed digest
+│                     (`docs/evidence/anvil-emit-surface-interaction-r1.md`):
+│                     5 scenarios / 20 modules / `coverage_gaps = []` /
+│                     Verilator 20/0 / Yosys 16/0 both modes / Icarus 16/0;
+│                     8 surfaces per module in the three universal scenarios,
+│                     9 in the 2023 scenario, exactly 3 under saturation.
 │
 ├── microdesign/      Phase 7 oracle-backed micro-design lane
 │   └── mod.rs        (`PHASE-7-ORACLE-MICRODESIGN`). A **separate

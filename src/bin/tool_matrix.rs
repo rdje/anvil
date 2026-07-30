@@ -1,6 +1,6 @@
 use anvil::config::{
     ConstructionStrategy, CountRange, FactorizationLevel, HierarchyChildSourceMode, IdentityMode,
-    SvVersion,
+    SvVersion, STRUCTURED_EMISSION_MAX_PROB, STRUCTURED_EMISSION_MAX_SELECTOR_PROB,
 };
 // AGENT-INTROSPECTION-MCP.5.1 — the hardened downstream-tool invocations live in
 // the library (`anvil::downstream`) so the agent `validate`/`minimize` tools
@@ -50,6 +50,16 @@ const MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const CASEZ_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
+const EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO: usize = 4;
+
+/// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the number of
+/// distinct emit-projections that must co-occur in one accepted module for
+/// the **strong** interaction fact. Eight = every non-version-gated surface.
+const ALL_EMIT_SURFACES: usize = 8;
+
+/// `EMIT-SURFACE-INTERACTION-GATE.3` — the ninth, version-gated surface
+/// (`soft_union`) on top of the eight, for the 2023 Verilator-only scenario.
+const ALL_NINE_EMIT_SURFACES: usize = 9;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -189,6 +199,22 @@ struct Cli {
     /// (+ Icarus when `--iverilog-compile` is also set).
     #[arg(long)]
     casez_mux_if_gate: bool,
+
+    /// Elevate the run to the repo-owned **emit-surface interaction** gate
+    /// (`EMIT-SURFACE-INTERACTION-GATE.3`, decision `0032`): prove the nine
+    /// structured-emission surfaces are downstream-clean **in combination**, which
+    /// no single-surface gate can — each of those leaves the other eight knobs at
+    /// `0.0`, so the passes' mutual-exclusion predicates always see an empty sibling
+    /// set. Five scenarios: three comb-only DUTs (one per construction strategy)
+    /// with all eight non-version-gated `*_emit_prob` at the shared intermediate
+    /// probability, so several surfaces co-occur in one module; one **saturation**
+    /// scenario at `1.0`, where every later pass sees a *full* sibling set and must
+    /// skip; and one Verilator-only IEEE 1800-2023 scenario adding the ninth
+    /// (`soft_union`). Requires `saw_multi_surface_emit_interaction`,
+    /// `saw_all_emit_surfaces_in_one_module`, and
+    /// `saw_all_nine_emit_surfaces_in_one_module`.
+    #[arg(long)]
+    emit_surface_interaction_gate: bool,
 
     /// Print the built-in scenario list and exit.
     #[arg(long)]
@@ -847,6 +873,30 @@ struct CoverageSummary {
     /// wildcard `CasezMux` masked priority chain) fires by construction and is
     /// downstream-clean, not just that the knob was requested.
     saw_casez_mux_if_emit: bool,
+    /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — at least one
+    /// **downstream-accepted** module carried `>= 2` distinct structured-emission
+    /// surfaces at once. This is the invariant under test at its robust floor: with
+    /// two surfaces live in one module, the later pass's mutual-exclusion predicate
+    /// evaluated against a **non-empty** sibling set — the thing every
+    /// single-surface gate structurally cannot exercise, because each leaves the
+    /// other eight knobs at `0.0`.
+    saw_multi_surface_emit_interaction: bool,
+    /// `EMIT-SURFACE-INTERACTION-GATE.3` — at least one downstream-accepted module
+    /// carried **all eight** non-version-gated surfaces simultaneously. The strong
+    /// bar: measured reachable on all three construction strategies with margin, so
+    /// it is a real requirement rather than a brittle one.
+    saw_all_emit_surfaces_in_one_module: bool,
+    /// `EMIT-SURFACE-INTERACTION-GATE.3` — at least one Verilator-accepted module
+    /// carried **all nine** surfaces, i.e. the eight plus the version-gated
+    /// `union soft` overlay at an IEEE 1800-2023 target. Verilator-only by
+    /// construction: Yosys/Icarus reject `union soft` (decision `0010`), so this
+    /// fact must not require Yosys the way its two siblings do.
+    saw_all_nine_emit_surfaces_in_one_module: bool,
+    /// `EMIT-SURFACE-INTERACTION-GATE.3` — the largest number of distinct
+    /// structured-emission surfaces observed together in a single
+    /// downstream-accepted module. Recorded (not gated) so the achieved strength of
+    /// an interaction run is visible in the report without making the gate brittle.
+    max_distinct_emit_surfaces: usize,
     /// `DIFFERENTIAL-SIMULATION.3b.2` — at least one DUT in the
     /// `--diff-sim` per-axis subset achieved byte-equal post-reset
     /// traces across iverilog 13.0 and verilator 5.046. The
@@ -1024,6 +1074,33 @@ enum ScenarioSet {
     /// emission stays byte-identical; the gate is the opt-in proof axis for the
     /// non-default surface.
     CasezMuxIfSweep,
+    /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the repo-owned
+    /// **emit-surface interaction** gate: the only set that runs the structured
+    /// emission surfaces *together*.
+    ///
+    /// Every single-surface gate above sets exactly one `*_emit_prob` to `1.0` and
+    /// leaves the rest at `0.0`, so the nine annotation passes' mutual-exclusion
+    /// predicates always evaluate against an **empty** sibling set. That exclusion
+    /// is the entire soundness argument for stacking nine overlapping projections
+    /// onto one gate graph, and it had never been exercised end-to-end.
+    ///
+    /// Five scenarios, covering both extremes of the same invariant:
+    /// - three comb-only DUTs (one per construction strategy) with all eight
+    ///   non-version-gated surfaces at `STRUCTURED_EMISSION_MAX_PROB`, so each pass
+    ///   claims some gates and leaves others — several surfaces co-occur in one
+    ///   module (measured: all eight, on every strategy);
+    /// - one **saturation** scenario with all eight at `1.0`, where every later
+    ///   pass sees a *full* sibling set and must skip — the exact inverse of the
+    ///   always-empty case, and the reason "all knobs on" emits *fewer* shapes;
+    /// - one Verilator-only IEEE 1800-2023 scenario adding the ninth surface
+    ///   (`soft_union`), kept separate because Yosys/Icarus reject that syntax
+    ///   (decision `0010`) and it adds no exclusion pressure of its own.
+    ///
+    /// Gated on `saw_multi_surface_emit_interaction`,
+    /// `saw_all_emit_surfaces_in_one_module`, and
+    /// `saw_all_nine_emit_surfaces_in_one_module`. Every surface stays default-off
+    /// ⇒ DUT emission is byte-identical; the gate is the opt-in proof axis.
+    EmitSurfaceInteraction,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -1125,6 +1202,16 @@ struct MatrixReport {
     /// the `saw_casez_mux_if_emit` fact is enforced under `coverage_gaps`.
     #[serde(default)]
     casez_mux_if_gate: bool,
+    /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — whether
+    /// `--emit-surface-interaction-gate` drove this run. When `true`, every
+    /// scenario turned on ALL eight non-version-gated `*_emit_prob` at once (one
+    /// scenario also the ninth), and the three co-occurrence facts
+    /// (`saw_multi_surface_emit_interaction`,
+    /// `saw_all_emit_surfaces_in_one_module`,
+    /// `saw_all_nine_emit_surfaces_in_one_module`) are enforced under
+    /// `coverage_gaps`.
+    #[serde(default)]
+    emit_surface_interaction_gate: bool,
     yosys_mode: String,
     coverage: CoverageSummary,
     coverage_gaps: Vec<String>,
@@ -1329,6 +1416,7 @@ fn main() -> Result<()> {
         mux_if_gate: cli.mux_if_gate,
         case_mux_if_gate: cli.case_mux_if_gate,
         casez_mux_if_gate: cli.casez_mux_if_gate,
+        emit_surface_interaction_gate: cli.emit_surface_interaction_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
         coverage_gaps,
@@ -1464,6 +1552,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
         CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
     } else if cli.casez_mux_if_gate {
         CASEZ_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO
+    } else if cli.emit_surface_interaction_gate {
+        EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO
     } else {
         1
     };
@@ -1485,7 +1575,8 @@ fn derive_run_plan(cli: &Cli, scenario_count: usize) -> RunPlan {
             || cli.multi_output_task_gate
             || cli.mux_if_gate
             || cli.case_mux_if_gate
-            || cli.casez_mux_if_gate,
+            || cli.casez_mux_if_gate
+            || cli.emit_surface_interaction_gate,
         total_modules,
     }
 }
@@ -1504,10 +1595,11 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         + usize::from(cli.multi_output_task_gate)
         + usize::from(cli.mux_if_gate)
         + usize::from(cli.case_mux_if_gate)
-        + usize::from(cli.casez_mux_if_gate);
+        + usize::from(cli.casez_mux_if_gate)
+        + usize::from(cli.emit_surface_interaction_gate);
     if enabled_gates > 1 {
         bail!(
-            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, --generate-loop-gate, --task-emit-gate, --cone-function-gate, --multi-output-task-gate, --mux-if-gate, --case-mux-if-gate, and --casez-mux-if-gate are mutually exclusive"
+            "--phase1-gate, --phase2-share-gate, --phase3-structured-gate, --phase4-hierarchy-gate, --signoff-knob-sweep-gate, --sv-version-gate, --function-emit-gate, --generate-loop-gate, --task-emit-gate, --cone-function-gate, --multi-output-task-gate, --mux-if-gate, --case-mux-if-gate, --casez-mux-if-gate, and --emit-surface-interaction-gate are mutually exclusive"
         );
     }
     if cli.phase2_share_gate {
@@ -1536,6 +1628,8 @@ fn select_scenario_set(cli: &Cli) -> Result<ScenarioSet> {
         Ok(ScenarioSet::CaseMuxIfSweep)
     } else if cli.casez_mux_if_gate {
         Ok(ScenarioSet::CasezMuxIfSweep)
+    } else if cli.emit_surface_interaction_gate {
+        Ok(ScenarioSet::EmitSurfaceInteraction)
     } else {
         Ok(ScenarioSet::Default)
     }
@@ -1557,6 +1651,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::MuxIfSweep => build_mux_if_sweep_scenarios(base_seed)?,
         ScenarioSet::CaseMuxIfSweep => build_case_mux_if_sweep_scenarios(base_seed)?,
         ScenarioSet::CasezMuxIfSweep => build_casez_mux_if_sweep_scenarios(base_seed)?,
+        ScenarioSet::EmitSurfaceInteraction => build_emit_surface_interaction_scenarios(base_seed)?,
     };
 
     let mut seen = BTreeSet::new();
@@ -4153,6 +4248,138 @@ fn casez_mux_if_focus_config(strategy: ConstructionStrategy, seed: u64) -> Confi
         min_outputs: 2,
         max_outputs: 4,
         ..Config::default()
+    }
+}
+
+/// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the repo-owned
+/// emit-surface **interaction** gate. Five scenarios that, unlike every
+/// single-surface gate, run the structured-emission projections *together*:
+///
+/// 1. `{strategy}_all_emit_surfaces` × 3 — comb-only DUTs with all eight
+///    non-version-gated surfaces at `STRUCTURED_EMISSION_MAX_PROB`. Each pass
+///    claims some gates and leaves others, so several surfaces land in one
+///    module and every later pass evaluates its exclusion predicate against a
+///    **non-empty** sibling set for the first time.
+/// 2. `all_emit_surfaces_saturated` — the same shape with all eight at `1.0`.
+///    Here `function_emit` (second in the chain) claims every admissible gate
+///    and the later passes must skip *everything*: the opposite extreme of the
+///    same invariant, and the configuration that proves "all knobs on" emits
+///    fewer shapes, not more.
+/// 3. `all_nine_emit_surfaces_sv2023` — the eight plus the version-gated ninth
+///    (`soft_union_slice_prob = 1.0` at `--sv-version 2023`). Verilator-only:
+///    `scenario_emits_soft_union_overlay` drives the existing `verilator_only`
+///    plan, so Yosys/Icarus are a recorded no-op (decision `0010`).
+///
+/// The caller (`--emit-surface-interaction-gate`) runs the full Verilator + both
+/// Yosys modes (+ Icarus when `--iverilog-compile` is set) plan on 1–2 and
+/// requires the three co-occurrence facts. Every surface stays default-off ⇒ DUT
+/// emission byte-identical; the gate is the opt-in proof axis.
+fn build_emit_surface_interaction_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+
+    for (index, strategy) in [
+        ConstructionStrategy::Sequential,
+        ConstructionStrategy::Shuffled,
+        ConstructionStrategy::Interleaved,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let seed = base_seed + index as u64;
+        let strategy_slug = strategy_slug(strategy);
+        let strategy_label = construction_strategy_name(strategy);
+        scenarios.push(make_scenario(
+            &format!("{strategy_slug}_all_emit_surfaces"),
+            &format!(
+                "{strategy_label} strategy, node-id + e-graph, comb-only DUT with ALL EIGHT non-version-gated *_emit_prob at the shared intermediate probability — several structured-emission surfaces co-occur in one module, so each pass's mutual-exclusion predicate sees a non-empty sibling set for the first time (decision 0032; lights saw_multi_surface_emit_interaction and saw_all_emit_surfaces_in_one_module)."
+            ),
+            all_emit_surfaces_focus_config(strategy, seed, STRUCTURED_EMISSION_MAX_PROB),
+        )?);
+    }
+
+    // The saturation extreme: every surface at 1.0, so every pass after
+    // `function_emit` sees a FULL sibling set and skips. Interleaved matches the
+    // rest of the sweep; the three strategies above own strategy breadth.
+    scenarios.push(make_scenario(
+        "all_emit_surfaces_saturated",
+        "Interleaved strategy, comb-only DUT with all eight *_emit_prob at 1.0 — the saturation extreme: `function_emit` claims every admissible gate and every later pass must skip against a FULL sibling set. Proves the exclusion predicates hold under maximum contention, and is the measured reason all-knobs-on emits fewer distinct shapes than an intermediate probability (decision 0032).",
+        all_emit_surfaces_focus_config(ConstructionStrategy::Interleaved, base_seed + 3, 1.0),
+    )?);
+
+    // The ninth surface, kept separate: `soft_union` is version-gated and
+    // Yosys/Icarus reject the syntax, so folding it into the scenarios above
+    // would cost them two acceptance columns for a surface that is disjoint by
+    // target type (`Slice`) and adds no exclusion pressure.
+    scenarios.push(make_scenario(
+        "all_nine_emit_surfaces_sv2023",
+        "Interleaved strategy, comb-only DUT targeting IEEE 1800-2023 with all eight non-version-gated *_emit_prob at the shared intermediate probability PLUS soft_union_slice_prob = 1.0 — all nine structured-emission surfaces in one module. Verilator-only under --language 1800-2023; Yosys/Icarus reject `union soft` and are a recorded no-op (decision 0010). Lights saw_all_nine_emit_surfaces_in_one_module.",
+        all_nine_emit_surfaces_focus_config(base_seed + 4),
+    )?);
+
+    Ok(scenarios)
+}
+
+/// `EMIT-SURFACE-INTERACTION-GATE.3` anchor config — a comb-only
+/// (`flop_prob = 0.0`), node-id + e-graph DUT with **all eight** non-version-gated
+/// `*_emit_prob` set to `prob`.
+///
+/// Two shaping decisions, both load-bearing:
+///
+/// - **`prob` is a parameter, not a constant.** At
+///   `STRUCTURED_EMISSION_MAX_PROB` each pass leaves gates for the next and the
+///   surfaces co-occur; at `1.0` the first pass takes everything. The gate runs
+///   both, because they exercise opposite ends of the same exclusion invariant.
+/// - **All three selector knobs are live.** Three of the eight surfaces project a
+///   `Mux` / `CaseMux` / `CasezMux`, and the single-surface gates each *zero* the
+///   others to guarantee saturation of their own — a trick that cannot be applied
+///   to three surfaces at once. Here all three roll at
+///   `STRUCTURED_EMISSION_MAX_SELECTOR_PROB` so all three kinds of selector block
+///   get built somewhere in the module, which is what lets all eight surfaces
+///   appear together.
+fn all_emit_surfaces_focus_config(strategy: ConstructionStrategy, seed: u64, prob: f64) -> Config {
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        function_emit_prob: prob,
+        generate_loop_emit_prob: prob,
+        task_emit_prob: prob,
+        multi_output_task_emit_prob: prob,
+        cone_function_emit_prob: prob,
+        mux_if_emit_prob: prob,
+        case_mux_if_emit_prob: prob,
+        casez_mux_if_emit_prob: prob,
+        comb_mux_prob: STRUCTURED_EMISSION_MAX_SELECTOR_PROB,
+        case_mux_prob: STRUCTURED_EMISSION_MAX_SELECTOR_PROB,
+        casez_mux_prob: STRUCTURED_EMISSION_MAX_SELECTOR_PROB,
+        flop_prob: 0.0,
+        terminal_reuse_prob: 0.6,
+        constant_prob: 0.05,
+        max_depth: 6,
+        min_inputs: 6,
+        max_inputs: 8,
+        min_outputs: 3,
+        max_outputs: 4,
+        ..Config::default()
+    }
+}
+
+/// `EMIT-SURFACE-INTERACTION-GATE.3` — the ninth-surface variant: the eight-surface
+/// anchor plus the version-gated `union soft` up-opt at an IEEE 1800-2023 target.
+/// Setting `soft_union_slice_prob > 0.0` is what makes
+/// `scenario_emits_soft_union_overlay` classify this scenario Verilator-only, so
+/// Yosys/Icarus are skipped as a recorded no-op (decision `0010`) without any
+/// gate-specific plumbing.
+fn all_nine_emit_surfaces_focus_config(seed: u64) -> Config {
+    Config {
+        sv_version: SvVersion::Sv2023,
+        soft_union_slice_prob: 1.0,
+        ..all_emit_surfaces_focus_config(
+            ConstructionStrategy::Interleaved,
+            seed,
+            STRUCTURED_EMISSION_MAX_PROB,
+        )
     }
 }
 
@@ -6923,9 +7150,66 @@ fn summarize_coverage(
         {
             coverage.saw_casez_mux_if_emit = true;
         }
+
+        // `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — surface
+        // **co-occurrence**, projected from the nine per-module `emitted_*` booleans
+        // this report already computes. No new identifier token and no new emitted
+        // truth: the eighth surface's metric-keyed precedent, taken one step further
+        // to a pure count over facts that already exist.
+        let distinct = distinct_emit_surfaces(module);
+        let verilator_ok = module
+            .verilator
+            .as_ref()
+            .map(|t| t.success)
+            .unwrap_or(false);
+        // The two universal facts take the sibling-gate acceptance bar: Verilator
+        // success AND Yosys clean (`!yosys.is_empty()` guards the vacuous case).
+        let accepted_everywhere =
+            verilator_ok && !module.yosys.is_empty() && all_yosys_invocations_ok(&module.yosys);
+        if accepted_everywhere {
+            if distinct >= 2 {
+                coverage.saw_multi_surface_emit_interaction = true;
+            }
+            if distinct >= ALL_EMIT_SURFACES {
+                coverage.saw_all_emit_surfaces_in_one_module = true;
+            }
+            coverage.max_distinct_emit_surfaces = coverage.max_distinct_emit_surfaces.max(distinct);
+        }
+        // The nine-surface fact is **Verilator-only** on purpose: the ninth surface
+        // is the IEEE 1800-2023 `union soft` overlay, which Yosys and Icarus reject
+        // (decision `0010`), so requiring Yosys here would make the fact
+        // unreachable by construction.
+        if verilator_ok && distinct >= ALL_NINE_EMIT_SURFACES {
+            coverage.saw_all_nine_emit_surfaces_in_one_module = true;
+            coverage.max_distinct_emit_surfaces = coverage.max_distinct_emit_surfaces.max(distinct);
+        }
     }
 
     coverage
+}
+
+/// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — how many distinct
+/// structured-emission surfaces this module actually emitted.
+///
+/// A pure projection of the nine `emitted_*` booleans `ModuleReport` already
+/// carries: **no new identifier token, no new metric, no new emitted truth.** Each
+/// of those booleans is itself either a text-token or a metric-keyed proof that the
+/// surface fired, so the count inherits their honesty — a knob that was requested
+/// but produced no qualifying gate contributes nothing.
+///
+/// Deliberately computed here rather than stored on `ModuleReport`: that struct is
+/// also the `--resume` checkpoint payload, and a derived scalar has no business
+/// widening a persisted schema.
+fn distinct_emit_surfaces(module: &ModuleReport) -> usize {
+    usize::from(module.emitted_soft_union_overlay)
+        + usize::from(module.emitted_combinational_function)
+        + usize::from(module.emitted_generate_loop)
+        + usize::from(module.emitted_combinational_task)
+        + usize::from(module.emitted_cone_function)
+        + usize::from(module.emitted_multi_output_task)
+        + usize::from(module.emitted_mux_if)
+        + usize::from(module.emitted_case_mux_if)
+        + usize::from(module.emitted_casez_mux_if)
 }
 
 fn summarize_design_coverage(
@@ -8415,6 +8699,14 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_mux_if_emit |= src.saw_mux_if_emit;
     dst.saw_case_mux_if_emit |= src.saw_case_mux_if_emit;
     dst.saw_casez_mux_if_emit |= src.saw_casez_mux_if_emit;
+    // `EMIT-SURFACE-INTERACTION-GATE.3` — the three co-occurrence facts union like
+    // every sibling fact; the achieved-strength scalar takes the max.
+    dst.saw_multi_surface_emit_interaction |= src.saw_multi_surface_emit_interaction;
+    dst.saw_all_emit_surfaces_in_one_module |= src.saw_all_emit_surfaces_in_one_module;
+    dst.saw_all_nine_emit_surfaces_in_one_module |= src.saw_all_nine_emit_surfaces_in_one_module;
+    dst.max_distinct_emit_surfaces = dst
+        .max_distinct_emit_surfaces
+        .max(src.max_distinct_emit_surfaces);
     dst.saw_design_with_cross_simulator_agreement |= src.saw_design_with_cross_simulator_agreement;
     dst.saw_acceptance_divergence |= src.saw_acceptance_divergence;
     dst.saw_multi_clock_design |= src.saw_multi_clock_design;
@@ -8857,6 +9149,33 @@ fn compute_coverage_gaps(
         return gaps;
     }
 
+    // `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the interaction gate's
+    // sole contract is that the structured-emission surfaces are downstream-clean
+    // **in combination**, and that they genuinely co-occur. The broad
+    // motif/identity/category richness the other sets enforce below is out of scope
+    // (this gate owns interaction, not breadth), so check exactly the three
+    // co-occurrence facts (plus the universal construction-strategy coverage above)
+    // and return.
+    if scenario_set == ScenarioSet::EmitSurfaceInteraction {
+        if !coverage.saw_multi_surface_emit_interaction {
+            gaps.push(
+                "matrix never proved emit-surface interaction (no downstream-accepted module carried >= 2 distinct structured-emission surfaces, so no mutual-exclusion predicate ever saw a non-empty sibling set)".to_string(),
+            );
+        }
+        if !coverage.saw_all_emit_surfaces_in_one_module {
+            gaps.push(format!(
+                "matrix never proved all {ALL_EMIT_SURFACES} non-version-gated emit surfaces in one downstream-accepted module (max observed: {})",
+                coverage.max_distinct_emit_surfaces
+            ));
+        }
+        if !coverage.saw_all_nine_emit_surfaces_in_one_module {
+            gaps.push(format!(
+                "matrix never proved all {ALL_NINE_EMIT_SURFACES} emit surfaces in one Verilator-accepted module (the eight plus the IEEE 1800-2023 `union soft` overlay; Yosys/Icarus reject that syntax and are a recorded no-op)"
+            ));
+        }
+        return gaps;
+    }
+
     match scenario_set {
         ScenarioSet::Default => {
             for mode in ["relaxed", "node-id"] {
@@ -8954,7 +9273,8 @@ fn compute_coverage_gaps(
         | ScenarioSet::MultiOutputTaskSweep
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
-        | ScenarioSet::CasezMuxIfSweep => {}
+        | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::EmitSurfaceInteraction => {}
     }
 
     let required_categories: &[&str] = match scenario_set {
@@ -8986,7 +9306,8 @@ fn compute_coverage_gaps(
         | ScenarioSet::MultiOutputTaskSweep
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
-        | ScenarioSet::CasezMuxIfSweep => &[],
+        | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::EmitSurfaceInteraction => &[],
     };
     for &category in required_categories {
         if !coverage.gate_categories.contains(category) {
@@ -9803,7 +10124,8 @@ fn compute_coverage_gaps(
         | ScenarioSet::MultiOutputTaskSweep
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
-        | ScenarioSet::CasezMuxIfSweep => &[],
+        | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::EmitSurfaceInteraction => &[],
     };
     for &knob in required_knobs {
         if !coverage.knob_attempts_seen.contains(knob) {
@@ -9946,6 +10268,7 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::MuxIfSweep => "mux-if-sweep",
         ScenarioSet::CaseMuxIfSweep => "case-mux-if-sweep",
         ScenarioSet::CasezMuxIfSweep => "casez-mux-if-sweep",
+        ScenarioSet::EmitSurfaceInteraction => "emit-surface-interaction",
     }
 }
 
@@ -9968,7 +10291,8 @@ fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
         | ScenarioSet::MultiOutputTaskSweep
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
-        | ScenarioSet::CasezMuxIfSweep => "module",
+        | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::EmitSurfaceInteraction => "module",
     }
 }
 
@@ -10017,6 +10341,7 @@ mod tests {
             mux_if_gate: false,
             case_mux_if_gate: false,
             casez_mux_if_gate: false,
+            emit_surface_interaction_gate: false,
             list_scenarios: false,
             skip_verilator: false,
             skip_yosys: false,
@@ -11229,6 +11554,246 @@ mod tests {
         coverage.saw_casez_mux_if_emit = true;
         let gaps = compute_coverage_gaps(ScenarioSet::CasezMuxIfSweep, &coverage, None);
         assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    // ===============================================================
+    // EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — cargo-portable
+    // proofs of the emit-surface *interaction* gate's wiring (CLI flag,
+    // scenario set, run plan, scenario shaping, the co-occurrence
+    // projection, and the gap requirements). The downstream-clean bank is
+    // the repo-owned report, run separately with real Verilator + Yosys.
+    // ===============================================================
+
+    #[test]
+    fn emit_surface_interaction_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
+        assert!(!no_flag.emit_surface_interaction_gate);
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--emit-surface-interaction-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
+        assert!(with_flag.emit_surface_interaction_gate);
+    }
+
+    #[test]
+    fn emit_surface_interaction_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.emit_surface_interaction_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::EmitSurfaceInteraction
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::EmitSurfaceInteraction).expect("build");
+        // three strategies + the saturation extreme + the nine-surface 2023 scenario.
+        assert_eq!(scenarios.len(), 5);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(
+            plan.modules_per_scenario,
+            EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO
+        );
+        assert_eq!(
+            plan.total_modules,
+            5 * EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO
+        );
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn emit_surface_interaction_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.emit_surface_interaction_gate = true;
+        cli.casez_mux_if_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    /// The load-bearing shaping proof: **every** scenario turns on **all eight**
+    /// non-version-gated surfaces at once. That is precisely what no sibling gate
+    /// does — each of those sets one knob and leaves the other seven at `0.0`, so
+    /// their mutual-exclusion predicates never see a sibling.
+    #[test]
+    fn emit_surface_interaction_scenarios_turn_on_every_surface_together() {
+        let scenarios = build_scenarios(0, ScenarioSet::EmitSurfaceInteraction).expect("build");
+        let mut strategies = BTreeSet::new();
+        for scenario in &scenarios {
+            let cfg = &scenario.config;
+            strategies.insert(construction_strategy_slug(cfg.construction_strategy));
+            let probs = [
+                cfg.function_emit_prob,
+                cfg.generate_loop_emit_prob,
+                cfg.task_emit_prob,
+                cfg.multi_output_task_emit_prob,
+                cfg.cone_function_emit_prob,
+                cfg.mux_if_emit_prob,
+                cfg.case_mux_if_emit_prob,
+                cfg.casez_mux_if_emit_prob,
+            ];
+            assert!(
+                probs.iter().all(|p| *p > 0.0),
+                "{} leaves an emit surface off: {probs:?}",
+                scenario.name
+            );
+            // All eight share one probability — the whole point is that no single
+            // surface is privileged over the others.
+            assert!(
+                probs.windows(2).all(|w| w[0] == w[1]),
+                "{} does not use one shared probability: {probs:?}",
+                scenario.name
+            );
+            // All three selector kinds live, so the three procedural surfaces have
+            // candidates. The sibling gates zero the others to force saturation of
+            // one; that trick cannot serve three surfaces at once.
+            assert_eq!(cfg.comb_mux_prob, STRUCTURED_EMISSION_MAX_SELECTOR_PROB);
+            assert_eq!(cfg.case_mux_prob, STRUCTURED_EMISSION_MAX_SELECTOR_PROB);
+            assert_eq!(cfg.casez_mux_prob, STRUCTURED_EMISSION_MAX_SELECTOR_PROB);
+            // Comb-only single-module DUT: every surface is a combinational
+            // projection.
+            assert_eq!(cfg.flop_prob, 0.0);
+            assert!(cfg.effective_hierarchy_depth_range().is_none());
+        }
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["sequential", "shuffled", "interleaved"])
+        );
+
+        // The saturation extreme is present and really is at 1.0 — the config where
+        // every later pass must skip against a FULL sibling set.
+        let saturated = scenarios
+            .iter()
+            .find(|s| s.name.ends_with("all_emit_surfaces_saturated"))
+            .expect("saturation scenario present");
+        assert_eq!(saturated.config.function_emit_prob, 1.0);
+        assert_eq!(saturated.config.casez_mux_if_emit_prob, 1.0);
+        assert_eq!(saturated.config.soft_union_slice_prob, 0.0);
+
+        // The ninth-surface scenario adds `union soft` at a 2023 target, and that is
+        // what routes it down the existing Verilator-only plan.
+        let ninth = scenarios
+            .iter()
+            .find(|s| s.name.ends_with("all_nine_emit_surfaces_sv2023"))
+            .expect("nine-surface scenario present");
+        assert_eq!(ninth.config.soft_union_slice_prob, 1.0);
+        assert_eq!(ninth.config.sv_version, SvVersion::Sv2023);
+        assert_eq!(
+            ninth.config.function_emit_prob,
+            STRUCTURED_EMISSION_MAX_PROB
+        );
+        assert!(scenario_emits_soft_union_overlay(ninth));
+
+        // Only that one scenario is Verilator-only; the other four keep the full
+        // Yosys + Icarus columns, which is why `soft_union` is not folded in.
+        assert_eq!(
+            scenarios
+                .iter()
+                .filter(|s| scenario_emits_soft_union_overlay(s))
+                .count(),
+            1
+        );
+    }
+
+    /// A `ModuleReport` with every emit-surface flag off — the baseline for the
+    /// co-occurrence projection.
+    fn module_report_with_no_surfaces() -> ModuleReport {
+        ModuleReport {
+            file: "mod.sv".to_string(),
+            name: "mod_0_0000".to_string(),
+            metrics: Metrics::default(),
+            verilator: None,
+            yosys: vec![],
+            iverilog_compile: None,
+            sv2v: None,
+            slang: None,
+            slang_facts: None,
+            diff_sim: None,
+            divergence: None,
+            emitted_soft_union_overlay: false,
+            emitted_combinational_function: false,
+            emitted_generate_loop: false,
+            emitted_combinational_task: false,
+            emitted_cone_function: false,
+            emitted_multi_output_task: false,
+            emitted_mux_if: false,
+            emitted_case_mux_if: false,
+            emitted_casez_mux_if: false,
+        }
+    }
+
+    /// `distinct_emit_surfaces` is a pure count over the nine `emitted_*` booleans
+    /// — no new token, no new metric.
+    #[test]
+    fn distinct_emit_surfaces_counts_the_nine_booleans() {
+        let mut m = module_report_with_no_surfaces();
+        assert_eq!(distinct_emit_surfaces(&m), 0);
+        m.emitted_combinational_function = true;
+        m.emitted_generate_loop = true;
+        assert_eq!(distinct_emit_surfaces(&m), 2);
+        m.emitted_combinational_task = true;
+        m.emitted_cone_function = true;
+        m.emitted_multi_output_task = true;
+        m.emitted_mux_if = true;
+        m.emitted_case_mux_if = true;
+        m.emitted_casez_mux_if = true;
+        assert_eq!(distinct_emit_surfaces(&m), ALL_EMIT_SURFACES);
+        m.emitted_soft_union_overlay = true;
+        assert_eq!(distinct_emit_surfaces(&m), ALL_NINE_EMIT_SURFACES);
+    }
+
+    #[test]
+    fn emit_surface_interaction_gaps_require_the_three_facts() {
+        // All three strategies present, no facts lit → exactly the three
+        // interaction gaps (no broad-motif gaps leak in).
+        let mut coverage = CoverageSummary::default();
+        for s in ["sequential", "shuffled", "interleaved"] {
+            coverage.construction_strategies.insert(s.to_string());
+        }
+        let gaps = compute_coverage_gaps(ScenarioSet::EmitSurfaceInteraction, &coverage, None);
+        assert_eq!(gaps.len(), 3, "unexpected gaps: {gaps:?}");
+        assert!(gaps[0].contains("emit-surface interaction"));
+        assert!(gaps[1].contains("non-version-gated emit surfaces"));
+        assert!(gaps[2].contains("union soft"));
+
+        // The weak fact alone still leaves the two stronger gaps.
+        coverage.saw_multi_surface_emit_interaction = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::EmitSurfaceInteraction, &coverage, None);
+        assert_eq!(gaps.len(), 2, "unexpected gaps: {gaps:?}");
+
+        // All three lit → no gaps.
+        coverage.saw_all_emit_surfaces_in_one_module = true;
+        coverage.saw_all_nine_emit_surfaces_in_one_module = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::EmitSurfaceInteraction, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    #[test]
+    fn merge_coverage_unions_the_interaction_facts_and_maxes_the_scalar() {
+        let mut dst = CoverageSummary {
+            max_distinct_emit_surfaces: 3,
+            ..CoverageSummary::default()
+        };
+        let src = CoverageSummary {
+            saw_multi_surface_emit_interaction: true,
+            saw_all_emit_surfaces_in_one_module: true,
+            saw_all_nine_emit_surfaces_in_one_module: true,
+            max_distinct_emit_surfaces: 8,
+            ..CoverageSummary::default()
+        };
+        merge_coverage(&mut dst, &src);
+        assert!(dst.saw_multi_surface_emit_interaction);
+        assert!(dst.saw_all_emit_surfaces_in_one_module);
+        assert!(dst.saw_all_nine_emit_surfaces_in_one_module);
+        assert_eq!(dst.max_distinct_emit_surfaces, 8);
+
+        // The scalar takes the max, never the last write.
+        let smaller = CoverageSummary {
+            max_distinct_emit_surfaces: 2,
+            ..CoverageSummary::default()
+        };
+        merge_coverage(&mut dst, &smaller);
+        assert_eq!(dst.max_distinct_emit_surfaces, 8);
     }
 
     // ===============================================================

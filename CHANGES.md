@@ -1,6 +1,98 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.3 — prove the nine surfaces together
+
+**Landed as:** this commit (previous: `d73b154`, `EMIT-SURFACE-INTERACTION-GATE.2`).
+`tool_matrix` gate wiring + docs/book + a banked evidence digest. No generator or emitter
+change; every surface stays default-off ⇒ **DUT byte-identical**, `tests/snapshots.rs`
+unchanged.
+
+**What.** `tool_matrix --emit-surface-interaction-gate` — the first repo-owned gate over the
+structured-emission surfaces' **interaction** rather than any one surface, per decision `0032`
+(a)/(b)/(c).
+
+**Why it could not already exist.** The nine emit-projection passes are mutually exclusive on a
+gate: each skips any gate an earlier pass claimed, and that exclusion is the entire soundness
+argument for stacking nine overlapping projections onto one gate graph. But all eight
+single-surface gates set exactly one `*_emit_prob` to `1.0` and leave the rest at `0.0`, so
+under every gate this repo owned, each exclusion predicate evaluated against an **empty**
+sibling set and returned `false` unconditionally. The property holding the surfaces apart had no
+end-to-end proof.
+
+**Five scenarios, covering both ends of that invariant.**
+
+| scenario | shape | what it proves |
+| --- | --- | --- |
+| `{seq,shuf,int}_all_emit_surfaces` | comb-only, all eight at `STRUCTURED_EMISSION_MAX_PROB`, one per construction strategy | each pass leaves gates for the next ⇒ several surfaces co-occur and the predicates see a **non-empty** sibling set |
+| `all_emit_surfaces_saturated` | the same shape, all eight at `1.0` | the opposite extreme: every later pass skips against a **full** sibling set |
+| `all_nine_emit_surfaces_sv2023` | + `soft_union_slice_prob = 1.0` at `--sv-version 2023` | the ninth surface too; Verilator-only |
+
+The 2023 scenario is kept **separate** rather than folded in: `soft_union` is disjoint from the
+other eight by target type (it claims `Slice` gates, which none of the others touch) so it adds
+no exclusion pressure, while Yosys and Icarus reject the syntax — folding it in would have cost
+every scenario two acceptance columns for nothing. Setting `soft_union_slice_prob > 0.0` routes
+it through the **pre-existing** `scenario_emits_soft_union_overlay` → `verilator_only` plan, so
+that separation needed no new plumbing at all.
+
+**Co-occurrence is proven by projection, not by a new token.** `ModuleReport` already carries
+nine `emitted_*` booleans, each an honest per-surface proof (a text token where the surface
+mints an identifier; a metric for the two that do not). The gate adds one function —
+`distinct_emit_surfaces(&ModuleReport)`, a sum of those nine — and three facts:
+`saw_multi_surface_emit_interaction` (≥ 2 surfaces in one downstream-accepted module — the
+invariant at its robust floor), `saw_all_emit_surfaces_in_one_module` (≥ 8), and
+`saw_all_nine_emit_surfaces_in_one_module`. No new metric, no new emitted truth, and
+`ModuleReport` — which is *also* the `--resume` checkpoint payload — is deliberately left
+unwidened; a derived scalar has no business in a persisted schema. The per-run maximum is
+recorded as `max_distinct_emit_surfaces` (merged with `max`, not `|=`) so achieved strength is
+visible in the report without making the gate brittle.
+
+**The nine-surface fact is Verilator-only on purpose.** Its ninth surface is the `union soft`
+overlay, which Yosys rejects by design (decision `0010`). Applying the sibling-gate bar
+(Verilator **and** Yosys) there would have produced a fact that is unreachable by construction —
+a gate that can never go green.
+
+**Result — clean on the first run, and the prediction landed exactly.**
+
+```
+5 scenarios, 4 modules/scenario = 20 modules · coverage_gaps = []
+Verilator 20/0 · Yosys without-abc 16/0 · Yosys with-abc 16/0 · Icarus 16/0
+   (the four `union soft` modules are the recorded Yosys/Icarus no-op)
+
+seq_all_emit_surfaces          distinct-per-module: [8, 8, 8, 8]
+shuf_all_emit_surfaces         distinct-per-module: [8, 8, 8, 8]
+int_all_emit_surfaces          distinct-per-module: [8, 8, 8, 8]
+all_emit_surfaces_saturated    distinct-per-module: [3, 3, 3, 3]
+all_nine_emit_surfaces_sv2023  distinct-per-module: [9, 9, 9, 9]
+```
+
+Decision `0032` predicted the saturation number **three** from the source before this gate
+existed, and named which three: `function_emit` plus `case_mux_if` and `casez_mux_if` — the pass
+that runs first, plus the two whose targets are outside its admissible set. The banked report's
+saturated module carries exactly `combinational_function`, `case_mux_if`, `casez_mux_if`. That
+agreement is the point of having written `.1` as a design leaf: a green gate proves the code
+does something acceptable; a green gate that reproduces a number derived beforehand proves the
+model of the pass chain is right, and makes any future divergence immediately meaningful.
+
+**Evidence banked** as `docs/evidence/anvil-emit-surface-interaction-r1.md` (decision `0030`'s
+second customer, which is what `.1` said this tree would be). The digest records the report
+SHA-256 and 20 coverage facts — including **all eight** single-surface facts lit in the *same*
+run, which no previous bank could show.
+
+**Validation.** `cargo test --bin tool_matrix` 106/106 (+7 new: flag parse, set + run plan,
+mutual exclusion, scenario shaping, the projection, the three gap requirements, the merge);
+`cargo test` full suite green under `scripts/ram_guard.sh --threshold 90` with
+`tests/snapshots.rs` byte-identical; `cargo clippy --all-targets -- -D warnings` clean;
+`cargo fmt --all --check` clean; `mdbook build book` exit 0; `cargo test --test book_examples`
+3/3; doctrine driver 6/6 after staging.
+
+**No phase labels changed.**
+
+**Files touched.** `src/bin/tool_matrix.rs`, `docs/evidence/anvil-emit-surface-interaction-r1.md`
+(new), `README.md`, `USER_GUIDE.md`, `CODEBASE_ANALYSIS.md`,
+`book/src/structured-emission.md`, `docs/tasks/EMIT-SURFACE-INTERACTION-GATE.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.2 — structured-emission-max emits 8 surfaces, not 1
 
 **Landed as:** this commit (previous: `7664761`, `EMIT-SURFACE-INTERACTION-GATE.1`).

@@ -153,7 +153,7 @@ them live simultaneously.
         `reverify` line.
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.3`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: the repo-owned combined gate + coverage facts + banked digest, per decision
         `0032` (a)/(b)/(c): `--emit-surface-interaction-gate`, the derived
         `distinct_emit_surfaces`, and the facts
@@ -162,6 +162,22 @@ them live simultaneously.
         `saw_all_nine_emit_surfaces_in_one_module` (the 2023 scenario).
   Acceptance: `coverage_gaps = []`, all tool columns clean, co-occurrence facts lit,
         digest committed under `docs/evidence/`.
+  Delivered: `tool_matrix --emit-surface-interaction-gate` +
+        `ScenarioSet::EmitSurfaceInteraction` + `all_emit_surfaces_focus_config`
+        (probability is a **parameter**, so one constructor serves both the
+        intermediate and the `1.0` saturation extreme) +
+        `all_nine_emit_surfaces_focus_config` (setting `soft_union_slice_prob > 0.0`
+        routes it down the pre-existing `verilator_only` plan — no gate-specific
+        plumbing). Co-occurrence is the pure projection
+        `distinct_emit_surfaces(&ModuleReport)` over the nine `emitted_*` booleans
+        that already exist, so no new token, no new metric, and `ModuleReport` (also
+        the `--resume` checkpoint payload) is unwidened. Facts:
+        `saw_multi_surface_emit_interaction` (≥ 2),
+        `saw_all_emit_surfaces_in_one_module` (≥ 8), and the **Verilator-only**
+        `saw_all_nine_emit_surfaces_in_one_module` (requiring Yosys there would make
+        it unreachable — Yosys rejects `union soft`), plus the recorded-not-gated
+        `max_distinct_emit_surfaces`. Banked clean at
+        [`docs/evidence/anvil-emit-surface-interaction-r1.md`](../evidence/anvil-emit-surface-interaction-r1.md).
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.4`
   Status: `pending`
@@ -180,8 +196,8 @@ them live simultaneously.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.3` | `pending` | **Current frontier.** The gate + the digest. It reuses the same `0.25` configuration `.2` just shipped, so the gate is literally a proof of the preset. |
-| 2 | `.4` | `pending` | The absorption-census hardening. Byte-identical today; ordered after the gate because it is a latent-trap fix, not a blocker. |
+| 1 | `.4` | `pending` | **Current frontier.** The absorption-census hardening — the one interaction risk `.1` could not clear by reasoning alone. Byte-identical today; closes the tree. |
+| — | `.3` | `done` | Gate clean first run: `coverage_gaps = []`, 20/0 Verilator, 16/0 both Yosys modes + Icarus, all three facts lit, digest banked. |
 | — | `.2` | `done` | Preset honest: 8/8 surfaces emitted (was 1/8), anti-drift test derived from the knob catalog, docs + book corrected. |
 | — | `.1` | `done` | Design ADR landed as decision `0032`. |
 
@@ -244,13 +260,20 @@ them live simultaneously.
 | `2026-07-30` | `.2` | `mdbook build book` + `cargo test --test book_examples` | exit 0; 3/3 harness tests pass, covering the three new runnable examples |
 | `2026-07-30` | `.2` | `cargo test` (full suite, under `scripts/ram_guard.sh --threshold 90`) | green — `tests/snapshots.rs` byte-identical (default path untouched) |
 | `2026-07-30` | `.2` | `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check` | clean |
+| `2026-07-30` | `.3` | `cargo test --bin tool_matrix` | 106/106 pass (+7 new: flag parse, set+plan, mutual exclusion, scenario shaping, the projection, the three gap requirements, the merge) |
+| `2026-07-30` | `.3` | `tool_matrix --emit-surface-interaction-gate --yosys-mode both --iverilog-compile` | **clean on the first run**: 5 scenarios / 20 modules / `coverage_gaps = []` / Verilator `20/0` / Yosys `16/0` both modes / Icarus `16/0` (the four `union soft` modules are the recorded Yosys/Icarus no-op) |
+| `2026-07-30` | `.3` | Per-scenario `distinct_emit_surfaces` from the banked report | **prediction confirmed exactly**: `8,8,8,8` in each of the three universal scenarios, `9,9,9,9` in the 2023 scenario, `3,3,3,3` under saturation — and the surviving three are `function_emit` + `case_mux_if` + `casez_mux_if`, precisely the set decision `0032` derived from source before the gate existed |
+| `2026-07-30` | `.3` | `scripts/evidence_digest.sh` | digest banked at `docs/evidence/anvil-emit-surface-interaction-r1.md` (report SHA-256 recorded; 20 coverage facts lit, including all eight single-surface facts **in the same run**) |
+| `2026-07-30` | `.3` | `cargo test` (full suite, under `scripts/ram_guard.sh --threshold 90`) | green — `tests/snapshots.rs` byte-identical |
+| `2026-07-30` | `.3` | `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, `mdbook build book`, `cargo test --test book_examples` | clean |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `.1` | `EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination` (`7664761`) | Docs-only design leaf; delivers `docs/decisions/0032-emit-surface-interaction-gate.md` and opens `.4` |
-| `.2` | `EMIT-SURFACE-INTERACTION-GATE.2 — structured-emission-max emits 8 surfaces, not 1` | Preset + anti-drift test + docs/book; default path byte-identical |
+| `.2` | `EMIT-SURFACE-INTERACTION-GATE.2 — structured-emission-max emits 8 surfaces, not 1` (`d73b154`) | Preset + anti-drift test + docs/book; default path byte-identical |
+| `.3` | `EMIT-SURFACE-INTERACTION-GATE.3 — prove the nine surfaces together` | The gate + the three co-occurrence facts + the banked digest; every surface stays default-off |
 
 ## Changelog
 

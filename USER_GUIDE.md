@@ -1216,6 +1216,28 @@ Useful options:
   when `--iverilog-compile` is set) plan. Banked clean at `anvil-casez-mux-if-gate-r1`
   (3 scenarios / 12 modules / 12 emitting a chain / 108 chains / `coverage_gaps = []` /
   Verilator 12/0 / Yosys 12/0 both modes / Icarus compile 12/0).
+- `--emit-surface-interaction-gate` to run the repo-owned **emit-surface interaction**
+  gate (`EMIT-SURFACE-INTERACTION-GATE.3`, decision `0032`) — the only gate that runs
+  the structured-emission surfaces **together**. Each gate above sets one
+  `*_emit_prob` to `1.0` and leaves the rest at `0.0`, so the nine annotation passes'
+  mutual-exclusion predicates always see an *empty* sibling set; this gate is the first
+  to put a real sibling set in front of them. Five scenarios: three comb-only DUTs (one
+  per construction strategy) with all eight non-version-gated surfaces at the shared
+  intermediate probability; one **saturation** scenario at `1.0` (every later pass sees
+  a *full* sibling set and must skip); and one Verilator-only IEEE 1800-2023 scenario
+  adding the ninth surface (`soft_union`). Co-occurrence is proven **by projection** —
+  a derived `distinct_emit_surfaces` count over the nine `emitted_*` booleans the
+  report already carries, so there is no new identifier token — gating
+  `saw_multi_surface_emit_interaction` (≥ 2 surfaces in one accepted module),
+  `saw_all_emit_surfaces_in_one_module` (≥ 8), and
+  `saw_all_nine_emit_surfaces_in_one_module`. The report also records
+  `max_distinct_emit_surfaces` so a run's achieved strength is visible without being
+  gated on. Banked clean with a committed digest
+  (`docs/evidence/anvil-emit-surface-interaction-r1.md`): 5 scenarios / 20 modules /
+  `coverage_gaps = []` / Verilator 20/0 / Yosys 16/0 both modes / Icarus 16/0 — the
+  four `union soft` modules being the recorded Yosys/Icarus no-op. Measured shape:
+  **8 surfaces in every module** of the three universal scenarios, **9** in the 2023
+  scenario, **exactly 3** under saturation.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.

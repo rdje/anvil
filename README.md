@@ -1305,6 +1305,31 @@ exercising adversarial axes that previously fired only by chance
   the per-gate/per-cone gates, `--mux-if-gate`, and `--case-mux-if-gate`; default
   `casez_mux_if_emit_prob = 0.0` emission stays byte-identical; the gate is the opt-in proof
   axis.
+- `tool_matrix --emit-surface-interaction-gate` runs the repo-owned **emit-surface
+  interaction** gate (`EMIT-SURFACE-INTERACTION-GATE.3`, decision `0032`) — the only
+  gate that runs the structured-emission surfaces **together**. Every gate above sets
+  exactly one `*_emit_prob` to `1.0` and leaves the rest at `0.0`, so the nine
+  annotation passes' **mutual-exclusion** predicates always evaluate against an
+  *empty* sibling set. That exclusion is the entire soundness argument for stacking
+  nine overlapping projections onto one gate graph, and it had no end-to-end proof.
+  Five scenarios cover both extremes of the same invariant: three comb-only DUTs (one
+  per construction strategy) with all eight non-version-gated surfaces at the shared
+  intermediate probability, so several co-occur in one module; one **saturation**
+  scenario at `1.0`, where every later pass sees a *full* sibling set and must skip;
+  and one Verilator-only IEEE 1800-2023 scenario adding the ninth (`soft_union`), kept
+  separate because Yosys/Icarus reject that syntax (decision `0010`) and it adds no
+  exclusion pressure. Co-occurrence is proven **by projection**, not by a new token: a
+  derived `distinct_emit_surfaces` count over the nine `emitted_*` booleans the report
+  already carries, gating `saw_multi_surface_emit_interaction` (≥ 2),
+  `saw_all_emit_surfaces_in_one_module` (≥ 8), and
+  `saw_all_nine_emit_surfaces_in_one_module`. Banked clean with a committed digest
+  ([`docs/evidence/anvil-emit-surface-interaction-r1.md`](docs/evidence/anvil-emit-surface-interaction-r1.md)):
+  5 scenarios, 20 modules, `coverage_gaps = []`, Verilator `20/0`, both Yosys modes
+  `16/0`, Icarus `16/0` (the four `union soft` modules are the recorded Yosys/Icarus
+  no-op) — with **8 distinct surfaces in every module** of the three universal
+  scenarios, **9** in the 2023 scenario, and **exactly 3** under saturation, which is
+  the measured reason "every knob at `1.0`" emits *fewer* shapes than an intermediate
+  probability. Every surface stays default-off ⇒ DUT emission byte-identical.
 - `anvil --hierarchy-child-source-mode <library|on-demand>` selects how
   hierarchy parents obtain child definitions. `library` keeps reusable
   child-definition pools; the current `on-demand` slice now

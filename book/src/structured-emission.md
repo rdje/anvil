@@ -1277,6 +1277,40 @@ invariant end-to-end. With one knob at `1.0` and the rest at `0.0` — the shape
 all nine single-surface gates — every exclusion check sees an empty sibling set
 and trivially passes. Only a combined run puts a real sibling set in front of it.
 
+### How anvil proves it
+
+The repo-owned `tool_matrix --emit-surface-interaction-gate` is the only gate that
+runs the surfaces together. Five scenarios cover both extremes of the same
+invariant:
+
+- **three comb-only DUTs**, one per construction strategy, with all eight
+  non-version-gated surfaces at the shared intermediate probability — each pass
+  claims some gates and leaves others, so several surfaces co-occur in one module;
+- **one saturation scenario** at `1.0`, where every later pass sees a *full* sibling
+  set and must skip — the opposite extreme, and the configuration that demonstrates
+  the collapse described above;
+- **one Verilator-only IEEE 1800-2023 scenario** adding the ninth surface, kept
+  separate so the other four keep their Yosys and Icarus columns.
+
+Co-occurrence is proven **by projection, not by a new token**: the report already
+carries nine per-module `emitted_*` booleans (each a text-token or metric-keyed
+proof that the surface actually fired), so the gate simply counts them into a
+derived `distinct_emit_surfaces` and requires
+`saw_multi_surface_emit_interaction` (≥ 2 surfaces in one downstream-accepted
+module), `saw_all_emit_surfaces_in_one_module` (≥ 8), and
+`saw_all_nine_emit_surfaces_in_one_module`. The per-run maximum is recorded as
+`max_distinct_emit_surfaces` so achieved strength is visible without making the
+gate brittle.
+
+Banked clean with a committed digest
+(`docs/evidence/anvil-emit-surface-interaction-r1.md`): 5 scenarios / 20 modules /
+`coverage_gaps = []` / Verilator 20/0 / Yosys 16/0 in both modes / Icarus 16/0,
+the four `union soft` modules being the recorded Yosys/Icarus no-op. The measured
+shape matched the prediction exactly — **8** distinct surfaces in every module of
+the three universal scenarios, **9** in the 2023 scenario, and **exactly 3** under
+saturation, those three being `function_emit`, `case_mux_if`, and `casez_mux_if`:
+the one pass that runs first, plus the two whose targets it cannot claim.
+
 The full reasoning, the pass-by-pass exclusion audit, the probability calibration,
 and the downstream results are in decision `0032`
 (`docs/decisions/0032-emit-surface-interaction-gate.md`, relative to the

@@ -5,6 +5,73 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — A new fact does not need a new token — `EMIT-SURFACE-INTERACTION-GATE.3`
+
+The interaction gate needed to prove something no report had ever asserted: that several
+structured-emission surfaces landed in **one** module. The instinct is to add machinery — a
+marker in the emitted SV, a `num_co_occurring_surfaces` metric, a per-module field.
+
+None of that was necessary. `ModuleReport` already carried nine `emitted_*` booleans, one per
+surface, each of them already an honest proof that the surface *fired* (a text token for the
+ones that mint an identifier, a metric for the two that do not). The new fact is a **count of
+facts that already exist**:
+
+```rust
+fn distinct_emit_surfaces(m: &ModuleReport) -> usize { /* sum of the nine bools */ }
+```
+
+Three properties fall out for free, and each would have cost real work to obtain any other way:
+
+- **No new emitted truth.** The gate observes; it does not ask the generator to announce
+  anything. The lane's rule that a gate adds no output shape survives intact.
+- **Honesty is inherited.** A knob requested but never fired contributes `false` to its
+  boolean, so it contributes `0` to the count. There is no way for the count to over-report
+  without one of the nine underlying proofs over-reporting first.
+- **The persisted schema is untouched.** `ModuleReport` is *also* the `--resume` checkpoint
+  payload. Storing a derived scalar there would have widened a serialized format — and forced
+  a `#[serde(default)]` and a compatibility story — to cache an addition. Computing it in the
+  coverage pass costs nothing and keeps old checkpoints readable.
+
+> **Before minting a new signal, check whether the signal is already a function of signals you
+> have.** A derived fact inherits the trustworthiness of its inputs; a fresh one has to earn it
+> from scratch.
+
+The one place the projection needed care is the acceptance bar. The two universal facts take the
+sibling-gate bar (Verilator success **and** Yosys clean), but the nine-surface fact is
+**Verilator-only** — its ninth surface is the IEEE 1800-2023 `union soft` overlay, which Yosys
+rejects by design (decision `0010`). Applying the uniform bar there would have produced a fact
+that is unreachable by construction: a gate that can never go green is worse than no gate.
+
+## 2026-07-30 — A prediction that lands exactly is worth more than a passing gate — `EMIT-SURFACE-INTERACTION-GATE.3`
+
+Decision `0032` was written before the gate existed, and it committed to a specific number:
+under saturation (every surface at `1.0`) an emitted module would carry **three** shapes, not
+eight, and the three would be `function_emit`, `case_mux_if`, and `casez_mux_if` — the pass that
+runs first, plus the two whose targets (`CaseMux` / `CasezMux`) are outside its admissible set.
+
+The banked run:
+
+```
+seq_all_emit_surfaces          distinct-per-module: [8, 8, 8, 8]
+shuf_all_emit_surfaces         distinct-per-module: [8, 8, 8, 8]
+int_all_emit_surfaces          distinct-per-module: [8, 8, 8, 8]
+all_emit_surfaces_saturated    distinct-per-module: [3, 3, 3, 3]
+all_nine_emit_surfaces_sv2023  distinct-per-module: [9, 9, 9, 9]
+```
+
+and the saturated module's three are exactly `combinational_function`, `case_mux_if`,
+`casez_mux_if`.
+
+This is why `.1` was a design leaf and not a "write the gate and see" leaf. A green gate proves
+the code does *something* acceptable. A green gate that produces the number you derived from the
+source beforehand proves you understand *why*. When the two agree, a later divergence is
+immediately meaningful — it means the model of the pass chain changed, and you know exactly
+which claim to re-examine.
+
+> **Write the expected numbers down before the run, in a place that outlives the session.** If
+> the gate had come back with 5 surfaces under saturation, that would have been a finding about
+> the exclusion chain rather than a shrug.
+
 ## 2026-07-30 — Derive the anti-drift set, never enumerate it — `EMIT-SURFACE-INTERACTION-GATE.2`
 
 `structured-emission-max` went stale in the most ordinary way possible: surfaces 6, 7, 8 and 9
