@@ -5,6 +5,132 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — Severity is what an omission *does*, not how long the list is — `SHADOW-ENUMERATION-SWEEP.2`
+
+`.1` audited the shadow-enumeration class and ranked `merge_coverage` as *"the single
+highest-value derived-check candidate in the repo"*, on one number: **149** hand-merged
+`CoverageSummary` fields, guarded by nothing. It is the longest such list in the tree, and
+the ranking followed from that alone.
+
+`.2` measured what a forgotten line actually does, and the ranking inverted:
+
+- **Every merge is monotone.** The 149 lines are `135 × |=` + `13 × .extend()` + `1 × .max()`.
+  Zero assignments. So an omission can only leave the field at `default()` — it
+  **under**-reports and can never over-report. The error direction is fail-safe.
+- **134 of the 149 fields are gated, and gated means loud.** Every gap in
+  `compute_coverage_gaps` has the positive-polarity shape `if !coverage.saw_x { gaps.push(…) }`,
+  without exception. A forgotten merge on a gated fact therefore yields `false` ⇒ a *spurious*
+  gap ⇒ under any gate (all of which set `fail_on_coverage_gap`) the run **bails**.
+
+The genuinely silent surface is **15 fields**, in the safe direction. Meanwhile the thing that
+*was* dangerous — `tool_matrix`'s `fail_on_coverage_gap` or-chain — is not a long list at all;
+it is fifteen `||` terms whose omission disarms `:1490`'s `bail!` and yields a gate that
+**cannot fail**, whose clean exit decision `0030` then banks as a committed digest and
+`README.md` cites. One is a 149-entry list that under-reports loudly. The other is a
+15-term disjunction that manufactures a false green.
+
+**The rule that came out of it.** Rank a defect class by *what one forgotten line corrupts*:
+
+| tier | the omission causes | why |
+| --- | --- | --- |
+| **S3** | a gate reports success it did not earn | a false green, banked as evidence and cited |
+| **S2** | a user-requested behaviour silently does not happen | the run succeeds; nothing reports the omission |
+| **S1** | a contract or report understates reality | fail-safe direction — no false claim is made |
+
+Two second-order lessons worth keeping:
+
+- **Check the polarity of the consumer before ranking a producer.** `merge_coverage` looked
+  dangerous until the *reader* was read. The producer's shape said nothing; the consumer's
+  `if !x` said everything.
+- **A monotone merge is self-limiting.** Because there is not one assignment among the 149, the
+  whole function has a direction. That is worth preserving deliberately: if a future field
+  needs an overwriting merge, it breaks the property that makes this list only S1, and the
+  `.4` guard should be tightened at the same time.
+
+This is the same shape as the standing gotcha *"the fixture agrees with you; the tool does
+not"* — applied to a prior audit rather than a fixture. `.1`'s number was correct and its
+inference was not, which is exactly why the correction is recorded here instead of silently
+applied.
+
+---
+
+## 2026-07-30 — Test (2) is what keeps four load-bearing lists hand-written — `SHADOW-ENUMERATION-SWEEP.2`
+
+The obvious definition of a shadow enumeration is *"a list that duplicates a set which already
+exists"*. It is wrong, and the way it is wrong would have cost two doctrines.
+
+Four enumerations in this repo satisfy that definition and **must stay hand-written**:
+
+| list | the set it "duplicates" | why deriving it would be a bug |
+| --- | --- | --- |
+| `presets()` | — | it *is* the source of truth for what a preset means |
+| `DOCTRINES` | — | likewise; `DOCTRINE_ENFORCEMENT.md` §5 says so |
+| `check_no_boot_volume_refs.sh` allow-list | every tracked file | a policy doc must name the string it forbids; `CHANGES.md`/`DEVELOPMENT_NOTES.md` are append-only history the owner directed must stay raw (decision `0031`) |
+| `check_evidence_citations.sh` §1 pin | every historical bank | it is pinned by count **and** SHA precisely so it **cannot grow** (decision `0030`) |
+
+The first two fail on *derivability* — there is no other set. But the last two **are**
+derivable: "all tracked files" and "the banks that existed before `0030`" are both computable.
+They are authoritative anyway, and the reason is the second test:
+
+> **Growth-coupled** — the set grows, and every growth *requires* a matching entry in the list.
+
+Both allow-lists fail it in the strongest way available: one is *supposed* to differ from the
+set of tracked files, and the other is *supposed* to be incapable of growing. **The gap between
+the list and the set is the content of the rule.** Derive either and the rule evaporates —
+the first becomes "every file may mention `/tmp`", the second becomes "grandfather anything".
+
+So the classification rule is a **conjunction of three tests** (derivable ∧ growth-coupled ∧
+silent), and the middle one is not a refinement — it is the test that exists to protect the
+deliberate exceptions. Written down because the tempting simplification is a one-word edit
+away, and its consequence (a "cleanup" of two doctrines) would look like an improvement in the
+diff.
+
+The third test, *silence*, is the one that keeps this defect-class elimination rather than a
+refactor: a list whose omission fails to compile already has a guard, and replacing it with a
+derivation buys nothing while risking a regression.
+
+---
+
+## 2026-07-30 — Why ANVIL will not ship a gate that *finds* shadow enumerations — `SHADOW-ENUMERATION-SWEEP.2`
+
+Every doctrine in this repo is mechanically gated, so the reflex on classifying a defect class
+is to register a check for it. Here the honest answer is that the check cannot exist, and
+saying so is worth more than shipping one.
+
+The rule's first test — *another artifact already enumerates the same membership* — is a
+**semantic** relation between two sets, not a syntactic property of either. In the token stream,
+`presets()`, the `DOCTRINES` array, `check_no_boot_volume_refs.sh`'s allow-list and a genuine
+shadow are all the same thing: a literal sequence of records. To tell them apart a detector
+would need to know **which pairs of sets are supposed to correspond** — which is precisely the
+judgement the classification rule encodes, and precisely what a human supplies.
+
+A guessing check has two failure modes and both are worse than nothing:
+
+- **Miss** — it ignores a real shadow, and the repo now believes the class is covered. That is
+  the false-confidence failure this whole tree exists to eliminate, reproduced one level up.
+- **Cry wolf** — it flags `presets()` or an allow-list on every commit. And per the gotcha
+  earned by `EVIDENCE-CITATIONS`: **a gate that cries wolf gets deleted**, and its deletion
+  takes the real coverage with it. A noisy gate is not a conservative gate; it is a gate with a
+  short half-life.
+
+What *is* mechanizable is holding the pairs already classified — and the mechanism is chosen by
+which side of the language boundary the site is on, not by preference:
+
+- **Rust sites → an in-crate `#[test]`, and no new doctrine.** They already run under
+  `cargo test`, which is `COMMIT.md`'s mandatory gate and CI's. Registering a shell doctrine to
+  re-check what `cargo test` checks would be two mechanisms for one job —
+  `feedback_full_factorization`, the same rule that says one runner and one classifier.
+- **Docs/script sites → one registered doctrine.** `DOCTRINE_ENFORCEMENT.md` §10's table
+  shadowing the `DOCTRINES` array, and `SUMMARY.md` shadowing `book/src/*.md`, have neither a
+  compiler nor `cargo test`. R4 is their only rung, and one `ENUMERATION-PARITY` check over a
+  declared pairs table serves both — the pairs table being itself authoritative under the rule,
+  so the mechanism does not recurse.
+
+The formulation to keep: **this class is discovered by review and held by derivation.**
+`DOCTRINE_ENFORCEMENT.md` §9 exists to be used, not quoted.
+
+---
+
 ## 2026-07-30 — Three enumerations rotted in one day; the cure is always the same — `EVIDENCE-BANK-DURABILITY.6`
 
 Same session, three separate bugs, one shape:

@@ -1,9 +1,155 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not
+
+**Landed as:** this commit (previous: `dc3a178`, `SHADOW-ENUMERATION-SWEEP.1`).
+Docs-only design ADR; no `src/` change ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** `docs/decisions/0033-shadow-enumeration-classification.md`, the design leaf `.1`
+left as the tree's frontier. It supplies four things the tree asked for — a classification
+rule, a standard repair per class, an honest mechanizability verdict, and the `.3`+ order by
+severity — plus a 20-site audit that measures every count from the tree rather than reasoning
+about it.
+
+**Why a rule at all.** `.1` deliberately stopped before touching anything, because the tree's
+own Non-Goals are four enumerations that *look* exactly like the three that failed and must
+stay hand-written: `presets()`, the `DOCTRINES` registry, `check_no_boot_volume_refs.sh`'s
+allow-list, and the frozen `EVIDENCE-CITATIONS` §1 pin. Any rule that misclassifies those
+would license deleting decision `0031`'s history-stays-raw guarantee and decision `0030`'s
+un-growable grandfather list. So the rule is written to fail on the hard cases first.
+
+### (a) The rule — three questions, asked in order
+
+A hand-maintained list `L` is a **shadow enumeration** iff **all three** hold:
+
+1. **Derivable** — another artifact `S` in the repo already enumerates the same membership
+   and is reachable by ordinary program/script means (a serde projection, a catalog
+   function, a `static` registry, the JSON being parsed, a directory listing).
+   *Fails ⇒ `L` is authoritative; it is the source of truth.*
+2. **Growth-coupled** — `S` grows, and every growth **requires** a matching entry in `L`.
+   *Fails ⇒ `L` is authoritative; it is supposed to differ from `S`.*
+3. **Silent** — the omission produces no compile error, no failing test, no runtime error.
+   *Fails ⇒ `L` is already guarded.*
+
+Test (2) is the load-bearing one, and it is why the rule is a **conjunction** rather than
+"L duplicates S". Both protected allow-lists *satisfy* (1) — the set of tracked files and the
+set of historical banks are both derivable — and are authoritative anyway, because **the gap
+between `L` and `S` is the content of the rule**. A formulation that omits (2) deletes two
+doctrines. Test (1) rejects `presets()` and `DOCTRINES` (no `S` exists). Test (3) is what
+keeps this defect-class elimination rather than a refactor.
+
+### (b) The repair ladder — four rungs, strict preference order
+
+**R1** derive (the list stops existing) → **R2** make it loud (an exhaustive struct literal,
+a non-exhaustive `match`, a fixed-length array — what already protects `tool_matrix`'s `Cli`
+fields, its `ScenarioSet` `match`, and `main.rs:1066`'s `cli_overrides`) → **R3** guard with a
+test that **derives** the expectation, the two in-repo models being
+`knob_catalog_classifies_every_field` (`src/config.rs:2664`, derives from
+`serde_json::to_value(Config::default())`) and the decision-`0032` preset drift test
+(`:2569`, derives from `knob_catalog()`'s group) → **R4** a registered doctrine check, the
+only rung available where there is neither a compiler nor `cargo test`.
+
+Two constraints bind every rung: **a repair may not introduce a new hand-maintained list** (a
+guard that is itself a second copy has moved the defect, not removed it), and **every guard is
+negative-controlled in both directions** — delete an entry ⇒ it fails; restore ⇒ it passes.
+
+### (c) Mechanizability — the honest answer is *no*, as discovery
+
+Rule test (1) is a **semantic** relation between two sets, not a syntactic property of either.
+Nothing in the token stream separates `presets()` from `DOCTRINES` from an allow-list from a
+shadow — all are `Vec`-ish literals of records. A detector would have to already know *which
+pairs of sets are supposed to correspond*, and choosing those pairs is exactly the human
+judgement the rule encodes. Its only two failure modes are both worse than nothing: **miss**
+(the repo believes the class is covered — this tree's own defect, reproduced at the meta
+level) and **cry wolf** (and per the standing gotcha earned by `EVIDENCE-CITATIONS`, a gate
+that cries wolf gets deleted, taking its real coverage with it). Recorded as an honest limit
+per `DOCTRINE_ENFORCEMENT.md` §9 rather than shipped as a guessing gate.
+
+What *is* mechanizable is **holding the pairs already classified**, split by language:
+Rust-side sites get an in-crate `#[test]` and **no new doctrine** (they already run under
+`cargo test`, which is `COMMIT.md`'s mandatory gate and CI's; a shell doctrine re-checking
+that would be a second mechanism for one job — `feedback_full_factorization`); docs/script
+sites get **one** `ENUMERATION-PARITY` check over a declared table of
+`(shadow site, authoritative source, extractor)` triples — a table that is itself
+authoritative under rule (a), so the mechanism does not recurse. Summary: **this class is
+discovered by review and held by derivation.**
+
+### (d) Severity tiers, and two corrections to `.1` from measurement
+
+Tiers are defined by *what one forgotten line corrupts*, not by how long the list is: **S3**
+a gate reports success it did not earn (a **false green** — banked as decision-`0030` evidence
+and cited in live docs) · **S2** a user-requested behaviour silently does not happen · **S1** a
+contract or report understates reality (fail-safe in direction).
+
+**Correction 1 — `merge_coverage` is S1, not the top candidate.** `.1` called it *"the single
+highest-value derived-check candidate in the repo"* on the strength of its 149 entries.
+Measured directly, that is wrong in both directions that matter:
+
+- The 149 merges are **`135 × |=` + `13 × .extend()` + `1 × .max()`** — zero assignments. Every
+  merge is **monotone**, so a forgotten line can only leave the field at `default()`. The
+  omission **under**-reports; it can never over-report.
+- **134 of the 149** fields are read by `compute_coverage_gaps`, and every gap there has the
+  positive-polarity shape `if !coverage.saw_x { gaps.push(…) }`. So for a gated fact a
+  forgotten merge yields `false` ⇒ a **spurious gap** ⇒ under any gate (all of which set
+  `fail_on_coverage_gap`) the run **bails**. Loud.
+
+The genuinely silent surface is the **15** ungated fields — several of which `README.md` cites
+as Phase-4 hierarchy evidence, so understating one means a claim we could have made and did
+not, never a claim made falsely. Still in scope (`.4`; the round-trip guard costs one test and
+needs no per-field list), but not a false-green site. The reusable lesson is recorded rather
+than the reordering quietly applied: `.1` reasoned from a list's **length**, `.2` measured what
+an **omission does**.
+
+**Correction 2 — `Config::apply_cli_overrides` takes second place.** The tree's own unaudited
+open question, now measured: `Overrides` **87 fields / 87 read / 87 written** — complete today
+and guarded by nothing. A forgotten line makes the knob's CLI flag **and every `--profile`
+preset that sets it** silently inert, because presets apply through the same applier
+(`src/config.rs:2465`) — which is precisely the shape of the bug decision `0032` found in
+`structured-emission-max`. Its safe half, `main.rs:1066`'s `cli_overrides`, is an exhaustive
+struct literal with no `..`, so it is compiler-enforced (E0063).
+
+### The audit, and three sites `.1` never reached
+
+20 sites classified: 11 silent shadows (fix), 5 authoritative (leave, and never "improve"),
+3 already guarded by the compiler, 1 already repaired by the R3 model tests, 1 loud at
+runtime. New finds beyond `.1`'s five: `apply_cli_overrides`; the **four** hardcoded
+adapter-id JSON-schema `enum` literals in `src/mcp/mod.rs` (`:278`, `:303`, `:327`, `:458`)
+shadowing the 5-entry `ADAPTER_REGISTRY`, so a sixth adapter would be usable by
+`validate`/`hunt`/`divergence` yet unadvertised to agents (against decision `0017`'s API-first
+mandate) and invisible to the compiler; `DOCTRINE_ENFORCEMENT.md` §10's 6-row table shadowing
+the 6-entry `DOCTRINES` array (a documented-but-unregistered doctrine is the §11 "trust me"
+anti-pattern); and `book/src/SUMMARY.md`'s 29 links shadowing `book/src/*.md`'s 29 chapters
+(an unlinked chapter is written and **never rendered**, and the book is the owner's only
+window into the project).
+
+**Validation.** Docs-only leaf. Every number in the ADR is re-derived from the tree by direct
+measurement and logged in the tree's Verification Log: gate flags **15/15/15/15** across the
+`Cli` fields, `ScenarioSet` variants, `MatrixReport` fields and the or-chain; `merge_coverage`
+**149** merges, all monotone; `CoverageSummary` **149** fields vs **134** read by
+`compute_coverage_gaps`; `Overrides` **87/87/87**; `ADAPTER_REGISTRY` **5** vs **4** copied
+schema literals; `DOCTRINES` **6** vs **6** doc rows; `SUMMARY.md` **29** vs **29** chapters.
+Rule (a) applied to the four must-stay-hand-written cases rejects all four — two on test (1),
+two on test (2). No `src/`, `tests/` or `examples/` change ⇒ **DUT byte-identical**;
+`tests/snapshots.rs` untouched.
+
+**Impact.** The tree grows from four leaves to seven and its frontier advances to `.3`.
+Execution order is `.3` (S3, the only false-green site) → `.5` (S2, `apply_cli_overrides`) →
+`.4` (S1, `merge_coverage`) → `.6` (S1, the MCP adapter schema enums) → `.7` (S1, the
+`ENUMERATION-PARITY` docs/script doctrine). Leaf **numbers** stay in creation order because a
+leaf id is the durable commit↔tree join key (`COMMIT.md` task-tree rule #1); the corrected
+**execution** order is carried by the tree's `Current Frontier` table, which exists for this.
+No phase label moves.
+
+**Files touched.** `docs/decisions/0033-shadow-enumeration-classification.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/SHADOW-ENUMERATION-SWEEP.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
+---
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.1 — register: lists that shadow a growing set
 
-**Landed as:** this commit (previous: `04be90b`, `EVIDENCE-BANK-DURABILITY.6` backfill).
+**Landed as:** `dc3a178` (previous: `04be90b`, `EVIDENCE-BANK-DURABILITY.6` backfill).
 Docs-only registration + audit; no code ⇒ **DUT byte-identical**.
 
 **Opened on owner directive**, and the directive itself is the lesson. This finding was raised at
