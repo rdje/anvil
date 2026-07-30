@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — README-POLICY-ADOPTION.3 — the README-GROWTH doctrine, and the tree closes
 
-**Landed as:** (backfilled next slice). Previous: `1287b8d`.
+**Landed as:** `5775766`. Previous: `1287b8d`.
 **Scripts + docs only** — no `src/` change ⇒ **DUT byte-identical**.
 
 **What.** `scripts/check_readme_growth.sh` lands and is registered as the **8th

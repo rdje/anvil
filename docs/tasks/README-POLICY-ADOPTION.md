@@ -154,7 +154,7 @@ regress. There is no residual work.
 | `README-POLICY-ADOPTION` | `7a1fc50` — `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | Registered (not started) in the docs slice that surfaced it; no README content moved in that commit. |
 | `README-POLICY-ADOPTION.1` | `b50ff9e` — `README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)` | Docs-only; hash backfilled by `55b84d2`. |
 | `README-POLICY-ADOPTION.2` | `d6cca64` — `README-POLICY-ADOPTION.2 — restore the landing page by deletion` | Comment-only `src/` touch ⇒ DUT byte-identical. Hash backfilled by `1287b8d`. |
-| `README-POLICY-ADOPTION.3` | `README-POLICY-ADOPTION.3 — the README-GROWTH doctrine + close the tree` | Hash backfilled next slice. Scripts + docs only; no `src/` change. |
+| `README-POLICY-ADOPTION.3` | `5775766` — `README-POLICY-ADOPTION.3 — the README-GROWTH doctrine + close the tree` | Scripts + docs only; no `src/` change. |
 
 ## Changelog
 
