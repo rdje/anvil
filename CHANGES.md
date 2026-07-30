@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)
 
-**Landed as:** `<pending>` (previous: `<the MEMORY.md resume-pointer correction>`).
+**Landed as:** `b50ff9e` (previous: the `MEMORY.md` resume-pointer correction).
 **Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
 
 **What.** The audit + design leaf for the owner's `CLAUDE.md` §14 README policy,
