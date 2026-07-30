@@ -39,6 +39,14 @@ tries the field route. This is decision `0033` rule (2) again — *search from t
 authoritative set, not from the shadow you found first* — with the guard, rather than the
 bug, as the subject. Third lane in three days.
 
+**Shipped as `.5`, and the negative control is the interesting artifact.** Before the
+fix the direct-field bypass compiled at exit `0`; after it, `error[E0616]: field
+'attempts' of struct 'KnobRollCounters' is private`. Both routes are now closed —
+`E0624` on the method, `E0616` on the fields — and each was controlled in both
+directions. The table is worth keeping in mind as the shape of a *complete* R2
+control: one row per syntactic route to the protected state, each with a before and
+an after.
+
 **A second recon finding, unrelated but worth the same paragraph.** `.4a` assumed the seven
 motif knobs could be routed mechanically. Three of them (`width_parameterization_prob`,
 `memory_prob`, `fsm_prob`) roll *before any `Module` exists* — the roll chooses **which

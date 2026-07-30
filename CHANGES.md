@@ -1,6 +1,62 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.5 — the guard covers the state, not just the API
+
+**Landed as:** `<pending>` (previous: `d86475f`, `.4a` corrections hash backfill).
+**No generation path touched** — visibility plus two accessors ⇒ **DUT
+byte-identical** (`tests/snapshots.rs` 6/6).
+
+**What.** `KnobRollCounters.attempts` and `.fires` become **private**, readable
+through new read-only `attempts()` / `fires()` accessors. The single external
+consumer, `metrics::compute`, is a two-line change.
+
+**Why.** `.3b` (decision `0034`) made "there is exactly one knob-roll primitive" a
+compile-time property by privatising `KnobRollCounters::record`. Recon for `.4b.1`
+probed that guard the way the guard itself says to probe a defect — *search the
+effect, not the shape* — and found it half-built. The two counter maps were still
+`pub`, so the equivalent bypass compiled clean:
+
+```rust
+let fired = rng.gen_bool(prob);                                  // no steering prior
+*m.knob_rolls.attempts.entry(knob).or_insert(0) += 1;            // compiled clean
+if fired { *m.knob_rolls.fires.entry(knob).or_insert(0) += 1; }  // compiled clean
+```
+
+`record` was private; the **state** was open. A guard on the method guards a habit;
+a guard on the state guards the invariant.
+
+**Negative-controlled both ways, and against both routes.**
+
+| write route | before `.5` | after `.5` |
+| --- | --- | --- |
+| `m.knob_rolls.record(knob, fired)` | `error[E0624]` (private method) | `error[E0624]` |
+| `m.knob_rolls.attempts.entry(..)` | **compiles, exit 0** | `error[E0616]` (private field) |
+
+Removing the probe restores a clean build in both cases.
+
+**The rule this pair adds up to**, now recorded in the module docs and
+`DEVELOPMENT_NOTES.md`: *when an invariant is made a compile error, the protected
+thing is **state**, not a function — enumerate every syntactic route that mutates
+it (methods, public fields, `DerefMut`, `&mut` accessors, public constructors), not
+just the one you happened to write.* And the reason it survived `.3b`'s review: that
+negative control was written **from the defect just found** — it re-created the
+seven deleted helpers, which called `record`. A control derived from the known
+instance tests the fix against that instance; to test it against the **class** the
+probe must be written from the property. Decision `0033` rule (2), third lane in
+three days, with the guard rather than the bug as the subject.
+
+**Ordering.** Deliberately landed **before** `.4b.1`, which introduces a *new*
+writer path (a pending-counter drain for the three motif rolls that fire before any
+`Module` exists) — that path should be designed against a complete guard.
+
+**Gate.** `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
+`cargo check --all-targets` all clean; `cargo test` green.
+
+**Files touched.** `src/ir/knob_roll.rs`, `src/metrics.rs`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4a — corrections from the `.4b.1` recon
 
 **Landed as:** `393c5e6` (previous: `cc817d6`, `COVERAGE-STEERED-GENERATION.4a` hash backfill).

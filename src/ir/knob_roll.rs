@@ -43,6 +43,14 @@
 //! see `Generator::roll_knob` still cannot record a roll: it gets `E0624:
 //! method 'record' is private`, verified by negative control at `.3b`.
 //!
+//! `.3b` guarded only the *method*, which left the equivalent bypass — writing
+//! `KnobRollCounters`' maps directly — compiling clean. `COVERAGE-STEERED-GENERATION.5`
+//! closes that: the two fields are private too, readable through
+//! [`KnobRollCounters::attempts`] / [`KnobRollCounters::fires`]. The rule the
+//! two slices add up to: **when an invariant is made a compile error, the
+//! protected thing is *state*, not a function — enumerate every syntactic route
+//! that mutates it, not just the one you happened to write.**
+//!
 //! The primitive takes `&mut KnobRollCounters` rather than `&mut Module`
 //! purely to keep this module free of a dependency on `ir::types::Module`
 //! (the counters are all it needs).
@@ -58,24 +66,50 @@ use crate::ir::types::KnobId;
 /// empirical ratio `fires[knob] / attempts[knob]` should converge to the
 /// knob's effective probability as the module grows.
 ///
-/// Both maps are `pub` for *reading* (`metrics::compute` projects them into
-/// `Metrics::knob_roll_attempts` / `knob_roll_fires`, which
-/// `introspect::coverage` in turn projects into the `coverage_readout`).
-/// Only `record` is restricted.
+/// Both maps are **private** and readable only through
+/// [`attempts`](KnobRollCounters::attempts) / [`fires`](KnobRollCounters::fires)
+/// (`metrics::compute` projects them into `Metrics::knob_roll_attempts` /
+/// `knob_roll_fires`, which `introspect::coverage` in turn projects into the
+/// `coverage_readout`).
+///
+/// The privacy is the guard, and it covers the **state**, not just the API
+/// (`COVERAGE-STEERED-GENERATION.5`). `.3b` privatised `record` alone and left
+/// these two fields `pub`, which left the equivalent bypass compiling clean:
+///
+/// ```ignore
+/// let fired = rng.gen_bool(prob);                                  // no prior
+/// *m.knob_rolls.attempts.entry(knob).or_insert(0) += 1;            // used to compile
+/// if fired { *m.knob_rolls.fires.entry(knob).or_insert(0) += 1; }  // used to compile
+/// ```
+///
+/// A guard on the method guards a habit; a guard on the state guards the
+/// invariant.
 #[derive(Debug, Clone, Default)]
 pub struct KnobRollCounters {
-    pub attempts: HashMap<KnobId, u64>,
-    pub fires: HashMap<KnobId, u64>,
+    attempts: HashMap<KnobId, u64>,
+    fires: HashMap<KnobId, u64>,
 }
 
 impl KnobRollCounters {
+    /// Attempts per knob — every roll, fired or not. Read-only by design; the
+    /// only writer in the crate is [`roll_knob_into`].
+    pub fn attempts(&self) -> &HashMap<KnobId, u64> {
+        &self.attempts
+    }
+
+    /// Fires per knob — the subset of [`attempts`](KnobRollCounters::attempts)
+    /// that came up true. Read-only by design.
+    pub fn fires(&self) -> &HashMap<KnobId, u64> {
+        &self.fires
+    }
+
     /// Record one probability-roll outcome.
     ///
     /// **Private to this module by design** — see the module docs. Callers
     /// reach it only through [`roll_knob_into`], which guarantees the
     /// steering prior was applied to the probability that produced `fired`.
-    /// Making this `pub` again re-opens the exact defect decision `0034`
-    /// closed.
+    /// Making this — or either field — `pub` again re-opens the exact defect
+    /// decision `0034` closed.
     fn record(&mut self, knob: KnobId, fired: bool) {
         *self.attempts.entry(knob).or_insert(0) += 1;
         if fired {
@@ -142,12 +176,12 @@ mod tests {
             );
         }
 
-        let attempts = rolls.attempts[&KnobId::HierarchySiblingRouteProb];
-        let fires = rolls.fires[&KnobId::HierarchySiblingRouteProb];
+        let attempts = rolls.attempts()[&KnobId::HierarchySiblingRouteProb];
+        let fires = rolls.fires()[&KnobId::HierarchySiblingRouteProb];
         assert_eq!(attempts, 64, "every roll is an attempt");
         assert!(fires > 0 && fires < attempts, "p=0.5 should mix outcomes");
         assert!(
-            !rolls.attempts.contains_key(&KnobId::FlopProb),
+            !rolls.attempts().contains_key(&KnobId::FlopProb),
             "a roll must not be attributed to any other knob"
         );
     }
@@ -170,7 +204,7 @@ mod tests {
                 );
             }
             let knob = KnobId::HierarchyChildInputConeProb;
-            rolls.fires.get(&knob).copied().unwrap_or(0) as f64 / rolls.attempts[&knob] as f64
+            rolls.fires().get(&knob).copied().unwrap_or(0) as f64 / rolls.attempts()[&knob] as f64
         }
 
         let baseline = fire_rate(&SteeringConfig::default());

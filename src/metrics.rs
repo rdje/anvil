@@ -1043,11 +1043,11 @@ pub fn compute(m: &Module) -> Metrics {
 
     // Per-knob attempt/fire counters. Convert enum keys to strings
     // for serialisation. Non-empty knobs only.
-    for (knob, count) in &m.knob_rolls.attempts {
+    for (knob, count) in m.knob_rolls.attempts() {
         out.knob_roll_attempts
             .insert(knob.name().to_string(), *count);
     }
-    for (knob, count) in &m.knob_rolls.fires {
+    for (knob, count) in m.knob_rolls.fires() {
         out.knob_roll_fires.insert(knob.name().to_string(), *count);
     }
 
