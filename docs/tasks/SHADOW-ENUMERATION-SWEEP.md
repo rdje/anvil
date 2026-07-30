@@ -6,8 +6,8 @@
 - Status: `active`
 - Roadmap lane: Quality / defect-class elimination (cross-cutting; no phase reopened)
 - Created: `2026-07-30`
-- Last updated: `2026-07-30` (`.2` done — decision
-  [`0033`](../decisions/0033-shadow-enumeration-classification.md))
+- Last updated: `2026-07-30` (`.1`/`.2`/`.3`/`.4`/`.5` done — decision
+  [`0033`](../decisions/0033-shadow-enumeration-classification.md); frontier `.6`)
 - Owner: repo-local workflow (owner-directed `2026-07-30`: *"the only way to have any
   defect handled is to have it task-tree tracked"*)
 
@@ -353,7 +353,7 @@ report — it is a 149-entry list that is one omission away from being one.
         **DUT byte-identical**; `tests/snapshots.rs` untouched.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.4`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: **execution order 3** (S1 — re-scoped by decision `0033` §3). Guard
         `merge_coverage` — 149 hand-merged `CoverageSummary` fields with no divergence
         check. Likely repair: a test that serialises a `CoverageSummary`
@@ -372,16 +372,39 @@ report — it is a 149-entry list that is one omission away from being one.
         ungated fields, several of which `README.md` cites as Phase-4 hierarchy evidence.
         Still in scope — the round-trip guard costs one test and needs no per-field
         list — but it is not a false-green site.
+  Delivered: the `.5` pattern reused verbatim — **R3 on an R2-protected fixture, two legs**.
+        - `every_coverage_fact_set()` is an **exhaustive** `CoverageSummary { … }` literal
+          (149 fields, no `..Default::default()`), so adding a fact to the struct without
+          adding it here is an `E0063` compile error. The compiler maintains it.
+        - **Leg 1** `merge_coverage_unions_every_coverage_fact` — merge the full fixture
+          into `default()` and compare the two **serde projections**; any forgotten merge
+          line names itself. Plus the anti-decay assert (`> 100` facts projected) so a
+          derivation that silently collapses fails instead of passing vacuously.
+        - **Leg 2** `merge_coverage_unions_each_fact_into_its_own_field` — feed **one**
+          fact at a time and assert exactly that field moved. This is the leg that matters
+          here: 149 near-identical merge lines with long shared name prefixes are exactly
+          where a cross-wire (`dst.a |= src.b`) is likely, and leg 1 **cannot see one** —
+          with every source fact set, both fields end `true` either way. The per-field
+          sources are built by serde from the same fixture, so leg 2 adds no second list.
+        - `CoverageSummary` gained `Deserialize` + `#[serde(default)]` **solely** so leg 2
+          can build a single-fact source without a 149-entry per-field literal. Both are
+          inert for the run path — nothing deserializes a `CoverageSummary` — and neither
+          changes a byte of the emitted `tool_matrix_report.json`. Same justification, and
+          same doc-comment discipline, as `.3`'s `MatrixReport: Default`.
+  Verification: four negative controls (below). The decisive one is **NC-C**: a cross-wired
+        merge line left **leg 1 green** and was caught only by leg 2 — the predicted blind
+        spot, measured rather than assumed. Harness binary only ⇒ **DUT byte-identical**;
+        `tests/snapshots.rs` untouched.
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `.4` | `pending` | **Current frontier. S1.** Re-scoped by decision `0033` §3: monotone merges + 134/149 gated ⇒ loud; 15 genuinely-silent fields, under-reporting only. Cheap round-trip guard; real but not urgent. The `.5` pattern — an exhaustive, compiler-enforced fixture plus a serde-derived assertion — transfers directly. |
+| 1 | `.6` | `pending` | **Current frontier. S1.** Four MCP adapter-id JSON-schema `enum` literals (`src/mcp/mod.rs:278,303,327,458`) shadowing the 5-entry `ADAPTER_REGISTRY`; a sixth adapter would be usable by `validate`/`hunt`/`divergence` yet unadvertised to agents — an API-contract divergence against decision `0017`, invisible to the compiler because they are string literals inside a JSON blob. Prefer **R1** (build the array from `adapters()`); fallback **R3** (parse the emitted schema and compare to the registry ids). |
+| — | `.4` | `done` | **S1**, closed with the `.5` pattern reused verbatim: an exhaustive 149-field `CoverageSummary` fixture the compiler maintains, a serde-projection leg-1 equality, and a per-fact leg 2. NC-C is the payoff — a cross-wired merge line left leg 1 **green**. |
 | — | `.3` | `done` | The only **S3** site in the audit, closed by **R1**: one `static GATES` table, four sites derived from it, and `fail_on_coverage_gap` reduced to *"some registered gate is enabled"*. Negative-controlled both ways, and the S3 defect reproduced on purpose before the guard was proven to catch it. |
 | — | `.5` | `done` | **S2**, closed by **R3 with an R2-protected fixture**: an exhaustive `Overrides` literal the compiler maintains, a serde-derived expectation, a pinned not-overridable complement, and a second leg catching leaky applier lines the first cannot see. Five negative controls. |
-| 2 | `.6` | `pending` | **S1.** Four MCP adapter-id JSON-schema `enum` literals shadowing `ADAPTER_REGISTRY`; a sixth adapter would be usable but unadvertised to agents (decision `0017`). |
-| 3 | `.7` | `pending` | **S1.** The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). |
+| 2 | `.7` | `pending` | **S1.** The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). |
 | — | `.2` | `done` | The classification rule, the repair ladder, the mechanizability verdict, the severity tiers, and the 20-site audit — decision `0033`. |
 | — | `.1` | `done` | Registered + audited. |
 
@@ -528,6 +551,16 @@ report — it is a 149-entry list that is one omission away from being one.
 | `2026-07-30` | `.5` | **NC-D** — a *leaky* applier line (`o.max_depth` also writes `self.max_width`), the slip the whole-struct test **cannot** see | whole-struct test stayed **green**; the second leg caught it: *"a single override must move exactly its own knob — left: [\"max_depth\", \"max_width\"], right: [\"max_depth\"]"*. Proves the second test's independent value rather than assuming it |
 | `2026-07-30` | `.5` | **NC-E** (the R2 leg) — add a field to `Overrides`, touch nothing else | **`E0063`** at the fixture *and* at `main.rs:1066` — the fixture is compiler-maintained, not hand-maintained; restored byte-identical |
 | `2026-07-30` | `.5` | Diff scope | `src/config.rs` **test module only**, no production line changed ⇒ **DUT byte-identical** |
+| `2026-07-30` | `.4` | `CoverageSummary` field census re-derived | **149** = `135` `bool` + `13` `BTreeSet<String>` + `1` `usize` (one `bool` is line-wrapped and was missed by a naive per-line type regex — the fixture generator was fixed rather than the count guessed) |
+| `2026-07-30` | `.4` | `cargo check --all-targets` · `clippy --all-targets -- -D warnings` · `fmt --all --check` | exit `0` / `0` / `0` |
+| `2026-07-30` | `.4` | `cargo test --bin tool_matrix` | **113 passed, 0 failed** (was 111 — the two new legs) |
+| `2026-07-30` | `.4` | `cargo test --test snapshots` | exit `0` — byte-identical |
+| `2026-07-30` | `.4` | `cargo test` (full suite, under `ram_guard.sh --threshold 90`) | exit `0` — **17 test binaries, 1042 passed, 0 failed, 18 ignored** |
+| `2026-07-30` | `.4` | **NC-A** — delete the `saw_flop_merge` merge line | **FAILED 2** (both legs) — *"merge_coverage never unions these facts across scenarios: [\"saw_flop_merge\"]"* |
+| `2026-07-30` | `.4` | **NC-B** — restore | **113 passed, 0 failed**; `diff` vs backup byte-identical |
+| `2026-07-30` | `.4` | **NC-C** — cross-wire `dst.saw_flop_merge \|= src.saw_semantic_gate_merge` (the slip leg 1 **cannot** see) | **leg 1 stayed GREEN** (7 passed / 1 failed); only leg 2 fired: *"merging only `saw_flop_merge` must move only `saw_flop_merge` — left: [], right: [\"saw_flop_merge\"]"*. The two-leg design justified by measurement, not assertion |
+| `2026-07-30` | `.4` | **NC-D** (the R2 leg) — add a field to `CoverageSummary`, touch nothing else | **`E0063`** at the fixture — compiler-maintained; restored byte-identical |
+| `2026-07-30` | `.4` | Diff scope | `src/bin/tool_matrix.rs` only (two derives + a `#[serde(default)]` on a private struct, inert for the run path; the rest is the test module) ⇒ **DUT byte-identical** |
 
 ## Commit Log
 
@@ -536,7 +569,8 @@ report — it is a 149-entry list that is one omission away from being one.
 | `.1` | `SHADOW-ENUMERATION-SWEEP.1 — register: lists that shadow a growing set` | Docs-only registration + audit |
 | `.2` | `SHADOW-ENUMERATION-SWEEP.2 — decision 0033: what is a shadow, and what is not` (`9ffabea`) | Docs-only design ADR; adds `.5`/`.6`/`.7`, re-scopes `.4` |
 | `.3` | `SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail` (`4f9720f`) | The S3 fix: `static GATES` + four derived sites + four derived guards |
-| `.5` | `SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains` | The S2 fix: an E0063-enforced fixture + a serde-derived expectation |
+| `.5` | `SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains` (`9a082e9`) | The S2 fix: an E0063-enforced fixture + a serde-derived expectation |
+| `.4` | `SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed` | The S1 fix: the `.5` pattern reused; NC-C proves leg 2's independent value |
 
 ## Changelog
 

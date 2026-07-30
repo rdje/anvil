@@ -5,6 +5,47 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — The blind spot reproduced on a second site — `SHADOW-ENUMERATION-SWEEP.4`
+
+`.5` predicted, from one measurement on `apply_cli_overrides`, that a whole-struct
+round-trip guard cannot see a **cross-wired or leaky** line. `.4` applied the same guard
+shape to `merge_coverage` and re-measured it on completely different code:
+
+```rust
+dst.saw_flop_merge |= src.saw_semantic_gate_merge;   // cross-wired
+```
+
+Leg 1 (merge everything, compare serde projections) stayed **green** — with every source
+fact set, both fields end `true` either way. Only the per-fact leg fired. Two sites, two
+languages of mistake (a config applier and a coverage merger), same result.
+
+That is enough to state it as a rule rather than an observation:
+
+> **A set-difference guard proves "nothing was dropped." It cannot prove "nothing extra was
+> picked up." Any guard over a field-by-field transcription needs both legs.**
+
+And `merge_coverage` is where it bites hardest: 149 near-identical lines whose field names
+share prefixes 60 characters long
+(`saw_recursive_hierarchy_registered_multistage_parent_composed_…`). Autocomplete picking the
+neighbouring name is not a hypothetical failure mode there; it is the *likely* one, and the
+cheap guard is exactly blind to it.
+
+### Re-derive a census; do not trust a prior count
+
+`.1` recorded `CoverageSummary` as 149 fields. Building the fixture, a per-line type regex
+reported **148**. The discrepancy was not a stale count — one `bool` field's declaration is
+**line-wrapped** (its name is long enough that rustfmt breaks before the type), so
+`name: type` on one line misses it.
+
+Both numbers were "measured"; one measurement had a blind spot the other did not. The fix
+was to repair the extractor, not to pick the more plausible number — the same discipline
+`MEMORY.md` already records as *"an extractor must die on a missing field, never fall
+through to something plausible."* A generator that silently emits 148 of 149 fixture lines
+would have produced a guard with one permanently uncovered field, and nothing would have
+said so.
+
+---
+
 ## 2026-07-30 — A round-trip guard needs a fixture the compiler maintains — `SHADOW-ENUMERATION-SWEEP.5`
 
 `Config::apply_cli_overrides` is 87 hand-written `if let Some(v) = o.x { self.x = v; }`

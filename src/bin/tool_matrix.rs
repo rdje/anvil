@@ -638,7 +638,14 @@ struct AggregateMetrics {
     knob_roll_fires: BTreeMap<String, u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Default)]
+/// `Deserialize` + `#[serde(default)]` are derived solely for
+/// `SHADOW-ENUMERATION-SWEEP.4`'s second guard leg, which needs to build a
+/// **single-fact** summary per field without a per-field literal (that literal
+/// would be a 149-entry shadow of this struct). They are inert for the run
+/// path: nothing deserializes a `CoverageSummary`, and neither derive changes
+/// a single byte of the emitted `tool_matrix_report.json`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 struct CoverageSummary {
     construction_strategies: BTreeSet<String>,
     identity_modes: BTreeSet<String>,
@@ -10527,6 +10534,268 @@ mod tests {
         assert!(gaps.iter().any(|gap| gap.contains("multi-clock module")));
         assert!(gaps.iter().any(|gap| gap.contains("2-flop CDC")));
         assert!(gaps.iter().any(|gap| gap.contains("N-flop CDC")));
+    }
+
+    // --- SHADOW-ENUMERATION-SWEEP.4 (decision `0033`): the coverage merger ----
+
+    /// Every [`CoverageSummary`] fact set to a non-default value — the fixture
+    /// for the two `merge_coverage` guards below.
+    ///
+    /// **Deliberately exhaustive** (no `..Default::default()`), which makes it
+    /// decision `0033`'s rung **R2**: adding a field to `CoverageSummary`
+    /// without adding it here is an `E0063` compile error, so the fixture
+    /// cannot fall behind the struct it populates. That is what keeps these
+    /// guards from being a 149-entry hand-maintained list — the compiler
+    /// maintains it. The values carry no meaning; they only differ from
+    /// `default()`.
+    fn every_coverage_fact_set() -> CoverageSummary {
+        CoverageSummary {
+            construction_strategies: BTreeSet::from(["probe".to_string()]),
+            identity_modes: BTreeSet::from(["probe".to_string()]),
+            factorization_levels: BTreeSet::from(["probe".to_string()]),
+            share_prob_values: BTreeSet::from(["probe".to_string()]),
+            hierarchy_depths: BTreeSet::from(["probe".to_string()]),
+            hierarchy_leaf_module_counts: BTreeSet::from(["probe".to_string()]),
+            hierarchy_child_instance_counts: BTreeSet::from(["probe".to_string()]),
+            hierarchy_child_source_modes: BTreeSet::from(["probe".to_string()]),
+            hierarchy_child_instance_override_profiles: BTreeSet::from(["probe".to_string()]),
+            gate_categories: BTreeSet::from(["probe".to_string()]),
+            gate_kinds: BTreeSet::from(["probe".to_string()]),
+            knob_attempts_seen: BTreeSet::from(["probe".to_string()]),
+            knob_fires_seen: BTreeSet::from(["probe".to_string()]),
+            saw_hierarchy_design: true,
+            saw_multifile_design: true,
+            saw_instance_module: true,
+            saw_instance_output_node: true,
+            saw_reused_child_definition: true,
+            saw_underinstantiated_library: true,
+            saw_on_demand_child_sourcing: true,
+            saw_profiled_child_interface_synthesis: true,
+            saw_hierarchy_sibling_routing: true,
+            saw_hierarchy_registered_sibling_routing: true,
+            saw_hierarchy_registered_sibling_mixed_support_routing: true,
+            saw_recursive_hierarchy_registered_sibling_mixed_support_routing: true,
+            saw_hierarchy_direct_sibling_parent_cone_instance_routing: true,
+            saw_recursive_hierarchy_direct_sibling_parent_cone_instance_routing: true,
+            saw_hierarchy_direct_registered_sibling_parent_cone_instance_routing: true,
+            saw_recursive_hierarchy_direct_registered_sibling_parent_cone_instance_routing: true,
+            saw_hierarchy_registered_parent_composed_routing: true,
+            saw_hierarchy_registered_mixed_support_routing: true,
+            saw_recursive_hierarchy_registered_mixed_support_routing: true,
+            saw_hierarchy_registered_multistage_routing: true,
+            saw_recursive_hierarchy_registered_multistage_routing: true,
+            saw_recursive_hierarchy_registered_multistage_mixed_support_routing: true,
+            saw_hierarchy_registered_multistage_sibling_routing: true,
+            saw_recursive_hierarchy_registered_multistage_sibling_routing: true,
+            saw_hierarchy_registered_multistage_parent_cone_instance_routing: true,
+            saw_recursive_hierarchy_registered_multistage_parent_cone_instance_routing: true,
+            saw_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing: true,
+            saw_recursive_hierarchy_registered_multistage_parent_composed_parent_cone_instance_routing: true,
+            saw_hierarchy_parent_composed_parent_cone_instance_flop_routing: true,
+            saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_routing: true,
+            saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing: true,
+            saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing: true,
+            saw_recursive_hierarchy_registered_parent_composed_parent_cone_instance_routing: true,
+            saw_hierarchy_registered_parent_cone_instance_routing: true,
+            saw_recursive_hierarchy_registered_parent_cone_instance_mixed_support_routing: true,
+            saw_hierarchy_parent_composed_child_inputs: true,
+            saw_hierarchy_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_mixed_support_child_inputs: true,
+            saw_hierarchy_parent_cone_instance_routing: true,
+            saw_hierarchy_parent_cone_instance_mixed_support_routing: true,
+            saw_recursive_hierarchy_parent_cone_instance_mixed_support_routing: true,
+            saw_hierarchy_parent_cone_instance_outputs: true,
+            saw_recursive_hierarchy_parent_cone_instance_outputs: true,
+            saw_recursive_hierarchy_parent_cone_instance_mixed_support_outputs: true,
+            saw_hierarchy_parent_cone_instance_flop_outputs: true,
+            saw_recursive_hierarchy_parent_cone_instance_flop_outputs: true,
+            saw_hierarchy_parent_cone_instance_flop_mixed_support_outputs: true,
+            saw_recursive_hierarchy_parent_cone_instance_flop_mixed_support_outputs: true,
+            saw_multiple_parent_cone_instances_per_parent: true,
+            saw_recursive_multiple_parent_cone_instances_per_parent: true,
+            saw_recursive_multiple_parent_cone_instances_per_parent_child_inputs: true,
+            saw_recursive_multiple_parent_cone_instances_per_parent_through_flops: true,
+            saw_hierarchy_parent_local_flops: true,
+            saw_recursive_hierarchy: true,
+            saw_per_depth_branching_metrics: true,
+            saw_mixed_leaf_depth_hierarchy: true,
+            saw_hierarchy_parent_composition: true,
+            saw_hierarchy_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_stateful_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_stateful_parent_composed_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_parent_local_flops: true,
+            saw_recursive_hierarchy_depth_3_parent_local_flops: true,
+            saw_recursive_hierarchy_depth_3_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_3_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_3_stateful_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_3_stateful_parent_composed_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_4_parent_local_flops: true,
+            saw_recursive_hierarchy_depth_4_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_4_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_4_stateful_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_4_stateful_parent_composed_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_5_parent_local_flops: true,
+            saw_recursive_hierarchy_depth_5_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_5_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_5_stateful_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_5_stateful_parent_composed_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_6_parent_local_flops: true,
+            saw_recursive_hierarchy_depth_6_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_6_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_6_stateful_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_6_stateful_parent_composed_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_7_parent_local_flops: true,
+            saw_recursive_hierarchy_depth_7_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_depth_7_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_7_stateful_parent_port_composed_outputs: true,
+            saw_recursive_hierarchy_depth_7_stateful_parent_composed_mixed_support_child_inputs: true,
+            saw_recursive_hierarchy_three_stage_registered_parent_composed_chain: true,
+            saw_recursive_parent_cone_helper_budget_5: true,
+            saw_recursive_hierarchy_canonical_module_signature_diversity: true,
+            saw_design_with_structurally_duplicate_modules: true,
+            saw_recursive_hierarchy_module_dedup_active: true,
+            saw_width_parameterized_design: true,
+            saw_packed_aggregate_design: true,
+            saw_inferrable_memory_design: true,
+            saw_fsm_design: true,
+            saw_mealy_fsm_design: true,
+            saw_operand_duplication: true,
+            saw_mux_arm_duplication: true,
+            saw_array_packed_aggregate_design: true,
+            saw_memory_fsm_interplay_design: true,
+            saw_sv_version_targeted_acceptance: true,
+            saw_sv_version_2012_targeted_acceptance: true,
+            saw_sv_version_2017_targeted_acceptance: true,
+            saw_sv_version_2023_targeted_acceptance: true,
+            saw_sv_version_2023_soft_union_upopt: true,
+            saw_combinational_function_emit: true,
+            saw_generate_loop_emit: true,
+            saw_combinational_task_emit: true,
+            saw_cone_function_emit: true,
+            saw_multi_output_task_emit: true,
+            saw_mux_if_emit: true,
+            saw_case_mux_if_emit: true,
+            saw_casez_mux_if_emit: true,
+            saw_multi_surface_emit_interaction: true,
+            saw_all_emit_surfaces_in_one_module: true,
+            saw_all_nine_emit_surfaces_in_one_module: true,
+            max_distinct_emit_surfaces: 9,
+            saw_design_with_cross_simulator_agreement: true,
+            saw_acceptance_divergence: true,
+            saw_multi_clock_design: true,
+            saw_cdc_2_flop_synchronizer: true,
+            saw_cdc_nflop_synchronizer: true,
+            saw_comb_only_module: true,
+            saw_sequential_module: true,
+            saw_priority_encoder: true,
+            saw_comb_mux_one_hot: true,
+            saw_comb_mux_encoded: true,
+            saw_case_mux: true,
+            saw_casez_mux: true,
+            saw_for_fold: true,
+            saw_variable_shift: true,
+            saw_flop_mux_one_hot: true,
+            saw_flop_mux_encoded: true,
+            saw_semantic_gate_merge: true,
+            saw_flop_merge: true,
+        }
+    }
+
+    /// `SHADOW-ENUMERATION-SWEEP.4` (decision `0033`, severity **S1**) —
+    /// [`merge_coverage`] unions **every** `CoverageSummary` field.
+    ///
+    /// **The defect this guards.** `merge_coverage` hand-merges 149 fields.
+    /// A forgotten line compiles cleanly, and that fact then never unions
+    /// across scenarios. Decision `0033` §3 measured the blast radius honestly:
+    /// every merge is monotone (`135 |=` + `13 extend` + `1 max`), so the
+    /// omission can only **under**-report, and 134 of the 149 fields are read
+    /// by [`compute_coverage_gaps`] — whose gaps are all `if !coverage.saw_x`
+    /// — so a forgotten merge there yields a *spurious* gap and the gate bails
+    /// **loudly**. The genuinely silent surface is the 15 ungated facts, several
+    /// of which `README.md` cites as Phase-4 hierarchy evidence. Hence S1, not
+    /// S3 — but a guard that costs one test and needs no per-field list is
+    /// still worth having.
+    ///
+    /// Leg 1: merging a fully-set source into `default()` must reproduce the
+    /// source exactly. Compared through serde, so no field is named here.
+    #[test]
+    fn merge_coverage_unions_every_coverage_fact() {
+        let src = every_coverage_fact_set();
+        let mut dst = CoverageSummary::default();
+        merge_coverage(&mut dst, &src);
+
+        let expected = serde_json::to_value(&src).expect("serialize src");
+        let merged = serde_json::to_value(&dst).expect("serialize dst");
+        let (expected, merged) = match (expected, merged) {
+            (serde_json::Value::Object(a), serde_json::Value::Object(b)) => (a, b),
+            _ => panic!("CoverageSummary is not a JSON object"),
+        };
+
+        assert!(
+            expected.len() > 100,
+            "the fixture projected only {} facts — the probe has stopped \
+             measuring anything and must be repaired, not deleted",
+            expected.len()
+        );
+        let dropped: Vec<&String> = expected
+            .keys()
+            .filter(|key| expected.get(key.as_str()) != merged.get(key.as_str()))
+            .collect();
+        assert!(
+            dropped.is_empty(),
+            "merge_coverage never unions these facts across scenarios: {dropped:?}"
+        );
+    }
+
+    /// Leg 2 — [`merge_coverage`] unions each fact into **its own** field.
+    ///
+    /// Leg 1 cannot see a cross-wired or leaky merge line
+    /// (`dst.a |= src.b`, or a line that also writes a neighbour): with every
+    /// source fact set, both fields end up `true` either way. This leg feeds a
+    /// **single** fact at a time and asserts exactly that field moved.
+    /// `SHADOW-ENUMERATION-SWEEP.5` measured that blind spot rather than
+    /// assuming it, and 149 near-identical merge lines with long shared name
+    /// prefixes are precisely where the slip is likely.
+    ///
+    /// The per-field sources are built by serde from the exhaustive fixture, so
+    /// this leg introduces no second list either.
+    #[test]
+    fn merge_coverage_unions_each_fact_into_its_own_field() {
+        let full = match serde_json::to_value(every_coverage_fact_set()).unwrap() {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("CoverageSummary is not a JSON object"),
+        };
+        let empty = match serde_json::to_value(CoverageSummary::default()).unwrap() {
+            serde_json::Value::Object(map) => map,
+            _ => panic!("CoverageSummary is not a JSON object"),
+        };
+
+        for (fact, value) in &full {
+            let mut one = serde_json::Map::new();
+            one.insert(fact.clone(), value.clone());
+            let src: CoverageSummary = serde_json::from_value(serde_json::Value::Object(one))
+                .unwrap_or_else(|err| {
+                    panic!("single-fact source for {fact} did not deserialize: {err}")
+                });
+
+            let mut dst = CoverageSummary::default();
+            merge_coverage(&mut dst, &src);
+            let merged = match serde_json::to_value(&dst).unwrap() {
+                serde_json::Value::Object(map) => map,
+                _ => panic!("CoverageSummary is not a JSON object"),
+            };
+
+            let moved: Vec<&String> = empty
+                .keys()
+                .filter(|key| empty.get(key.as_str()) != merged.get(key.as_str()))
+                .collect();
+            assert_eq!(
+                moved,
+                vec![fact],
+                "merging only `{fact}` must move only `{fact}`"
+            );
+        }
     }
 
     /// `SHADOW-ENUMERATION-SWEEP.3` (decision `0033`, repair rung **R3**) — the

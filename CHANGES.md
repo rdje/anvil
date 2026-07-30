@@ -1,6 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed
+
+**Landed as:** this commit (previous: `9a082e9`, `SHADOW-ENUMERATION-SWEEP.5`).
+`src/bin/tool_matrix.rs` only — the run path is untouched apart from two inert derives on
+a private struct ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** The last Rust-side site in decision `0033`'s audit: `merge_coverage` hand-merges
+all 149 `CoverageSummary` fields, complete today and guarded by nothing.
+
+**Severity, honestly (unchanged from decision `0033` §3).** This is **S1**, not the top
+candidate `.1` believed. Every merge is monotone (`135 × |=` + `13 × .extend()` +
+`1 × .max()`, zero assignments), so an omission can only **under**-report; and 134 of the
+149 facts are read by `compute_coverage_gaps`, whose gaps are all `if !coverage.saw_x`, so
+a forgotten merge on a gated fact produces a *spurious* gap and the gate **bails loudly**.
+The genuinely silent surface is the 15 ungated facts. Worth a guard that costs one test and
+needs no per-field list; not worth pretending it was a false-green site.
+
+**The fix — the `.5` pattern reused verbatim: R3 on an R2-protected fixture, two legs.**
+
+- `every_coverage_fact_set()` is an **exhaustive** `CoverageSummary { … }` literal (149
+  fields, no `..Default::default()`), so adding a fact without adding it there is an
+  `E0063` compile error. The compiler maintains the fixture.
+- **Leg 1** — merge the full fixture into `default()` and compare the two **serde
+  projections**. A forgotten merge line names itself. Plus the anti-decay assert
+  (`> 100` facts projected), so a derivation that silently collapses fails loudly rather
+  than passing vacuously.
+- **Leg 2** — feed **one** fact at a time and assert exactly that field moved. Per-field
+  sources are built by serde from the same fixture, so no second list.
+
+**Why leg 2 is the one that matters here.** 149 near-identical merge lines with long shared
+name prefixes are exactly where a cross-wire (`dst.a |= src.b`) happens — and leg 1 is
+**blind to it**, because with every source fact set both fields end `true` either way.
+`.5` measured that blind spot on the config applier; `.4` measured it again here (NC-C
+below): the cross-wire left leg 1 **green** and only leg 2 fired.
+
+`CoverageSummary` gained `Deserialize` + `#[serde(default)]` **solely** so leg 2 can build a
+single-fact source without a 149-entry per-field literal. Both are inert for the run path —
+nothing deserializes a `CoverageSummary` — and neither changes a byte of the emitted
+`tool_matrix_report.json`. Same justification and same doc-comment discipline as `.3`'s
+`MatrixReport: Default`.
+
+**Measured en route.** The 149-field census was re-derived rather than trusted: 135 `bool` +
+13 `BTreeSet<String>` + 1 `usize`. One `bool` field is line-wrapped in the source, so a
+naive per-line type regex reports 148 — the fixture generator was fixed rather than the
+count guessed.
+
+**Validation.**
+
+- `cargo check --all-targets` **0** · `cargo clippy --all-targets -- -D warnings` **0** ·
+  `cargo fmt --all --check` **0** · `cargo test --bin tool_matrix` **113 passed, 0 failed**
+  (was 111) · `cargo test --test snapshots` **0** — byte-identical · full `cargo test` under
+  `scripts/ram_guard.sh --threshold 90`: **17 test binaries, 1042 passed, 0 failed,
+  18 ignored** (exit `0`).
+- **NC-A:** delete the `saw_flop_merge` merge line ⇒ **both legs fail** —
+  *"merge_coverage never unions these facts across scenarios: [\"saw_flop_merge\"]"*.
+- **NC-B:** restore ⇒ **113 passed, 0 failed**; `diff` vs backup byte-identical.
+- **NC-C (leg 2's reason to exist):** cross-wire
+  `dst.saw_flop_merge |= src.saw_semantic_gate_merge` ⇒ **leg 1 stayed green** (7 passed /
+  1 failed); only leg 2 fired — *"merging only `saw_flop_merge` must move only
+  `saw_flop_merge` — left: [], right: [\"saw_flop_merge\"]"*.
+- **NC-D (the R2 leg):** add a field to `CoverageSummary` and touch nothing else ⇒
+  **`E0063`** at the fixture.
+- Source restored byte-identical after every control.
+
+**Impact.** A forgotten or cross-wired merge line now fails `cargo test`. Every Rust-side
+silent shadow in the audit is closed; the tree's frontier advances to `.6` (the MCP
+adapter-id schema enums). No phase labels move.
+
+**Files touched.** `src/bin/tool_matrix.rs`, `docs/tasks/SHADOW-ENUMERATION-SWEEP.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
+---
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains
 
 **Landed as:** this commit (previous: `4f9720f`, `SHADOW-ENUMERATION-SWEEP.3`).
