@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4c — steering-width docs + close `.4`
 
-**Landed as:** `<pending>` (previous: `4f41ba9`, `.4b.2` hash backfill).
+**Landed as:** `1b85589` (previous: `4f41ba9`, `.4b.2` hash backfill).
 **Docs + one gate**, no generator change ⇒ **DUT byte-identical**.
 **Closes `.4c` and `.4`** — steering's *width* is delivered.
 
