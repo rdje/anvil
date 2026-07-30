@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-07-30` (**`.3` CLOSED** — `.3a` design ADR (decision `0034`, since amended with a dated Correction), `.3b` the fix (one steering-aware knob-roll primitive; a second one is now a compile error; `--steer hierarchy` works), `.3c` docs. Frontier: **`.4`** — steering's *width*. The `.1`/`.2` scope stays closed and is not revisited.)
+- Last updated: `2026-07-30` (**`.3` CLOSED**, `.4a` design ADR landed (decision `0035`); frontier `.4b.1`. — `.3a` design ADR (decision `0034`, since amended with a dated Correction), `.3b` the fix (one steering-aware knob-roll primitive; a second one is now a compile error; `--steer hierarchy` works), `.3c` docs. Frontier: **`.4`** — steering's *width*. The `.1`/`.2` scope stays closed and is not revisited.)
 - Owner: repo-local workflow
 
 ## Goal
@@ -139,9 +139,38 @@ design space while preserving every lane invariant.
   Commit: `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3`
 
 - ID: `COVERAGE-STEERED-GENERATION.4`
-  Status: `pending`
+  Status: `active`
   Goal: `The decision-0023 follow-up proper — steering's WIDTH, not its reach. Give the 16 remaining Bernoulli knobs a KnobId and route them through the one .3b primitive so they gain construction-time telemetry AND steerability together: 7 module-level motif rolls (width_parameterization_prob, memory_prob, fsm_prob, fsm_mealy_prob, multi_clock_prob, aggregate_prob, aggregate_array_prob) + 9 emit-projection rolls (soft_union_slice_prob, function_emit_prob, generate_loop_emit_prob, task_emit_prob, multi_output_task_emit_prob, cone_function_emit_prob, mux_if_emit_prob, case_mux_if_emit_prob, casez_mux_if_emit_prob). Their symptom is LOUD (--steer memory_prob=2.0 errors "unknown steer key"), so this is a feature gap, not a defect — which is why it is separate from .3.`
   Acceptance: `to be set at .4a. Must decide: whether the 16 join the existing six categories or introduce motifs/emission; whether widening coverage_readout's key set warrants an introspection schema MINOR bump; and how the emit-projection passes obtain &SteeringConfig (they currently take only &mut Module + rng + p). EXCLUDED by kind: operand_duplication_rate / mux_arm_duplication_rate (dedup thresholds compared in ir/compact.rs + metrics.rs, not Bernoulli rolls — there is no roll to apply a prior to) and library_prob (no reader anywhere in src/; a documented-reserved orphan recorded by COVERAGE-INSTRUMENTATION.3). Default-off/unsteered must stay byte-identical.`
+  Verification: `in progress — .4a (design ADR, decision 0035) done; .4b.1 / .4b.2 / .4c pending.`
+  Commit: `pending`
+  Children: `COVERAGE-STEERED-GENERATION.4a` (design ADR), `.4b.1` (7 motif knobs), `.4b.2` (9 emit-projection knobs), `.4c` (docs + close `.4`).
+
+- ID: `COVERAGE-STEERED-GENERATION.4a`
+  Status: `done`
+  Goal: `Design/decision leaf (ADR, no code): pin the category taxonomy for the 16 knobs, how the emit-projection passes obtain a &SteeringConfig, the byte-identity argument, whether the introspection schema needs a MINOR bump, which knobs are excluded and why, and the .4b split.`
+  Acceptance: `A decision record + tree/INDEX/TASK_TREE/live-doc updates naming the taxonomy, the signature change, the byte-identity argument, the schema call, the exclusions-by-kind, and the split. Docs-only ⇒ DUT byte-identical.`
+  Verification: `done — decision 0035. MEASURED: Config carries 41 f64 probability knobs (the exact set Config::validate range-checks into [0,1]); 22 have a KnobId; of the remaining 19, 16 are in scope (7 module-level motif rolls + 9 per-gate emit-projection rolls) and 3 are excluded BY KIND (operand_duplication_rate / mux_arm_duplication_rate are dedup thresholds compared in ir/compact.rs + metrics.rs, not Bernoulli rolls — nothing for a prior to multiply; library_prob has no reader anywhere in src/ — a COVERAGE-INSTRUMENTATION.3 documented-reserved orphan). Blast radius counted: the 9 annotate_* passes have 99 in-crate call sites (mostly their own #[cfg(test)] tests) and the 7 motif rolls sit at 4 sites in gen/module.rs + 3 in gen/mod.rs (each duplicated across generate_module and generate_module_with_interface_profile). DECIDED: two NEW categories motifs + emission (folding into the existing six rejected — memory_prob is not `state`, rendering is not `selection`; one merged `capabilities` category rejected because per-module and per-gate roll granularities differ by ~2 orders of magnitude, the measured .3b calibration failure being the evidence); the existing six keep EXACT membership so every working steering config keeps its meaning; the 9 passes gain a &SteeringConfig param (not &Config — the exact dependency, and it keeps ir:: off the whole config surface); the `if cfg.<knob> > 0.0` guard is LOAD-BEARING for reproducibility (removing it consumes 16+ extra RNG draws on the default path) with its honest consequence stated — a default-off knob records attempts=0, so the readout cannot distinguish `off` from `never reached`; NO schema bump, with the general rule pinned (bump for a new payload key or query kind, not for more entries in an existing map). Byte-identity is exact because all 16 are range-checked into [0,1], so effective_prob's unset short-circuit prob.min(1.0) == prob bitwise. ALSO FLAGGED, not decided: src/gen/module.rs:143 rolls a hard-coded gen_bool(0.5) with no knob at all (steering gap 3 territory), and KnobId::all() reaching 38 hand-maintained entries needs an R2 guard (proposed: a private exhaustive index() match + a derived length test). Docs-only ⇒ DUT byte-identical.`
+  Commit: `COVERAGE-STEERED-GENERATION.4a — design ADR (decision 0035)`
+
+- ID: `COVERAGE-STEERED-GENERATION.4b.1`
+  Status: `pending`
+  Goal: `The 7 MODULE-LEVEL MOTIF knobs (code): width_parameterization_prob, memory_prob, fsm_prob, fsm_mealy_prob, multi_clock_prob, aggregate_prob, aggregate_array_prob. 7 new KnobId variants + the `motifs` category + route their 4 gen/module.rs and 3 gen/mod.rs sites (each duplicated across generate_module and generate_module_with_interface_profile) through Generator::roll_knob, PRESERVING the `> 0.0` guard. Carries the KnobId::all() R2 guard from decision 0035's open questions, since this is the smaller of the two code slices.`
+  Acceptance: `set at .4a (decision 0035). Unsteered + default-config byte-identical (tests/snapshots.rs 6/6 untouched; a default run records no new coverage_readout entries because the `> 0.0` guard means no roll); --steer motifs=<w> measurably shifts the achieved motif fire rate over a seed sweep, BOTH directions, per-knob (the .3b proof shape); the KnobId::all() guard is negative-controlled (adding a variant without extending all() must fail). Full COMMIT.md cargo gate.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `COVERAGE-STEERED-GENERATION.4b.2`
+  Status: `pending`
+  Goal: `The 9 EMIT-PROJECTION knobs (code): add a `steering: &SteeringConfig` parameter to the nine annotate_* passes and route their per-gate rolls through roll_knob_into; 9 new KnobId variants + the `emission` category. ~99 in-crate call sites, mostly each pass's own #[cfg(test)] tests.`
+  Acceptance: `set at .4a (decision 0035). Unsteered + default byte-identical; each of the nine knobs appears in coverage_readout with a per-gate attempts count when its prob > 0; --steer emission=<w> shifts the achieved rate both directions; the decision-0032 emit-surface interaction gate stays clean (the projections' mutual exclusion is unaffected — steering changes which gates are MARKED, never the exclusion order). Full COMMIT.md cargo gate.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `COVERAGE-STEERED-GENERATION.4c`
+  Status: `pending`
+  Goal: `DOCS + close .4: book/src/algorithm.md (six categories -> eight), book/src/knobs.md, book/src/structured-emission.md (the nine surfaces are now measurable per-gate — the missing input to the measure->derive->re-steer loop over ANVIL's densest artifacts), USER_GUIDE.md, a KM card; mark .4 done and refresh docs/TASK_TREE.md.`
+  Acceptance: `book + USER_GUIDE name all eight categories and state which knobs are steerable and which are excluded by kind; mdbook build clean; cargo test --test book_examples green; KM regen+check green. Docs-only ⇒ DUT byte-identical.`
   Verification: `pending`
   Commit: `pending`
 
@@ -156,15 +185,20 @@ design space while preserving every lane invariant.
 | 5 | `COVERAGE-STEERED-GENERATION.2c.2` | `done` | The DOCS + close landed: book steering section (`algorithm.md`) + `agent-mcp.md` coverage-steering section + the schema-`1.12` book-example refresh (`agent-mcp`/`api-tools`/`api-introspection`/`api-reference`) + knobs.md cross-ref + USER_GUIDE `--steer`/recipe + KM (decision `0023` enriched). mdbook clean; book_examples 3/3 (runnable `--steer` example). **`.2c` + `.2` + the tree CLOSED.** |
 
 | 6 | `COVERAGE-STEERED-GENERATION.3a` | `done` | Design ADR (decision `0034`) for the `.3` node: the measured silent no-op (6 of 22 `KnobId`s unreachable by the prior; a 9× steer leaves the recorded fire counts bit-identical; an 800× spread emits byte-identical SV), the root cause (a second roll primitive predating the steering core by two months, missed because the `.1` survey searched by shape instead of from `knob_rolls.record(`), the one-primitive fix, the **R2** compile-time guard, and the `.3`/`.4` scope boundary. Docs-only. |
-| 7 | `COVERAGE-STEERED-GENERATION.3c` | `7a1fc50` — `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | The docs/close slice: `algorithm.md` (one-primitive invariant + the new "Why the guard is a compile error" subsection), `knobs.md` (a **runnable** `0/5 → 5/5` example + the "identical rather than close" diagnostic), `USER_GUIDE.md` (which knobs a steer reaches + a callout that `--steer hierarchy` was inert before `2026-07-30`), `README.md` (net-neutral correction), decision `0034` enriched as the KM card (status → delivered, `reverify` added). Also registers `BOOK-EXAMPLES-RUNNABLE.3` and the `README-POLICY-ADOPTION` tree. **Closes `.3`.** |
+| 7 | `COVERAGE-STEERED-GENERATION.4a` | `COVERAGE-STEERED-GENERATION.4a — design ADR (decision 0035)` | Opens steering's **width** after `.3` closed its *reach*. Pins two new categories (`motifs`/`emission`), the `&SteeringConfig` signature change, the load-bearing `> 0.0` guard and its readout consequence, the no-schema-bump rule, the three exclusions by kind, and the `.4b.1`/`.4b.2`/`.4c` split. Docs-only ⇒ DUT byte-identical. |
+| `COVERAGE-STEERED-GENERATION.3c` | `7a1fc50` — `COVERAGE-STEERED-GENERATION.3c — steering docs + close .3` | The docs/close slice: `algorithm.md` (one-primitive invariant + the new "Why the guard is a compile error" subsection), `knobs.md` (a **runnable** `0/5 → 5/5` example + the "identical rather than close" diagnostic), `USER_GUIDE.md` (which knobs a steer reaches + a callout that `--steer hierarchy` was inert before `2026-07-30`), `README.md` (net-neutral correction), decision `0034` enriched as the KM card (status → delivered, `reverify` added). Also registers `BOOK-EXAMPLES-RUNNABLE.3` and the `README-POLICY-ADOPTION` tree. **Closes `.3`.** |
 | `COVERAGE-STEERED-GENERATION.3b` | `done` | The fix landed: `roll_knob_into` in the new `src/ir/knob_roll.rs` with `record` privatized (a second primitive is now `error[E0624]`), `Generator::roll_knob` as the crate-wide shim, `cone::roll_knob` reduced to an alias (37 call sites untouched), the seven `roll_hierarchy_*` helpers deleted. `child_input_cone` goes `0/5 → 5/5` under `--steer hierarchy=9.0`; unsteered byte-identical. Both guards negative-controlled both ways. Corrected `.3a`'s root cause: visibility, not borrows. |
 | 8 | `COVERAGE-STEERED-GENERATION.3c` | `done` | Docs + close `.3`: `algorithm.md` restated as the one-primitive invariant + a new "Why the guard is a compile error" subsection; `knobs.md` gained a **runnable** `0/5 → 5/5` example; USER_GUIDE gained the reach paragraph + a callout that `--steer hierarchy` was inert before `2026-07-30`; README corrected net-neutral; decision `0034` enriched as the KM card (status → delivered, `reverify` added). mdbook clean; `book_examples` 3/3 (65 runnable). **`.3` CLOSED.** |
-| 9 | `COVERAGE-STEERED-GENERATION.4` | `pending` | Steering's **width**: give the 16 remaining Bernoulli knobs (7 motif + 9 emit-projection) a `KnobId` and route them through the `.3b` primitive so they gain telemetry and steerability together. Follows `.3` because it needs the single primitive to route into. |
+| 9 | `COVERAGE-STEERED-GENERATION.4a` | `done` | Design ADR (decision `0035`) for steering's **width**: two new categories (`motifs`, `emission`), the `&SteeringConfig` signature change across the nine emit passes, the `> 0.0` guard pinned as load-bearing for reproducibility, no schema bump (with the rule stated), three knobs excluded **by kind**, and the `.4b` split. Measured: 41 probability knobs, 22 already steerable, 16 in scope, 99 emit call sites. |
+| 10 | `COVERAGE-STEERED-GENERATION.4b.1` | `pending` | **Next.** The 7 module-level motif knobs — the smaller code slice, so it also carries the `KnobId::all()` R2 guard (that list reaches 38 entries, well past "a reviewer catches it"). |
+| 11 | `COVERAGE-STEERED-GENERATION.4b.2` | `pending` | The 9 emit-projection knobs: the `&SteeringConfig` parameter across nine `annotate_*` passes and ~99 call sites. Makes ANVIL's structured-emission family measurable per-gate for the first time. |
+| 12 | `COVERAGE-STEERED-GENERATION.4c` | `pending` | Docs + close `.4`. |
 
 **Tree status: `active` (`2026-07-30`).** The `.1`/`.2` scope stays closed
-(`2026-06-22`) and `.3` closed the same day it opened. Open frontier: **`.4`** —
-steering's *width*. The remaining decision-`0023` follow-up (the in-generator
-adaptive schedule) is still a future `.N` and is unaffected by either.
+(`2026-06-22`) and `.3` closed the same day it opened. Open frontier: **`.4b.1`**,
+then `.4b.2`, then `.4c` — steering's *width* (`.4a` design done, decision `0035`).
+The remaining decision-`0023` follow-up (the in-generator adaptive schedule) is
+still a future `.N` and is unaffected by any of it.
 
 ## Decisions
 
@@ -290,6 +324,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2a` | `SteeringConfig + KnobId::category() + roll_knob prior multiplier + ConfigError::SteeringWeight; cargo check --all-targets, cargo test (snapshots 6/6 + new steering unit/integration tests), cargo clippy -D warnings, cargo fmt --check all green; rules-first / DUT byte-identical when unset` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2b` | `src/introspect/coverage.rs (CoverageReadout + module_coverage/design_coverage) + KnobId::all()/category_of_name() + IntrospectionPayload::coverage_readout + CoverageDocument + MCP coverage tool; schema 1.11→1.12 + schema doc §5/§6.8/changelog; fire_rate integer-ppm determinism fix (caught by introspect_tool_round_trips); cargo check --all-targets, cargo test (snapshots 6/6 + new coverage unit + introspect/mcp coverage tests), cargo clippy -D warnings, cargo fmt --check all green; SCHEMA-DERIVED / DUT .sv byte-identical` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2c.1` | `src/introspect/coverage.rs derive_steering_from_coverage + DeriveParams; src/config.rs SteeringConfig::set_weight + pub validate + Overrides.steer + resolve_config steer application + ConfigError::UnknownSteerKey; src/main.rs --steer flag + parse_steer_arg + cli_overrides; 9 new tests (3 derive + 4 config steer + 2 main CLI); cargo check --all-targets, cargo test (snapshots 6/6), cargo clippy -D warnings, cargo fmt --check all green; CLI smoke (steered≠unsteered, neutral=unsteered, bad-key error); unsteered default DUT byte-identical` | `done` |
+| `2026-07-30` | `COVERAGE-STEERED-GENERATION.4a` | `decision 0035 written + INDEX row; tree gains .4a/.4b.1/.4b.2/.4c; docs/TASK_TREE.md + ROADMAP + MEMORY/CHANGES/DEVELOPMENT_NOTES synced; KM regen+check green; scripts/check_doctrines.sh all 7 PASS. Measurements taken against the working tree at a42d3b5: 41 validated probability knobs / 22 with a KnobId / 16 in scope / 3 excluded by kind; 99 in-crate call sites across the nine annotate_* passes; 4 motif roll sites in gen/module.rs + 3 in gen/mod.rs. Docs-only ⇒ DUT byte-identical (no src/ touched).` | `done` |
 | `2026-07-30` | `COVERAGE-STEERED-GENERATION.3c` | `mdbook build book` clean; `cargo test --test book_examples` 3/3 (**65** runnable blocks — up from 64, the new `knobs.md` steering example genuinely executes rather than carrying a skip sentinel); Knowledge Map regenerated (86 facts / 860 question keys) + check green; `scripts/check_doctrines.sh` all 7 PASS. README edit made net-neutral in length per `CLAUDE.md` §14. Docs-only ⇒ DUT byte-identical (no `src/`, `tests/`, or `examples/` file touched). Two findings surfaced by this slice were REGISTERED, not merely noted: `BOOK-EXAMPLES-RUNNABLE.3` and the new `README-POLICY-ADOPTION` tree. Closes `.3c` + `.3`. | `done` |
 | `2026-07-30` | `COVERAGE-STEERED-GENERATION.3b` | `cargo check --all-targets` (clean, 0 warnings), `cargo clippy --all-targets -- -D warnings` (clean), `cargo fmt --all --check` (clean), `cargo test` (green: lib 748/0, snapshots 6/6, book_examples 3/3, pipeline green incl. the 2 new proofs). End-to-end fix verified on the release binary: `child_input_cone` 0/5 -> 5/5 under both `--steer hierarchy_child_input_cone_prob=9.0` and `--steer hierarchy=9.0`. Unsteered byte-identity confirmed against 3 pre-fix hashes measured earlier in the same session. Both guards negative-controlled BOTH ways (E0624 on reintroducing the helper shape; the distribution test FAILS when one call site is rewired unsteered). | `done` |
 | `2026-07-30` | `COVERAGE-STEERED-GENERATION.3a` | `decision 0034 written + INDEX row; tree reopened (.3 container + .3a/.3b/.3c + .4) ; docs/TASK_TREE.md row refreshed; MEMORY/CHANGES/DEVELOPMENT_NOTES/ROADMAP synced; KM regen+check green; scripts/check_doctrines.sh all 7 PASS. Measurement re-run at ff506e1 against target/release/anvil: 16/22 KnobIds steered, 6 unreachable, hierarchy fire counts bit-identical under a 9x steer (0/5 vs the demanded 5/5), 800x category spread byte-identical, --steer state=8.0 positive control effective. Docs-only ⇒ DUT byte-identical (no src/ touched).` | `done` |
@@ -433,3 +468,26 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
   README Stability Policy, and it has never been implemented — `README.md` measures **1771
   lines / 122,767 bytes** against the policy's `300` / `16,384`, with no repo-root
   `README_POLICY.md`. Neither is `COVERAGE-STEERED-GENERATION` work; both are now owned.
+- `2026-07-30`: `.4a` design ADR landed (decision
+  [`0035`](../decisions/0035-steering-width-motif-and-emission-knobs.md)), opening
+  steering's **width** after `.3` closed its *reach*. Measured: `Config` carries **41**
+  `f64` probability knobs (exactly the set `Config::validate` range-checks into
+  `[0,1]`); **22** have a `KnobId`; of the remaining 19, **16** are in scope and **3**
+  are excluded **by kind** — `operand_duplication_rate` / `mux_arm_duplication_rate` are
+  dedup *thresholds* compared in `ir/compact.rs` + `metrics.rs`, not Bernoulli rolls
+  (there is nothing for a prior to multiply), and `library_prob` has **no reader
+  anywhere in `src/`**. Blast radius counted before splitting: the nine `annotate_*`
+  passes have **99** in-crate call sites, mostly their own `#[cfg(test)]` tests. Decided:
+  two **new** categories (`motifs`, `emission`) with the existing six keeping their exact
+  membership; a `&SteeringConfig` parameter on the nine passes; the `if cfg.<knob> > 0.0`
+  guard pinned as **load-bearing for reproducibility** (removing it would consume 16+
+  extra RNG draws on the default path) together with its honest consequence — a
+  default-off knob records `attempts = 0`, so the readout cannot distinguish *off* from
+  *never reached*; and **no** introspection schema bump, with the general rule pinned for
+  future contributors (bump for a new payload key or query kind, not for more entries in
+  an existing map). Two things were **flagged rather than decided**:
+  `src/gen/module.rs:143` rolls a hard-coded `gen_bool(0.5)` with no knob at all
+  (steering-gap-3 territory), and `KnobId::all()` reaching **38** hand-maintained entries
+  needs an R2 guard — proposed as a private exhaustive `index()` match plus a derived
+  length test, to be confirmed against the real code at `.4b.1`. Docs-only ⇒ DUT
+  byte-identical.

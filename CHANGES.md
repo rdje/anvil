@@ -1,6 +1,98 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.4a — steering's width (decision 0035)
+
+**Landed as:** `<pending>` (previous: `a42d3b5`, `BOOK-EXAMPLES-RUNNABLE.3` hash backfill).
+**Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
+
+**What.** The design leaf for `.4`. `.3` fixed steering's *reach* (every knob with a
+`KnobId` is steered at every roll site, compile-enforced). `.4` is about its **width** —
+the knobs that have no `KnobId` at all.
+
+**Measured (working tree at `a42d3b5`).** `Config` carries **41** `f64` probability
+knobs — exactly the set `Config::validate` range-checks into `[0,1]`. **22** have a
+`KnobId`. Of the remaining 19:
+
+| group | count | disposition |
+| --- | --- | --- |
+| module-level **motif** rolls | 7 | in scope (`.4b.1`) |
+| per-gate **emit-projection** rolls | 9 | in scope (`.4b.2`) |
+| excluded **by kind** | 3 | not roll sites at all |
+
+The three exclusions are exclusions of *kind*, not of effort, and saying so keeps the
+finding honest: `operand_duplication_rate` and `mux_arm_duplication_rate` are dedup
+**thresholds** compared against in `ir/compact.rs` and `metrics.rs`, reached through
+`Module` fields rather than an RNG draw — there is no roll for a probability prior to
+multiply. `library_prob` has **no reader anywhere in `src/`** (one of the three
+documented-reserved orphans from `COVERAGE-INSTRUMENTATION.3`); a `KnobId` for an unrolled
+knob would be a coverage entry that can never move, which ROADMAP steering gap 1 calls a
+regression.
+
+Blast radius counted before splitting: the nine `annotate_*` passes have **99** in-crate
+call sites (mostly each pass's own `#[cfg(test)]` tests); the seven motif rolls sit at 4
+sites in `gen/module.rs` and 3 in `gen/mod.rs`, each of the latter duplicated across
+`generate_module` and `generate_module_with_interface_profile`.
+
+**Why it matters, beyond completeness.** The symptom here is the *opposite* of `.3`'s —
+loud, not silent (`--steer memory_prob=2.0` errors). That is exactly why `0034` shipped
+first and alone. But the cost is real: the outer measure→derive→re-steer loop has no
+signal for **nine of ANVIL's most interesting surfaces**. `derive_steering_from_coverage`
+cannot see that `function_emit_prob` fired 12 times in 900 opportunities, so an agent
+hunting under-exercised constructs is blind to the entire structured-emission family that
+decision `0032` identifies as the DUT lane's best bug-bait.
+
+**Decided (decision `0035`).**
+
+- **Two new categories, `motifs` and `emission`** — the existing six keep their *exact*
+  membership, so every steering config that works today keeps meaning the same thing.
+  Folding the 16 into the existing six was rejected (`memory_prob` is not `state`;
+  rendering is not `selection` — a category with unrelated members is a dial nobody can
+  ask for). A single merged `capabilities` category was rejected on measured grounds: the
+  two groups' roll granularities differ by ~two orders of magnitude (once per module vs
+  once per candidate gate), so a per-category average would be dominated by the emit
+  knobs — the same trap that made `.3b`'s first regression-test draft fail.
+- **The nine passes take `&SteeringConfig`**, not `&Config`: the exact dependency, and it
+  keeps `ir::` off the whole config surface.
+- **The `if cfg.<knob> > 0.0` guard is load-bearing for reproducibility**, not an
+  optimisation. With it a default-off knob consumes no RNG draw, so the default stream is
+  unchanged; remove it "for cleanliness" and every default run consumes 16+ extra draws
+  and every snapshot breaks. Its honest consequence is stated rather than discovered
+  later: a default-off knob records `attempts = 0`, so the readout **cannot distinguish
+  "switched off" from "never reached"**. That is the correct trade, and the effective
+  config is in the same document.
+- **No introspection schema bump**, with the general rule pinned so the next contributor
+  need not re-litigate it: bump for a new **payload key** or **query kind** — something a
+  consumer must learn — not for more entries in an existing map whose membership already
+  depends on the run's config.
+- Byte-identity of the routing is exact because all 16 knobs are range-checked into
+  `[0,1]`, so `effective_prob`'s unset short-circuit `prob.min(1.0)` equals `prob`
+  bitwise, with one `gen_bool` per roll preserved.
+
+**Flagged, not decided** (recorded as open questions rather than quietly passed over):
+
+- `src/gen/module.rs:143` rolls a hard-coded `g.rng.gen_bool(0.5)` with **no knob at
+  all** — a construction-time choice with no dial, which is precisely the hidden bias
+  ROADMAP steering gap 3 warns about. Out of `.4`'s scope either way, but it should not
+  stay unexamined.
+- `KnobId::all()` goes from 22 to **38** hand-maintained entries. Its doc comment argues
+  an omission "just omits it from the roll-up, which a reviewer catches" — that is the
+  decision-`0033` *silent* test, and this change doubles the list. Proposed R2 repair: a
+  private **exhaustive** `index()` match (so a new variant fails to compile) plus a
+  derived test asserting `all()[k.index()] == k` and `all().len() == max_index + 1`.
+  `.4b.1` carries it, being the smaller code slice.
+
+**Split.** `.4b.1` (7 motif knobs + the `KnobId::all()` guard) → `.4b.2` (9 emit knobs,
+the `&SteeringConfig` signature change, ~99 call sites) → `.4c` (docs + close).
+
+**Validation.** `scripts/check_doctrines.sh` all 7 PASS; Knowledge Map regenerated +
+checked. No `src/`, `tests/`, or `examples/` file touched.
+
+**Files touched.** `docs/decisions/0035-steering-width-motif-and-emission-knobs.md`
+(new), `docs/decisions/INDEX.md`, `docs/tasks/COVERAGE-STEERED-GENERATION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md`, `CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md`
+(regenerated).
+
 ## 2026-07-30 — BOOK-EXAMPLES-RUNNABLE.3 — the no-silent-skips guard can now see a silent skip
 
 **Landed as:** `973f615` (previous: `2db95f9`, `COVERAGE-STEERED-GENERATION.3` hash backfill).

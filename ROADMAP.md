@@ -2816,9 +2816,17 @@ other five remain `active` with a design-first `.1` ADR frontier:
    MCP/`--config` per decision `0017`), and `.2c.2` (book/USER_GUIDE/KM). Every
    acceptance criterion met; snapshots 6/6 byte-identical throughout. Routing the
    remaining raw `gen_bool` / weighted-choice sites through `roll_knob` is now
-   **owned by `.4`** (registered `2026-07-30`); the in-generator adaptive schedule
-   remains an open-ended follow-up (decision `0023`'s Rejected alternatives) that
-   lands as an optional new `.N` leaf without reopening the closed `.1`/`.2` scope.
+   **owned by `.4`**, whose `.4a` design ADR landed `2026-07-30` (decision
+   [`0035`](docs/decisions/0035-steering-width-motif-and-emission-knobs.md)): of the
+   **41** validated probability knobs, **22** are already steerable and **16** more
+   join under two new categories (`motifs`, `emission`), while **3** are excluded by
+   kind. That closes the decision-`0017` API-completeness gate for every capability
+   that actually rolls, and it makes ANVIL's nine structured-emission surfaces
+   measurable per-gate for the first time — the missing input to the
+   measure→derive→re-steer loop over the DUT lane's densest artifacts. The
+   in-generator adaptive schedule remains an open-ended follow-up (decision `0023`'s
+   Rejected alternatives) that lands as an optional new `.N` leaf without reopening
+   the closed `.1`/`.2` scope.
 7. `CAPABILITY-BREADTH-EXPANSION` — two strands. (`.2`) **Mealy FSM outputs**
    (extending the Phase-6 Moore-only `Fsm`) are **delivered** (decision
    [`0024`](docs/decisions/0024-mealy-fsm-outputs.md)): the default-off
