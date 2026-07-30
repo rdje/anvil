@@ -1,6 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout
+
+**Landed as:** (backfilled next slice). Previous: `218277d`.
+**Script-only** — no `src/` change ⇒ **DUT byte-identical**.
+
+**What.** `ENUMERATION-PARITY` pair 4 has been silently verifying **7 of 8**
+`--steer` categories since it landed. `datapath` was invisible to its extractor.
+Fixed at the class level; the tree closes.
+
+**Root cause: the regex encoded a source *formatting* assumption, not a source
+*fact*.** `grep -oE '=> "[a-z]+"'` assumes a match arm fits on one line. Seven do.
+The `datapath` arm's pattern is three `|`-joined variants, which overflows the
+line width, so `rustfmt` renders it as a block and puts the `=>` and the string on
+different lines. **Nobody wrote it that way — `rustfmt` did, because the pattern
+got long.** The trigger is therefore *"a category gains enough knobs to wrap"*,
+which biases the extractor against precisely the categories that grow.
+
+**Why nothing caught it.** The script's own header names the defence — *"Every
+extraction is COUNT-FLOORED. An extractor that silently matches nothing would make
+this gate pass vacuously."* Correct, and insufficient: **a floor catches "matched
+nothing", not "matched most"** (7 ≥ 6). And `covers_set` is per-category, so a
+category the extractor never produces is verified at **no** doc site. `datapath`
+could have been deleted from all four sites with the doctrine still green.
+
+**The docs were fine; the gate was blind.** Measured before fixing, because *"the
+guard was not guarding"* and *"the guarded thing drifted"* are different claims:
+all four pair-4 sites do name `datapath`. So this was a latent hole, not a live
+inconsistency — stated precisely, because overstating it would be as dishonest as
+missing it.
+
+**Blast radius bounded by measurement.** All six declared extractors were
+re-derived against their authoritative sets: five exact, this one short by one.
+The five that are exact all parse structure a **tool** controls — a bash array, a
+Markdown table column, a directory listing, a link syntax. **The only one parsing
+`rustfmt` output is the only one that was wrong.** That is the generalisable
+lesson and the reason the fix targets the class.
+
+**The fix.** `KnobId::category` returns `&'static str` and every arm's value is a
+bare string literal, so **the set of string literals in the function body IS the
+taxonomy**, however `rustfmt` lays the arms out. Comment lines are stripped first
+so a future `// "note"` cannot inject a phantom category — this gate must fail
+loud, never cry wolf. Explicitly *not* "widen the regex to also accept the block
+form", which fixes the instance and leaves the class for the next arm `rustfmt`
+reshapes.
+
+**Floor re-derived 6 → 8**, with the reasoning inline: a floor is **shrink-coupled,
+not growth-coupled**, so decision `0033` rule (a) test (2) fails and it is not the
+hand-maintained list the doctrine forbids. Adding a 9th category never requires
+touching it; only *removing* one would — which is exactly the event worth stopping
+for.
+
+**Negative-controlled four ways** (all in-place edits restored byte-exact and
+verified with `git diff --stat`, never `git checkout --`, per the recorded gotcha):
+
+| # | control | expected | got |
+| --- | --- | --- | --- |
+| 1 | replace `datapath` in `USER_GUIDE.md` | FAIL naming the file | FAIL — **invisible before this fix** |
+| 2 | rewrite the arm single-line | still 8 (format-independent) | 8 |
+| 3 | **old** regex vs both layouts | 8 single-line, 7 blocked | exactly that |
+| 4 | wrong file path | 0 entries ⇒ floor trip | FAIL at floor 8 |
+
+Control 3 is the one that proves the *class* fix rather than the instance fix: the
+old regex's answer depended on the layout; the new one's does not.
+
+**Validation.** `scripts/check_doctrines.sh` 8/8 PASS. No docs changed — none
+needed changing.
+
+**Files touched:** `scripts/check_enumeration_parity.sh`,
+`docs/tasks/PARITY-EXTRACTOR-ARM-SHAPE-GAP.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`, `DEVELOPMENT_NOTES.md`.
+
 ## 2026-07-31 — IR-TYPES-DECOMPOSITION.2 — extract `KnobId` into `src/ir/knob_id.rs`
 
 **Landed as:** (backfilled next slice). Previous: `30e731b`.

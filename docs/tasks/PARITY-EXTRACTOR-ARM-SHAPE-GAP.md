@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `PARITY-EXTRACTOR-ARM-SHAPE-GAP`
-- Status: `active`
+- Status: `closed`
 - Roadmap lane: Doctrine enforcement — a gate that under-verifies
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (registered; frontier `.1`)
+- Last updated: `2026-07-31` (`.1` landed — extractor made format-independent; **tree CLOSED**)
 - Owner: repo-local workflow
 
 ## Goal
@@ -134,22 +134,26 @@ and it is what `.1` must fix rather than the single missing string.
 ## Task Tree
 
 - ID: `PARITY-EXTRACTOR-ARM-SHAPE-GAP`
-  Status: `active`
+  Status: `closed`
   Goal: `Make the steering-category extractor read the taxonomy as a fact, not as a formatting pattern, and record the class lesson.`
   Children: `.1` (root-cause, fix, negative-control, close)
 
 - ID: `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Replace the arm-shape-dependent regex with a format-independent extraction of the category strings from KnobId::category's body (the set of string literals in that function IS the taxonomy; the doc comment sits above the sed start anchor and is excluded, verified). Re-derive the floor from the measured count. Measure whether the four doc sites were actually stale on datapath. Negative-control both ways. Record the class lesson in DEVELOPMENT_NOTES.md: five of six extractors parse structure a TOOL controls and are exact; the only one parsing rustfmt output is the only one wrong.`
   Acceptance: `scripts/check_enumeration_parity.sh extracts 8 categories and the driver stays 8/8; reformatting the datapath arm single-line and back does not change the result; a wrong path still trips the floor; deleting datapath from one doc site now FAILS (it did not before).`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done. FIX: the extractor no longer anchors on `=>`. KnobId::category returns &'static str and every arm's value is a bare string literal, so the SET OF STRING LITERALS IN THE FUNCTION BODY IS THE TAXONOMY, however rustfmt lays the arms out. Comment lines are stripped first (`grep -v '^[[:space:]]*//'`) so a future `// "note"` cannot inject a phantom category — this gate must fail loud, never cry wolf. Floor re-derived 6 -> 8 with the reasoning recorded inline: a floor is SHRINK-coupled, not growth-coupled, so decision 0033 rule (a) test (2) fails and it is not a shadow list — adding a 9th category never requires touching it; only removing one would, which is precisely the event worth stopping for. NEGATIVE-CONTROLLED FOUR WAYS: (1) THE ONE THAT MATTERS — replacing `datapath` in USER_GUIDE.md now FAILS naming the file ("USER_GUIDE.md does not name: datapath"); before the fix this was invisible at all four sites. Restored byte-exact (verified via git diff --stat, empty). (2) Rewriting the datapath arm to the single-line form still extracts 8 => format-independent; restored byte-exact. (3) THE CONTRAST THAT PROVES THE CLASS FIX: the OLD regex finds 8 on the single-line form and 7 on rustfmt's block form — it was reading the layout, not the taxonomy; the new one finds 8 on both. (4) A wrong file path yields 0 entries and trips floor_or_fail at the new floor of 8 (exit 1), so a mis-repointed extractor still fails loudly rather than passing vacuously. DOCS UNCHANGED, deliberately: all four pair-4 sites already named datapath, so this was a latent hole in the gate, not a live inconsistency — measured and stated precisely rather than overstated. check_doctrines.sh 8/8. Script-only ⇒ DUT byte-identical.`
+  Commit: `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `pending` | **Next.** A gate that cannot fail is worse than no gate — it is banked as evidence that a property holds. This one has been silently exempting one of eight categories from every doc-parity check. |
+| 1 | `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `done` | Fixed at the class level: the extractor reads the taxonomy as a **fact** (the string literals in `category()`'s body) rather than as a **layout** (`=>` on the same line). Negative-controlled four ways, including the decisive one — deleting `datapath` from a doc site now fails, and did not before. |
+
+**Tree status: `closed`.** The gate no longer exempts a category from parity, and
+the repair is at the class level, so the next arm `rustfmt` reshapes cannot
+re-open it.
 
 ## Decisions
 
@@ -171,13 +175,14 @@ and it is what `.1` must fix rather than the single missing string.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-31` | `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `extractor now returns all 8 categories; NEG (decisive): replacing datapath in USER_GUIDE.md FAILS naming the file — invisible before the fix — restored byte-exact; NEG: single-line arm form still yields 8 (format-independent), restored byte-exact; CONTRAST: the OLD regex yields 8 on the single-line form and 7 on rustfmt's block form, proving it read the layout not the taxonomy; NEG: wrong path -> 0 entries -> floor trip at the new floor of 8; docs deliberately unchanged (all four sites already named datapath); check_doctrines.sh 8/8` | `class fixed; tree closed` |
 | `2026-07-31` | `PARITY-EXTRACTOR-ARM-SHAPE-GAP` | `measured the extractor against git show HEAD:src/ir/types.rs (pre-move) -> 7 categories, datapath absent; measured the authoritative set in KnobId::category -> 8; re-derived all six declared extractors against their authoritative sets -> five exact, this one short by one; confirmed the floor (6) cannot catch it since 7 >= 6, and that covers_set is per-category so an unextracted category is unverified at every site` | `defect confirmed, pre-existing, bounded to one extractor` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `pending` | |
+| `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` | `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1 — read the taxonomy as a fact, not a layout` | Hash backfilled next slice. Script-only ⇒ DUT byte-identical. |
 
 ## Changelog
 

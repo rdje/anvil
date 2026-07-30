@@ -95,9 +95,41 @@ extract_adapter_ids() {
 # that a file called "types" houses a steering taxonomy. The count floor below is
 # what makes repointing it safe — a wrong path yields 0 categories, which trips
 # `floor_or_fail` loudly instead of passing vacuously.
+#
+# ── WHY THIS DOES NOT MATCH ON `=>` (PARITY-EXTRACTOR-ARM-SHAPE-GAP.1) ────────
+# It used to be `grep -oE '=> "[a-z]+"'`, and that silently read **7 of 8**
+# categories for as long as it existed: `datapath` was invisible. Not because the
+# taxonomy was wrong, but because that arm's pattern is three `|`-joined variants,
+# which overflows the line width, so `rustfmt` renders it as a block:
+#
+#     KnobId::CoefficientProb | KnobId::ConstShiftAmountProb | ... => {
+#         "datapath"
+#     }
+#
+# The `=>` and the string end up on different lines. **The regex encoded a source
+# FORMATTING assumption, not a source FACT** — and nobody wrote that formatting;
+# `rustfmt` chose it because the pattern got long. So the trigger was "a category
+# gains enough knobs to wrap", which biases the extractor against exactly the
+# categories that grow.
+#
+# The floor could not catch it: a floor catches "matched nothing", not "matched
+# most" (7 >= 6). And `covers_set` is per-category, so a category this never
+# produces is verified at NO doc site — the gate silently exempted one eighth of
+# the taxonomy. (Measured at the time of the fix: all four sites did name
+# `datapath`, so the docs were fine and only the gate was blind.)
+#
+# The fix is format-independent by construction: `category()` returns
+# `&'static str` and every arm's value is a bare string literal, so **the set of
+# string literals in that function body IS the taxonomy**, however rustfmt chooses
+# to lay the arms out. Comment lines are dropped first so a future `// "note"`
+# cannot inject a phantom category — this check must fail loud, never cry wolf.
+# Deliberately NOT "widen the regex to also accept the block form": that fixes
+# this instance and leaves the class, and the next arm rustfmt reshapes breaks it
+# again.
 extract_steering_categories() {
   sed -n '/pub fn category(&self)/,/^    }$/p' src/ir/knob_id.rs |
-    grep -oE '=> "[a-z]+"' | grep -oE '"[a-z]+"' | tr -d '"' | sort -u
+    grep -v '^[[:space:]]*//' |
+    grep -oE '"[a-z]+"' | tr -d '"' | sort -u
 }
 
 # --- helpers ----------------------------------------------------------------
@@ -247,7 +279,18 @@ fi
 # (R1), not by gating it forever. The four surviving sites are the canonical
 # homes the policy routes this content to.
 steering_categories="$(extract_steering_categories)"
-if floor_or_fail 'KnobId steering categories' 6 "${steering_categories}"; then
+# Floor re-derived from the measured count at PARITY-EXTRACTOR-ARM-SHAPE-GAP.1
+# (8: state, selectors, datapath, terminals, sharing, hierarchy, motifs,
+# emission). Raised from 6, which was loose enough to sit under the broken
+# extractor's 7 and so never fired.
+#
+# A floor is NOT a shadow of the taxonomy, by decision 0033 rule (a): it is
+# **shrink-coupled, not growth-coupled**. Adding a 9th category never requires
+# touching this number — test (2) fails, so the three-part test fails. Only
+# *removing* a category would, and that is exactly the event worth stopping to
+# look at. That asymmetry is why a floor can be tightened to the real count
+# without becoming the hand-maintained list the doctrine forbids.
+if floor_or_fail 'KnobId steering categories' 8 "${steering_categories}"; then
   covers_set 'steer categories <-> KnobId::category' \
     "${steering_categories}" 'book/src/algorithm.md'
   covers_set 'steer categories <-> KnobId::category' \

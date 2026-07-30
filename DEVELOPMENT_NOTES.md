@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — Never parse a formatter's output for a semantic set — `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1`
+
+`ENUMERATION-PARITY`'s steering-category extractor read **7 of 8** categories for
+its entire life. Not because the taxonomy was wrong, and not because anyone typed
+the arm oddly: `grep -oE '=> "[a-z]+"'` assumed a match arm fits on one line, and
+**`rustfmt` blocked the one arm whose pattern got long enough to wrap**. The `=>`
+and the string landed on different lines and the regex stopped firing.
+
+The generalisable rule fell straight out of bounding the blast radius. All six
+declared extractors, re-derived against their authoritative sets:
+
+| extractor | parses | verdict |
+| --- | --- | --- |
+| doctrine registry ids | a bash array | exact |
+| doctrine table ids | a Markdown table column | exact |
+| book chapter files | a directory listing | exact |
+| book summary links | Markdown link syntax | exact |
+| adapter ids | a Rust `fn id()` one-liner | exact |
+| **steering categories** | **`rustfmt` output** | **short by one** |
+
+**The five that parse structure a *tool* controls are all exact; the only one
+parsing a *formatter's* output is the only one wrong.** A formatter is free to
+reflow whenever a line gets long — which means the extractor's correctness depends
+on a variable nobody is watching, and it degrades exactly when a category *grows*.
+
+Three sharper points worth keeping:
+
+1. **A count floor catches "matched nothing", not "matched most."** The floor was
+   6 and the extractor returned 7. Floors are the right defence against a totally
+   broken extractor and no defence at all against a *partially* broken one. When
+   an extraction can be wrong by one, the floor has to be the real count — which
+   is safe here precisely because a floor is **shrink-coupled, not growth-coupled**
+   (adding a 9th category never requires touching it), so it fails decision
+   `0033`'s three-part shadow test and is not a list in disguise.
+2. **A one-directional `covers_set` turns a missing extraction into a silent
+   exemption.** It asserts every *extracted* id is named at each doc site, so an
+   id that is never extracted is checked *nowhere*. Under-extraction is therefore
+   strictly worse than over-extraction: over-extraction cries wolf and gets
+   noticed, under-extraction is invisible. Bias these extractors toward
+   over-matching and strip only what you can prove is noise (here: comment lines).
+3. **Measure whether the guarded thing actually drifted, separately from whether
+   the guard works.** All four doc sites *did* name `datapath` — so this was a
+   latent hole, not a live inconsistency. Reporting it as "the docs were broken"
+   would have been as wrong as missing it, and the fix is identical either way.
+
 ## 2026-07-30 — Why `README-GROWTH` is the one doctrine that is *not* scope-aware — `README-POLICY-ADOPTION.3`
 
 Every other structural check in this repo that governs *changes* reads the staged
