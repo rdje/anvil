@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EMIT-SURFACE-INTERACTION-GATE.4 — complete the cone-absorption consumer census
+
+**Landed as:** this commit (previous: `99e6cc0`, `EMIT-SURFACE-INTERACTION-GATE.3` follow-up).
+**Closes the `EMIT-SURFACE-INTERACTION-GATE` tree.** Emitted RTL is **byte-identical** — proven
+by corpus diff, not by argument (below).
+
+**What.** `cone_function_emit::compute_use_counts` now counts `Memory.{we,waddr,wdata,raddr}` and
+`Fsm.sel`. This closes the one interaction risk decision `0032` could not clear by reasoning
+alone (risk 2 of the five it named).
+
+**Why it mattered.** `cone_function` is the only emit-projection that does more than *mark* a
+gate: absorbing an interior gate deletes its module `wire` **and** its inline `assign`, so the
+gate lives only inside the emitted function. Its licence to do that is `use_count == 1`. The
+census is therefore not a helper — it *is* the safety property, and it fails asymmetrically:
+
+- an **over**-count is conservative (the gate stays a boundary parameter, output unchanged);
+- an **under**-count deletes a declaration a real consumer still names, and the symptom surfaces
+  far away, as a downstream tool rejecting an undeclared identifier.
+
+The census omitted the two clocked-block port sets, both of which the emitter renders **by wire
+name** (`src/emit/sv.rs:928-931`). A gate consumed once by a cone edge *and* once by a memory
+port read as single-use, would be absorbed, and would lose the declaration the memory's
+`always_ff` refers to.
+
+**Why it was latent rather than live, precisely.** `build_memory_leaf` and `build_fsm_block`
+(`src/gen/module.rs:125,248`) are the generator's only `Memory`/`Fsm` construction sites and both
+build **gate-free** modules whose block ports are `PrimaryInput` leaves — so a memory port and a
+gate have never shared a node. That is a fact about the generator's *current shape*, not a rule
+anyone wrote down. A safety property resting on an accident is a trap with a timer on it: the day
+a memory is allowed to coexist with combinational logic in one module — a perfectly reasonable
+capability increment — this detonates silently.
+
+**The more durable half of the fix is the table.** `compute_use_counts` now carries, in its doc
+comment, a table of **every `Module` field that can hold a `NodeId`** (gate operands, output
+drives, flop `D`/mux refs, instance inputs, memory ports, FSM `sel`). The original omission was
+not a thinking error — nothing in the code connected "I added a field holding a `NodeId`" to "a
+pass elsewhere decides declaration lifetimes by enumerating such fields." The table is where
+those two now meet.
+
+**Three tests, two of them negative-controlled.** A gate feeding a memory `wdata` is not
+absorbed; the same for an FSM `sel`; and a gate-only module is unchanged (the no-op complement,
+so the new rows cannot silently over-count). With the census rows removed, the two new tests fail
+with their exact messages and every other test still passes; restored, 11/11. The fixtures are
+hand-built IR on purpose: the generator cannot currently produce a module holding both a `Memory`
+and a `Gate`, so **no seed sweep could reach this shape** — which is why it stayed latent, and
+why the test must not depend on the generator's present shape.
+
+**Byte-identical, measured.** 30 modules generated at `--cone-function-emit-prob 1.0
+--memory-prob 0.3 --fsm-prob 0.3`, before and after the change, are `diff -r` identical. The
+argument for why it *must* be a no-op ("memories never coexist with gates") is the same reasoning
+that produced the bug, so it is exactly the reasoning not to accept as proof.
+
+**Rejected: extracting a shared `ir::use_counts` helper** (the `.1` open question).
+`feedback_full_factorization` argues for one mechanism, but there is exactly one absorbing pass
+today, so extraction buys an indirection with a single caller — and a second place for the field
+table to go stale. Recorded trigger for revisiting: a **second** pass that suppresses a
+declaration.
+
+**Validation.** `cargo test --lib cone_function_emit` 11/11 (+3 new); the negative control above;
+the corpus diff above; `cargo test` full suite green under `scripts/ram_guard.sh --threshold 90`
+with `tests/snapshots.rs` byte-identical; `cargo clippy --all-targets -- -D warnings` clean;
+`cargo fmt --all --check` clean; doctrine driver 6/6 after staging.
+
+**No phase labels changed.**
+
+**Files touched.** `src/ir/cone_function_emit.rs`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/EMIT-SURFACE-INTERACTION-GATE.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-30 — Correct the new digest's commit pointer; reopen EVIDENCE-BANK-DURABILITY
 
 **Landed as:** this commit (previous: `401d72d`, `EMIT-SURFACE-INTERACTION-GATE.3`).

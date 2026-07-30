@@ -3,7 +3,7 @@
 ## Metadata
 
 - Tree ID: `EMIT-SURFACE-INTERACTION-GATE`
-- Status: `active`
+- Status: `done` (closed `2026-07-30`)
 - Roadmap lane: Quality / signoff (steering gaps 1 + 3); serves `STRUCTURED-EMISSION-EXPANSION`
 - Created: `2026-07-30`
 - Last updated: `2026-07-30`
@@ -92,7 +92,7 @@ them live simultaneously.
 ## Task Tree
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE`
-  Status: `active`
+  Status: `done` (closed `2026-07-30` — all four leaves delivered)
   Children: `.1` (design), `.2` (preset + drift test), `.3` (the combined gate),
             `.4` (harden the cone-absorption consumer census — opened by `.1`)
 
@@ -180,7 +180,7 @@ them live simultaneously.
         [`docs/evidence/anvil-emit-surface-interaction-r1.md`](../evidence/anvil-emit-surface-interaction-r1.md).
 
 - ID: `EMIT-SURFACE-INTERACTION-GATE.4`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: harden `cone_function_emit::compute_use_counts` to count `Memory`
         (`we`/`waddr`/`wdata`/`raddr`) and `Fsm` (`sel`) consumers. Today the census
         omits them, so a gate consumed once by a cone edge and once by a memory port
@@ -191,15 +191,34 @@ them live simultaneously.
   Acceptance: the census counts both; a regression test pins that a gate feeding a
         memory port is never absorbed; `tests/snapshots.rs` untouched (a provable
         no-op on every currently-constructible module ⇒ DUT byte-identical).
+  Delivered: `compute_use_counts` now counts `memories[..].{we,waddr,wdata,raddr}`
+        and `fsms[..].sel`, and its doc comment carries a **table of every `Module`
+        field that can hold a `NodeId`** so a new field forces a decision rather
+        than being silently omitted — the omission that created this trap. Three
+        tests: a gate feeding a memory `wdata` is not absorbed, the same for an FSM
+        `sel`, and a gate-only module is unchanged (the no-op complement, so the new
+        rows cannot silently over-count). Both new tests were **negative-controlled**
+        — with the census rows removed they fail, with them they pass. The hand-built
+        IR fixtures are deliberate: the generator cannot currently produce a module
+        holding both a `Memory` and a `Gate`, so no seed sweep could reach this
+        shape — which is exactly why it was latent, and exactly why the test must not
+        depend on the generator's present shape.
+  Decision: **not** factored into a shared `ir::use_counts` helper (the `.1` open
+        question). There is exactly one absorbing pass today, so extraction would add
+        an indirection with a single caller. The recorded trigger for extracting it is
+        a *second* pass that suppresses a declaration; until then the exhaustive-field
+        table is the cheaper guard against the same decay.
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
+**No frontier — every leaf is `done` and the tree is CLOSED (`2026-07-30`).**
+
+| Order | Leaf | Status | Outcome |
 | --- | --- | --- | --- |
-| 1 | `.4` | `pending` | **Current frontier.** The absorption-census hardening — the one interaction risk `.1` could not clear by reasoning alone. Byte-identical today; closes the tree. |
-| — | `.3` | `done` | Gate clean first run: `coverage_gaps = []`, 20/0 Verilator, 16/0 both Yosys modes + Icarus, all three facts lit, digest banked. |
+| — | `.1` | `done` | Design ADR landed as decision `0032`; measured that the preset emitted 1 of 9 surfaces and opened `.4` from a source-level absorption audit. |
 | — | `.2` | `done` | Preset honest: 8/8 surfaces emitted (was 1/8), anti-drift test derived from the knob catalog, docs + book corrected. |
-| — | `.1` | `done` | Design ADR landed as decision `0032`. |
+| — | `.3` | `done` | Gate clean on the first run: `coverage_gaps = []`, 20/0 Verilator, 16/0 both Yosys modes + Icarus, all three facts lit, digest banked — and the saturation prediction landed exactly. |
+| — | `.4` | `done` | Absorption census completed; both new tests negative-controlled; emitted RTL proven byte-identical by corpus diff. |
 
 ## Decisions
 
@@ -266,6 +285,11 @@ them live simultaneously.
 | `2026-07-30` | `.3` | `scripts/evidence_digest.sh` | digest banked at `docs/evidence/anvil-emit-surface-interaction-r1.md` (report SHA-256 recorded; 20 coverage facts lit, including all eight single-surface facts **in the same run**) |
 | `2026-07-30` | `.3` | `cargo test` (full suite, under `scripts/ram_guard.sh --threshold 90`) | green — `tests/snapshots.rs` byte-identical |
 | `2026-07-30` | `.3` | `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, `mdbook build book`, `cargo test --test book_examples` | clean |
+| `2026-07-30` | `.4` | `cargo test --lib cone_function_emit` | 11/11 pass (+3 new: memory port, FSM `sel`, and the gate-only no-op complement) |
+| `2026-07-30` | `.4` | **Negative control** — remove the `memories`/`fsms` census rows | both new tests FAIL (`the memory's wdata port must be counted…`, `the FSM's sel port must be counted…`), all others still pass; restored ⇒ 11/11 |
+| `2026-07-30` | `.4` | **Byte-identical proof by corpus diff** — 30 modules at `--cone-function-emit-prob 1.0 --memory-prob 0.3 --fsm-prob 0.3`, generated pre- and post-fix, `diff -r` | **identical**; the claim is measured, not argued |
+| `2026-07-30` | `.4` | `cargo test` (full suite, under `scripts/ram_guard.sh --threshold 90`) | green — `tests/snapshots.rs` byte-identical |
+| `2026-07-30` | `.4` | `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check` | clean |
 
 ## Commit Log
 
@@ -273,7 +297,9 @@ them live simultaneously.
 | --- | --- | --- |
 | `.1` | `EMIT-SURFACE-INTERACTION-GATE.1 — decision 0032: gate the nine surfaces in combination` (`7664761`) | Docs-only design leaf; delivers `docs/decisions/0032-emit-surface-interaction-gate.md` and opens `.4` |
 | `.2` | `EMIT-SURFACE-INTERACTION-GATE.2 — structured-emission-max emits 8 surfaces, not 1` (`d73b154`) | Preset + anti-drift test + docs/book; default path byte-identical |
-| `.3` | `EMIT-SURFACE-INTERACTION-GATE.3 — prove the nine surfaces together` | The gate + the three co-occurrence facts + the banked digest; every surface stays default-off |
+| `.3` | `EMIT-SURFACE-INTERACTION-GATE.3 — prove the nine surfaces together` (`401d72d`) | The gate + the three co-occurrence facts + the banked digest; every surface stays default-off |
+| `.3` | `EMIT-SURFACE-INTERACTION-GATE.3 — correct the banked digest's commit pointer` (`99e6cc0`) | Docs-only follow-up; also reopened `EVIDENCE-BANK-DURABILITY` with `.6` for the two deriver defects it exposed |
+| `.4` | `EMIT-SURFACE-INTERACTION-GATE.4 — complete the cone-absorption consumer census` | Closes the tree; emitted RTL byte-identical (proven by corpus diff) |
 
 ## Changelog
 
@@ -284,3 +310,17 @@ them live simultaneously.
   strengthened from measurement — the preset does not merely cover 4 of 9, it emits
   **1 of 9** — and a fourth leaf `.4` opened for a latent `cone_function` absorption
   trap found while reasoning the interaction risks through from source.
+- `2026-07-30` (`.2`): the preset is honest — all eight non-version-gated surfaces at
+  a shared `0.25` plus the three selector knobs, with an anti-drift test **derived**
+  from the knob catalog rather than enumerated, so a tenth surface cannot omit itself.
+  8/8 surfaces emitted where it had been 1/8.
+- `2026-07-30` (`.3`): the gate exists and was clean on its first run, reproducing the
+  ADR's source-derived saturation prediction exactly (3 surfaces, and the right 3).
+  Digest banked. A follow-up corrected the digest's `commit:` pointer and reopened
+  `EVIDENCE-BANK-DURABILITY` for the two deriver defects that correction exposed.
+- `2026-07-30` (`.4`): the absorption consumer census is complete — `Memory` ports and
+  `Fsm.sel` are counted, both new tests negative-controlled, and the byte-identical
+  claim proven by a 30-module pre/post corpus diff rather than by argument.
+  **TREE CLOSED.** The `.1` open question about extracting a shared `ir::use_counts`
+  helper is answered "not yet", with the trigger recorded: a *second* pass that
+  suppresses a declaration.

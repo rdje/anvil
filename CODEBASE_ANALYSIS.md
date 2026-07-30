@@ -586,8 +586,19 @@ src/
 │                     (admissible — non-structured, non-`Slice`, ≥1 operand,
 │                     not sibling-marked) absorbs its **single-use** interior
 │                     gates (use-count == 1 across all module consumers —
-│                     gate operands + drives + flop d/mux + instance inputs —
-│                     so suppressing each is provably safe), needing ≥1
+│                     gate operands + drives + flop d/mux + instance inputs +
+│                     (EMIT-SURFACE-INTERACTION-GATE.4) memory
+│                     we/waddr/wdata/raddr + fsm sel — so suppressing each is
+│                     provably safe; `compute_use_counts` carries a table of
+│                     EVERY NodeId-bearing Module field, because this is the
+│                     one pass whose correctness is an exhaustive-enumeration
+│                     property: an over-count is conservative, an under-count
+│                     deletes a declaration a live consumer still names. The
+│                     two block rows were missing until .4 — unreachable only
+│                     because build_memory_leaf/build_fsm_block make gate-free
+│                     modules, an accident of shape rather than an invariant;
+│                     adding them is byte-identical, proven by a 30-module
+│                     pre/post corpus diff), needing ≥1
 │                     interior, into the new emitter-surface
 │                     `Module.cone_function_gates` (BTreeMap<NodeId,
 │                     Vec<NodeId>> root→topo-ordered interiors, not hashed

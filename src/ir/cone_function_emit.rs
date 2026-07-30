@@ -96,10 +96,40 @@ fn sibling_marked(m: &Module, id: NodeId) -> bool {
             .any(|(leader, partners)| *leader == id || partners.contains(&id))
 }
 
-/// Count every value-consumer reference to each node across the whole module:
-/// gate operands, output drives, flop `D` / mux refs, and instance inputs. A
-/// gate with a count of exactly `1` is used by a single consumer, so it can be
-/// safely absorbed into a cone (its module wire + assign are then suppressed).
+/// Count every value-consumer reference to each node across the whole module.
+///
+/// **This census must be exhaustive, and that is the whole safety property.**
+/// Absorption suppresses a gate's module `wire` *and* its inline `assign`, so a
+/// gate absorbed on the strength of an under-count would have its declaration
+/// deleted out from under a consumer the census failed to see — surfacing far
+/// downstream as a tool rejecting an undeclared identifier. An over-count is
+/// merely conservative (the gate stays a boundary parameter); an under-count is
+/// a correctness bug. When in doubt, count.
+///
+/// Every `Module` field that can hold a `NodeId` must appear below:
+///
+/// | source | field(s) |
+/// | --- | --- |
+/// | gate graph | `nodes[..]` `Gate::operands` |
+/// | output boundary | `drives[..].1` |
+/// | flops | `flops[..].d`, `flops[..].mux` (`OneHot` arm `data`/`sel`, `Encoded` `sel`/`data`) |
+/// | child instances | `instances[..].inputs[..].1` |
+/// | memories | `memories[..].{we,waddr,wdata,raddr}` |
+/// | FSMs | `fsms[..].sel` |
+///
+/// The memory and FSM rows were **missing** until
+/// `EMIT-SURFACE-INTERACTION-GATE.4` (decision `0032` risk 2). They were
+/// unreachable rather than harmless: `crate::gen::module::build_memory_leaf` and
+/// `build_fsm_block` are the generator's only `Memory`/`Fsm` construction sites
+/// and both build **gate-free** modules whose block ports are `PrimaryInput`
+/// leaves, so no memory port has ever shared a node with a gate. That is an
+/// accident of module shape, not a stated invariant — the day a memory coexists
+/// with combinational logic in one module, the omission becomes a live bug. Adding
+/// them is a provable no-op on every currently-constructible module (emitted RTL
+/// is byte-identical), and removes the trap before anything can spring it.
+///
+/// A gate with a count of exactly `1` is used by a single consumer, so it can be
+/// safely absorbed into a cone.
 fn compute_use_counts(m: &Module) -> Vec<u32> {
     let mut uc = vec![0u32; m.nodes.len()];
     let mut bump = |id: NodeId| {
@@ -142,6 +172,19 @@ fn compute_use_counts(m: &Module) -> Vec<u32> {
         for &(_p, nid) in &inst.inputs {
             bump(nid);
         }
+    }
+    // `EMIT-SURFACE-INTERACTION-GATE.4` — the clocked blocks. The emitter renders
+    // each of these by **wire name** (`src/emit/sv.rs`, the `Memory` `always_ff`
+    // and the `Fsm` next-state decode), so a node reachable only from here is a
+    // real consumer whose declaration must survive.
+    for mem in &m.memories {
+        bump(mem.we);
+        bump(mem.waddr);
+        bump(mem.wdata);
+        bump(mem.raddr);
+    }
+    for fsm in &m.fsms {
+        bump(fsm.sel);
     }
     uc
 }
@@ -409,6 +452,92 @@ mod tests {
         let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
         assert_eq!(n, 0);
         assert!(m.cone_function_gates.is_empty());
+    }
+
+    /// `EMIT-SURFACE-INTERACTION-GATE.4` (decision `0032` risk 2) — a gate that
+    /// feeds a **memory port** is a real consumer, so the gate is not single-use and
+    /// must not be absorbed. Before this leaf `compute_use_counts` ignored
+    /// `Memory.{we,waddr,wdata,raddr}`, so this gate looked single-use, was
+    /// absorbed, and lost the module `wire` the memory's `always_ff` refers to by
+    /// name — an undeclared identifier in the emitted SV.
+    ///
+    /// Written as a hand-built IR fixture on purpose: the generator cannot currently
+    /// produce a module holding both a `Memory` and a `Gate`
+    /// (`build_memory_leaf` builds a gate-free module), so no seed sweep could
+    /// reach this shape. That is exactly why it was a latent trap rather than a
+    /// live bug — and exactly why it needs a test that does not depend on the
+    /// generator's present shape.
+    #[test]
+    fn a_gate_feeding_a_memory_port_is_never_absorbed() {
+        use crate::ir::{MemKind, Memory};
+
+        let mut m = module_cone();
+        // `and_0` (node 3) currently has exactly one consumer: the cone root `or_0`
+        // (node 4). Give it a second one — a memory's write-data port.
+        m.memories.push(Memory {
+            id: 0,
+            addr_width: 2,
+            data_width: 4,
+            kind: MemKind::SinglePort,
+            we: 0,
+            waddr: 1,
+            wdata: 3, // <- the would-be cone interior
+            raddr: 1,
+        });
+
+        assert_eq!(
+            compute_use_counts(&m)[3],
+            2,
+            "the memory's wdata port must be counted as a consumer of node 3"
+        );
+
+        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        assert_eq!(
+            n, 0,
+            "node 3 has two consumers, so the cone has no absorbable interior"
+        );
+        assert!(m.cone_function_gates.is_empty());
+    }
+
+    /// The `Fsm.sel` half of the same property.
+    #[test]
+    fn a_gate_feeding_an_fsm_selector_is_never_absorbed() {
+        use crate::ir::{Fsm, FsmEncoding};
+
+        let mut m = module_cone();
+        m.fsms.push(Fsm {
+            id: 0,
+            num_states: 2,
+            encoding: FsmEncoding::Binary,
+            sel: 3, // <- the would-be cone interior
+            sel_width: 4,
+            transitions: vec![vec![1, 0], vec![0, 1]],
+            outputs: vec![0, 1],
+            out_width: 4,
+            mealy_outputs: None,
+        });
+
+        assert_eq!(
+            compute_use_counts(&m)[3],
+            2,
+            "the FSM's sel port must be counted as a consumer of node 3"
+        );
+
+        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        assert_eq!(n, 0, "node 3 has two consumers, so nothing is absorbable");
+        assert!(m.cone_function_gates.is_empty());
+    }
+
+    /// The complement, so the added census rows cannot silently over-count: with no
+    /// `Memory`/`Fsm` present the cone still forms exactly as before. This is the
+    /// byte-identical guarantee for every module the generator can build today.
+    #[test]
+    fn adding_the_block_census_leaves_gate_only_modules_unchanged() {
+        let mut m = module_cone();
+        assert!(m.memories.is_empty() && m.fsms.is_empty());
+        let n = annotate_cone_function_gates(&mut m, &mut rng(), 1.0);
+        assert_eq!(n, 1, "a gate-only module is unaffected by the block census");
+        assert_eq!(m.cone_function_gates.get(&4), Some(&vec![3]));
     }
 
     #[test]

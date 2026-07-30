@@ -5,6 +5,45 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — A suppressing pass owes an exhaustive census, and the census owes a table — `EMIT-SURFACE-INTERACTION-GATE.4`
+
+`cone_function_emit` is the only pass in the emit-projection family that does more than mark a
+gate: absorbing an interior gate deletes its module `wire` **and** its inline `assign`. Its
+licence to do that is `use_count == 1`, computed by `compute_use_counts`. So the census is not a
+helper — it *is* the safety property, and its failure is asymmetric:
+
+- an **over**-count is conservative: the gate stays a boundary parameter, output unchanged;
+- an **under**-count deletes a declaration a real consumer still names, and the symptom surfaces
+  a long way away, as a downstream tool rejecting an undeclared identifier.
+
+The census was missing `Memory.{we,waddr,wdata,raddr}` and `Fsm.sel` — both rendered by wire name
+in the emitter. It could not fire, because `build_memory_leaf` and `build_fsm_block` construct
+**gate-free** modules, so a memory port and a gate have never shared a node. That is a fact about
+the generator's current shape, not a rule anyone wrote down, and a safety property resting on an
+accident is a trap with a timer.
+
+Two things fixed it, and the second matters more than the first:
+
+1. Count the block ports. Provably a no-op today.
+2. **Put a table of every `NodeId`-bearing `Module` field in the census's doc comment.** The
+   original omission was not a thinking error; it was that nothing in the code connected "I added
+   a field holding a `NodeId`" to "a pass elsewhere decides declaration lifetimes from a list of
+   such fields." The table is where those two meet.
+
+> **When a function's correctness depends on enumerating a struct's fields, the enumeration
+> belongs next to the function in a form a human editing the struct will collide with.** Otherwise
+> the next field is added correctly, in the right file, by someone who has no reason to look here.
+
+The byte-identical claim was **measured, not argued**: 30 modules generated with
+`--cone-function-emit-prob 1.0 --memory-prob 0.3 --fsm-prob 0.3`, before and after, `diff -r`
+identical. The argument ("memories never coexist with gates") is the same reasoning that produced
+the bug — so it is exactly the reasoning not to trust as proof.
+
+**Rejected: extracting a shared `ir::use_counts` helper.** `feedback_full_factorization` argues
+for one mechanism, but there is exactly one absorbing pass, so extraction today buys an
+indirection with a single caller and a second place for the field table to go stale. Recorded
+trigger for revisiting: a **second** pass that suppresses a declaration.
+
 ## 2026-07-30 — A new fact does not need a new token — `EMIT-SURFACE-INTERACTION-GATE.3`
 
 The interaction gate needed to prove something no report had ever asserted: that several
