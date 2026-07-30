@@ -168,6 +168,61 @@ here means the next contributor does not have to re-litigate it.
 Default `--introspect` output is unaffected regardless: with every one of the 16 knobs at
 its `0.0` default the `> 0.0` guard means no roll, hence no map entry.
 
+## Correction (`2026-07-30`, from the `.4b.1` recon — an explicit amendment, not a silent rewrite)
+
+Implementation recon immediately after this record landed found **two facts it did not
+account for**. Both are recorded here rather than edited away (`NEVER REWRITE HISTORY`);
+the taxonomy, the exclusions, the schema call and the byte-identity argument all stand.
+
+**1. Three of the seven motif rolls have no `Module` to record into.** §Decision (b) and
+the `.4b.1` sketch assume every motif roll can be routed through
+`Generator::roll_knob(&mut self, m: &mut Module, …)`. Measured in
+`src/gen/module.rs::generate_leaf_module_with_interface_profile`: the
+`width_parameterization_prob`, `memory_prob` and `fsm_prob` rolls happen at lines
+385/401/414 and each **`return`s a differently-built module** (`build_parameterizable_leaf`
+/ `build_memory_leaf` / `build_fsm_block`) at 390/404/417 — while the function's own first
+`Module` binding is at **line 432**. The roll *chooses which module to construct*, so at
+the moment of the roll there is nothing to record into. `fsm_mealy_prob`
+(`build_fsm_block`, line 332) and the three `gen/mod.rs` rolls are fine — their module
+already exists.
+
+This is not a blocker, but it is design work `.4b.1` must do rather than mechanical
+routing. The shape that fits the `0034` invariant: give `Generator` a small
+`pending_knob_rolls: KnobRollCounters` that pre-module rolls record into, and drain it into
+`m.knob_rolls` once the module is built — with the drain living **inside**
+`ir::knob_roll`, so the "only this module writes the counters" property is preserved.
+Rejected on sight: recording after the fact from the call site, which is precisely the
+"roll here, record there" split decision `0034` exists to prevent (and which the guard
+should make impossible — see below).
+
+**2. The `.3b` R2 guard is incomplete.** `0034` privatised
+`KnobRollCounters::record`, but left `attempts` and `fires` as `pub` fields. Measured
+`2026-07-30` with a compile probe in `src/gen/hierarchy.rs`: a second roll primitive that
+skips the steering prior and writes the maps **directly** —
+
+```rust
+let fired = rng.gen_bool(prob);                                  // no prior
+*m.knob_rolls.attempts.entry(knob).or_insert(0) += 1;            // compiles
+if fired { *m.knob_rolls.fires.entry(knob).or_insert(0) += 1; }  // compiles
+```
+
+— builds **clean** (`cargo check --all-targets` exit `0`). The guard blocks the obvious
+route and not the equivalent one, which by its own stated principle (*guard the effect,
+not the wrapper*) means it does not yet guard the effect. The fix is small — make the two
+fields private with read-only accessors, since the only external consumer is
+`metrics::compute` iterating them — and it is ordered **before** `.4b.1`, because `.4b.1`
+introduces a *new* writer path (the pending-counter drain) and that path should be
+designed against a complete guard rather than an incomplete one. Owned by a new leaf
+`COVERAGE-STEERED-GENERATION.5`.
+
+**What this says about the original guard.** `0034` chose R2 over R4 on the argument that
+the type system enforces the property for free. That argument was right and the
+*application* of it was half-done: privatising the method without privatising the fields
+guards the API, not the invariant. A useful generalisation for the next R2 guard in this
+repo: **enumerate every way the protected state can be written, not just the intended
+one** — the same "search the effect, not the shape" rule `0034` itself established, turned
+on the guard rather than on the defect.
+
 ## Decisive test applied
 
 "Does an agent gain a capability it can act on, or only a longer list?" It gains one it can

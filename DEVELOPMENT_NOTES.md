@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — An R2 guard must cover every write to the state, not every call to the API — `COVERAGE-STEERED-GENERATION.5` (recon)
+
+`COVERAGE-STEERED-GENERATION.3b` made "there is exactly one knob-roll primitive" a
+compile-time property by privatising `KnobRollCounters::record` into the primitive's
+module. Hours later, recon for `.4b.1` probed the guard the way the guard itself says
+to probe a defect — *search the effect, not the shape* — and found it half-built:
+
+```rust
+// in any module in the crate, compiles CLEAN (cargo check exit 0):
+let fired = rng.gen_bool(prob);                                  // no steering prior
+*m.knob_rolls.attempts.entry(knob).or_insert(0) += 1;
+if fired { *m.knob_rolls.fires.entry(knob).or_insert(0) += 1; }
+```
+
+`record` was private; `attempts` and `fires` were still `pub`. The guard blocked the
+*API* and left the *state* open.
+
+**The rule.** When you make an invariant a compile error, the protected thing is a piece
+of **state**, not a function. Enumerate every syntactic route that mutates it —
+methods, public fields, `DerefMut`, a `&mut` accessor, `Default` + assignment, a public
+constructor taking the inner value — and close all of them. Privatising the method you
+happened to write is guarding your own habit, not the invariant. (Rust makes this
+concrete: a `pub` field on a `pub` struct is an unrestricted write; there is no "private
+setter" unless the field is private too.)
+
+**Why it survived review twice.** The `.3b` negative control was written from the defect
+that had just been found — it re-introduced *the seven deleted helpers' exact shape*, which
+called `record`, and correctly failed. A negative control derived from the known instance
+tests the fix against that instance. To test it against the **class**, the probe has to be
+written from the *property* ("no unsteered write to the counters"), and then it naturally
+tries the field route. This is decision `0033` rule (2) again — *search from the
+authoritative set, not from the shadow you found first* — with the guard, rather than the
+bug, as the subject. Third lane in three days.
+
+**A second recon finding, unrelated but worth the same paragraph.** `.4a` assumed the seven
+motif knobs could be routed mechanically. Three of them (`width_parameterization_prob`,
+`memory_prob`, `fsm_prob`) roll *before any `Module` exists* — the roll chooses **which
+builder to call**, and each branch returns a different module. Telemetry that is keyed to a
+module cannot be written by a decision made upstream of the module. The fix shape
+(`Generator::pending_knob_rolls`, drained inside `ir::knob_roll`) is easy; the lesson is
+that "route N call sites through one helper" is only mechanical when every site has the
+helper's arguments in scope, and a five-minute read of the sites beats an estimate.
+
+---
+
 ## 2026-07-30 — Trim order is a correctness property — `BOOK-EXAMPLES-RUNNABLE.3`
 
 Two lines that look like ordinary string hygiene, in the guard whose whole job is

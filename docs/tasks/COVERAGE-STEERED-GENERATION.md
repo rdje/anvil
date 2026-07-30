@@ -50,7 +50,7 @@ design space while preserving every lane invariant.
   Status: `active`
   Goal: `Construction-time coverage-feedback steering (rules-first, reproducible) with an API-settable coverage target + an API-queryable achieved-coverage readout.`
   Closure: `The .1/.2 scope closed 2026-06-22 and is NOT reopened: every acceptance criterion of that scope was met (the roll_knob per-category/per-knob prior multiplier measurably shifts the distribution rules-first + reproducible (.2a); the achieved coverage is API-queryable (.2b) and the target API-settable (.2c.1) per decision 0017; unsteered DUT byte-identical; documented (.2c.2)). The tree returns to 'active' on 2026-07-30 for the new .3 node (decision 0034: a MEASURED SILENT NO-OP in the shipped surface — 6 of the 22 KnobIds, and therefore the whole documented 'hierarchy' steering category, are never reached by the prior because src/gen/hierarchy.rs defines seven roll primitives of its own) and .4 (the recorded decision-0023 follow-up: the 16 Bernoulli knobs that have no KnobId at all). Nothing retired (feedback_never_retire_strategies); the Phase-4 closure pattern — a closed scope stays closed, new work lands as new nodes.`
-  Children: `COVERAGE-STEERED-GENERATION.1`, `.2`, `.3`, `.4`
+  Children: `COVERAGE-STEERED-GENERATION.1`, `.2`, `.3`, `.4`, `.5`
 
 - ID: `COVERAGE-STEERED-GENERATION.1`
   Status: `done`
@@ -174,6 +174,14 @@ design space while preserving every lane invariant.
   Verification: `pending`
   Commit: `pending`
 
+- ID: `COVERAGE-STEERED-GENERATION.5`
+  Status: `pending`
+  Goal: `Complete the .3b R2 guard. MEASURED 2026-07-30 with a compile probe in src/gen/hierarchy.rs: privatising KnobRollCounters::record was not enough — `attempts` and `fires` are still `pub` fields, so a second roll primitive that skips the steering prior and writes the maps DIRECTLY (`*m.knob_rolls.attempts.entry(knob).or_insert(0) += 1`) compiles CLEAN (cargo check --all-targets exit 0). The guard blocks the obvious route and not the equivalent one.`
+  Acceptance: `Make `attempts` / `fires` private with read-only accessors (the only external consumer is metrics::compute, which iterates them); the direct-write probe must then FAIL to compile, and the existing roll paths must still build and behave identically. NEGATIVE-CONTROL both ways (the probe fails; removing it restores a clean build), exactly as .3b did for `record`. Unsteered + default byte-identical (no generation path changes; tests/snapshots.rs 6/6 untouched). Full COMMIT.md cargo gate.`
+  Verification: `pending`
+  Commit: `pending`
+  Ordering: `BEFORE .4b.1 — .4b.1 introduces a NEW writer path (the pending-counter drain for the three pre-module motif rolls) and that path should be designed against a complete guard, not an incomplete one.`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
@@ -190,13 +198,15 @@ design space while preserving every lane invariant.
 | `COVERAGE-STEERED-GENERATION.3b` | `done` | The fix landed: `roll_knob_into` in the new `src/ir/knob_roll.rs` with `record` privatized (a second primitive is now `error[E0624]`), `Generator::roll_knob` as the crate-wide shim, `cone::roll_knob` reduced to an alias (37 call sites untouched), the seven `roll_hierarchy_*` helpers deleted. `child_input_cone` goes `0/5 → 5/5` under `--steer hierarchy=9.0`; unsteered byte-identical. Both guards negative-controlled both ways. Corrected `.3a`'s root cause: visibility, not borrows. |
 | 8 | `COVERAGE-STEERED-GENERATION.3c` | `done` | Docs + close `.3`: `algorithm.md` restated as the one-primitive invariant + a new "Why the guard is a compile error" subsection; `knobs.md` gained a **runnable** `0/5 → 5/5` example; USER_GUIDE gained the reach paragraph + a callout that `--steer hierarchy` was inert before `2026-07-30`; README corrected net-neutral; decision `0034` enriched as the KM card (status → delivered, `reverify` added). mdbook clean; `book_examples` 3/3 (65 runnable). **`.3` CLOSED.** |
 | 9 | `COVERAGE-STEERED-GENERATION.4a` | `done` | Design ADR (decision `0035`) for steering's **width**: two new categories (`motifs`, `emission`), the `&SteeringConfig` signature change across the nine emit passes, the `> 0.0` guard pinned as load-bearing for reproducibility, no schema bump (with the rule stated), three knobs excluded **by kind**, and the `.4b` split. Measured: 41 probability knobs, 22 already steerable, 16 in scope, 99 emit call sites. |
-| 10 | `COVERAGE-STEERED-GENERATION.4b.1` | `pending` | **Next.** The 7 module-level motif knobs — the smaller code slice, so it also carries the `KnobId::all()` R2 guard (that list reaches 38 entries, well past "a reviewer catches it"). |
-| 11 | `COVERAGE-STEERED-GENERATION.4b.2` | `pending` | The 9 emit-projection knobs: the `&SteeringConfig` parameter across nine `annotate_*` passes and ~99 call sites. Makes ANVIL's structured-emission family measurable per-gate for the first time. |
-| 12 | `COVERAGE-STEERED-GENERATION.4c` | `pending` | Docs + close `.4`. |
+| 10 | `COVERAGE-STEERED-GENERATION.5` | `pending` | **Next.** Complete the `.3b` R2 guard: `record` is private but `attempts`/`fires` are still `pub`, so a prior-skipping primitive that writes the maps directly **compiles clean** (measured). Privatise the fields behind read-only accessors. Ordered before `.4b.1`, which adds a new writer path. |
+| 11 | `COVERAGE-STEERED-GENERATION.4b.1` | `pending` | The 7 module-level motif knobs. **Not purely mechanical** (decision `0035` Correction): 3 of the 7 roll *before any `Module` exists* — the roll chooses which builder to call — so they need a `Generator::pending_knob_rolls` buffer drained into the module once built, with the drain inside `ir::knob_roll`. Also carries the `KnobId::all()` guard (38 entries). |
+| 12 | `COVERAGE-STEERED-GENERATION.4b.2` | `pending` | The 9 emit-projection knobs: the `&SteeringConfig` parameter across nine `annotate_*` passes and ~99 call sites. Makes ANVIL's structured-emission family measurable per-gate for the first time. |
+| 13 | `COVERAGE-STEERED-GENERATION.4c` | `pending` | Docs + close `.4`. |
 
 **Tree status: `active` (`2026-07-30`).** The `.1`/`.2` scope stays closed
-(`2026-06-22`) and `.3` closed the same day it opened. Open frontier: **`.4b.1`**,
-then `.4b.2`, then `.4c` — steering's *width* (`.4a` design done, decision `0035`).
+(`2026-06-22`) and `.3` closed the same day it opened. Open frontier: **`.5`** (complete the
+`.3b` guard — measured incomplete), then **`.4b.1`** → `.4b.2` → `.4c` — steering's
+*width* (`.4a` design done, decision `0035`, since amended with a dated Correction).
 The remaining decision-`0023` follow-up (the in-generator adaptive schedule) is
 still a future `.N` and is unaffected by any of it.
 
@@ -491,3 +501,28 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
   needs an R2 guard — proposed as a private exhaustive `index()` match plus a derived
   length test, to be confirmed against the real code at `.4b.1`. Docs-only ⇒ DUT
   byte-identical.
+- `2026-07-30`: **`.4b.1` recon found two facts `.4a` did not account for**; both recorded
+  as a dated *Correction* section on decision `0035` rather than edited into it silently.
+  (1) **Three of the seven motif rolls have no `Module` to record into.**
+  `width_parameterization_prob` / `memory_prob` / `fsm_prob` roll at
+  `src/gen/module.rs:385/401/414` and each **`return`s a differently-built module** at
+  `390/404/417`, while that function's own first `Module` binding is at line `432` — the
+  roll *chooses which module to construct*. So `.4b.1` is design work, not mechanical
+  routing: the proposed shape is a `Generator::pending_knob_rolls` buffer that pre-module
+  rolls record into, drained into `m.knob_rolls` once the module exists, with the drain
+  living **inside** `ir::knob_roll` so the one-writer property survives. Recording after
+  the fact from the call site is rejected on sight — that is exactly the "roll here,
+  record there" split decision `0034` exists to prevent. (2) **The `.3b` R2 guard is
+  incomplete** — see `.5` below.
+- `2026-07-30`: **`.5` registered** (`pending`, ordered *before* `.4b.1`). Measured with a
+  compile probe: privatising `KnobRollCounters::record` at `.3b` left `attempts` and
+  `fires` as `pub` fields, so a second roll primitive that skips the steering prior and
+  writes the maps **directly** compiles **clean** (`cargo check --all-targets` exit `0`).
+  The guard blocks the obvious route and not the equivalent one — which, by `.3b`'s own
+  stated principle (*guard the effect, not the wrapper*), means it does not yet guard the
+  effect. Fix: private fields + read-only accessors (the only external consumer is
+  `metrics::compute`). Ordered first because `.4b.1` adds a **new** writer path and should
+  be designed against a complete guard. The transferable lesson, recorded on `0035`: when
+  building an R2 guard, **enumerate every way the protected state can be written, not just
+  the intended one** — `0034`'s own "search the effect, not the shape" rule, turned on the
+  guard instead of on the defect.

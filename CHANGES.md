@@ -1,6 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — COVERAGE-STEERED-GENERATION.4a — corrections from the `.4b.1` recon
+
+**Landed as:** `<pending>` (previous: `cc817d6`, `COVERAGE-STEERED-GENERATION.4a` hash backfill).
+**Docs-only** — no `src/` change ⇒ **DUT byte-identical**. Amends decision `0035`
+with a dated *Correction* section and registers a new leaf `.5`.
+
+Implementation recon for `.4b.1`, run immediately after `.4a` landed, found two
+facts the design did not account for. Both are recorded rather than edited away.
+
+**1. Three of the seven motif rolls have no `Module` to record into.** `.4a`
+assumed every motif roll could be routed through
+`Generator::roll_knob(&mut self, m: &mut Module, …)`. Measured in
+`src/gen/module.rs::generate_leaf_module_with_interface_profile`:
+`width_parameterization_prob`, `memory_prob` and `fsm_prob` roll at lines
+385/401/414 and each **`return`s a differently-built module**
+(`build_parameterizable_leaf` / `build_memory_leaf` / `build_fsm_block`) at
+390/404/417 — while that function's own first `Module` binding is at line **432**.
+The roll *chooses which module to construct*, so at the moment of the roll there
+is nothing to record into.
+
+Not a blocker, but design work rather than mechanical routing. The shape that fits
+the `0034` invariant: a small `Generator::pending_knob_rolls` buffer that
+pre-module rolls record into, drained into `m.knob_rolls` once the module is built,
+with the drain living **inside** `ir::knob_roll` so the one-writer property
+survives. Rejected on sight: recording after the fact from the call site — that is
+exactly the "roll here, record there" split decision `0034` exists to prevent.
+
+**2. The `.3b` R2 guard is incomplete — and this one is a defect in work committed
+earlier today.** `0034` privatised `KnobRollCounters::record` but left `attempts`
+and `fires` as `pub` fields. Measured with a compile probe in
+`src/gen/hierarchy.rs`: a second roll primitive that skips the steering prior and
+writes the maps **directly** —
+
+```rust
+let fired = rng.gen_bool(prob);                                  // no prior
+*m.knob_rolls.attempts.entry(knob).or_insert(0) += 1;            // compiles
+if fired { *m.knob_rolls.fires.entry(knob).or_insert(0) += 1; }  // compiles
+```
+
+— builds **clean** (`cargo check --all-targets` exit `0`). The guard blocks the
+obvious route and not the equivalent one, which by its own stated principle —
+*guard the effect, not the wrapper* — means it does not yet guard the effect.
+
+Registered as `COVERAGE-STEERED-GENERATION.5`: privatise the two fields behind
+read-only accessors (the only external consumer is `metrics::compute`, which
+iterates them), negative-controlled both ways exactly as `.3b` did for `record`.
+**Ordered before `.4b.1`**, because `.4b.1` introduces a *new* writer path (the
+pending-counter drain) and that path should be designed against a complete guard.
+
+**The generalisable lesson**, recorded on decision `0035`: `0034` chose R2 over R4
+on the argument that the type system enforces the property for free. The argument
+was right; the *application* was half-done. When building an R2 guard, **enumerate
+every way the protected state can be written, not just the intended one** — which
+is `0034`'s own "search the effect, not the shape" rule, turned on the guard rather
+than on the defect.
+
+**Validation.** `scripts/check_doctrines.sh` all 7 PASS; Knowledge Map regenerated
++ checked. The two probes were run against the real compiler and reverted; the
+worktree is byte-identical to `cc817d6` apart from the documentation changes.
+
+**Files touched.** `docs/decisions/0035-steering-width-motif-and-emission-knobs.md`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4a — steering's width (decision 0035)
 
 **Landed as:** `040ebc3` (previous: `a42d3b5`, `BOOK-EXAMPLES-RUNNABLE.3` hash backfill).
