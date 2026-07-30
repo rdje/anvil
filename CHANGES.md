@@ -1,9 +1,121 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.7 — the doctrine that found three stale copies of itself
+
+**Landed as:** this commit (previous: `75057a4`, `SHADOW-ENUMERATION-SWEEP.6`).
+**No `src/` change at all** ⇒ **DUT byte-identical** by construction;
+`tests/snapshots.rs` 6/6 and `mdbook build` clean anyway. **Closes the
+`SHADOW-ENUMERATION-SWEEP` tree** (all seven leaves).
+
+**What.** The last leaf: the docs/script pairs, the only sites in decision `0033`'s audit
+with **neither a compiler nor `cargo test`**, and therefore the only ones that need repair
+rung **R4** — a registered doctrine. Ships `ENUMERATION-PARITY`
+(`scripts/check_enumeration_parity.sh`), registered in the `DOCTRINES` array and given a
+`DOCTRINE_ENFORCEMENT.md` §10 row.
+
+**And on its first run it found three simultaneously-stale published copies of the
+registry it was written to guard.**
+
+| site | claimed | actually enforced |
+| --- | --- | --- |
+| `book/src/architecture.md` — *"The live registry:"* | 4 doctrines | 6 |
+| `docs/knowledge/doctrine-enforcement.md` — *"The live registry is **four** doctrines"* | 4 | 6 |
+| `CODEBASE_ANALYSIS.md` — *"`PASS` × **4** doctrines"* | 4 | 6 |
+| `README.md` — *"Live registry (6)"* | 6 ✅ | 6 (would have gone stale on this commit) |
+
+`NO-BOOT-VOLUME-REFS` (decision `0031`) and `EVIDENCE-CITATIONS` (decision `0030`) had both
+shipped without any of the three being updated. The severity is not uniform, and that is
+the point: the **book** is the owner's only window into the project; a **Knowledge Map fact
+card** is what a future agent reads *instead of* re-deriving, so a stale one does not merely
+omit — it **misinforms**; and **`CODEBASE_ANALYSIS.md`** is required by `COMMIT.md` to
+reflect the code *as it now is*.
+
+All four fixed, and all four are now declared sites in the check.
+
+**The check — one doctrine, a declared `PAIRS` table, four pair groups** (`.2` planned two):
+
+| pair | shadow | authoritative source | shape |
+| --- | --- | --- | --- |
+| 1 | `DOCTRINE_ENFORCEMENT.md` §10's table | the `DOCTRINES` registry | exact set equality, **both** directions |
+| 1b | the four live-registry doc sites above | the same registry | coverage |
+| 2 | `book/src/SUMMARY.md` | `book/src/*.md` | exact, **both** directions |
+| 3 | the two book chapters documenting the tool allow-list | the adapter registry | coverage |
+
+Pair 2 matters because mdBook renders **only** what `SUMMARY.md` links — an unlinked
+chapter is written and **never rendered**. Pair 3 is the one `.6` left behind: it derived
+every Rust-side copy of the adapter allow-list and named the book as the last copy outside
+the registry.
+
+**Four design decisions worth keeping.**
+
+- **Declared, not discovered.** Decision `0033` (c) already ruled out a shadow *detector*
+  as unmechanizable; the coverage pairs name their sites for the same reason. "Any chapter
+  mentioning two adapter ids" also matches an ordinary `--tools verilator,yosys` **example**
+  — and a gate that cries wolf gets deleted, taking its real coverage with it.
+- **The `PAIRS` table is authoritative, not a shadow.** No set in the repo enumerates
+  *"which lists shadow which sets"*, so rule (a)'s test (1) fails and the mechanism does not
+  recurse. It lives **inside the script**, for the same reason the `DOCTRINES` registry lives
+  inside its driver: a separate data file would need a schema, a parser, and a "does the file
+  exist / is it well-formed" meta-check — three mechanisms to hold one table read by one
+  script (`feedback_full_factorization`). That answers the tree's last open question.
+- **Every extraction is count-floored.** A broken extractor would make the gate pass
+  *vacuously* — the exact failure this tree exists to remove, and one
+  `EVIDENCE-BANK-DURABILITY.5` already demonstrated. NC-F proves the floor fires and says
+  *"the extractor is broken, not the enumeration; do NOT lower the floor."*
+- **Two counts deleted rather than gated.** `README.md`'s "Live registry (6)" and the fact
+  card's "is four doctrines" were *numbers beside the list they count* — a second copy of
+  the same set with none of the list's value. Under rule (a) a redundant count is itself a
+  shadow, and the cheapest repair is **R1 by deletion**. Recorded because "gate the count
+  too" is the tempting answer and it keeps a shadow alive.
+
+**The doctrine gates its own registration.** Pair 1 read `7 entries` the moment
+`ENUMERATION-PARITY` joined `DOCTRINES` — the check would have **failed this leaf** had the
+§10 row been forgotten.
+
+**Validation.**
+
+- `bash scripts/check_doctrines.sh` — exit `0`, **7 registered doctrines, all PASS**; the
+  driver's meta-check confirms the new script exists and is executable.
+- `mdbook build book` **0** · `knowledge-map/scripts/check_knowledge_map.sh` **0** (85 facts,
+  850 question keys, map in sync after regenerating for the edited fact card) ·
+  `cargo test --test snapshots` **6 passed, 0 failed**.
+- **NC-A:** delete the new §10 row ⇒ exit 1, *"in the DOCTRINES registry but MISSING from
+  DOCTRINE_ENFORCEMENT.md §10: ENUMERATION-PARITY"*.
+- **NC-B:** restore ⇒ exit 0; `diff` vs backup byte-identical.
+- **NC-C:** delete `sharing.md`'s link from `SUMMARY.md` ⇒ exit 1, *"in book/src/*.md but
+  MISSING from book/src/SUMMARY.md: sharing.md"*.
+- **NC-D (the reverse direction):** link a `ghost-chapter.md` that does not exist ⇒ exit 1,
+  *"in book/src/SUMMARY.md but NOT in book/src/*.md: ghost-chapter.md"*.
+- **NC-E:** add a sixth adapter to `src/downstream/mod.rs` without touching the book ⇒
+  exit 1, both declared chapters named.
+- **NC-F (the vacuity leg):** break the registry-id extractor so it matches nothing ⇒
+  exit 1 on the floor, not a silent pass.
+- **NC-G:** remove `ENUMERATION-PARITY` from `README.md`'s live-registry sentence ⇒ exit 1,
+  *"README.md does not name: ENUMERATION-PARITY"*.
+- Source restored byte-identical after **every** control; final check run exit `0`.
+
+**Impact.** `SHADOW-ENUMERATION-SWEEP` **closes**. Across seven leaves the class is held by
+the full repair ladder instead of by diligence: **R1** (derive) at the `tool_matrix` gate
+table and the MCP allow-list, **R2** (compile error) via the two exhaustive fixtures, **R3**
+(derived `#[test]`) for the config applier and the coverage merger, **R4** (registered
+doctrine) here. The finding that outlived the tree: it opened believing these lists were
+*"one omission away"* from being bugs — measurement found **five** omissions that had
+already happened, two in the MCP API's self-description and three in the published doctrine
+registry, none of which anything had noticed. No phase labels move.
+
+**Files touched.** `scripts/check_enumeration_parity.sh` (new),
+`scripts/check_doctrines.sh`, `DOCTRINE_ENFORCEMENT.md`, `README.md`,
+`CODEBASE_ANALYSIS.md`, `book/src/architecture.md`,
+`docs/knowledge/doctrine-enforcement.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/SHADOW-ENUMERATION-SWEEP.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
+---
+
 ## 2026-07-30 — SHADOW-ENUMERATION-SWEEP.6 — the allow-list the API now reads back
 
-**Landed as:** this commit (previous: `25b4ebf`, `SHADOW-ENUMERATION-SWEEP.4`).
+**Landed as:** `75057a4` (previous: `25b4ebf`, `SHADOW-ENUMERATION-SWEEP.4`).
 `src/mcp/mod.rs` only, and MCP lives beside the generator ⇒ **DUT byte-identical**,
 `tests/snapshots.rs` untouched (6/6).
 

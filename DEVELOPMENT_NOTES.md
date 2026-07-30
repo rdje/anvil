@@ -5,6 +5,63 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-30 — A count beside a list is a shadow of that list — `SHADOW-ENUMERATION-SWEEP.7`
+
+Two of the sites this leaf repaired said the same thing twice:
+
+```
+README.md                             "Live registry (6): A, B, C, D, E, F"
+docs/knowledge/doctrine-enforcement   "The live registry is four doctrines:"  + a 4-item list
+```
+
+The number is a second copy of the list's *length*. It satisfies all three tests of
+decision `0033` rule (a) — derivable (count the list), growth-coupled (a new doctrine
+changes it), silent (nothing fails when it doesn't) — and unlike the list itself it carries
+no information the reader could not get by looking. It is a shadow with zero upside.
+
+The tempting repair is to gate the number too: extract it, compare it to the list length,
+fail on mismatch. That is a real check and it would work. It is also the wrong answer,
+because it *keeps the shadow alive* and spends a mechanism on it forever. The right repair
+is the ladder's cheapest rung: **delete the count.** `README.md` now reads "Live registry:
+A, B, C, …" and the fact card names its doctrines without claiming how many.
+
+Generalized: when a derived value and its source sit side by side and the derived one is
+free to compute by reading, drop the derived one. Gate what you cannot delete.
+
+---
+
+## 2026-07-30 — The premise was too generous: five omissions had already happened — `SHADOW-ENUMERATION-SWEEP` (tree close)
+
+The tree opened on a careful, defensible claim: these hand-maintained lists are all
+**currently correct**, and the defect is that their correctness *rests on diligence*.
+`.1` wrote it explicitly — *"Nothing here is a live bug."*
+
+That was wrong twice, and both times in the same direction.
+
+| leaf | site | claimed | actual |
+| --- | --- | --- | --- |
+| `.6` | MCP server `instructions` | 5 adapters | **3** |
+| `.6` | `validate` tool description | 5 | **4** |
+| `.7` | `book/src/architecture.md` | 6 doctrines | **4** |
+| `.7` | `docs/knowledge/doctrine-enforcement.md` | 6 | **4** |
+| `.7` | `CODEBASE_ANALYSIS.md` | 6 | **4** |
+
+Five omissions, in two of the audited sites, none of which anything had noticed — across
+four separate landing slices (`sv2v`, `slang`, `NO-BOOT-VOLUME-REFS`, `EVIDENCE-CITATIONS`),
+each of which was itself a careful, gated, doc-updating commit.
+
+**Why the premise held anyway in the places we looked hardest.** `.1` and `.2` audited
+*structured* copies — a `match`, an array, a merge line — and those were complete. Both
+sets of already-stale copies were **prose**: a sentence in a tool description, a bullet list
+in a chapter. Prose is where the shadow rots first, because it is the only copy nobody
+greps for when adding an entry, and because updating it is the step that feels optional.
+
+**The correction to carry forward**: when auditing a defect class, do not assume the
+instances are latent. *Measure* each site against its source before writing "currently
+correct" — the sentence costs one command and it was wrong five times here.
+
+---
+
 ## 2026-07-30 — An audit keyed to the *shape* under-counts; key it to the *content* — `SHADOW-ENUMERATION-SWEEP.6`
 
 Decision `0033`'s 20-site audit recorded "four hardcoded adapter-id JSON-schema `enum`

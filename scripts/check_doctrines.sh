@@ -33,6 +33,7 @@ DOCTRINES=(
   "TASK-TREE-OWNERSHIP|a staged code change co-stages an owning docs/tasks/*.md task file (2026-05-17 doctrine; COMMIT.md task-tree rule #2); non-code commits exempt|scripts/check_task_tree_ownership.sh"
   "NO-BOOT-VOLUME-REFS|no tracked file stores on or points at the boot volume, and std::env::temp_dir() is confined to src/paths.rs (decision 0031); policy docs + append-only history exempt|scripts/check_no_boot_volume_refs.sh"
   "EVIDENCE-CITATIONS|every cited evidence bank is digest-backed under docs/evidence/ or explicitly classified in its frozen inventory (decision 0030 + its 2026-07-30 amendment); the grandfathered list cannot grow|scripts/check_evidence_citations.sh"
+  "ENUMERATION-PARITY|every declared docs/script enumeration pair is in parity with the set it mirrors (decision 0033); classified pairs only — this is not a shadow detector|scripts/check_enumeration_parity.sh"
 )
 
 fail=0

@@ -2609,17 +2609,23 @@ In `ir::validate::validate_design`:
 - `cargo fmt --all --check` — clean.
 - `mdbook build book` — clean.
 - `scripts/check_doctrines.sh` — the doctrine-enforcement registry+driver
-  (`DOCTRINE-ENFORCEMENT-ADOPTION`, decision `0026`) — clean: `PASS` × 4
-  doctrines (`MEMORY-ARCH` → `scripts/check_memory_architecture.sh`;
+  (`DOCTRINE-ENFORCEMENT-ADOPTION`, decision `0026`) — clean: every registered
+  doctrine `PASS` (`MEMORY-ARCH` → `scripts/check_memory_architecture.sh`;
   `KNOWLEDGE-MAP` → `knowledge-map/scripts/check_knowledge_map.sh`;
   `CODE-CHANGE-EVIDENCE` → `scripts/check_diagnosis_evidence.sh`;
-  `TASK-TREE-OWNERSHIP` → `scripts/check_task_tree_ownership.sh`). The driver
+  `TASK-TREE-OWNERSHIP` → `scripts/check_task_tree_ownership.sh`;
+  `NO-BOOT-VOLUME-REFS` → `scripts/check_no_boot_volume_refs.sh`;
+  `EVIDENCE-CITATIONS` → `scripts/check_evidence_citations.sh`;
+  `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh`). The driver
   collects all results, meta-checks each registered check exists+executable,
   and exits nonzero on any breach. `.githooks/pre-commit` (E3) and
   `.github/workflows/ci.yml` (E4) both run it; the two code-scoped checks are
   scope-aware (non-code commits exempt). The standard + live registry is
   `DOCTRINE_ENFORCEMENT.md`; ANVIL's own diagnostic toolbox + the
-  acceptance-checklist is `TOOLBOX.md`.
+  acceptance-checklist is `TOOLBOX.md`. This list is kept in parity with the
+  driver by `ENUMERATION-PARITY` itself (`SHADOW-ENUMERATION-SWEEP.7`); it had
+  gone two doctrines stale before that check existed, which is why it no longer
+  carries a hand-written count.
 - Generator-output smoke: focused current default `tool_matrix`
   (`cargo run --bin tool_matrix -- --out
   anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap

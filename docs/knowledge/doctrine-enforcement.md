@@ -18,7 +18,7 @@ date: 2026-06-22
 status: current
 tags: [doctrine, enforcement, ci, hooks, task-tree, toolbox, process, portability]
 reverify: bash scripts/check_doctrines.sh
-evidence: DOCTRINE_ENFORCEMENT.md; scripts/check_doctrines.sh; scripts/check_diagnosis_evidence.sh; scripts/check_task_tree_ownership.sh; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; TOOLBOX.md; .githooks/pre-commit; .github/workflows/ci.yml; docs/decisions/0026-doctrine-enforcement-adoption.md; docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md
+evidence: DOCTRINE_ENFORCEMENT.md; scripts/check_doctrines.sh; scripts/check_diagnosis_evidence.sh; scripts/check_task_tree_ownership.sh; scripts/check_memory_architecture.sh; scripts/check_no_boot_volume_refs.sh; scripts/check_evidence_citations.sh; scripts/check_enumeration_parity.sh; knowledge-map/scripts/check_knowledge_map.sh; TOOLBOX.md; .githooks/pre-commit; .github/workflows/ci.yml; docs/decisions/0026-doctrine-enforcement-adoption.md; docs/decisions/0033-shadow-enumeration-classification.md; docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md
 ---
 
 ANVIL enforces every load-bearing doctrine with a deterministic check run from
@@ -26,7 +26,9 @@ one registry+driver, `scripts/check_doctrines.sh` (the fourth portable
 architecture; standard `DOCTRINE_ENFORCEMENT.md`, decision `0026`). The driver
 collects all results, meta-checks each registered check exists+executable
 (`REGISTRY ERROR` on a dangling entry), prints a per-doctrine PASS/FAIL report,
-and exits nonzero on any breach. The live registry is four doctrines:
+and exits nonzero on any breach. The live registry (kept in parity with the
+driver by `ENUMERATION-PARITY` itself; no count is stated here because a number
+beside a list is a second copy of it):
 
 - `MEMORY-ARCH` → `scripts/check_memory_architecture.sh` (structural).
 - `KNOWLEDGE-MAP` → `knowledge-map/scripts/check_knowledge_map.sh` (structural).
@@ -34,6 +36,15 @@ and exits nonzero on any breach. The live registry is four doctrines:
   scope-aware: a staged code change must co-stage `CHANGES.md` + `MEMORY.md`).
 - `TASK-TREE-OWNERSHIP` → `scripts/check_task_tree_ownership.sh` (structural,
   scope-aware: a staged code change must co-stage an owning `docs/tasks/*.md`).
+- `NO-BOOT-VOLUME-REFS` → `scripts/check_no_boot_volume_refs.sh` (structural:
+  no tracked file points at the boot volume; `temp_dir()` confined to
+  `src/paths.rs`; decision `0031`).
+- `EVIDENCE-CITATIONS` → `scripts/check_evidence_citations.sh` (structural,
+  fail-closed: every cited evidence bank is digest-backed or classified;
+  decision `0030`).
+- `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh` (structural:
+  every declared docs/script enumeration pair matches the set it mirrors —
+  including this list; decision `0033`).
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
 `src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`). `.githooks/pre-commit`

@@ -3,11 +3,13 @@
 ## Metadata
 
 - Tree ID: `SHADOW-ENUMERATION-SWEEP`
-- Status: `active`
+- Status: `closed` (`2026-07-30`) — all seven leaves done; the class is either derived
+  away (R1), compiler-maintained (R2), guarded by a derived `#[test]` (R3), or held by
+  the registered `ENUMERATION-PARITY` doctrine (R4).
 - Roadmap lane: Quality / defect-class elimination (cross-cutting; no phase reopened)
 - Created: `2026-07-30`
-- Last updated: `2026-07-30` (`.1`/`.2`/`.3`/`.4`/`.5`/`.6` done — decision
-  [`0033`](../decisions/0033-shadow-enumeration-classification.md); frontier `.7`)
+- Last updated: `2026-07-30` (all seven leaves done — decision
+  [`0033`](../decisions/0033-shadow-enumeration-classification.md); tree **closed**)
 - Owner: repo-local workflow (owner-directed `2026-07-30`: *"the only way to have any
   defect handled is to have it task-tree tracked"*)
 
@@ -137,7 +139,7 @@ report — it is a 149-entry list that is one omission away from being one.
 ## Task Tree
 
 - ID: `SHADOW-ENUMERATION-SWEEP`
-  Status: `active`
+  Status: `closed` (`2026-07-30`)
   Goal: eliminate silent shadow enumerations; record the ones that must stay.
   Children: `.1` (register + audit), `.2` (design ADR — decision `0033`), `.3`–`.7`
         (one fix per site, in the severity order `.3` → `.5` → `.4` → `.6` → `.7`)
@@ -328,7 +330,7 @@ report — it is a 149-entry list that is one omission away from being one.
         **DUT byte-identical**; `tests/snapshots.rs` untouched.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.7`
-  Status: `pending`
+  Status: `done` (`2026-07-30`)
   Goal: **execution order 5** (S1). The two docs/script-side pairs, which have neither a
         compiler nor `cargo test` and so can only take **R4**: `DOCTRINE_ENFORCEMENT.md`
         §10's table (6 rows) shadowing the `DOCTRINES` array (6 entries) — a documented
@@ -343,6 +345,52 @@ report — it is a 149-entry list that is one omission away from being one.
         §4 contract, is registered in `DOCTRINES`, and is negative-controlled in both
         directions on both pairs; the §10 table gains a row for it; docs/script only ⇒
         DUT byte-identical.
+  Delivered: the `ENUMERATION-PARITY` doctrine — **and on its very first run it found
+        three simultaneously-stale published copies of the registry it was written to
+        guard.** The doctrine did not have to wait for a future omission; the omissions
+        were already there.
+        - **The live defect (three sites, all claiming to be current).**
+          `book/src/architecture.md` ("The live registry:"),
+          `docs/knowledge/doctrine-enforcement.md` ("The live registry is **four**
+          doctrines"), and `CODEBASE_ANALYSIS.md` ("`PASS` × **4** doctrines") each
+          published a **four**-doctrine registry while **six** were enforced —
+          `NO-BOOT-VOLUME-REFS` (decision `0031`) and `EVIDENCE-CITATIONS` (decision
+          `0030`) had both shipped without any of the three being updated. Severity is
+          not uniform across them and that is the point: the book is *the owner's only
+          window into the project*; a Knowledge Map card is what a future agent reads
+          **instead of** re-deriving, so a stale one does not merely omit — it
+          **misinforms**; and `CODEBASE_ANALYSIS.md` is required by `COMMIT.md` to
+          reflect the code *as it now is*. `README.md` was correct at six and would have
+          gone stale on this very commit.
+        - **One check, a declared `PAIRS` table, four pair groups** (`.2` planned two):
+          §10's table ↔ the `DOCTRINES` registry (exact set equality, both directions);
+          the four live-registry doc sites ↔ the same registry (coverage);
+          `book/src/SUMMARY.md` ↔ `book/src/*.md` (exact, both directions — mdBook
+          renders only what `SUMMARY.md` links, so an unlinked chapter is written and
+          never rendered); and the two book chapters documenting the downstream-tool
+          allow-list ↔ the adapter registry (coverage), the pair `.6` left behind.
+        - **Declared, not discovered.** Decision `0033` (c) already ruled out a shadow
+          *detector*; the sites in the coverage pairs are **named** in the table for the
+          same reason — "any chapter naming two adapter ids" also matches an ordinary
+          `--tools verilator,yosys` example, and a gate that cries wolf gets deleted.
+          The table is authoritative under rule (a) (no set enumerates *"which lists
+          shadow which sets"* ⇒ test (1) fails), so the mechanism does not recurse.
+        - **Every extraction is count-floored.** A broken extractor would make the gate
+          pass vacuously — the exact failure this tree exists to remove, and one
+          `EVIDENCE-BANK-DURABILITY.5` already demonstrated. NC-F proves the floor fires
+          and says *"the extractor is broken, not the enumeration"*.
+        - **Two counts deleted rather than gated.** `README.md`'s "Live registry (6)"
+          and the fact card's "is four doctrines" were *numbers beside the list they
+          count* — a second copy of the same set, with none of the list's value. Under
+          rule (a) a redundant count is itself a shadow; the cheapest repair is **R1 by
+          deletion**. Recorded because "gate the count too" is the tempting answer and
+          it keeps a shadow alive.
+        - **The doctrine gates its own registration.** Pair 1 read `7 entries` the
+          moment `ENUMERATION-PARITY` joined `DOCTRINES` — the check would have failed
+          had this leaf registered it without adding the §10 row.
+  Verification: seven negative controls, both directions on every exact pair — see the
+        Verification Log. No `src/` change at all ⇒ **DUT byte-identical** by
+        construction; `tests/snapshots.rs` 6/6 and `mdbook build` clean anyway.
 
 - ID: `SHADOW-ENUMERATION-SWEEP.3`
   Status: `done` (`2026-07-30`)
@@ -450,7 +498,7 @@ report — it is a 149-entry list that is one omission away from being one.
 | — | `.4` | `done` | **S1**, closed with the `.5` pattern reused verbatim: an exhaustive 149-field `CoverageSummary` fixture the compiler maintains, a serde-projection leg-1 equality, and a per-fact leg 2. NC-C is the payoff — a cross-wired merge line left leg 1 **green**. |
 | — | `.3` | `done` | The only **S3** site in the audit, closed by **R1**: one `static GATES` table, four sites derived from it, and `fail_on_coverage_gap` reduced to *"some registered gate is enabled"*. Negative-controlled both ways, and the S3 defect reproduced on purpose before the guard was proven to catch it. |
 | — | `.5` | `done` | **S2**, closed by **R3 with an R2-protected fixture**: an exhaustive `Overrides` literal the compiler maintains, a serde-derived expectation, a pinned not-overridable complement, and a second leg catching leaky applier lines the first cannot see. Five negative controls. |
-| 1 | `.7` | `pending` | **Current frontier. S1**, and the last leaf. The two docs/script pairs — the only sites with no compiler and no `cargo test`, so the only ones that need a registered doctrine (`ENUMERATION-PARITY`). `.6` adds a third candidate pair for its table: `book/src/api-tools.md`'s hand-written `tools` `enum` (now the only remaining copy of the adapter-id list outside the registry). |
+| — | `.7` | `done` | **S1**, the last leaf. One registered `ENUMERATION-PARITY` doctrine over a declared `PAIRS` table — four pair groups, not the two `.2` planned. On its **first run** it found **three** simultaneously-stale published copies of the very registry it guards (the book, a Knowledge Map fact card, and `CODEBASE_ANALYSIS.md` all advertising four doctrines while six were enforced). Seven negative controls. |
 | — | `.2` | `done` | The classification rule, the repair ladder, the mechanizability verdict, the severity tiers, and the 20-site audit — decision `0033`. |
 | — | `.1` | `done` | Registered + audited. |
 
@@ -567,12 +615,33 @@ report — it is a 149-entry list that is one omission away from being one.
 
 **Open for `.7`:**
 
-- Should `ENUMERATION-PARITY`'s declared-pairs table live inside the check script, or in
-  a small tracked data file the check reads?
-- `.6` leaves one adapter-id copy outside the registry: `book/src/api-tools.md`'s
-  hand-written `tools` `enum` (`"verilator" | "yosys" | …`). It is a docs pair with no
-  compiler and no `cargo test`, so it is a candidate row for `.7`'s pairs table alongside
-  the `DOCTRINE_ENFORCEMENT.md` §10 and `SUMMARY.md` pairs.
+- ~~Should `ENUMERATION-PARITY`'s declared-pairs table live inside the check script, or in
+  a small tracked data file the check reads?~~ **Answered: inside the script**, for the
+  same reason the `DOCTRINES` registry lives inside its driver. A data file would need a
+  schema, a parser, and a "does the data file exist / is it well-formed" meta-check —
+  three new mechanisms to hold one table that is only ever read by one script
+  (`feedback_full_factorization`). Its authority under rule (a) is identical either way.
+- ~~`.6` leaves one adapter-id copy outside the registry: `book/src/api-tools.md`'s
+  hand-written `tools` `enum`.~~ **Answered: it became pair 3**, together with
+  `book/src/agent-mcp.md` (which `.6`'s note missed — it states the allow-list twice).
+  Both are **coverage** checks, not set equality: a chapter may legitimately name a subset
+  in an example, and nothing is ever retired (`feedback_never_retire_strategies`), so the
+  failure that matters is a doc that fell *behind* the set.
+
+**Answered by `.7`:**
+
+- ~~Can the docs/script class be held without a detector?~~ **Answered: yes, and the
+  first run paid for the whole tree.** `ENUMERATION-PARITY` found **three**
+  simultaneously-stale copies of the doctrine registry (`book/src/architecture.md`, the
+  `docs/knowledge/doctrine-enforcement.md` fact card, `CODEBASE_ANALYSIS.md` — all
+  publishing four doctrines while six were enforced). The tree opened on the premise that
+  these lists were *"one omission away"*; measured, both the `.6` site and the `.7` site
+  had **already omitted**, twice each. The premise was too generous.
+- **New rule, recorded: a count beside a list is a shadow of that list.** `README.md`'s
+  "Live registry (6)" and the fact card's "is four doctrines" were numbers duplicating the
+  length of the list they introduce — derivable ∧ growth-coupled ∧ silent, with none of the
+  list's value. Repaired by **deletion** (R1's cheapest form), not by gating the number.
+  "Gate the count too" is the tempting answer and it keeps a shadow alive.
 
 ## Blockers
 
@@ -641,6 +710,20 @@ report — it is a 149-entry list that is one omission away from being one.
 | `2026-07-30` | `.6` | **NC-D** — restore | green; `diff` vs backup byte-identical |
 | `2026-07-30` | `.6` | **NC-E (the acceptance criterion, demonstrated)** — add a sixth `ProbeAdapter` to `ADAPTER_REGISTRY` and change **nothing** under `src/mcp/` | all four schema `enum`s, both prose sites, and the allow-list error picked up `probe`; the three derived guards stayed **green** because they derive too. Separately confirmed the registry's own landing pin (`adapter_registry_lists_the_originals_then_new_adapters`) fails on the 6th entry ⇒ the registry itself is not silently growable. `src/downstream/mod.rs` restored byte-identical |
 | `2026-07-30` | `.6` | Diff scope | `src/mcp/mod.rs` only; MCP is beside the generator (no `src/gen`/`src/emit`/`src/ir`/`src/config`) ⇒ **DUT byte-identical** |
+| `2026-07-30` | `.7` | Every doc claiming to publish the doctrine registry, vs the `DOCTRINES` array | **THREE ALREADY STALE**: `book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md`, and `CODEBASE_ANALYSIS.md` each named **4** of the **6** enforced doctrines (missing `NO-BOOT-VOLUME-REFS` + `EVIDENCE-CITATIONS`). `README.md` was correct at 6 and would have gone stale on this commit |
+| `2026-07-30` | `.7` | `DOCTRINE_ENFORCEMENT.md` §10 rows vs `DOCTRINES` · `SUMMARY.md` links vs `book/src/*.md` · adapter ids vs the two book chapters | **7 / 7** · **29 / 29** · **5 / 5 in both files** — in parity after the fix |
+| `2026-07-30` | `.7` | `bash scripts/check_doctrines.sh` (the driver, with the new doctrine registered) | exit `0` — **7 registered doctrines, all PASS**; the meta-check confirms the new script exists + is executable |
+| `2026-07-30` | `.7` | `mdbook build book` · `knowledge-map/scripts/check_knowledge_map.sh` · `cargo test --test snapshots` | exit `0` / `0` (85 facts, 850 question keys, map in sync) / **6 passed, 0 failed** |
+| `2026-07-30` | `.7` | **Self-gating** — register `ENUMERATION-PARITY` in `DOCTRINES`, then run pair 1 | read `7 entries` immediately; the check would have **failed this leaf** had the §10 row been forgotten. The doctrine gates its own registration |
+| `2026-07-30` | `.7` | **NC-A** — delete the new §10 row (shadow falls behind the registry) | **exit 1** — *"in the DOCTRINES registry but MISSING from DOCTRINE_ENFORCEMENT.md §10: ENUMERATION-PARITY"* |
+| `2026-07-30` | `.7` | **NC-B** — restore | exit `0`; `diff` vs backup byte-identical |
+| `2026-07-30` | `.7` | **NC-C** — delete `sharing.md`'s link from `SUMMARY.md` (a chapter written but never rendered) | **exit 1** — *"in book/src/*.md but MISSING from book/src/SUMMARY.md: sharing.md"* |
+| `2026-07-30` | `.7` | **NC-D (the reverse direction)** — link a `ghost-chapter.md` that does not exist | **exit 1** — *"in book/src/SUMMARY.md but NOT in book/src/*.md: ghost-chapter.md"*. Both directions proven on the exact pairs |
+| `2026-07-30` | `.7` | **NC-E** — add a sixth adapter to `src/downstream/mod.rs` without touching the book | **exit 1** — both declared chapters named: *"book/src/api-tools.md does not name: probeadapter"*, same for `agent-mcp.md` |
+| `2026-07-30` | `.7` | **NC-F (the vacuity leg)** — break the registry-id extractor so it matches nothing | **exit 1** — *"extractor 'DOCTRINES registry ids' produced 0 entries (floor 5) — the extractor is broken, not the enumeration… do NOT lower the floor"*. A silently-empty extractor is a breach, not a pass |
+| `2026-07-30` | `.7` | **NC-G** — remove `ENUMERATION-PARITY` from `README.md`'s live-registry sentence | **exit 1** — *"README.md does not name: ENUMERATION-PARITY"* |
+| `2026-07-30` | `.7` | Source restored byte-identical after every control (`DOCTRINE_ENFORCEMENT.md`, `SUMMARY.md`, `src/downstream/mod.rs`, `README.md`, the check itself) | `diff` vs backup **0** in every case; final check run exit `0` |
+| `2026-07-30` | `.7` | Diff scope | **no `src/` change at all** ⇒ DUT byte-identical by construction |
 
 ## Commit Log
 
@@ -651,7 +734,8 @@ report — it is a 149-entry list that is one omission away from being one.
 | `.3` | `SHADOW-ENUMERATION-SWEEP.3 — one GATES table; the gate that could not fail` (`4f9720f`) | The S3 fix: `static GATES` + four derived sites + four derived guards |
 | `.5` | `SHADOW-ENUMERATION-SWEEP.5 — the applier the compiler now maintains` (`9a082e9`) | The S2 fix: an E0063-enforced fixture + a serde-derived expectation |
 | `.4` | `SHADOW-ENUMERATION-SWEEP.4 — 149 merges, two legs, one blind spot closed` (`25b4ebf`) | The S1 fix: the `.5` pattern reused; NC-C proves leg 2's independent value |
-| `.6` | `SHADOW-ENUMERATION-SWEEP.6 — the allow-list the API now reads back` | The S1 fix: one `registered_adapter_ids()` behind seven sites; the tree's first **live** defect (two prose sites already stale) |
+| `.6` | `SHADOW-ENUMERATION-SWEEP.6 — the allow-list the API now reads back` (`75057a4`) | The S1 fix: one `registered_adapter_ids()` behind seven sites; the tree's first **live** defect (two prose sites already stale) |
+| `.7` | `SHADOW-ENUMERATION-SWEEP.7 — the doctrine that found three stale copies of itself` | The last leaf: one `ENUMERATION-PARITY` doctrine over a declared `PAIRS` table; three already-stale registry copies fixed |
 
 ## Changelog
 
@@ -691,3 +775,20 @@ report — it is a 149-entry list that is one omission away from being one.
   four adapters respectively against a registry of five. Three derived guards added, none
   a new list; NC-E adds a sixth adapter to the registry alone and watches all seven sites
   follow. Frontier `.7`, the last leaf. `src/mcp/mod.rs` only ⇒ DUT byte-identical.
+- `2026-07-30`: `.7` done — **the tree closes.** One registered `ENUMERATION-PARITY`
+  doctrine (`scripts/check_enumeration_parity.sh`, `DOCTRINE_ENFORCEMENT.md` §10) holds a
+  declared `PAIRS` table of four pair groups, and its **first run found three
+  simultaneously-stale published copies of the doctrine registry it guards** — the book,
+  a Knowledge Map fact card, and `CODEBASE_ANALYSIS.md`, all advertising four doctrines
+  while six were enforced. Two redundant *counts* were deleted rather than gated (a number
+  beside a list is a shadow of that list). Seven negative controls, including a vacuity
+  leg proving a broken extractor fails instead of passing empty. No `src/` change ⇒ DUT
+  byte-identical by construction.
+- `2026-07-30`: **Tree closed.** Across seven leaves the class is now held by the full
+  repair ladder rather than by diligence: **R1** (derive) at the `tool_matrix` gate table
+  and the MCP allow-list, **R2** (compile error) via the two exhaustive fixtures, **R3**
+  (derived `#[test]`) for the config applier and the coverage merger, **R4** (registered
+  doctrine) for the docs/script pairs. **The finding that outlived the tree**: it opened
+  believing these lists were *"one omission away"* from being bugs. Measurement found
+  **five** omissions that had already happened — two in the MCP API's self-description,
+  three in the published doctrine registry — none of which anything had noticed.

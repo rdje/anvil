@@ -464,6 +464,16 @@ Knowledge Map. The live registry:
   `CHANGES.md` + `MEMORY.md` (`COMMIT.md`).
 - **`TASK-TREE-OWNERSHIP`** — a code change co-stages an owning
   `docs/tasks/*.md`, mechanizing the doctrine above.
+- **`NO-BOOT-VOLUME-REFS`** — no tracked file stores on or points at the
+  boot volume, and `std::env::temp_dir()` is named in exactly one file,
+  the runtime path resolver (decision `0031`).
+- **`EVIDENCE-CITATIONS`** — every cited evidence bank is either
+  digest-backed under `docs/evidence/` or explicitly classified in its
+  frozen inventory (decision `0030`). Fail-closed: an unclassified bank
+  name is a breach.
+- **`ENUMERATION-PARITY`** — every *declared* docs/script enumeration
+  pair is in parity with the set it mirrors (decision `0033`) — including
+  this very list, which is checked against the registry it describes.
 
 The driver collects every check's result, meta-checks that each
 registered check exists and is executable (so the registry can never

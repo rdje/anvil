@@ -1025,7 +1025,7 @@ _ANVIL's doctrines are mechanically enforced by scripts/check_doctrines.sh (the 
 
 - **answers:** how are ANVIL's doctrines enforced | what is scripts/check_doctrines.sh | where is the doctrine registry and driver | how do I add a new enforced doctrine | what doctrines does the driver check | is task-tree ownership of code mechanically gated | what runs in the pre-commit hook and CI | what is TOOLBOX.md | where are ANVIL's own diagnostic tools listed | how do I run the doctrine checks | what is CODE-CHANGE-EVIDENCE / TASK-TREE-OWNERSHIP | what is the fourth portable architecture
 - **date:** 2026-06-22 · **status:** current
-- **evidence:** `DOCTRINE_ENFORCEMENT.md; scripts/check_doctrines.sh; scripts/check_diagnosis_evidence.sh; scripts/check_task_tree_ownership.sh; scripts/check_memory_architecture.sh; knowledge-map/scripts/check_knowledge_map.sh; TOOLBOX.md; .githooks/pre-commit; .github/workflows/ci.yml; docs/decisions/0026-doctrine-enforcement-adoption.md; docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md`
+- **evidence:** `DOCTRINE_ENFORCEMENT.md; scripts/check_doctrines.sh; scripts/check_diagnosis_evidence.sh; scripts/check_task_tree_ownership.sh; scripts/check_memory_architecture.sh; scripts/check_no_boot_volume_refs.sh; scripts/check_evidence_citations.sh; scripts/check_enumeration_parity.sh; knowledge-map/scripts/check_knowledge_map.sh; TOOLBOX.md; .githooks/pre-commit; .github/workflows/ci.yml; docs/decisions/0026-doctrine-enforcement-adoption.md; docs/decisions/0033-shadow-enumeration-classification.md; docs/tasks/DOCTRINE-ENFORCEMENT-ADOPTION.md`
 - **reverify:** `bash scripts/check_doctrines.sh`
 - **source:** [`docs/knowledge/doctrine-enforcement.md`](docs/knowledge/doctrine-enforcement.md)
 
