@@ -1,6 +1,87 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)
+
+**Landed as:** `<pending>` (previous: `<the MEMORY.md resume-pointer correction>`).
+**Docs-only** — no `src/` change ⇒ **DUT byte-identical**.
+
+**What.** The audit + design leaf for the owner's `CLAUDE.md` §14 README policy,
+landed on an explicit instruction to take a signoff decision on where
+`## Current CLI truth` should go.
+
+**The measurement reframed the task.** `README.md` is 1771 lines / 122,767 bytes
+against the policy's illustrative `300` / `16,384` — but the per-section table
+shows *where* it lives:
+
+| section | lines | share |
+| --- | ---: | ---: |
+| Project objective (+ three principles) | 38 | 2.1 % |
+| Fast ramp-up (reading order) | 36 | 2.0 % |
+| Key project file paths | 55 | 3.1 % |
+| **Build and validation commands** | **487** | **27.5 %** |
+| **Current CLI truth** | **1141** | **64.4 %** |
+| Maintenance rule + License | 12 | 0.7 % |
+
+Everything the policy's content contract actually asks for totals **141 lines**.
+**The compliant landing page already exists**; it has two appendices bolted on
+that are 92 % of the file. This is not a document that must be rewritten.
+
+**And `## Current CLI truth` is not a CLI reference.** Measured: **zero** command
+or code-fence lines, 50 top-level bullets averaging ~23 lines, 33 lines citing a
+decision record. It is fifty design essays — a representative one explains that
+the ninth emission surface ships a masked `(sel & care) == val` form *because
+Yosys 0.64 rejects the concise `==?` syntax*. That is rationale, and rationale is
+not derivable from `Config`.
+
+**It is a lossy copy — measured, not assumed.** Phrase counts, README vs the
+record and book chapter it already cites:
+
+| phrase | README | decision record | book |
+| --- | ---: | ---: | ---: |
+| `__cv` (the `mux_if` output var) | 7 | 15 (`0027`) | 19 |
+| `passthrough` | 7 | 9 (`0027`) | 16 |
+| `care_mask` | 2 | 9 (`0029`) | — |
+| `Yosys 0.64` | 1 | 3 (`0029`) | — |
+
+Every phrase is better covered where it belongs. So the content does not need
+*moving* — it needs **deleting, with a link left behind**. That reframing is the
+decision: the expensive, risky operation (relocate 1141 lines without loss) turns
+out to be unnecessary for almost all of it.
+
+**A generated CLI reference is rejected** — the option I was asked to weigh, and
+the one I leaned toward before measuring. Three independent reasons:
+
+1. **Nothing to generate.** Zero command lines. Generation would emit a flag table
+   that does not exist in the README today while deleting the essays that do — a
+   different change wearing this one's name.
+2. **The SCHEMA-DERIVED reference already exists.** Decision `0021` shipped a
+   queryable knob catalog + `anvil://catalog/presets`, and `--dump-config` emits
+   the effective knobs as JSON. A generated Markdown surface would be a **fourth**
+   copy of solved truth — a `feedback_full_factorization` violation.
+3. **It re-imports the drift it claims to prevent.** Template + build step +
+   "regenerate produces no diff" gate is machinery justified against a
+   hand-maintained list, and unjustified against *a link*.
+
+**Caps: 250 lines / 12,288 bytes**, derived from the measured survivors (141 +
+trimmed quick start + navigation ⇒ ~186) and deliberately **below** the policy's
+illustrative numbers, which would leave 60 % headroom to regrow into. Enforced as
+the **8th registered doctrine** `README-GROWTH` (hook + CI, per the policy's own
+clause, reusing `DOCTRINE_ENFORCEMENT.md` rather than a standalone script), failing
+with a **routing hint** naming the canonical home per kind.
+
+**Expected result at `.2`: 1771 → ~186 lines, an 89 % reduction with no
+information lost.** `.2` must run the phrase probe per bullet before deleting —
+the only place information could be lost.
+
+**Validation.** All 7 doctrines PASS; Knowledge Map regenerated. No `src/`,
+`tests/`, or `examples/` file touched.
+
+**Files touched.** `docs/decisions/0036-readme-landing-page-restoration.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/README-POLICY-ADOPTION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md`.
+
+
 ## 2026-07-30 — COVERAGE-STEERED-GENERATION.4c — steering-width docs + close `.4`
 
 **Landed as:** `1b85589` (previous: `4f41ba9`, `.4b.2` hash backfill).

@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / live-doc hygiene — owner-directed README policy
 - Created: `2026-07-30`
-- Last updated: `2026-07-30` (registered; no work started)
+- Last updated: `2026-07-30` (`.1` audit + design ADR landed — decision `0036`; frontier `.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -51,11 +51,11 @@ back, because a mechanical cap fails the commit.
   Children: `README-POLICY-ADOPTION.1` (audit + design), `.2` (relocation), `.3` (the gate + close)
 
 - ID: `README-POLICY-ADOPTION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Audit + design (docs-only). Classify EVERY section of the current README against the policy's content contract into keep / relocate-to-<file> / delete-as-duplicate, with the line count of each bucket; propose the line and byte caps from what actually remains after the trim (the policy forbids picking a cap to fit existing content); decide where the growth check lives (proposed: a new registered doctrine in scripts/check_doctrines.sh, since the policy explicitly asks for hook+CI enforcement and DOCTRINE_ENFORCEMENT.md is exactly that mechanism); and name the routing hint text the failure prints. Record as a decision record.`
   Acceptance: `A decision record + this tree updated with the per-section classification table and the proposed caps; docs-only.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — decision 0036. MEASURED at fcb9e58: 1771 lines / 122767 bytes across 7 sections; TWO sections are 92% of the file (Current CLI truth 1141 lines / 64.4%, Build and validation 487 / 27.5%) while everything the policy's content contract asks for totals 141 LINES — the landing page already exists and already fits. KEY FINDING: `## Current CLI truth` is NOT a CLI reference — ZERO command/code-fence lines, 50 top-level bullets averaging ~23 lines, 33 citing a decision record. A phrase probe proves it is a LOSSY COPY of layers that own the content: `__cv` 7x in README vs 15x in decision 0027 and 19x in book/src/structured-emission.md; `passthrough` 7 vs 9 vs 16; `care_mask` 2 vs 9 in decision 0029; `Yosys 0.64` 1 vs 3. So the operation is DELETE-AND-LINK, not the expensive 1141-line relocation. DECIDED: route by kind (rationale -> already in docs/decisions + book, delete+link; user-facing flags -> USER_GUIDE.md; gate invocations -> USER_GUIDE/TOOLBOX; the 78 saw_* fact lines + 15 banked tallies -> docs/evidence per decision 0030; anything NOT already covered -> move FIRST, then delete, proven per-bullet by the probe); caps 250 lines / 12288 bytes DERIVED from the survivors (141 + trimmed quick start + navigation ~= 186) and deliberately BELOW the policy's illustrative 300/16384 which would leave 60% room to regrow; enforced as the 8th registered doctrine README-GROWTH in scripts/check_doctrines.sh (hook + CI, per the policy's own clause) failing with a routing hint naming the canonical home per kind. A GENERATED CLI reference is REJECTED — the option the owner asked to weigh and the one initially favoured: nothing to generate (zero command lines), the SCHEMA-DERIVED reference already exists (decision 0021's queryable knob catalog + --dump-config), and a generator's template/build-step/no-diff-gate is justified against a hand-maintained list but not against a link. Docs-only ⇒ DUT byte-identical.`
+  Commit: `README-POLICY-ADOPTION.1 — audit + design ADR (decision 0036)`
 
 - ID: `README-POLICY-ADOPTION.2`
   Status: `pending`
@@ -75,9 +75,9 @@ back, because a mechanical cap fails the commit.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `README-POLICY-ADOPTION.1` | `pending` | Audit + design first: the caps must be derived from what survives the trim, and the policy explicitly forbids choosing a cap to accommodate existing content. Nothing can be relocated safely before the per-section classification exists. |
-| 2 | `README-POLICY-ADOPTION.2` | `pending` | The relocation itself. |
-| 3 | `README-POLICY-ADOPTION.3` | `pending` | The gate, last — a cap is only meaningful once the file is under it. |
+| 1 | `README-POLICY-ADOPTION.1` | `done` | Decision `0036`. The measurement reframed the task: the compliant landing page **already exists** (141 lines) with two appendices bolted on, and `## Current CLI truth` is a **lossy copy** of `docs/decisions/` + the book (phrase probe), so the operation is **delete-and-link**, not relocation. A generated CLI reference is rejected — the SCHEMA-DERIVED one already exists. Caps `250` / `12,288`, derived from the survivors. |
+| 2 | `README-POLICY-ADOPTION.2` | `pending` | **Next.** Execute: run the phrase probe per bullet (the only place information could be lost), move the residue that is *not* already covered, delete the duplicated sections, land `README_POLICY.md` at the root, and expand the navigation section to replace what was removed. Expected: **1771 → ~186 lines**. |
+| 3 | `README-POLICY-ADOPTION.3` | `pending` | The `README-GROWTH` doctrine with the routing hint, registered in `DOCTRINE_ENFORCEMENT.md` §10, negative-controlled both ways; close the tree. A cap is only meaningful once the file is under it. |
 
 ## Decisions
 
@@ -135,3 +135,24 @@ back, because a mechanical cap fails the commit.
   remembered. Surfaced while reading the policy to make a one-phrase correction in
   the README's coverage-steering bullet during
   `COVERAGE-STEERED-GENERATION.3c`.
+- `2026-07-30`: `.1` audit + design ADR landed (decision
+  [`0036`](../decisions/0036-readme-landing-page-restoration.md)), on an explicit owner
+  instruction to take a signoff decision on the destination question. **The measurement
+  reframed the task.** `README.md` is 1771 lines, but everything the policy's content
+  contract asks for totals **141** — the compliant landing page already exists, with two
+  appendices bolted on that are 92 % of the file. And `## Current CLI truth` (64 %) is
+  **not a CLI reference**: zero command lines, 50 design essays, 33 citing a decision
+  record. A phrase probe showed it is a **lossy copy** of the layers that own that content
+  (`__cv` appears 7× in the README vs 15× in decision `0027` and 19× in the book). So the
+  operation is **delete-and-link**, not the expensive and risky 1141-line relocation the
+  tree originally assumed.
+- `2026-07-30`: `.1` **rejected the generated CLI reference** — the option the owner asked
+  to weigh, and the one I favoured before measuring. Three independent reasons: there is
+  nothing to generate (zero command lines in the section); the SCHEMA-DERIVED reference
+  **already exists** (decision `0021`'s queryable knob catalog + `--dump-config`), so a
+  generated Markdown surface would be a *fourth* copy of solved truth and a
+  `feedback_full_factorization` violation; and a generator's template + build step +
+  no-diff gate is machinery justified against a hand-maintained list, not against *a
+  link*. **The correct R1 already shipped; the README's job is to point at it.** Caps set
+  at **250 lines / 12,288 bytes**, derived from the survivors and deliberately below the
+  policy's illustrative numbers, which would leave 60 % headroom to regrow into.
