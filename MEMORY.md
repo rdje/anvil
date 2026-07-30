@@ -8,7 +8,7 @@
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`EMIT-SURFACE-INTERACTION-GATE.4`** (`be0c23a`) — closed that tree. Prior: `99e6cc0`, `401d72d`, `d73b154`, `7664761`. Session history: `git log --oneline` (do not re-narrate it here).
+- latest_commit: **`EVIDENCE-BANK-DURABILITY.6`** (`3d27711`) — re-closed that tree (this line backfilled by the next commit, per `COMMIT.md` step 9). Prior: `be0c23a`, `99e6cc0`, `401d72d`, `d73b154`, `7664761`. Session history: `git log --oneline` (do not re-narrate it here).
 - active_work_unit: **none — no frontier.** Closed this session: `CARGO-TMPDIR-SWEEP-REGRESSION`, **`EMIT-SURFACE-INTERACTION-GATE`** (4 leaves: decision `0032`, the honest preset, the interaction gate + banked digest, the absorption-census fix), **`EVIDENCE-BANK-DURABILITY`** (re-closed after `.6` repaired the deriver).
 - next_action: **pick the next unit** (`feedback_pick_and_roll_at_no_frontier` + the DECIDE-DON'T-ASK directive). Standing candidate raised this session and NOT yet tracked: a repo-wide sweep for other **hardcoded lists that shadow a growing set** — three independent instances landed today (the `structured-emission-max` knob list, `compute_use_counts`'s field census, `evidence_digest.sh`'s gate-flag list), each silent until it mattered. Otherwise `STRUCTURED-EMISSION-EXPANSION.20+` owns the tenth surface (nested `generate`; `interface`/`modport` stays empirically disqualified).
 - in_flight_uncommitted: none. Tree clean, self-checks green, resume pointer current.

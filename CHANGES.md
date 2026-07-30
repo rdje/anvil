@@ -1,6 +1,22 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-30 — EVIDENCE-BANK-DURABILITY.6 — backfill the resume pointer
+
+**Landed as:** this commit (previous: `3d27711`, `EVIDENCE-BANK-DURABILITY.6`). Docs-only ⇒ **DUT
+byte-identical**.
+
+`MEMORY.md`'s `latest_commit` named `be0c23a` while `HEAD` was `3d27711`. That is the ordinary
+one-behind state `COMMIT.md` step 9 anticipates ("record the new commit hash … in the next slice,
+or a tiny follow-up commit"), and both trees closed at `3d27711`, so there is no next slice to
+carry it. Backfilled here so a cold session's **first** read names the exact `HEAD` rather than
+its parent — which is the entire job of a resume pointer.
+
+Session end state: no frontier. `EMIT-SURFACE-INTERACTION-GATE` (4 leaves) and
+`EVIDENCE-BANK-DURABILITY` (re-closed after `.6`) are both `done`.
+
+**Files touched.** `MEMORY.md`, `CHANGES.md`.
+
 ## 2026-07-30 — EVIDENCE-BANK-DURABILITY.6 — the deriver classifies instead of remembering
 
 **Landed as:** this commit (previous: `be0c23a`, `EMIT-SURFACE-INTERACTION-GATE.4`).
