@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — README-POLICY-PROVENANCE.1 — cite the owner, not the harness (tree CLOSED)
 
-**Landed as:** `pending`. Previous: `61eac73`.
+**Landed as:** `1c9b865`. Previous: `61eac73`.
 **Docs + two script comments** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** An owner ruling confirmed a status quo — *"let ANVIL keep and follow its own
