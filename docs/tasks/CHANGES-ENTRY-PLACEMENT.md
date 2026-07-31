@@ -199,7 +199,8 @@ not — but the two share a root cause worth naming once, in one place.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `CHANGES-ENTRY-PLACEMENT.1` | `CHANGES-ENTRY-PLACEMENT.1 — audit + register: the two newest entries are at the bottom` | Registration only; no repair attempted, deliberately — relocating a landed entry needs `.2`'s decision against `0031` first. |
-| `CHANGES-ENTRY-PLACEMENT.2` | `CHANGES-ENTRY-PLACEMENT.2 — position is a record: repair by pointer, not relocation` | Decision [`0038`](../decisions/0038-changes-md-position-repair-by-pointer.md). Decision leaf — **nothing moved**. Also re-measured the property from the authoritative set and corrected `.1` in three places (see Decisions). |
+| `CHANGES-ENTRY-PLACEMENT.2` | `e85ec03` — `CHANGES-ENTRY-PLACEMENT.2 — position is a record: repair by pointer` | Decision [`0038`](../decisions/0038-changes-md-position-repair-by-pointer.md). Decision leaf — **nothing moved**. Also re-measured the property from the authoritative set and corrected `.1` in three places (see Decisions). |
+| `CHANGES-ENTRY-PLACEMENT.2` | `CHANGES-ENTRY-PLACEMENT.2 — backfill the landed commit hash` | Routine `COMMIT.md` §9 follow-up, plus a **same-day dated amendment to `0038`**: the backfill edits the body of a landed entry, so the boundary is written down rather than inferred — an edit is permitted **only** where it supplies a value the entry itself left explicitly pending (`this commit`) and makes no claim the original did not. The six non-licenses stand unmodified. |
 
 ## Changelog
 

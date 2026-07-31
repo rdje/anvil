@@ -265,6 +265,26 @@ the bar `0031`'s rationale actually sets.
   deviations share one cause, and a gate that catches placement would still have let the
   missing `Landed as:` line through.
 
+## Amendment (`2026-07-31`, same day — the boundary this decision's own commit walked into)
+
+**Backfilling a commit hash into a landed entry is not an exception to (a), and never was.**
+The very next act after this record landed was the workflow's routine follow-up: replacing
+this entry's `**Landed as:** this commit` with the hash it turned out to have. That edits the
+body of a landed entry, so the boundary is written down here rather than left to inference.
+
+It is permitted because it is a **completion, not a correction**. The entry itself declares
+the placeholder (`this commit`) at the moment of writing, because the hash cannot exist until
+the commit does; `COMMIT.md` §9 mandates filling it in afterwards, "either in a follow-up
+commit or in the next slice". Nothing that was claimed changes — no date, no title, no
+position, no finding, no verdict. A reader following the history sees strictly more than
+before, which is the test §Decisive test applies to every act this record governs.
+
+The line, stated so it cannot be stretched: **an edit to a landed entry is permitted only
+where it supplies a value the entry itself left explicitly pending, and where the resulting
+text makes no claim the original did not.** Anything that changes what the entry *says* — its
+ordering, its dating, its titling, its assertions — remains forbidden by (a) and by
+[`0031`](0031-ssd-volume-exclusivity.md). The six non-licenses in §(d) stand unmodified.
+
 ## Links
 
 - Tree: [`docs/tasks/CHANGES-ENTRY-PLACEMENT.md`](../tasks/CHANGES-ENTRY-PLACEMENT.md)

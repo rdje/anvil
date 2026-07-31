@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.2 — position is a record: repair by pointer, not relocation
 
-**Landed as:** this commit. Previous: `c758c6c`.
+**Landed as:** `e85ec03`. Previous: `c758c6c`.
 **Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** The decision leaf for the defect `.1` registered: two entries of this file sit at
