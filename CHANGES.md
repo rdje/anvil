@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.6 — register the finding instead of parking it
 
-**Landed as:** this commit. Previous: `b102936`.
+**Landed as:** `8473821`. Previous: `b102936`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Registered `OVERFLOW-DESTINATION-INSTRUMENTATION.6` to own the finding decision
