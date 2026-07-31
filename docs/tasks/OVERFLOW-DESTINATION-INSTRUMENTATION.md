@@ -237,7 +237,7 @@ that outcome in a sibling project; ANVIL is one workflow-habit away from it.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `OVERFLOW-DESTINATION-INSTRUMENTATION.1` | `OVERFLOW-DESTINATION-INSTRUMENTATION.1 — audit + register: the cap moved the pressure` | Registration only; no cap added and no content trimmed, deliberately — classifying the destinations is `.2`'s decision, and four of them must never be capped. |
+| `OVERFLOW-DESTINATION-INSTRUMENTATION.1` | `bb8a835` — `OVERFLOW-DESTINATION-INSTRUMENTATION.1 — audit + register: the cap moved the pressure` | Registration only; no cap added and no content trimmed, deliberately — classifying the destinations is `.2`'s decision, and four of them must never be capped. |
 
 ## Changelog
 

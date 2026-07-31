@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.1 — the cap moved the pressure; audit + register
 
-**Landed as:** this commit. Previous: `43aad06`.
+**Landed as:** `bb8a835`. Previous: `43aad06`.
 **Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** A new tree, opened on an **owner finding measured in PGEN** and sent back as a
