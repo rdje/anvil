@@ -5,6 +5,59 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — Measuring a class is not characterising it, and a gate that fails its own author is the one worth keeping — `OVERFLOW-DESTINATION-INSTRUMENTATION.7`
+
+**1. The repair is where the sub-classes appear.** `.6` measured 36 malformed table rows and
+characterised the cause as *an unescaped `|` inside cell content*. That was true of **10** of them.
+Repairing surfaced two more classes: one row carrying its File link **twice**, and — the bulk —
+**25 rows beginning with a stray `| — ` cell** against a 3-column header, each dropping its
+**entire Summary**. A count is not a diagnosis. If a leaf hands a number to the next leaf without
+handing over the *shape*, the next leaf will size its repair to the wrong thing.
+
+**2. "Not retro-edited" protects a claim, not a rendering defect.** 29 of the 36 rows lived in
+append-only `docs/tasks/`, and the reflex is to exclude them. But decision `0031` states its own
+purpose in the owner's words — *"keep it raw, keep honest, so that people can follow the whole
+history"* — and a Summary that reaches no rendered page is precisely what defeats that. Excluding
+them would have honoured the letter of the doctrine against its intent, and left 80 % of the defect
+in place. **When a doctrine states its purpose, read the purpose before applying the rule.**
+
+**3. Prove a repair against `git show HEAD:`, and classify every difference.** The proof that
+mattered was not "it renders now" but: *for every line that changed, why*. 10 rows byte-identical
+after unescaping, 1 duplicate removal with the remainder identical, 25 stray-cell removals where
+re-prepending the stray cell reproduces the old line exactly, **0 unexplained**. A repair that
+cannot enumerate its own diff is a sweep wearing a repair's clothes.
+
+**4. The verifier was wrong three times; the repair never was — and all three failed *closed*.**
+(i) a reconstruction predicate that dropped the leading `| `; (ii) `perl -CD` **already** decodes
+backtick output, so an explicit `utf8::decode` double-decoded and mangled the em-dash — invisible on
+the ASCII rows and fatal on exactly the 25 em-dash rows; (iii) a source literal containing an
+em-dash compared against decoded text without `use utf8`, i.e. 3 bytes against 1 character. Each one
+reported `UNEXPLAINED` rather than passing. **A checker will be wrong; build it so its wrongness is
+loud.** Encoding bugs in particular hide until the data stops being ASCII, which here was the exact
+subset carrying the defect.
+
+**5. And the standing gotcha landed for a fourth time, inside its own probe.** The first
+fence-awareness control reported the fence-blind gate clean — because the neutering substitution had
+**silently not applied**, matching a 2-space pattern against the script's actual 4-space indent.
+*A probe that cannot fail proves nothing.* The fix is mechanical and should now be reflex: **diff
+the neutered artifact against its backup and refuse the result unless it actually differs.**
+
+**6. The best evidence for a gate is that it fails the person who wrote it.** The
+`DOCTRINE_ENFORCEMENT.md` §10 registry row written to *describe* this defect **contained** it — a
+bare `|` in a code span inside a table cell — and the first full run flagged it, 1,347 characters
+dropped. That single event settles the "is a gate worth it here?" question better than the 36-row
+census did: the defect is a **live typing reflex**, not a legacy artifact, and no review habit
+survives contact with a reflex.
+
+**Why a ninth doctrine and not an assertion inside an existing check.**
+`feedback_full_factorization` forbids a *second* registered mechanism for a job that already has
+one — exactly why `.3` put `MEMORY.md`'s byte cap *inside* `check_memory_architecture.sh`. Here the
+subject is unowned: two doctrines own the *size* of two named files, one owns declared list pairs,
+five own staging/paths/citations. **None owns markdown well-formedness.** The test is *"does
+something already own this subject?"* — not *"do we have enough doctrines?"*
+
+---
+
 ## 2026-07-31 — A repair can be *unavailable*, not merely expensive — and the number three leaves quoted was never rendered — `OVERFLOW-DESTINATION-INSTRUMENTATION.6`
 
 Two lessons, and the second one is the uncomfortable one.

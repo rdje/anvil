@@ -35,6 +35,7 @@ DOCTRINES=(
   "EVIDENCE-CITATIONS|every cited evidence bank is digest-backed under docs/evidence/ or explicitly classified in its frozen inventory (decision 0030 + its 2026-07-30 amendment); the grandfathered list cannot grow|scripts/check_evidence_citations.sh"
   "ENUMERATION-PARITY|every declared docs/script enumeration pair is in parity with the set it mirrors (decision 0033); classified pairs only — this is not a shadow detector|scripts/check_enumeration_parity.sh"
   "README-GROWTH|README.md stays a landing page within its reviewed line and byte caps, and the project-owned README_POLICY.md exists beside it (decision 0036; owner directive 2026-07-30, recorded in README_POLICY.md)|scripts/check_readme_growth.sh"
+  "TABLE-RENDER-FIDELITY|no tracked *.md table row over-splits past its header, since GFM drops the excess cells and that content never reaches a rendered page (OVERFLOW-DESTINATION-INSTRUMENTATION.6 measured 36 such rows dropping 57,283 characters); escape-aware and fence-aware, silent on short rows|scripts/check_markdown_tables.sh"
 )
 
 fail=0

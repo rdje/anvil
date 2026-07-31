@@ -49,7 +49,13 @@ beside a list is a second copy of it):
   stays a landing page within its reviewed line **and** byte caps, with the
   project-owned `README_POLICY.md` beside it; decision `0036`, owner directive
   `2026-07-30`. Not scope-aware — landing-page size is a property of the
-  tree, not of a change).<!--/enum:doctrine-ids-->
+  tree, not of a change).
+- `TABLE-RENDER-FIDELITY` → `scripts/check_markdown_tables.sh` (structural: no
+  tracked `*.md` table row over-splits past its header, because GFM drops the
+  excess cells and that content never reaches a rendered page —
+  `OVERFLOW-DESTINATION-INSTRUMENTATION.6` measured **36** such rows dropping
+  **57,283** characters. Escape-aware and fence-aware; deliberately silent on
+  rows with FEWER cells, which the spec pads without losing anything).<!--/enum:doctrine-ids-->
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
 `src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`). `.githooks/pre-commit`

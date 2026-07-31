@@ -291,7 +291,7 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--max-gate-arity`      | 4        | Max arity N for associative operators                 |
 | `--comb-mux-prob`       | 0.1      | Probability a non-leaf node becomes an M-to-1 comb mux|
 | `--comb-mux-encoding-prob` | 0.5   | Per-mux probability of Encoded vs OneHot (comb muxes) |
-| `--construction-strategy` | interleaved | Strategy: `sequential` | `shuffled` | `interleaved` (default) | `graph-first` (deprecated alias) |
+| `--construction-strategy` | interleaved | Strategy: `sequential` \| `shuffled` \| `interleaved` (default) \| `graph-first` (deprecated alias) |
 | `--graph-first-pool-size` | 32       | Legacy knob retained for backward-compatible configs; ignored by the current live path |
 | `--coefficient-prob`    | 0.2      | Per-op probability of linear-combination compound motif (Add/Sub/Mul)|
 | `--min-coefficient`     | 1        | Min coefficient (strictly positive)                   |

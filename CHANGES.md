@@ -1,6 +1,97 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.7 — every cell renders
+
+**Landed as:** `pending`. Previous: `bb446fc`.
+**Docs + `scripts/` only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** The 36 malformed GFM table rows `.6` measured are repaired — **36 → 0** — and the class
+is now gated by a ninth doctrine, **`TABLE-RENDER-FIDELITY`**
+(`scripts/check_markdown_tables.sh`).
+
+**The 36 were three defect classes, not one — and the biggest was invisible to the measurement.**
+`.6` characterised the unescaped content pipe. Repairing revealed two more:
+
+| class | rows | defect | repair |
+| --- | ---: | --- | --- |
+| **B** | 10 | an unescaped `\|` inside cell content | one backslash per pipe (15 total) |
+| **C** | 1 | `docs/TASK_TREE.md:131` carries its File link **twice** | delete the 88-char duplicate |
+| **A** | **25** | `SEMANTIC-INTROSPECTION-EXPANSION.md:696-720` each begin with a stray `\| — ` cell against a 3-column header, dropping the row's **entire Summary** | delete the stray cell |
+
+Class A is the bulk of the 57,283 lost characters, and ten rows of that same table *lack* the
+prefix — which is what proves it an artifact rather than an intent. **Measuring a class is not the
+same as characterising it; the sub-classes appear in the repair.**
+
+**`docs/tasks/` was ruled in scope, and the argument is the leaf's main decision.** *Task files are
+layer-B history and are not retro-edited* protects a recorded **claim** from revision; it does not
+protect a **rendering** defect. Decision `0031` states its own purpose in the owner's words —
+*"keep it raw, keep honest, so that people can follow the whole history"* — which is exactly what a
+Summary that reaches no rendered page defeats. Excluding them would have left **29 of 36** rows
+broken to honour the letter of a doctrine against its stated intent. The repair changes no claim,
+no number, no date and no word.
+
+**Why.** A gate, not a review habit, because the defect is a **live typing reflex**: see the
+validation note below where the check failed its own author.
+
+**Validation.**
+- **Repaired by separator index, not string match** — each escape names the row and the 0-based
+  index of the internal separator, applied right-to-left so earlier offsets stay valid. A global
+  substitution could have hit a lookalike elsewhere in a 39,000-character row.
+- **Proof 1 — tree-wide re-scan:** 2,310 data rows, malformed **36 → 0**.
+- **Proof 2 — content equality against `git show HEAD:`, not the worktree:** every differing line
+  classified — **10** escape-only rows byte-identical after removing the inserted backslashes,
+  **1** duplicate-cell removal with the remainder identical, **25** stray-cell removals where
+  re-prepending the stray cell reproduces the old line exactly, and **0 unexplained**.
+- **Proof 3 — render:** rebuilt with `mdbook` and read the HTML. Class-B/C rows now emit 5 cells
+  **with their File link `href` present**; the class-A row emits a **687-character Summary** that
+  previously rendered as nothing at all.
+- **Five controls on the gate.** Baseline pass (2,310 rows / 394 tables / 244 files). **Negative
+  control**: one repaired escape removed ⇒ fails naming `docs/TASK_TREE.md:104`, 1 excess cell,
+  75 characters dropped; restoration proven by **sha256 identity**, not by re-reading. **Vacuity
+  probe** (decision `0037`): assertion neutered to `if false`, the *same breached tree* passes —
+  proving the negative control fired from *this* assertion. **Specificity control**: a row with
+  *fewer* cells does **not** fail (the spec pads it; nothing is lost) — a gate that also cried wolf
+  on untidiness gets argued with instead of obeyed. **Fence control**: a fenced pseudo-table is
+  ignored by the fence-aware gate and *fails* the fence-blind variant, so the handling is
+  load-bearing as a mechanism — with the honest limit recorded that it has **0 live subjects**.
+- **The verifier was wrong three times and the repair never was**, recorded because the pattern is
+  the reusable half: a predicate that dropped the leading `| ` when rebuilding the old line;
+  `perl -CD` **already** decoding backtick output so an explicit `utf8::decode` double-decoded and
+  mangled the em-dash — invisible on the ASCII rows and fatal on exactly the 25 em-dash rows; and a
+  source em-dash literal compared against decoded text without `use utf8` (3 bytes vs 1 character).
+  All three failed **closed**, reporting `UNEXPLAINED` rather than passing.
+- **And the fourth landing of the standing gotcha.** The first fence probe reported the fence-blind
+  gate clean — because the neutering substitution had **silently not applied**, matching 2 spaces of
+  indent against the script's actual 4. *A probe that cannot fail proves nothing*; the fix was to
+  diff the neutered script against its backup and refuse the result unless it differed.
+- `scripts/check_doctrines.sh` **9/9** after `git add`; `mdbook build` clean;
+  `cargo check --all-targets` clean.
+
+**Impact.** **Registered as the ninth doctrine, with `feedback_full_factorization` applied rather
+than waved through.** That rule forbids a *second* registered mechanism for a job that already has
+one — which is precisely why `.3` put `MEMORY.md`'s byte cap *inside* `check_memory_architecture.sh`
+instead of registering a doctrine. Here the subject is genuinely unowned: `MEMORY-ARCH` and
+`README-GROWTH` own the *size* of two named files, `ENUMERATION-PARITY` owns declared list pairs,
+and the remaining five own staging, paths and citations — **none owns markdown well-formedness**.
+All four `ENUMERATION-PARITY`-gated doctrine-id lists were updated in step (`README.md`,
+`book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md`, `CODEBASE_ANALYSIS.md`).
+
+**And the gate failed its own author within a minute of existing.** The `DOCTRINE_ENFORCEMENT.md`
+§10 registry row written to *describe* this defect **contained** it — a bare `|` in a code span
+inside a table cell — and the first full run reported `DOCTRINE_ENFORCEMENT.md:304` dropping
+**1,347** characters. Recorded rather than quietly fixed: it is the strongest available evidence
+the check earns its place.
+
+**Files touched.** `scripts/check_markdown_tables.sh` (new), `scripts/check_doctrines.sh`,
+`DOCTRINE_ENFORCEMENT.md`, `README.md`, `CODEBASE_ANALYSIS.md`, `USER_GUIDE.md`,
+`book/src/architecture.md`, `docs/TASK_TREE.md`,
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`,
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md`,
+`docs/tasks/STRUCTURED-EMISSION-EXPANSION.md`, `docs/tasks/PHASE-8-FRONTEND-ACCEPT.md`,
+`docs/tasks/BOOK-TEST-COUNT-SHADOWS.md`, `docs/knowledge/doctrine-enforcement.md`,
+`KNOWLEDGE_MAP.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.6 — the long line was invisible, not just long
 
 **Landed as:** `pending`. Previous: `f33601e`.

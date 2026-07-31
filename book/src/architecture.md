@@ -504,7 +504,17 @@ Knowledge Map. The live registry:
   `2026-07-30`, recorded in `README_POLICY.md`). Both caps, because prose density means a file can sit
   well under the line cap while already over the byte cap. Fails with a
   routing hint naming the canonical home per kind of overflow; raising a
-  cap requires a new decision record, not an edit to the check.<!--/enum:doctrine-ids-->
+  cap requires a new decision record, not an edit to the check.
+- **`TABLE-RENDER-FIDELITY`** — no tracked `*.md` table row over-splits past
+  its header. A GFM table row splits on every **unescaped** `|` *before*
+  inline parsing — a code span gives a pipe no protection — and the spec then
+  **ignores** cells beyond the header's column count, so that content sits in
+  the source and never reaches a rendered page. `OVERFLOW-DESTINATION-INSTRUMENTATION.6`
+  measured **36** such rows dropping **57,283** characters, including **5**
+  cells that were a row's own link to its detail file. Escape-aware and
+  fence-aware; deliberately silent on rows with *fewer* cells, which the spec
+  pads without losing anything — this gate is about content loss, not
+  tidiness.<!--/enum:doctrine-ids-->
 
 **How that list is checked, and what it took to make the check real**
 (decision `0037`). Each site that publishes a registry marks its
