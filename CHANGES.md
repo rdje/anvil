@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.5a — the directive against parking things in MEMORY.md was parked in MEMORY.md
 
-**Landed as:** this commit. Previous: `85e4b7f`.
+**Landed as:** `4f3d508`. Previous: `85e4b7f`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Relocated the owner's standing directives out of the overwrite-only resume pointer into
