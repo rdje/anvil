@@ -1,6 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.1 — measure the mixed surface (evidence appendix)
+
+**Landed as:** this commit. Previous: `5f31d33`.
+**Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** The owner asked whether PGEN's `LIVE_ACHIEVEMENT_STATUS.md` — the overflow
+destination whose growth opened this tree — *"is really needed at this point"*, given the
+task-trees and Knowledge Map. `.1` had named the **mixed-surface** category from PGEN's
+headline number alone; the question forced measuring it. Appended as `§6` of the audit rather
+than left in conversation. **PGEN was read, never edited** — it carries its own task-tree
+doctrine and an edit from an ANVIL session would breach it.
+
+**The category survives contact.** Of 1,563,641 bytes: the actual document
+(`## Purpose` + `## Status Rules` + `## Update Policy`) is **3,743 B = 0.24 %**; 856 dated
+`Tracker note` entries sitting *above* `## Purpose` are **376,317 B = 24.1 %**; and
+`## Live Snapshot` is **1,183,494 B = 75.7 %**.
+
+**Three findings that sharpen the instrument `.2` must choose.**
+
+1. **"Snapshot" was a misnomer, measurably.** `## Live Snapshot` holds **85 distinct dates,
+   `2026-02-20` → `2026-07-30`**. A snapshot carries one. **The count of distinct dates inside
+   a surface is a cheap, derivable test for status-view vs log** — no cap, no baseline, no
+   judgement needed. `.2` should weigh it as the instrument, or beside the byte cap.
+2. **The file's own freshness field disproved its liveness.** It declares
+   `Last updated: 2026-06-02` while carrying content dated `2026-07-31` — two months stale and
+   contradicted by its own body. A self-declared staleness marker that disagrees with the
+   file's newest content is **self-refuting**, and derivable with no external baseline. That is
+   precisely the staleness check the owner's finding said the destination lacked.
+3. **It is a lossy copy, on the decision-`0036` signature.** Token probe over
+   `## Live Snapshot`: **3,834** distinct backticked tokens, **3,769 (98.3 %)** already present
+   in `docs/tasks/` · `docs/decisions/` · `docs/knowledge/` · `KNOWLEDGE_MAP.md` ·
+   `CHANGES.md`. The **65 (1.6 %)** residue is composites of covered parts and run noise —
+   `265/2393`, `1584/1560`, `ast_based_generator.rs:2692/4903/7108`, `17061ms`,
+   `1b094142..cfb268ff` — with **no orphaned fact**. Exactly the residue shape `0036` predicts
+   for a *working* sweep, and the evidence that the durable layers already hold the content.
+
+**The reusable half — reference count is not a dependency measure.** By reference count the
+file looks load-bearing: 4 check scripts, 36 live docs, 57 task files, 6 decisions. Read
+directly, exactly **one** is a content consumer (`audit_done_bar.sh`, which parses it to audit
+`Done` claims), and it is already env-parameterized (`PGEN_DONE_BAR_TRACKER`) with its claim
+already migrated by that repo's `LIVE-MEANS-LIVE.1a`. The other three script references are a
+doc-path glob, a comment, and **routing-hint text** — the very hole this tree exists to close,
+counting itself as a dependency. Reference count inflates with hint text and with append-only
+history that must keep its references raw, so `.2`/`.3` classify referents by **what they
+require**, never by how many there are.
+
+**Validation.** Every figure derived read-only from PGEN at its `ce1df2b0`; section weights
+measured by byte, not line (the file averages **929 B/line**, so line counts are meaningless
+there); the token probe run as a single pass over a 13.9 MB durable-layer corpus and its
+residue inspected item by item rather than sampled. No ANVIL check changed;
+`scripts/check_doctrines.sh` green after `git add`. `src/` untouched ⇒ DUT byte-identical.
+
+**Impact.** `.2` inherits a measured worked example, two candidate instruments it did not have
+(distinct-date count; self-refuting staleness marker), and one caution that would otherwise
+have mis-scoped `.3` — that a destination's reference count overstates its dependencies.
+
+**Files touched.** `docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.1 — the cap moved the pressure; audit + register
 
 **Landed as:** `bb8a835`. Previous: `43aad06`.

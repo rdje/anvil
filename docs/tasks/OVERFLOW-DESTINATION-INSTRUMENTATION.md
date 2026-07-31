@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / doctrine-policy completeness
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (`.1` **done** — audited + registered; frontier `.2`)
+- Last updated: `2026-07-31` (`.1` **done** + §6 evidence appendix measured from PGEN; frontier `.2`)
 - Owner: repo-local workflow — **opened on an owner finding measured in PGEN**
 
 ## Goal
@@ -124,6 +124,48 @@ And PGEN's actual defect is a **third category the policy has no name for**: a f
 Such a file has no valid cap *because of the mixture*, and the mixture is exactly what hides
 the growth. `LIVE_ACHIEVEMENT_STATUS.md` at 94.7 % changelog is that category. The repair
 for a mixed surface is **separation before instrumentation**, never a cap on the mixture.
+
+### 6. The mixed-surface category, now MEASURED rather than posited (`2026-07-31`)
+
+`.1` named the mixed surface from PGEN's headline number alone. Asked *"is that file even
+needed any more?"*, it was measured directly (read-only, no PGEN edit — that repo has its own
+task-tree doctrine and an edit from here would breach it). The category survives contact:
+
+| region of `LIVE_ACHIEVEMENT_STATUS.md` | bytes | share | kind |
+| --- | ---: | ---: | --- |
+| `## Purpose` + `## Status Rules` + `## Update Policy` | 3,743 | **0.24 %** | the actual document |
+| 856 dated `Tracker note (…)` entries, *above* `## Purpose` | 376,317 | 24.1 % | append-only changelog |
+| `## Live Snapshot` | 1,183,494 | **75.7 %** | accreted history |
+
+Three findings sharpen the rule this tree will write:
+
+1. **"Snapshot" was a misnomer, and measurably so.** `## Live Snapshot` contains **85 distinct
+   dates spanning `2026-02-20` → `2026-07-30`**. A snapshot carries one date. **The count of
+   distinct dates inside a surface is a cheap, derivable test for whether it is a status view
+   or a log** — and it needs no cap, no baseline, and no judgement. `.2` should consider it as
+   the instrument, or as a companion to the byte cap.
+2. **The file's own freshness field disproved its own liveness.** It declares
+   `Last updated: 2026-06-02` while carrying content dated `2026-07-31` — **two months stale
+   and contradicted by its own body**. A self-declared staleness marker that disagrees with the
+   file's newest content is a *self-refuting* signal, and it is derivable without any external
+   baseline. This is the staleness check the owner's finding said the destination lacked.
+3. **It is a lossy copy, on the `0036` signature.** A token probe over `## Live Snapshot`:
+   **3,834** distinct backticked tokens, **3,769 (98.3 %)** already present in
+   `docs/tasks/` · `docs/decisions/` · `docs/knowledge/` · `KNOWLEDGE_MAP.md` · `CHANGES.md`;
+   the **65 (1.6 %)** residue is **composites of covered parts and run noise** — `265/2393`,
+   `1584/1560`, `ast_based_generator.rs:2692/4903/7108`, `17061ms`, `1b094142..cfb268ff` — with
+   **no orphaned fact**. That is exactly the residue shape `0036` predicts for a *working*
+   sweep, and it is the evidence that the durable layers already hold the content.
+
+**And the deletability lesson, which is the reusable half.** By reference count the file looks
+load-bearing: 4 check scripts, 36 live docs, 57 task files, 6 decisions. Read directly, only
+**one** is a content consumer (`audit_done_bar.sh`, which parses it to audit `Done` claims) —
+and that one is already env-parameterized (`PGEN_DONE_BAR_TRACKER`) with its claim already
+migrated by that repo's `LIVE-MEANS-LIVE.1a`. The other three are a doc-path glob, a comment,
+and **routing-hint text** — i.e. the very hole this tree exists to close, counted as a
+dependency. **Reference count is not a dependency measure; it inflates with hint text and with
+append-only history that must keep its references raw.** `.2` and `.3` must classify referents
+by *what they require*, never by how many there are.
 
 ## Why it matters
 
