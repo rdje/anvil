@@ -1,9 +1,16 @@
 # README Stability Policy
 
 > **ANVIL adoption note.** This is the project-owned copy required by the
-> policy's own "Storage location" clause below. Adopted `2026-07-30` by
-> [`README-POLICY-ADOPTION`](docs/tasks/README-POLICY-ADOPTION.md) under owner
-> directive `CLAUDE.md` §14; the reasoning, the per-section audit, and the
+> policy's own "Storage location" clause below. **It is authoritative for
+> ANVIL** (owner ruling `2026-07-31`): the file it was copied from is the
+> **template of origin, not an upstream** — nothing syncs from it, no mechanism
+> watches it, and a later edit there has no standing here. Stated explicitly
+> because the *absence* of a sync is a deliberate choice that otherwise looks
+> exactly like an oversight. Verified at the ruling: **0 of 227** origin-template
+> tokens are absent from this copy, so nothing was lost in adoption and there is
+> nothing to re-sync. Adopted `2026-07-30` by
+> [`README-POLICY-ADOPTION`](docs/tasks/README-POLICY-ADOPTION.md) under an owner
+> directive of that date; the reasoning, the per-section audit, and the
 > rejected alternatives are in decision
 > [`0036`](docs/decisions/0036-readme-landing-page-restoration.md).
 >

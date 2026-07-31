@@ -5,6 +5,49 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A doctrine's provenance is part of its contract, and it must not name a harness — `README-POLICY-PROVENANCE.1`
+
+Being asked to double-check something already believed correct is how this was found. The
+README policy adoption *was* complete and sound — registered doctrine, enforcing caps,
+0 of 227 origin-template tokens missing. But confirming it raised the next question,
+*"where is that policy's authority written down?"*, and the measured answer was **a section
+number in a file that has no sections**: `CLAUDE.md` is 3 lines with one heading, and 7 live
+sites cited its `§14` — including the doctrine registry line itself.
+
+Two lessons, and the second is the durable one.
+
+**Verify the premise before asserting it.** Every one of those citations was written by
+someone who had *read* the directive — it is real, it came through the agent session
+bootstrap. What nobody checked is whether the file they were naming actually contained it.
+A citation is a claim about a document, and it decays exactly like any other shadow: the
+directive stayed true while the referent silently stopped existing.
+
+**Provenance must be harness-neutral, and this is the stronger objection.** Even if
+`CLAUDE.md` had carried a §14, citing it would be wrong. ANVIL ships five harness bootstrap
+files with identical bodies, and enforcement is deliberately **git-level** so it binds every
+author — human, Claude, Codex, Gemini. A doctrine that cites one vendor's file as its
+authority reads as *"this rule applies because that agent was told"*, which is precisely the
+"trust me" framing `DOCTRINE_ENFORCEMENT.md` §11 exists to forbid, wearing a citation as a
+disguise. The rule that follows:
+
+> **Cite a doctrine's provenance by OWNER + DATE and a repo-side durable home. Never by a
+> harness bootstrap file, and never by a section number in a document that is not
+> versioned as a specification.**
+
+The same reasoning corrected the standard's own group-C clause — it said keep the harness
+pointers *byte-identical*; measured, ANVIL's differ in their title line, so the honest
+requirement is an identical **body**.
+
+And a structural note worth keeping for any adopted external standard: ANVIL's
+`README_POLICY.md` keeps the **neutral policy text** and the **local adoption record**
+separable — the body measures 0 project-specific and 0 harness-specific tokens, with
+everything local in a fenced note above it. That separation is what lets an adopter record
+derived caps, decision links and owner rulings without diluting the thing they adopted, and
+it is why the "keep our own copy" ruling costs nothing.
+
+---
+
+
 ## 2026-07-31 — The fix reproduced the bug inside itself, and only an exhaustive control found it — `LIVE-DOC-REGISTRY-SHADOWS.3`
 
 The fence landed and the check went green at all 13 sites. The vacuity probe — delete the

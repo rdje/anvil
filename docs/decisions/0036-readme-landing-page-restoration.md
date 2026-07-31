@@ -227,6 +227,40 @@ information — which is why it is safe to do by deletion.
 - **`.3`** (`pending`) — the `README-GROWTH` doctrine with the routing hint, registered in
   `DOCTRINE_ENFORCEMENT.md` §10, negative-controlled both ways; close the tree.
 
+## Amendment (`2026-07-31`, owner ruling — `README-POLICY-PROVENANCE.1`)
+
+**ANVIL keeps and follows its own copy of the policy.** Asked whether the repo should track
+the external template it was adopted from, the owner ruled: *"let ANVIL keep and follow its
+own copy of the README policy."* So `README_POLICY.md` at the repository root is
+**authoritative**; the file it was copied from is the **template of origin, not an
+upstream**. Nothing syncs from it, no mechanism watches it, and a later edit there has no
+standing here. This is what the policy's own *"Storage location"* clause already required —
+a project-owned copy that an external one must not replace — but it is recorded explicitly
+because **the absence of a sync is a deliberate choice that looks exactly like an
+oversight**, and the next session would otherwise be free to "helpfully" re-sync.
+
+Verified at the same time, so the ruling rests on measurement rather than assumption: a
+token-level comparison of the origin template against ANVIL's copy finds **0 of 227 source
+tokens missing** — the local copy is a superset, adapted with ANVIL's routing table and its
+derived caps. Nothing was lost in adoption and there is nothing to re-sync.
+
+**Consequent correction: doctrine provenance is cited by owner + date, never by a harness
+bootstrap file.** This record, the `README-GROWTH` registry line, both check scripts and
+four other live docs cited the directive as *"`CLAUDE.md` §14"*. Measured `2026-07-31`, the
+tracked `CLAUDE.md` is **3 lines with one heading and no numbered sections at all** — the
+directive is real, and was delivered through the agent session bootstrap, but it is not in
+the file those citations name. Independently of that, the citation is **wrong in kind**:
+ANVIL ships **five** harness bootstrap files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`,
+`.cursorrules`, `.windsurfrules`, body-identical), and `DOCTRINE_ENFORCEMENT.md` §7 makes
+enforcement git-level precisely so it binds **every** author. Anchoring a repo-wide
+doctrine to one vendor's file implies the rule holds because *that harness* was told.
+
+Live docs are corrected to *"owner directive `2026-07-30`, recorded in `README_POLICY.md`"*.
+**This record's own body is not rewritten** — it is history, and the citation was accurate
+to how the directive was delivered on `2026-07-30`; the same applies to `CHANGES.md` and the
+layer-B task files, which keep theirs raw (decision `0031`). Nothing about the caps, the
+audit, or the enforcement in this decision changes.
+
 ## Links
 
 - Owner directive: `CLAUDE.md` §14; the explicit `2026-07-30` instruction to take a

@@ -3,7 +3,11 @@
 # scripts/check_readme_growth.sh — the README-GROWTH doctrine.
 #
 # DOCTRINE_ENFORCEMENT.md §4 (contract) / §10 (registry). Mechanizes the owner
-# directive in CLAUDE.md §14 ("make sure README.md doesn't grow, grow and grow")
+# owner directive of 2026-07-30 ("make sure README.md doesn't grow, grow and grow"),
+# recorded in the project-owned README_POLICY.md. Cited by owner+date rather than by
+# a harness bootstrap file: ANVIL ships five of those (CLAUDE.md / AGENTS.md /
+# GEMINI.md / .cursorrules / .windsurfrules) and this doctrine binds every author
+# equally, being enforced at git level. README-POLICY-PROVENANCE.1, 2026-07-31.
 # and the "Mechanical growth guard" clause of the project-owned README_POLICY.md,
 # as designed at decision 0036 (README-POLICY-ADOPTION).
 #

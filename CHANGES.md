@@ -1,6 +1,83 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — README-POLICY-PROVENANCE.1 — cite the owner, not the harness (tree CLOSED)
+
+**Landed as:** `pending`. Previous: `61eac73`.
+**Docs + two script comments** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** An owner ruling confirmed a status quo — *"let ANVIL keep and follow its own
+copy of the README policy"* — and confirming it exposed that **the policy's cited authority
+did not resolve**.
+
+**The ruling, recorded.** `README_POLICY.md` at the repository root is **authoritative**;
+the file it was copied from is the **template of origin, not an upstream**. Nothing syncs
+from it, no mechanism watches it, a later edit there has no standing here. Written down
+explicitly because **the absence of a sync is a deliberate choice that looks exactly like an
+oversight** — the next session would otherwise be free to "helpfully" re-sync. Verified
+rather than assumed: **0 of 227** origin-template tokens are absent from ANVIL's copy, so
+nothing was lost in adoption and there is nothing to re-sync.
+
+**The defect it exposed.** Measured at `61eac73`: the tracked `CLAUDE.md` is **3 lines, one
+heading, and zero numbered sections** — yet **7 live sites** cited `CLAUDE.md` **§14** as
+the provenance of the `README-GROWTH` doctrine, including the **registry line itself** and
+both check scripts. Sweeping from the authoritative set rather than the reported instance
+(decision `0033` rule (2), fourth application this session) widened the class to **`§13`**
+and **`§3`**: **23 citations across 13 files**, 8 live and correctable.
+
+**The citation is also wrong in kind, and that is the stronger objection** (owner, same
+day: the policy *"shall be project and harness neutral"*). ANVIL ships **five** harness
+bootstrap files — `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`,
+measured body-identical and differing only in their title line — and
+`DOCTRINE_ENFORCEMENT.md` §7 makes enforcement **git-level** precisely so it binds *every*
+author. Anchoring a repo-wide doctrine to one vendor's file implies the rule holds because
+*that harness* was told. This objection stands **even if `CLAUDE.md` did have a §14**, which
+is why it, not the broken referent, is the reason recorded.
+
+**Corrected — live docs only (8 sites):** `scripts/check_doctrines.sh` (the `README-GROWTH`
+registry line), `scripts/check_readme_growth.sh`, `README_POLICY.md`,
+`DOCTRINE_ENFORCEMENT.md` §10, `book/src/architecture.md`,
+`docs/knowledge/doctrine-enforcement.md`, and two `docs/TASK_TREE.md` rows. All now read
+*"owner directive `2026-07-30`, recorded in `README_POLICY.md`"* — naming the owner, the
+date, and a repo-side durable home, and **no harness**. Re-greped: **zero** live citations
+remain.
+
+**History deliberately untouched, and proven so.** `CHANGES.md` (4), the two layer-B task
+files (4 + 4), and decisions `0031` (2) and `0036` (3) keep their `§` citation **raw** under
+decision `0031` — the citation was accurate to how the directive was delivered on
+`2026-07-30`. Re-greped and counted after the sweep, because **leaving history alone is an
+act that must be provable rather than an omission**. Decision `0036` gained a **dated
+amendment**, not an edit.
+
+**One more correction, same subject.** `DOCTRINE_ENFORCEMENT.md` §8 group C told adopters to
+keep their harness bootstrap files *"byte-identical"*. Measured, ANVIL's five are not —
+they differ in their title line (`511`/`510`/`511`/`491`/`491` bytes, four distinct
+contents, identical bodies). The standard now says keep the **body** identical, and adds the
+rule the ruling generalises: **cite doctrine provenance by owner + date, never by one of
+these files.**
+
+**Also verified, since the neutrality requirement applies to the copy itself:** ANVIL's
+`README_POLICY.md` **body** contains **0** project-specific and **0** harness-specific
+tokens — everything local sits in a clearly fenced adoption note above it. The neutral
+policy and the local adoption record are separable, which is what lets an adopter record
+derived caps and rulings without diluting the policy.
+
+**Validation.** Premise checked before it was claimed (`CLAUDE.md` section count = 0); full
+sweep and per-file classification; live sites re-greped to zero; history re-greped and
+confirmed unchanged; `scripts/check_doctrines.sh` **8/8** after `git add`; `mdbook build`
+clean; `check_knowledge_map.sh` in sync. `src/` untouched ⇒ DUT byte-identical by
+construction; the `cargo test` / snapshot banks stand from `1a6f276` and were not re-run.
+
+**Impact.** No gate changes behaviour. What changes is that a reader who opens a doctrine's
+stated authority now finds something there, and that the authority is attributed to the
+owner rather than to one agent harness.
+
+**Files touched.** `README_POLICY.md`, `DOCTRINE_ENFORCEMENT.md`, `book/src/architecture.md`,
+`docs/knowledge/doctrine-enforcement.md`, `scripts/check_doctrines.sh`,
+`scripts/check_readme_growth.sh`, `docs/decisions/0036-…md` (dated amendment),
+`docs/tasks/README-POLICY-PROVENANCE.md` (new), `docs/TASK_TREE.md`, `KNOWLEDGE_MAP.md`,
+`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.3 — check the list, not the file (tree CLOSED)
 
 **Landed as:** `ff2406c`. Previous: `d4dd326`.

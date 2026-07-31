@@ -501,7 +501,7 @@ Knowledge Map. The live registry:
 - **`README-GROWTH`** — `README.md` stays a landing page, within its
   reviewed line **and** byte caps, with the project-owned
   `README_POLICY.md` beside it (decision `0036`; owner directive
-  `CLAUDE.md` §14). Both caps, because prose density means a file can sit
+  `2026-07-30`, recorded in `README_POLICY.md`). Both caps, because prose density means a file can sit
   well under the line cap while already over the byte cap. Fails with a
   routing hint naming the canonical home per kind of overflow; raising a
   cap requires a new decision record, not an edit to the check.<!--/enum:doctrine-ids-->

@@ -48,7 +48,7 @@ beside a list is a second copy of it):
 - `README-GROWTH` → `scripts/check_readme_growth.sh` (structural: `README.md`
   stays a landing page within its reviewed line **and** byte caps, with the
   project-owned `README_POLICY.md` beside it; decision `0036`, owner directive
-  `CLAUDE.md` §14. Not scope-aware — landing-page size is a property of the
+  `2026-07-30`. Not scope-aware — landing-page size is a property of the
   tree, not of a change).<!--/enum:doctrine-ids-->
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
