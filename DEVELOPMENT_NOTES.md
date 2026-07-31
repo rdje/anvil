@@ -5,6 +5,65 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A cap binds on the axis it measures; the growth moves to the one it does not — `OVERFLOW-DESTINATION-INSTRUMENTATION.2`
+
+The owner's finding was *a cap that redirects overflow must check where the overflow lands*, and
+`.1` looked for the landing site on a **neighbouring surface**. It was one category closer than
+that: on the **neighbouring axis of the capped file itself**.
+
+`MEMORY.md` has a line cap (50) and no byte cap. Since that cap landed at `2d01e8e`
+(`2026-06-05`), which truncated the file from **2,399 lines / 306,099 bytes** to **19 / 1,227 /
+64 B-per-line**, the two axes went in completely different directions:
+
+- **lines: 19 → 50, then flat.** The cap binds, exactly as designed.
+- **bytes: 1,227 → 20,311 — ×16.6.** Nothing measured this.
+- **density: 64 → 406 B/line — ×6.3**, against `README.md`'s **65**.
+
+The file is now at **1.65× the byte cap its sibling landing page is held to**, and it is the file
+every session reads first and re-reads after every compaction. Decision `0036` §(c) had already
+identified prose density as the hidden variable and required *both* caps for `README.md`; the
+resume pointer got one axis and has been quietly demonstrating why ever since.
+
+**The generalisable form, and it is what `.4` must carry into the portable policy:** *instrument
+every axis of a bounded surface, or the cap measures the one thing that is not growing.* A single
+axis does not bound a file; it bounds a **projection** of it, and content flows into the null
+space of that projection without anyone deciding to evade anything. Nobody wrote a 749-byte line
+to get around a line cap — they wrote what they had to say on the one line the cap left.
+
+**The second lesson is about the classification, and it is why "cap every destination" keeps
+being wrong in a new way each time it is tried.** `.1` had already rejected the naive form
+(four destinations are append-only by `0031`). Measured, the *bounded* half splits again:
+
+- **bounded by a stated contract** — a landing page, a resume pointer. The document's purpose
+  names its size, so a cap is **derivable** rather than chosen.
+- **bounded in kind, unbounded in size** — a CLI reference, the book, the roadmap, the toolbox,
+  the workspace analysis. The job is fixed; the length tracks the **product**. A cap here is
+  raised once per feature (so the number means nothing) or forces deleting legitimate content
+  (so it does harm). `README_POLICY.md:32` had this already — *"`USER_GUIDE.md`'s length is its
+  purpose"* — it just was not named as a class.
+
+The test that separates them is not size and not growth rate. It is **whether the document's
+contract mentions its own extent.** A landing page is defined partly by being short; a reference
+manual is not defined by being any length at all.
+
+**And a third: two instruments died on measurement, both plausible.** The distinct-date count as
+a status-view-vs-log detector puts `ROADMAP.md` (15 dates) in the log band — but all fifteen are
+phase-closure facts, which decision `0039` rule (a) classifies as correct past-tense statements
+inside a present-tense document. The self-declared-date instrument has zero subjects in ANVIL's
+live docs at all. Two obvious designs, both disqualified before implementation, at the cost of a
+few greps — which is the cheapest possible place to find out, and the reason `.2` measured before
+it decided rather than after.
+
+**One process note worth keeping.** The derived cap (6,144 B) is 3.3× smaller than the file, so
+the gate cannot simply be switched on: it would block every commit. That is not a reason to raise
+the cap — it is the signal `MEMORY_ARCHITECTURE.md` §6 describes (*"information is in the wrong
+layer"*), and **65 %** of the file is indeed layer-C content sitting in layer A. The repair
+therefore gets its own leaf, ordered **before** the implementation leaf. Landing a gate that
+cannot pass is how a cap gets quietly raised to fit, and that is exactly the move both
+`README_POLICY.md` and decision `0036` forbid.
+
+---
+
 ## 2026-07-31 — A date is not evidence of pastness; and print the bucket you could not classify — `DATED-COUNT-SWEEP-EXEMPTION.3`
 
 Decision `0033` §(c) closed on *"this class is discovered by review and held by derivation"*

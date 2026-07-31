@@ -1,6 +1,128 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.2 — the pressure went to the unmeasured axis
+
+**Landed as:** this commit. Previous: `e4b4fd5`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Classified every overflow destination as decision
+[`0040`](docs/decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md).
+Measuring first changed **both** the classification and the target.
+
+**1. The classes are three, not two.** `.1` posited *bounded surface* vs *append-only record*,
+with every bounded one to carry an instrument. Measured, the bounded side **splits** — and
+`README_POLICY.md:32` had already stated the missing class without naming it: *"`USER_GUIDE.md`'s
+length is its purpose."*
+
+| class | meaning | members | instrument |
+| --- | --- | --- | --- |
+| **B1** | bounded by a **stated contract**, so the cap is derivable from what the doc is *for* | `README.md`, `MEMORY.md` | caps on **both** axes |
+| **B2** | bounded in **kind**, unbounded in **size** — length tracks the *product surface* | `USER_GUIDE.md`, `book/src/`, `ROADMAP.md`, `TOOLBOX.md`, `CODEBASE_ANALYSIS.md` | **none** — a cap is raised per feature (decorative) or forces deleting content with nowhere to go (harmful) |
+| **A** | append-only record | `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `docs/tasks/`, `docs/decisions/`, `docs/evidence/` | **never** capped — `0031` + `0033` **test (2)** |
+
+Every exclusion is stated **per entry with its governing doctrine named**, so it can never later
+read as an oversight. `.1`'s binary would have forced five B2 surfaces into *"bounded ⇒ must be
+instrumented"* — which is precisely where *"cap every destination"* turns harmful.
+
+**2. The finding: the pressure went one category beyond where the tree looked.** `.1` framed the
+hole as *the pressure relocates to a neighbouring **surface***. ANVIL's sharpest instance is that
+it relocated to the **neighbouring axis of the capped file itself**.
+
+`MEMORY.md` carries a **line** cap (50) and **no byte cap**. It now sits at **exactly 50 of 50
+lines — 100 % of its cap — and 20,311 bytes, 1.65× the byte cap `README.md` is held to**, longest
+line **2,874** characters, in a file whose own first line says *"keep <= 50 lines"* and whose
+standard (`MEMORY_ARCHITECTURE.md` §6) says *"roughly one screen"*.
+
+The history makes the mechanism unambiguous. The cap landed at `2d01e8e`
+(`MEMORY-ARCHITECTURE-DOC.4`, `2026-06-05`), truncating a pre-cap peak of **2,399 lines / 306,099
+bytes** to **19 lines / 1,227 bytes / 64 B-per-line**:
+
+| commit | date | lines | bytes | B/line |
+| --- | --- | ---: | ---: | ---: |
+| `ae8f3d1` (pre-cap peak) | 2026-05-20 | 2,399 | 306,099 | 127 |
+| `5043547` (first post-cap) | 2026-06-05 | 19 | 1,227 | **64** |
+| `7a1fc50` | 2026-07-30 | **50** | 13,378 | 267 |
+| `1c9b865` | 2026-07-31 | **50** | 19,905 | 398 |
+| `e4b4fd5` (HEAD) | 2026-07-31 | **50** | 20,311 | **406** |
+
+**Lines went 19 → 50 and stopped. Bytes went ×16.6. Density went 64 → 406 B/line — 6.3×**, against
+`README.md`'s measured **65**. The cap binds perfectly on the axis it measures; the growth
+continued, undisturbed, on the axis it does not. That is decision `0036` §(c) — *prose density is
+the hidden variable* — as a live instance, in the file every session reads first and re-reads after
+every compaction. Recorded honestly: **this session contributed 19,905 → 20,311**, which is the
+argument for a cap over a review habit.
+
+**3. And 65 % of it is in the wrong layer.** By section: `## Operating gotchas` **10,491 B (51.6 %)
+in 14 lines = 749 B/line**; `## Standing directives` **2,696 B (13.3 %)**; layer-A proper (`## How
+to resume` + `## Current state`) only **5,801 B (28.6 %)**. `MEMORY_ARCHITECTURE.md` §3 defines
+layer C as *"constraints, learnings, **conventions**, **preferences**, **environment quirks**"* —
+those two sections verbatim — and the line cap cannot see them because they are written as 23
+enormous lines. §6 prescribes the remedy without ambiguity: *"if it exceeds the cap, information is
+in the wrong layer; move it down to B or C."*
+
+**4. Both instruments `.1` proposed are retired on measurement.** The distinct-date
+status-view-vs-log test puts `ROADMAP.md` in the log band at **15** dates — and all fifteen were
+read: every one is a phase- or lane-**closure** fact (*"done as of 2026-05-16"*, *"closed
+2026-06-16"*, *"landed 2026-06-22"*, *"TREE CLOSED 2026-07-31"*). Decision `0039` rule (a) says
+exactly why the test fails: **a record about the present legitimately contains dated statements
+about the past.** It therefore cries wolf on the repo's principal status surface. The
+self-declared-date instrument was disqualified at `DATED-COUNT-SWEEP-EXEMPTION.3` — **0** subjects
+across the live-doc set. The **mixed-surface** category keeps its rule (*separate before you cap*)
+and honestly gets **no detector**; ANVIL has no mixed surface today.
+
+**5. The cap is derived, and the tree grows a leaf so the gate is reachable.** Contract *one
+screen* ≤ 50 lines × the demonstrated-achievable **64 B/line** (what this file measured at
+`5043547`), budgeted generously to ~120 B/line ⇒ **6,144 bytes** — deliberately **half**
+`README.md`'s cap, a resume pointer being a strictly smaller contract than a landing page. The file
+is **3.3×** that today, **which is the finding, not an argument for a bigger number**. Switching
+the assertion on at HEAD would block every commit, so a **new `.5`** (demote `MEMORY.md`'s layer-C
+content behind **pointers**, never copies) is inserted **before** `.3`. Not folded into `.3`
+deliberately — these are the owner's standing directives and the project's hardest-won gotchas.
+**No new doctrine:** `MEMORY-ARCH` already owns that file's size, so the cap is a second assertion
+inside `check_memory_architecture.sh`.
+
+**Validation.** Every sweep records its key, its authoritative set and its **match count**, per
+decision `0039` rule (b).
+
+- **Sweep 1** — routing-hint destinations, set `check_readme_growth.sh:61-70`: **7**. `.1` recorded
+  *six*. A count beside a list, off by one, **inside the tree auditing where lists go stale**.
+  Recorded, not silently corrected — `.1` is layer-B history.
+- **Sweep 2** — structures mapping a content *kind* to a canonical home, set = the whole tree:
+  **2**, and they **disagree** by exactly `CHANGES.md` + `DEVELOPMENT_NOTES.md`.
+- **Sweep 3** — lines / bytes / longest line / distinct dates across **12** surfaces (table above
+  and in `0040` §2).
+- **Sweep 4** — `MEMORY.md` across **55** sampled revisions of its git history.
+- **Sweep 5** — `MEMORY.md` by section (7 sections, byte shares above).
+- `cargo check --all-targets` clean; `mdbook build` clean; knowledge-map regenerated
+  (**92 → 93** facts / **932 → 944** question keys) and `check_knowledge_map` OK;
+  `scripts/check_doctrines.sh` **8/8** after `git add`.
+
+**Two latent hazards recorded rather than left to be discovered.**
+
+1. **The two routing enumerations must STAY different.** The hint routes **new content** — which
+   may never enter an append-only record — while `README.md`'s table routes a **reader**, and
+   change history does live in `CHANGES.md`. Both are authoritative (`0033` test (2) fails for
+   each). An editor "harmonising the inconsistency" would add `CHANGES.md` to the routing hint and
+   thereby instruct authors to append new prose to append-only history.
+2. **`CODEBASE_ANALYSIS.md` is named by neither enumeration**, yet it is a mandatory bootstrap read
+   (`SESSION_BOOTSTRAP.md` step 3) and a per-commit checklist item (`COMMIT.md` §5), and carries the
+   worst byte profile of any B2 surface: **282,136 B at 103 B/line, with a single line of 24,990
+   characters — 2.03× the entire README byte cap.** Classified B2 ⇒ no cap; the long line is a
+   **formatting** defect recorded for a future leaf, not swept here.
+
+**Impact.** ANVIL gains a three-way classification of every overflow destination with the governing
+doctrine named per entry. The tree's central lesson is sharper than the one it opened on and is what
+`.4` must carry into the portable policy: **instrument every axis of a bounded surface, or the cap
+measures the one thing that is not growing.** Six explicit non-licenses keep `0040` from being cited
+to trim history, to cap a B2 surface, or to raise the `MEMORY.md` cap to fit the current file.
+
+**Files touched.**
+`docs/decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md` (new),
+`docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.3 — a date is not evidence of pastness
 
 **Landed as:** `0941c5e`. Previous: `e954fe8`.
