@@ -5,6 +5,64 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — Two copies of one number rotted to two different wrong values; and a sweep that reports its finds but not its match count cannot be audited — `DATED-COUNT-SWEEP-EXEMPTION.2`
+
+`.1` registered three stale lines in `CODEBASE_ANALYSIS.md`. Enumerating that file against
+`BOOK-TEST-COUNT-SHADOWS.1`'s **own key** returned **fourteen**: the file holds a second,
+larger copy of the very per-file test-count list that tree deleted from
+`book/src/architecture.md`, left entirely untouched. Nine of thirteen per-file claims were
+stale, all under-counts, the worst by 4.4× (`tool_matrix.rs`: 26 claimed, **114** real).
+
+**The scope error is the point, not an aside.** `.1` had *measured* — it just measured the
+instance it tripped over and the three lines around it. Measuring again before editing is
+what caught the other eleven. That is decision `0033` rule (2) biting for the sixth time
+this session, and it keeps arriving in new disguises: *sweep from the authoritative set, not
+from the shape you found first* — where "the authoritative set" here meant **every line in
+the file matching the key**, not "the region I already know about."
+
+**The root cause needed refining, and both halves are worth keeping.** `.1` concluded *the
+date is the discriminator*. That is **exactly right in the file `BOOK-TEST-COUNT-SHADOWS.1`
+actually repaired**: `architecture.md` retains zero undated counts, and only the dated total
+survived. It explains **nothing** in `CODEBASE_ANALYSIS.md`, where undated counts survived
+too. So there are two distinct failure modes, and the second is the dangerous one:
+
+- **(A) The date.** Inside the file being repaired, a dated claim was exempted *by kind* as
+  apparent history. Local, and now fixed.
+- **(B) Judged, not enumerated.** `CODEBASE_ANALYSIS.md` **was** swept — the tree's own log
+  proves it, rejecting *"all 7 categories"* there with a stated reason. But the sweep
+  surfaced one candidate and stopped. Fourteen lines matched its key; none was reported.
+
+**(B) generalises into a rule the project did not have.** `BOOK-TEST-COUNT-SHADOWS.1`
+recorded *"found 2 more live shadows and three false positives."* **Precision reported,
+recall never.** Nothing in that record lets a reader tell whether it examined 5 candidates
+or 500 — so its coverage claim was not merely unverified, it was **unfalsifiable**. A sweep
+must record **how many candidates its key matched**, alongside what it did with them.
+
+That is the exact sibling of what `CHANGES-ENTRY-PLACEMENT.3` found two commits earlier:
+decision `0038` recorded an oracle's *count* (388) but not its *pattern*, and the count
+proved irreproducible. Here a sweep recorded its *findings* but not its *match set*, and the
+recall proved unauditable. Two trees, two days, one shape: **an instrument is only as
+trustworthy as what it records about itself.** A number without its method is a rumour.
+
+**The decisive evidence that these were shadows and not facts is better than any argument:
+the two copies disagreed with each other.** For `src/metrics.rs`, `book/src/architecture.md`
+said **18**, `CODEBASE_ANALYSIS.md` said **20**, and the truth is **31**. One derivable
+number, two copies, rotted to two *different* wrong values — neither of which was ever
+right. That is decision `0033`'s definition of a shadow demonstrated rather than asserted,
+and it is why the replacement text in `CODEBASE_ANALYSIS.md` **records the divergence**
+instead of just dropping the numerals: the divergence is the reason, and a future editor who
+sees only a deletion will eventually re-add a "helpful" count.
+
+**And four of the thirteen were accidentally correct** — `types.rs` 40, `validate.rs` 26,
+`hierarchy.rs` 6, `manifest.rs` 3. `BOOK-TEST-COUNT-SHADOWS` predicted exactly this and
+watched it happen once already, when `IR-TYPES-DECOMPOSITION.2` moved two tests out of
+`types.rs` and walked 42 *down onto* the stale 40. Seeing four coincidences in one
+thirteen-row list settles it: a number that can become correct by accident was never
+carrying information. The temptation this creates is real and worth naming — once the
+correct values are measured and sitting in front of you, "just update them" is the cheapest
+possible action, which is precisely why the repair rung was fixed at **R1, deletion** in
+`.1`, before any of them were known.
+
 ## 2026-07-31 — A date turns a standing claim into apparent history, and exempts it from the sweep built to catch it — `DATED-COUNT-SWEEP-EXEMPTION.1`
 
 `BOOK-TEST-COUNT-SHADOWS` deleted five per-file test counts from

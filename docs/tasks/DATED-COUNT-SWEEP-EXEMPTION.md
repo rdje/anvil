@@ -131,10 +131,10 @@ than the 72 % case the prose holds up as the cautionary example.
   Commit: `ac7ffb6` — `DATED-COUNT-SWEEP-EXEMPTION.1 — the date is what carried it through`
 
 - ID: `DATED-COUNT-SWEEP-EXEMPTION.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Delete the two dated totals and CODEBASE_ANALYSIS.md's stale per-target claims at rung R1, replacing each with the derivation a reader can run; then re-sweep the live docs keyed on the CORRECTED rule and record what it finds.`
   Acceptance: `book/src/architecture.md:612 and CODEBASE_ANALYSIS.md:2423-2425 no longer assert a test count. architecture.md needs no replacement text — the three runnable derivations already sit 57 lines above at :545-550 — so the repair there is pure deletion; CODEBASE_ANALYSIS.md gets a pointer to those derivations rather than a second copy of them, since a second copy is the very shadow being removed (0033). The book_examples "54 runnable / 9 skip-sentineled" figures are resolved the same way OR the measurement is recorded explaining why they are not shadows. Re-sweep keyed on "is the enclosing record about the past or the present?" over the live docs, from the authoritative set, and record every hit AND every rejected false positive with its reason. mdbook build clean; check_doctrines.sh 8/8; docs-only.`
-  Verification: `pending`
+  Verification: `done — REPAIRED, and .1's SCOPE WAS WRONG BY 6x, which measuring first is what caught. .1 registered "CODEBASE_ANALYSIS.md:2423-2425" — three lines. Enumerating that file against BOOK-TEST-COUNT-SHADOWS.1's OWN key returned FOURTEEN matches: the file carries a SECOND, LARGER COPY of the very per-file test-count list BTCS.1 deleted from book/src/architecture.md, and it was left completely untouched. Measured, all thirteen per-file claims: types.rs 40/40, validate.rs 26/26, cone.rs 42/43, gen/mod.rs 1/3, hierarchy.rs 6/6, module.rs 4/6, emit/sv.rs 17/26, metrics.rs 20/31, manifest.rs 3/3, microdesign 7/8, tool_matrix.rs 26/114 (+88, a 4.4x under-report and the worst instance in the repo), pipeline.rs 79/133, book_examples.rs 3/4 — NINE stale, all under-counts, plus the dated total 307 vs an actual 946 and "54 runnable / 9 skip-sentineled" vs 39 sentinels present. THE ROOT CAUSE IS REFINED, NOT REPLACED — .1's finding is exact WHERE IT WAS DERIVED and incomplete elsewhere, and both halves are recorded: (A) THE DATE, confirmed exactly for book/src/architecture.md — re-measured, ZERO undated counts survive in that file, only the dated total did, so within the file BTCS.1 actually repaired the date is the whole discriminator; (B) A SECOND, DISTINCT FAILURE MODE for CODEBASE_ANALYSIS.md, where BOTH dated (:2424, :2425) and UNDATED (:2422 26/114, :2423 79/133) counts survived, so the date explains nothing there. That file was SWEPT — BTCS.1's log proves it, rejecting "all 7 categories" with a reason — but it was JUDGED, not ENUMERATED: fourteen lines match its own key and none was surfaced. The reusable rule: A SWEEP THAT REPORTS ITS FINDS WITHOUT REPORTING ITS MATCH COUNT CANNOT BE AUDITED FOR RECALL. BTCS.1 recorded "found 2 more live shadows and three false positives" — precision reported, recall never — so a reader cannot tell whether it enumerated 5 candidates or 500. That is the exact sibling of CHANGES-ENTRY-PLACEMENT.3's finding that an extractor whose PATTERN is unrecorded is not reproducible; here it is an extractor whose MATCH SET is unrecorded. THE CLINCHING EVIDENCE THAT THESE WERE SHADOWS AND NOT FACTS, and it is better than any argument: THE TWO COPIES DISAGREED WITH EACH OTHER. For src/metrics.rs the book said 18, CODEBASE_ANALYSIS.md said 20, the truth is 31 — one derivable number, two copies, rotted to two DIFFERENT wrong values. And FOUR of the thirteen (types.rs, validate.rs, hierarchy.rs, manifest.rs) are ACCIDENTALLY CORRECT, including types.rs = 40, which is precisely the coincidence BOOK-TEST-COUNT-SHADOWS predicted and observed in the book copy when IR-TYPES-DECOMPOSITION.2 walked 42 down onto the stale number. A number that can become correct by coincidence carries no information (decision 0033). SCOPE WIDENED DELIBERATELY AND SAID SO: repairing 2 lines of a 14-line list would leave the file half-repaired and the class open, and it is ONE list, ONE shape, ONE rung — so .2 took all of it. This is the opposite of the /tmp sweep's error (widening a repair beyond its PROVEN defect); here every additional line was measured before it was touched. REPAIR AT RUNG R1, DELETION, in both files. book/src/architecture.md needed NO replacement text — the three runnable derivations already sat 57 lines above — so the total became a short paragraph explaining why no total is printed AND naming why this one survived (it was dated), which is the part a future editor needs. CODEBASE_ANALYSIS.md's thirteen bullets keep every word of their descriptions and lose only the numeral; its dated-total bullet is replaced by a pointer to the book's derivations plus the metrics.rs 18-vs-20-vs-31 divergence as the recorded evidence — a POINTER, never a second copy of the commands, since a second copy is the shadow being removed. ACCEPTANCE CHECK PROVEN NON-VACUOUS (0037): after the repair, the key returns ZERO hits in both files; re-inserting one synthetic count line makes it return 1, so green means clean rather than broken. RE-SWEEP under the CORRECTED rule ("is the enclosing record about the past or the present?") over 147 tracked *.md minus CHANGES/DEVELOPMENT_NOTES/docs-tasks/docs-evidence/docs-decisions by kind: NO live-doc site asserts a test count. Remaining hits are all past-tense records of a named leaf's completed action (MEMORY.md and docs/TASK_TREE.md rows narrating what THIS tree measured; TASK_TREE.md:131 "bumped 9 test assertions", :146 "13 test-fixture sites"), each checked individually and correctly exempt — which is the corrected rule working, since the OLD rule would have exempted them for the wrong reason (being dated) and the new one exempts them for the right one (being about the past). Checks: mdbook build clean; cargo test --test book_examples green; cargo check --all-targets clean; scripts/check_doctrines.sh 8/8 after git add (book/src/architecture.md is a declared ENUMERATION-PARITY doctrine-ids site, re-checked per the recorded gotcha about grepping the doctrine checks for a file before touching it — the edit is 100+ lines below the fence and parity holds). Docs-only => DUT byte-identical.`
   Commit: `pending`
 
 - ID: `DATED-COUNT-SWEEP-EXEMPTION.3`
@@ -149,8 +149,8 @@ than the 72 % case the prose holds up as the cautionary example.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `DATED-COUNT-SWEEP-EXEMPTION.1` | `done` | Audited, measured and registered; no repair attempted. The claims are **31 %** and **32 %** of reality. The first root-cause hypothesis (*"the sweep skipped the file it was editing"*) was **tested and refuted** — both files were in scope and both claims match the sweep's key. The real cause is the **date**: the sweep exempted dated measurements as honest history, and `.1` deleted every *undated* count in that file while leaving every *dated* one. |
-| 2 | `DATED-COUNT-SWEEP-EXEMPTION.2` | `pending` | **Next.** Delete at R1 and re-sweep under the corrected rule. Bounded: the class is exactly two live-doc sites, and `architecture.md` needs no replacement text because the runnable derivations already sit 57 lines above the defect. |
-| 3 | `DATED-COUNT-SWEEP-EXEMPTION.3` | `pending` | Make the corrected rule durable. This is the leaf that stops the class recurring — deleting two lines does not. Must also decide whether to share `OVERFLOW-DESTINATION-INSTRUMENTATION`'s self-declared-date instrument rather than build a second one. |
+| 2 | `DATED-COUNT-SWEEP-EXEMPTION.2` | `done` | Repaired at **R1** in both files — and **`.1`'s scope was wrong by 6×**, which measuring before editing is exactly what caught. `.1` registered three lines in `CODEBASE_ANALYSIS.md`; enumerating that file against `BOOK-TEST-COUNT-SHADOWS.1`'s **own key** returned **fourteen** — the file holds a **second, larger copy of the very list** that tree deleted from the book, left untouched. **Nine of thirteen** per-file claims stale, worst `tool_matrix.rs` **26 → 114**. Root cause **refined, not replaced**: the date is exact for `architecture.md` (zero undated counts survive there) but explains nothing in `CODEBASE_ANALYSIS.md`, where undated counts survived too — that file was **judged, not enumerated**. Clincher: the two copies **disagreed with each other** (`metrics.rs`: book 18, this file 20, truth 31). |
+| 3 | `DATED-COUNT-SWEEP-EXEMPTION.3` | `pending` | **Next.** Make the corrected rule durable. This is the leaf that stops the class recurring — deleting fifteen lines does not. `.2` gives it **two** rules to land, not one: (i) an exemption must be keyed on *past vs present*, never on *dated vs undated*; (ii) **a sweep must record its match count, not only its finds**, or its recall cannot be audited — the sibling of `CHANGES-ENTRY-PLACEMENT.3`'s unrecorded-extractor finding. Must also decide whether to share `OVERFLOW-DESTINATION-INSTRUMENTATION`'s self-declared-date instrument rather than build a second one. |
 
 ## Decisions
 
@@ -172,6 +172,31 @@ than the 72 % case the prose holds up as the cautionary example.
   lines.** Deleting the survivors closes two instances; restating the rule as *past vs
   present* rather than *dated vs undated* closes the class. `.3` exists so `.2` cannot be
   mistaken for completion.
+- `2026-07-31` (`.2`): **`.1`'s root cause is REFINED, not replaced, and both halves are
+  kept.** The date is the exact discriminator **in the file `BOOK-TEST-COUNT-SHADOWS.1`
+  actually repaired** — re-measured, zero undated counts survive in `architecture.md`. It
+  explains **nothing** in `CODEBASE_ANALYSIS.md`, where undated counts survived too. So
+  there are **two** failure modes, not one, and the second is the more dangerous:
+  **that file was judged, not enumerated.** Fourteen lines matched the sweep's own key and
+  none was surfaced. Recorded here rather than edited into `.1`, which is layer-B history.
+- `2026-07-31` (`.2`): **New rule, and it is `.3`'s second deliverable — a sweep must
+  record its match count, not only its finds.** `BOOK-TEST-COUNT-SHADOWS.1` reported *"found
+  2 more live shadows and three false positives"*: precision reported, **recall never**. A
+  reader cannot tell whether it examined 5 candidates or 500, so its coverage claim was
+  unfalsifiable. This is the exact sibling of `CHANGES-ENTRY-PLACEMENT.3`'s finding that an
+  extractor whose *pattern* is unrecorded is not reproducible — here it is an extractor
+  whose *match set* is unrecorded. Two trees, two days, one shape: **an instrument is only
+  as trustworthy as what it records about itself.**
+- `2026-07-31` (`.2`): **Scope widened from 3 lines to 15, deliberately, and said so.**
+  Repairing 2 of a 14-line list would leave the file half-repaired and the class open, and
+  it is one list, one shape, one rung. This is *not* the `/tmp` sweep's error of widening
+  beyond a proven defect: every additional line was **measured before it was touched**, and
+  the four accidentally-correct ones were identified as such rather than silently "fixed".
+- `2026-07-31` (`.2`): **The decisive evidence is that the two copies disagreed with each
+  other.** For `src/metrics.rs` the book said **18**, `CODEBASE_ANALYSIS.md` said **20**,
+  the truth is **31**. One derivable number, two copies, two *different* wrong values. No
+  argument about shadows is needed after that; and it is why the replacement text records
+  the divergence rather than just deleting the numbers.
 
 ## Commit Log
 
@@ -181,7 +206,14 @@ than the 72 % case the prose holds up as the cautionary example.
 
 ## Blockers
 
-- None. `.2` is fully specified and bounded.
+- None. `.3` needs no new input; `.2` handed it two measured rules and a coordination note.
+
+## Verification Log
+
+| Date | Leaf | Checks | Result |
+| --- | --- | --- | --- |
+| `2026-07-31` | `DATED-COUNT-SWEEP-EXEMPTION.2` | `Enumerated CODEBASE_ANALYSIS.md against BTCS.1's own key: 14 matches, not the 3 .1 registered. All 13 per-file claims measured: 9 stale, all under-counts (worst tool_matrix.rs 26 -> 114); 4 accidentally correct incl. types.rs 40. Dated total 307 vs actual 946 (751 lib + 195 integration). Repaired at R1 in both files; acceptance key returns 0 hits after, and 1 hit on a synthetic re-inserted count, so the check is proven non-vacuous. Re-swept under the corrected past-vs-present rule: no live-doc site asserts a test count; every remaining hit is a past-tense record of a named leaf's completed action, each checked individually. mdbook build clean; cargo test --test book_examples green (4 tests); cargo check --all-targets clean; check_doctrines.sh 8/8 after git add, with book/src/architecture.md re-checked as a declared ENUMERATION-PARITY site` | `class closed in both files; .1's root cause refined into two distinct failure modes; scope widened 3 -> 15 lines on measurement and recorded as such` |
+| `2026-07-31` | `DATED-COUNT-SWEEP-EXEMPTION.1` | `measured at 349eeb6 with the three derivations book/src/architecture.md:545-550 publishes; first root-cause hypothesis tested and refuted; class swept from the authoritative set (147 tracked *.md)` | `defect confirmed, pre-existing, live; registered without repair` |
 
 ## Changelog
 

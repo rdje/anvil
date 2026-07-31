@@ -609,7 +609,13 @@ uniqueness across batched hierarchy designs),
 compaction/orphan guarantees, knob-roll telemetry, and input-surface
 finalisation.
 
-**Total (current HEAD, `cargo test` on 2026-04-30): 226 unit-target tests + 68 integration tests = 294 passing tests.**
+No total is printed here either, for the reason given above — and this
+paragraph used to be one. It survived the repair that deleted the
+per-file counts, because it was **dated**, and a dated claim reads as a
+record of a past run rather than as an assertion about now. It was not:
+it called itself the count at *"current HEAD"* while carrying a date
+months stale, and by the time it was removed it was reporting under a
+third of the real figure (`DATED-COUNT-SWEEP-EXEMPTION`).
 
 **External smoke tests** — repo-owned downstream smoke now exists via
 `src/bin/tool_matrix.rs`, which runs Verilator and Yosys across a
