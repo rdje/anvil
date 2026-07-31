@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.1 — audit + register: this file's two newest entries are at its bottom
 
-**Landed as:** `pending`. Previous: `087ca7b`.
+**Landed as:** `e37cec3`. Previous: `087ca7b`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 Tree registration only; no repair is attempted in this commit, deliberately.
 
