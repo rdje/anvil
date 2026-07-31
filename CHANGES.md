@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.1 — the date is what carried it through
 
-**Landed as:** this commit. Previous: `349eeb6`.
+**Landed as:** `ac7ffb6`. Previous: `349eeb6`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Registered a new tree on a defect found during session bootstrap, reading
