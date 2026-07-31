@@ -43566,3 +43566,77 @@ The lazy adapter fixes a Phase 1 bug surfaced on the first `cargo test` run: whe
 
 **Files touched**
 All files in the repository (initial creation), plus subsequent edits to `src/gen/cone.rs`, `src/gen/pool.rs`, `tests/pipeline.rs`, `examples/generate_one.rs`.
+
+## 2026-07-31-book-test-count-shadows-2 — BOOK-TEST-COUNT-SHADOWS.2 the count matched neither referent
+
+`USER_GUIDE.md` claimed *"The 16 knobs documented below as 'config-file' knobs
+are now **also** first-class CLI flags"*. Measured before editing (decision
+`0033` rule 0), that number is wrong under **both** readings of its own
+referent, and was wrong the day it was written:
+
+- **5** of the `KNOB-ERGONOMICS-AND-PRESETS.2b.1` sixteen have a bullet below
+  that sentence (`soft_union_slice_prob`, `function_emit_prob`,
+  `generate_loop_emit_prob`, `task_emit_prob`, `cone_function_emit_prob`);
+- the other **11** have no bullet anywhere in `USER_GUIDE.md`;
+- **9** knobs are documented below, **4** of them (`multi_output_task_emit_prob`,
+  `mux_if_emit_prob`, `case_mux_if_emit_prob`, `casez_mux_if_emit_prob`)
+  shipping *after* `2b.1` and never among the sixteen.
+
+So this is not a count that decayed — `.1`'s five were that — but one whose
+referent never matched. A count is asserted *about* a set, and nothing checks
+that the set named in prose is the set the author had in mind. It is also
+growth-coupled (5 → 9 as four emission surfaces landed) and silent
+(`ENUMERATION-PARITY` holds the *category taxonomy* at this file, not this
+count), so all three of decision `0033` rule (a)'s tests hold.
+
+Repaired at rung **R1, deletion**: the number is gone, replaced by a runnable
+derivation (`comm -23` of `Config`'s fields against `--help`'s flags) so a
+reader re-derives rather than trusts the paragraph.
+
+**The three-name exclusion list was measured and kept.** `Config` has 92
+fields, `Overrides` 88, and the difference is exactly `{library_prob,
+max_nodes_per_module, use_async_reset}` + `{seed, steering}`; `--help` confirms
+the three named knobs have no flag. It enumerates an **exception**, not a
+derivable set, and its own "three" is verifiable against the list it introduces.
+
+**Two errors self-caught before staging**, both by refusing to trust the
+artifact:
+
+1. the first draft's derivation wrote to `/tmp` — a `NO-BOOT-VOLUME-REFS` /
+   decision `0031` breach in a live doc. Rewritten to process substitution,
+   with no temp path at all.
+2. **running** the published command showed it prints *five* names, not three:
+   `seed` does **not** appear (`--seed` matches its field name) and
+   `child_instances_per_module_by_depth` **does** (its flag is the
+   differently-named repeatable `--child-instances-per-depth`). The prose had
+   guessed two different exceptions. This is the recorded *"the fixture agrees
+   with you; the tool does not"* gotcha, and only execution surfaced it.
+
+A `book-test: skip` sentinel added by the first draft was also removed:
+`tests/book_examples.rs` scans `book/src/` only, so in `USER_GUIDE.md` that
+sentinel advertises a gate which does not exist.
+
+**Sweep** (effect-keyed, all tracked `*.md` minus `CHANGES.md` /
+`DEVELOPMENT_NOTES.md` / `docs/tasks/` / `docs/evidence/` by kind — a dated
+banked-run citation like "3 scenarios / 12 modules" is honest history, not a
+standing claim). Two **live registry shadows** found and **split out** to the
+new `LIVE-DOC-REGISTRY-SHADOWS` tree rather than repaired here, because their
+shape is registry *membership* rather than a count, and one needs a `scripts/`
+change: `docs/knowledge/api-reference.md` names "the 9 tools" and lists nine
+(a live `tools/list` returns **10**; `coverage` is absent) while also citing
+`schema_version 1.11` against a live `1.27`; and `book/src/agent-mcp.md` +
+`book/src/api-introspection.md` each name **6 of 8** steering categories.
+One false positive **rejected with its reason**: `KNOWLEDGE_MAP.md`'s "the 4
+analyze query schemas" describes how many schemas that *chapter* details, not
+how many queries the registry holds — the chapter lists all fourteen in its
+stability section, so a shape-keyed sweep would have "fixed" it into a lie.
+
+**Closes the `BOOK-TEST-COUNT-SHADOWS` tree** (`.1` + `.2` both done).
+
+Files: `USER_GUIDE.md`, `docs/tasks/BOOK-TEST-COUNT-SHADOWS.md`,
+`docs/tasks/LIVE-DOC-REGISTRY-SHADOWS.md` (new), `docs/TASK_TREE.md`,
+`MEMORY.md`, `CHANGES.md`.
+
+Checks: `cargo check --all-targets` clean; the published derivation re-run and
+its output matched the corrected prose exactly; `scripts/check_doctrines.sh`
+8/8 after `git add`. Docs-only ⇒ DUT byte-identical.

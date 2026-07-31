@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `BOOK-TEST-COUNT-SHADOWS`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (`.1` **done** — counts deleted + live docs swept; frontier `.2`, the one find `.1` declined to guess at)
+- Last updated: `2026-07-31` (`.2` **done** ⇒ tree **CLOSED**; residue split to `LIVE-DOC-REGISTRY-SHADOWS`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -93,7 +93,7 @@ is itself the finding: the claim was not measured when it was made.
 - ID: `BOOK-TEST-COUNT-SHADOWS`
   Status: `active`
   Goal: `Delete the per-file test-count shadows from the book and sweep the live docs for the same shape.`
-  Children: `.1` (delete + sweep), `.2` (the one sweep find `.1` did not guess at)
+  Children: `.1` (delete + sweep), `.2` (the one sweep find `.1` did not guess at) — both `done`
 
 - ID: `BOOK-TEST-COUNT-SHADOWS.1`
   Status: `done`
@@ -103,10 +103,10 @@ is itself the finding: the claim was not measured when it was made.
   Commit: `1a6f276` — `BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them`
 
 - ID: `BOOK-TEST-COUNT-SHADOWS.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Resolve the one sweep find .1 deliberately did not guess at: USER_GUIDE.md:464's "The 16 knobs documented below as 'config-file' knobs are now also first-class CLI flags", plus the "Three knobs stay config-file-only: library_prob, use_async_reset, max_nodes_per_module" beside it. MEASURE both against the real Config/CLI surface first — the count may be right, wrong, or referring to a set that no longer has crisp boundaries — then apply the rung the measurement earns.`
   Acceptance: `The claim is measured against src/config.rs + the CLI flag table BEFORE any edit, and the measurement is recorded whatever it says (decision 0033 rule (0): never write "currently correct" without measuring it). If it is a shadow, repaired at rung R1 by deletion — the sentence's real content is "config knobs are also CLI flags, except these three", which needs no total. The three-name exclusion list stays: it is an authoritative enumeration of an exception, not a shadow of a derivable set, and its own count ("Three") is verifiable against the list it introduces. mdbook/USER_GUIDE consistency preserved; docs-only.`
-  Verification: `pending`
+  Verification: `done — MEASURED FIRST (rule 0), and the claim is wrong under its own referent. The sentence read "The 16 knobs documented below as 'config-file' knobs are now also first-class CLI flags". Measured against USER_GUIDE.md itself: only FIVE of that sixteen have a bullet below that sentence (soft_union_slice_prob, function_emit_prob, generate_loop_emit_prob, task_emit_prob, cone_function_emit_prob); the other ELEVEN have no bullet anywhere in USER_GUIDE.md; and NINE knobs are documented below, four of which (multi_output_task_emit_prob, mux_if_emit_prob, case_mux_if_emit_prob, casez_mux_if_emit_prob) shipped AFTER KNOB-ERGONOMICS-AND-PRESETS.2b.1 and were never among the sixteen. So "16" was never the count of anything at that location — it is the 2b.1 commit prose carried over onto a referent it never matched, and the set below has since grown 5 -> 9. All three of decision 0033 rule (a)'s tests hold: derivable (count the bullets; diff Config against Overrides), growth-coupled (every new emission surface adds a bullet), silent (no compile error, no test, no gate — ENUMERATION-PARITY holds the CATEGORY taxonomy at this file, not this count). Repaired at rung R1 by DELETION: the number is gone, replaced by "Every knob documented below ... is now also a first-class CLI flag" plus a RUNNABLE derivation (comm -23 of Config's fields against --help's flags) so a reader re-derives rather than trusts the paragraph. THE THREE-NAME EXCLUSION LIST WAS MEASURED AND KEPT: Config has 92 fields, Overrides 88, and the difference is exactly {library_prob, max_nodes_per_module, use_async_reset} + {seed, steering}; --help confirms no flag exists for the three. It is an authoritative enumeration of an EXCEPTION, not a shadow of a derivable set, and its own "three" is verifiable against the list it introduces. TWO SELF-CAUGHT ERRORS, both before landing: (i) the first draft of the derivation wrote to /tmp, which decision 0031 / NO-BOOT-VOLUME-REFS forbids in any live doc — rewritten to process substitution, no temp path at all; (ii) RUNNING the published derivation (rather than trusting it) showed it prints FIVE names, not three: seed does NOT appear (--seed matches its field name) and child_instances_per_module_by_depth DOES (its flag is the differently-named repeatable --child-instances-per-depth) — the prose was corrected to name the two real exceptions instead of the two guessed ones. That is the recorded "the fixture agrees with you; the tool does not" gotcha, caught by running the artifact. A book-test skip sentinel added by the first draft was also removed: tests/book_examples.rs scans book/src/ only, so in USER_GUIDE.md the sentinel implies a gate that does not exist. SWEEP (effect-keyed, over all tracked *.md minus CHANGES/DEVELOPMENT_NOTES/docs-tasks/docs-evidence by kind): banked-run citations ("3 scenarios / 12 modules") are dated measurements of a specific run and are exempt by the same reasoning .1 used for append-only history. It found TWO live registry shadows at sites no gate declares, both SPLIT OUT to LIVE-DOC-REGISTRY-SHADOWS rather than repaired here (different shape — membership of an authoritative REGISTRY, not a count of a derivable set — and one needs a scripts/ change): (a) docs/knowledge/api-reference.md names "the 9 tools" and LISTS NINE, omitting the coverage tool entirely — measured against a live tools/list, which returns TEN — and also cites schema_version 1.11 against a live 1.27; a stale KM card is the worst case per the recorded gotcha, because it is read INSTEAD of re-deriving; (b) book/src/agent-mcp.md and book/src/api-introspection.md each name SIX of the EIGHT steering categories, omitting motifs and emission, and agent-mcp.md calls its six "the fixed set". REJECTED as a false positive with the reason: KNOWLEDGE_MAP.md's "the 4 analyze query schemas" describes how many schemas that CHAPTER details (api-introspection.md has 5 ### sections, four of them query schemas, and says so), not how many queries the registry has — the chapter itself lists all fourteen in its stability section, so this mirrors the page accurately and a shape-keyed sweep would have "fixed" it wrongly. Checks: cargo check --all-targets clean; the published derivation re-run and its output matched the corrected prose exactly; scripts/check_doctrines.sh 8/8 after git add (USER_GUIDE.md is a declared ENUMERATION-PARITY pair-4 site, so it was re-checked per the recorded gotcha about grepping the doctrine checks for a file before touching it). Docs-only => DUT byte-identical.`
   Commit: `pending`
 
 ## Current Frontier
@@ -114,7 +114,15 @@ is itself the finding: the claim was not measured when it was made.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `BOOK-TEST-COUNT-SHADOWS.1` | `done` | The five per-file counts are replaced by three runnable derivations; the prose that was actually informative (what each test cluster is *for*) is kept. The predicted embarrassment was **live at the time of deletion**: `types.rs` claimed 40 and measured 40, because `IR-TYPES-DECOMPOSITION.2` had walked 42 down onto the stale number. The sweep found 2 more live shadows (**repaired**: the MCP `10 tools` / `5 workflow prompts` counts, both measured **currently correct** and therefore latent, not live) and correctly **rejected three false positives**. |
-| 2 | `BOOK-TEST-COUNT-SHADOWS.2` | `pending` | **Next.** `USER_GUIDE.md`'s *"The 16 knobs documented below as config-file knobs"* — the one sweep find `.1` refused to guess at, because verifying it means reading the section it points at rather than pattern-matching the sentence. Measure before editing. |
+| 2 | `BOOK-TEST-COUNT-SHADOWS.2` | `done` | `USER_GUIDE.md`'s *"The 16 knobs documented below as config-file knobs"* — measured before editing, and **wrong under its own referent**: only 5 of that 16 are documented below, 11 appear nowhere in the file, and 9 knobs are documented below (4 of them post-dating the 16). Repaired at **R1 by deletion** + a runnable derivation; the three-name exclusion list measured correct and kept. Two self-caught errors before landing (a `/tmp` path that breaches `NO-BOOT-VOLUME-REFS`; a derivation whose real output named two different exceptions than the prose guessed). Sweep split 2 live registry shadows to `LIVE-DOC-REGISTRY-SHADOWS` and rejected 1 false positive with a reason. |
+
+**Tree complete.** Both leaves are `done`; the per-file test counts and the
+`USER_GUIDE` knob count are gone, each replaced by a derivation a reader can
+run. The residue this tree's own sweep turned up is owned by
+[`LIVE-DOC-REGISTRY-SHADOWS`](LIVE-DOC-REGISTRY-SHADOWS.md) — a different
+defect shape (membership of an authoritative *registry*, at sites the
+`ENUMERATION-PARITY` doctrine does not declare), deliberately not folded in
+here.
 
 ## Decisions
 
@@ -136,6 +144,7 @@ is itself the finding: the claim was not measured when it was made.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-07-31` | `BOOK-TEST-COUNT-SHADOWS.1` | `re-measured the five claims at f335926 (types 40 vs claimed 40 — accidentally true; validate 26 vs 26; cone 43 vs 42; emit/sv 26 vs 17; metrics 31 vs 18), deleted all five and replaced them with runnable derivations; swept 94 live-doc files from the EFFECT (a numeral qualifying a countable repo noun), excluding append-only history by kind; measured the 2 finds against the RUNNING MCP server (tools/list = 10, prompts/list = 5) BEFORE editing and recorded them as latent-not-live; repaired 3 sites by deletion; rejected 3 false positives with reasons; split the 1 ambiguous find into .2. mdbook build clean; cargo test --test book_examples green; scripts/check_doctrines.sh 8/8 (re-run after touching pair-3 site book/src/api-tools.md)` | `done` |
+| `2026-07-31` | `BOOK-TEST-COUNT-SHADOWS.2` | `measured USER_GUIDE.md's "16 knobs documented below" against BOTH candidate referents before editing: 5 of the 2b.1 sixteen have a bullet below the sentence, 11 have none anywhere in the file, and 9 knobs are documented below (4 post-dating the sixteen) — so 16 matched neither. Measured Config (92 fields) minus Overrides (88) = {library_prob, max_nodes_per_module, use_async_reset} + {seed, steering}, and confirmed via --help that the three named knobs really have no flag, so the exclusion list is correct and stays. Deleted the count (R1) and published a runnable derivation in its place; then RAN that derivation, which printed two exceptions the draft prose had guessed wrong (child_instances_per_module_by_depth in, seed out) and one /tmp path that breaches NO-BOOT-VOLUME-REFS — both fixed before staging. Effect-keyed sweep over all tracked *.md minus append-only/dated-evidence kinds: 2 live registry shadows split to LIVE-DOC-REGISTRY-SHADOWS, 1 false positive rejected with a reason. cargo check --all-targets clean; scripts/check_doctrines.sh 8/8 after git add` | `done` |
 | `2026-07-31` | `BOOK-TEST-COUNT-SHADOWS` | `measured all five "Current counts" claims in book/src/architecture.md against git show HEAD:<file> | grep -c '#[test]' — 4 of 5 stale (types.rs 40 vs 42, cone.rs 42 vs 43, emit/sv.rs 17 vs 26, metrics.rs 18 vs 31; only validate.rs at 26 correct); every error an UNDER-count; confirmed all three of decision 0033 rule (a)'s tests hold for the shape` | `defect confirmed, pre-existing` |
 
 ## Commit Log
@@ -143,9 +152,25 @@ is itself the finding: the claim was not measured when it was made.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `BOOK-TEST-COUNT-SHADOWS.1` | `BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them` | R1 deletion in `book/src/architecture.md` + the effect-keyed sweep. Also repaired the MCP `10 tools` / `5 workflow prompts` counts (measured correct first — latent, not live). Three false positives rejected with reasons; one ambiguous find split to `.2`. |
+| `BOOK-TEST-COUNT-SHADOWS.2` | `BOOK-TEST-COUNT-SHADOWS.2 — the count matched neither referent` | R1 deletion of `USER_GUIDE.md`'s `16 knobs` + a runnable `comm -23` derivation; the measured-correct three-name exclusion list kept. Closes the tree. Two live finds split to `LIVE-DOC-REGISTRY-SHADOWS`. |
 
 ## Changelog
 
+- `2026-07-31`: **CLOSED at `.2`.** The count did not merely decay — it never
+  matched. Written as *"the 16 knobs documented below"*, only 5 of that 16 were
+  ever documented below it, and the section it points at has since grown to 9.
+  That is a sharper version of the tree's own thesis: `.1` deleted numbers that
+  *became* wrong, `.2` deleted one that was wrong the day it was written, because
+  a count is asserted about a referent and nothing checks that the referent is the
+  set the author had in mind. Both leaves landed the same rung (**R1, delete**),
+  and in both the replacement is a command rather than a number. Also earned:
+  **run the derivation you publish.** The `.2` snippet was correct-looking and
+  wrong — it printed two exception names the prose had guessed differently — and
+  only executing it surfaced that, exactly as the recorded *"the fixture agrees
+  with you; the tool does not"* gotcha predicts. Residue (registry-membership
+  shadows at undeclared gate sites) went to `LIVE-DOC-REGISTRY-SHADOWS` rather
+  than being folded in, on the same "two focused trees beat one muddled one"
+  reasoning that separated this tree from `PARITY-EXTRACTOR-ARM-SHAPE-GAP`.
 - `2026-07-31`: Created. Surfaced by `IR-TYPES-DECOMPOSITION.2`: moving two tests
   out of `src/ir/types.rs` meant reading the book's claim about that file, which
   nothing had done since it was written. The same split surfaced the sibling

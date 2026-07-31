@@ -461,11 +461,29 @@ stays a pure, reproducible function):
    pins to a reproducible target. See `book/src/agent-mcp.md`
    ("Coverage-steered generation").
 
-The 16 knobs documented below as "config-file" knobs are now **also**
-first-class CLI flags (the kebab-case of the field name, listed in the
-table above), settable directly or via a preset. Three knobs stay
-config-file-only: `library_prob`, `use_async_reset`, and
-`max_nodes_per_module`.
+Every knob documented below as a "config-file" knob is now **also** a
+first-class CLI flag — the kebab-case of the field name, listed in the
+table above — settable directly or via a preset. Exactly three knobs stay
+config-file-only (still `--config`/MCP settable): `library_prob`,
+`use_async_reset`, and `max_nodes_per_module`. To confirm that list
+yourself, ask `--help` rather than trusting this paragraph (run it from the
+repository root — it reads `src/config.rs`):
+
+```bash
+# Every knob, minus the ones --help offers as a flag: the config-file-only set.
+comm -23 \
+  <(sed -n '/^pub struct Config {/,/^}/p' src/config.rs |
+      sed -nE 's/^    pub ([a-z_0-9]+):.*/\1/p' | sort -u) \
+  <(anvil --help | grep -oE '^ +--[a-z0-9-]+' |
+      sed 's/^ *--//; s/-/_/g' | sort -u)
+```
+
+Two further fields appear in that difference without being config-file-only —
+both *are* CLI-settable, just under a flag that is not the kebab-case of the
+field name: `steering` is the repeatable `--steer <key>=<weight>`, and
+`child_instances_per_module_by_depth` is the repeatable
+`--child-instances-per-depth DEPTH=MIN:MAX`. Subtract those two and the
+remainder is the config-file-only set named above.
 
 The `--sv-version 2023` target unlocks the first version-distinctive
 **up-opt** (the `--soft-union-slice-prob` CLI flag since
