@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.5b — MEMORY.md under its derived cap
 
-**Landed as:** this commit. Previous: `62f9e21`.
+**Landed as:** `6c0c953`. Previous: `62f9e21`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Relocated the remaining layer-C content out of the resume pointer into twelve Knowledge
