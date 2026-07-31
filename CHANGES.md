@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.2 — the second copy was six times bigger
 
-**Landed as:** this commit. Previous: `72d7d4b`.
+**Landed as:** `a3c446d`. Previous: `72d7d4b`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Repaired the surviving test-count shadows at rung `0033` **R1, deletion**, in
