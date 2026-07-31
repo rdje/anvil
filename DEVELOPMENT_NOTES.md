@@ -5,6 +5,55 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — Position is a record; and the two obvious ordering checks are both wrong — `CHANGES-ENTRY-PLACEMENT.2`
+
+Decision [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md). Three
+things worth keeping, none of which is the decision itself.
+
+**1. "Append-only" has to be read for its reason, not its letter.** `0031` forbids
+retro-editing `CHANGES.md`'s *content*. It says nothing about position, so relocating a
+misplaced entry looks permitted — the bytes would be preserved exactly. It is not, and the
+reason generalises: **position is itself a record.** That two entries sit at the bottom of a
+newest-first file *is* the evidence that their author appended them there. Move them and the
+file no longer records that anything went wrong. Worse, this tree's own subject *is* the
+misplacement — so a relocation would be decision `0030`'s `reverify` accident repeated
+exactly: mechanically rewriting the one document whose subject is the thing being rewritten.
+The rule the project had for layers C and D but had never written for the human-readable
+audit trail: **when history is wrong about itself, add a record; do not edit one.**
+
+**2. The obvious mechanism cries wolf, and the good one is vacuous.** Both were measured,
+and the pairing is the lesson.
+
+- A **date**-keyed ordering scan over the headings reports three violations. **Two are
+  false** — mis-dated *headings* over correctly-ordered entries. It is reading hand-typed
+  prose, which is the recorded *never parse a formatter's output for a semantic set* gotcha
+  arriving on the docs side. Two thirds noise, and *a gate that cries wolf gets deleted,
+  taking its real coverage with it*.
+- A **hash**-keyed scan against git's own commit order is the correct oracle — 388 of 646
+  entries resolve, and they descend with zero violations. It is also **completely blind to
+  the defect it would exist to catch**: the two misplaced entries carry no `Landed as:` line,
+  so the check's horizon stops 4,516 lines above them and it reports a clean file. Decision
+  `0037`'s standing acceptance test — *delete the subject and re-run the check* — fires here
+  **without deleting anything**.
+
+The generalisation: **a check keyed on a field is only as complete as that field's
+population, and the entries most likely to be malformed are the ones most likely to be
+missing the field.** Malformedness and unobservability are *correlated*, not independent —
+which is exactly backwards from what a coverage argument assumes.
+
+**3. Measure the property, not the instance — and the third deviation names the cause.**
+`.1` recorded two deviations (placement, heading convention). Measured across all 646
+headings there are **three**: both entries also lack the `Landed as:` provenance line, which
+is present in 571 entries and absent in 75 — the 73 oldest as one contiguous run, **plus
+these two**. So they are the only entries written after the convention was adopted that lack
+it, and all three deviations have **one** cause: a **stale authoring template**. That
+reframes the mechanism question entirely — a gate that caught placement would still have let
+the missing provenance line through, so the leverage may be in `COMMIT.md` step 2 rather
+than in any post-hoc check. Measuring the property also *narrowed* the defect (exactly one
+ordering fault file-wide, not an unknown number) and caught `.1` counting one of two
+sub-forms of the retired heading convention — decision `0033` rule (2) recurring for the
+fifth time this session.
+
 ## 2026-07-31 — A doctrine's provenance is part of its contract, and it must not name a harness — `README-POLICY-PROVENANCE.1`
 
 Being asked to double-check something already believed correct is how this was found. The

@@ -1,6 +1,112 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.2 — position is a record: repair by pointer, not relocation
+
+**Landed as:** this commit. Previous: `c758c6c`.
+**Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** The decision leaf for the defect `.1` registered: two entries of this file sit at
+its absolute bottom, below the oldest entry in project history, in a file whose line 2
+declares *"Newest entries at the top."* `.1` deliberately attempted no repair, because
+`CHANGES.md` is **append-only and never retro-edited** (decision `0031`, owner: *"Keep it
+raw, keep honest, so that people can follow the whole history."*). This leaf decides whether
+moving a landed entry is a permitted correction of *position* or a prohibited sweep of
+*history*, and records it as decision
+[`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md). **Nothing was
+moved.**
+
+**The ruling.** **Position is itself a record**, so a landed entry is never moved, re-dated
+or re-titled. The repair is **additive**: append a **dated pointer stub** at the position
+the entry should have occupied, naming where the entry actually is and why. `0031`'s
+*letter* names content, but its *reason* is evidentiary — an auditor must see the mistake as
+it was actually made. That these two entries sit at the bottom **is** the evidence their
+author appended them there; relocating them would leave a file in which the mistake never
+happened. And since this tree's own subject *is* the misplacement, a relocation would be
+decision `0030`'s `reverify` accident repeated exactly: mechanically rewriting the one
+document whose subject is the thing being rewritten. The general rule the project had for
+layers C and D but had never written for the human-readable audit trail: **when history is
+wrong about itself, add a record — do not edit one.**
+
+**The two other options, rejected with reasons.** *Re-publishing the full entries at the
+top* would mint a second copy of a 65- and a 74-line body — a shadow under decision `0033`,
+free to diverge with nothing to catch it; the tree would repair a findability defect by
+creating a consistency defect. *An in-place forward pointer inside the misplaced originals*
+**is** a retro-edit of a landed entry, and it never reaches the top-down reader who is the
+one actually misled.
+
+**Re-measuring the property rather than the instance changed the tree three ways.** `.1`
+measured the defect it found; this leaf measured the ordering property across **all 646**
+entry headings.
+
+- **It narrowed the scope.** The authoritative ordering oracle is not the date in a heading
+  — it is git. **388** of the 646 entries cite a git-resolvable commit hash, and scanned
+  top-to-bottom their commit indices descend **monotonically, with zero violations**. The
+  file has **exactly one** ordering defect, so `.3` is a bounded, provable two-stub
+  insertion rather than an open-ended audit.
+- **It pre-empted `.4` by killing both obvious mechanisms on measurement.** A **date**-keyed
+  scan reports three violations and **two are false** — mis-dated *headings* over
+  correctly-ordered entries: lines 9428/9477 are headed `2026-06-18` but carry commits that
+  are *successors* of `2f17147` (committed `2026-06-21T13:28`), which the entry at 9477
+  itself names as its own `previous:`; line 26652 is headed `2026-05-13` but carries
+  `f3ee1f3`, committed `2026-05-14T23:38`, with rev numbers descending
+  274/272/270/**267**/265/264/262. Two thirds noise, from hand-typed prose — and *a gate
+  that cries wolf gets deleted, taking its real coverage with it*. A **hash**-keyed scan is
+  worse: it is **vacuous for this exact defect**, because the two misplaced entries carry
+  **no `Landed as:` line at all**, so its horizon stops at line 39567 — **4,516 lines
+  above** them — and it reports a clean file. Decision `0037`'s standing acceptance test,
+  *delete the subject and re-run the check*, fires here **without deleting anything**.
+- **It renamed the root cause.** The entries deviate in **three** ways, not the two `.1`
+  recorded: placement, retired heading convention, **and** the missing provenance line.
+  Measured, `Landed as:` is present in **571** entries — every entry above line 39703 — and
+  absent in **75**: the **73 oldest** as one contiguous run (39703–43882) **plus these two**,
+  making them the only entries written after the convention was adopted that lack it. All
+  three deviations have one cause — a **stale authoring template**, not an ordering slip —
+  which points `.4` at `COMMIT.md` step 2 as much as at any post-hoc gate.
+
+**Two corrections to `.1`, recorded rather than quietly fixed.** Its retired-convention count
+of **245** is one of **two** sub-forms: the conventions partition the file exactly as 253
+current + **393** retired = 646, and the retired region itself splits into 245 word-slug and
+**148** numeric-slug (`## DATE-NNNN`) headings. `.1` swept for the shape of the instance in
+hand instead of from the authoritative set — decision `0033` rule (2) recurring, for the
+fifth time this session. Separately, line 32289 cites
+`cf3dc3c164b0f8bb908d23d15b8248c275b683fb`, which resolves to no commit in this repository;
+it is history and stays raw, recorded here so it is not mistaken for a live pointer.
+
+**`.3` is now determined, not left to judgement.** Two stubs, inserted after the entry at
+line 244 (`LIVE-DOC-REGISTRY-SHADOWS.2`, `e873a6e`) and before line 380
+(`BOOK-TEST-COUNT-SHADOWS.1`, `1a6f276`), ordered `LIVE-DOC-REGISTRY-SHADOWS.1` (`abf7090`)
+then `BOOK-TEST-COUNT-SHADOWS.2` (`715019b`) to match git. Insertion only, proven by hashing
+the file tail from the insertion point down before and after.
+
+**What `0038` does not license**, stated so it cannot later be cited for a sweep: no moving,
+re-dating, re-titling or re-formatting of any landed entry; no repair of the 393
+retired-convention headings; no correction of the two mis-dated headings found above; no
+edit to the unresolvable hash at line 32289; no back-filling of `Landed as:` into the 73
+oldest entries; and no general permission to insert mid-file — the insertion is licensed
+only to restore an ordering the file itself declares, only where the misordering is proven
+against git, and only in the additive stub form. **`0031` is applied, not amended.**
+
+**Validation.** Every number re-derived at `c758c6c` from the file itself, none carried over
+from `.1`. The conventions partition exhaustively (253 + 393 = 646, zero unclassified). The
+`Landed as:` region was confirmed contiguous (zero entries carrying the line below 39703).
+The git oracle was run over all hash-bearing entries in both a strict and a loose extraction
+(266 → 388 resolved as the pattern was widened), reporting zero violations in each. The two
+date-keyed false positives were each checked against `git show -s --format=%cI` **and**
+against the entry's own `previous:` chain, so the verdict rests on two independent signals.
+`cargo check --all-targets` clean; `scripts/check_doctrines.sh` **8/8** after `git add`.
+`src/` untouched ⇒ DUT byte-identical by construction, so the `cargo test` / snapshot /
+byte-identity banks stand from `1a6f276` unchanged and were not re-run.
+
+**Impact.** No behaviour changes and no content moves in this leaf. What changes is that the
+project now has a written rule for being wrong about its own history, `.3` has a bounded and
+fully-specified job, and `.4` opens with two candidate mechanisms already disqualified on
+evidence and a third named to weigh.
+
+**Files touched.** `docs/decisions/0038-changes-md-position-repair-by-pointer.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/CHANGES-ENTRY-PLACEMENT.md`, `docs/TASK_TREE.md`,
+`KNOWLEDGE_MAP.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — README-POLICY-PROVENANCE.1 — cite the owner, not the harness (tree CLOSED)
 
 **Landed as:** `1c9b865`. Previous: `61eac73`.

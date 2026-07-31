@@ -1,0 +1,284 @@
+---
+id: changes-md-position-repair-by-pointer
+title: A misplaced-but-landed `CHANGES.md` entry is repaired by APPENDING a dated pointer stub at the position it should have occupied — never by moving it, because position is itself a record and moving it erases the evidence of the very mistake being repaired
+answers:
+  - "can a landed CHANGES.md entry be moved to its correct position"
+  - "does 0031's append-only rule cover entry POSITION or only entry CONTENT"
+  - "how do I fix an entry that was appended to the bottom of a newest-first file"
+  - "why is relocating a CHANGES.md entry forbidden even though the bytes are unchanged"
+  - "what is a pointer stub in CHANGES.md and where does it go"
+  - "may I re-publish a CHANGES.md entry at the top instead of moving it"
+  - "how many ordering defects does CHANGES.md actually have"
+  - "why does a date-keyed ordering check on CHANGES.md cry wolf"
+  - "why is a commit-hash-keyed ordering check on CHANGES.md vacuous"
+  - "what is the authoritative ordering oracle for CHANGES.md"
+  - "which CHANGES.md entries lack a Landed as provenance line"
+date: 2026-07-31
+status: current
+tags: [docs, changes-log, append-only, history, position, evidence, findability, vacuity, gate-quality, doctrine, north-star]
+evidence: "CHANGES.md (44,083 lines / 646 entry headings, measured at c758c6c); docs/tasks/CHANGES-ENTRY-PLACEMENT.md (.1 audit, .2 re-measurement); docs/decisions/0031-ssd-volume-exclusivity.md (the append-only limit); docs/decisions/0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md (the delete-the-subject acceptance test); scripts/check_diagnosis_evidence.sh:43 (the check that cannot see position)"
+reverify: "grep -nE '^## [0-9]{4}-[0-9]{2}-[0-9]{2}' CHANGES.md | sed -E 's/^([0-9]+):## ([0-9-]+).*/\\1 \\2/' | awk 'NR>1 && $2>prev {print \"date-order violation at line \"$1} {prev=$2}'  → 3 hits, of which only the one at the file's bottom is real (the other two are mis-dated headings; check them against git commit order, which reports 0 violations across the 388 hash-bearing entries)"
+---
+
+# 0038 - Repair a misplaced `CHANGES.md` entry by pointer, not by relocation
+
+- Date: 2026-07-31
+- Status: accepted
+- Tree: `CHANGES-ENTRY-PLACEMENT.2` (the decision leaf; `.3` applies it, `.4` asks whether
+  a mechanism is warranted)
+- Activated by: autonomous PNT selection under the owner's standing **DECIDE, DON'T ASK**
+  directive, from the frontier row set by `.1`
+- Constrained by, and does not amend, [`0031`](0031-ssd-volume-exclusivity.md)
+
+## Context
+
+`CHANGES.md` states its own ordering rule on line 2 — *"Newest entries at the top."*
+`COMMIT.md` §2 restates it as a mandatory pre-commit step. `.1` measured that the two most
+recent entries sit instead at the **absolute bottom** of the file, below the oldest entry
+in project history, so a session recovering cold reads the top and concludes the last
+change was two leaves older than it actually was.
+
+`.1` deliberately attempted no repair, because `CHANGES.md` is **append-only and never
+retro-edited** by absolute owner directive (`0031`: *"Keep it raw, keep honest, so that
+people can follow the whole history if they want to."*). Whether relocating a landed entry
+is a permitted correction of *position* or a prohibited sweep of *history* is the question
+this leaf answers, and it had to be answered before anything moved.
+
+### 1. Re-measurement from the authoritative set — and it changes the finding
+
+`.1` measured the defect it had found. This leaf measured **the property**, over all 646
+entry headings, and the result is both narrower and sharper. Every number below was
+re-derived at `c758c6c`; none is carried over.
+
+**(i) The file has exactly ONE ordering defect, not "at least one".** The authoritative
+ordering oracle is not the date in a heading — it is git. **388** of the 646 entries cite a
+git-resolvable commit hash; scanned top-to-bottom, their commit indices descend
+**monotonically, with zero violations**. The file is in correct newest-first order
+everywhere the oracle can see.
+
+**(ii) A date-keyed check finds three violations, and two of them are false.** Scanning
+heading dates alone reports inversions at lines 9544, 26686 and 43946. Checked against git:
+
+| site | heading says | git says | verdict |
+| --- | --- | --- | --- |
+| lines 9428 / 9477 (`2026-06-18`) above a `2026-06-21` block | `2026-06-18` | `e68e2d1` declares `previous: 2f17147`, and `2f17147` committed `2026-06-21T13:28` — so 9477 is that entry's **successor** | **mis-dated heading; order correct** |
+| line 26652 (`2026-05-13`) between two `2026-05-14` groups | `2026-05-13` | `f3ee1f3` committed `2026-05-14T23:38`; rev numbers descend 274 → 272 → 270 → **267** → 265 → 264 → 262 | **mis-dated heading; order correct** |
+| lines 43946 / 44020 | `2026-07-31` | `715019b` / `abf7090` — the two newest commits in the window | **real: misplaced by ~27,000 lines** |
+
+Two thirds of what the obvious mechanism reports is noise, and the noise is generated by
+hand-written prose (a date typed into a heading) rather than by the file's structure. This
+is the repo's own recorded gotcha — *never parse a formatter's output for a semantic set*,
+and *the fixture agrees with you; the tool does not* — arriving on the docs side.
+
+**(iii) A hash-keyed check is VACUOUS for exactly this defect.** The two misplaced entries
+carry **no `**Landed as:**` line at all**, so they are invisible to the oracle in (i). Its
+last visible entry is line 39567 — **4,516 lines above** the defect. Decision
+[`0037`](0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md)'s standing
+acceptance test — *delete the subject and re-run the check* — fires here **without deleting
+anything**: the strongest available check reports a clean file while the defect it exists
+to catch sits below its horizon.
+
+**(iv) The two entries deviate in THREE ways, not two.** `.1` recorded placement and
+heading convention. The third is the diagnostic signature: the missing `Landed as:` line.
+Measured, that line is present in **571** entries — every entry above line 39703 — and
+absent in **75**: the **73 oldest**, as one contiguous run (lines 39703–43882), **plus
+these two**. They are therefore *the only two entries written after the convention was
+adopted that lack it*. All three deviations have one cause: both entries were composed from
+the pre-`2026-06-14` template, which had neither the em-dash heading, nor the provenance
+line, nor a top-of-file insertion step. The defect is a **stale template**, not a slip.
+
+**(v) `.1`'s retired-convention count was one sub-form of two.** `.1` reported 245 retired
+headings. Measured exhaustively, the two conventions partition the file: **253** current
+(`## DATE — LEAF — title`) + **393** retired (`## DATE-slug — TITLE`) = 646, and the retired
+region itself splits into **245** word-slug and **148** numeric-slug (`## DATE-NNNN`) forms.
+`.1` swept for the shape of the instance it had in hand — decision `0033` rule (2)
+recurring, for the fifth time this session. It does not change `.1`'s conclusion, and it is
+recorded rather than quietly corrected because the *reason* is the reusable part.
+
+**(vi) One cited hash does not resolve.** Line 32289 cites
+`cf3dc3c164b0f8bb908d23d15b8248c275b683fb`, which is not a commit in this repository. It is
+history and stays exactly as written (`0031`); it is recorded here so a future reader does
+not mistake it for a live pointer.
+
+### 2. What `0031` actually forbids, and whether its reasoning reaches position
+
+`0031`'s letter names *content*: entries are "never retro-edited", their pre-`0031`
+references "stay exactly as written". Its **reason** is evidentiary: *a swept history is a
+dishonest history* — someone auditing why the evidence banks evaporated must be able to read
+the entries that cited `/tmp` **and see the mistake as it was actually made**. `0031` then
+records the concrete lesson that produced the rule: an allow-list-free sweep rewrote decision
+`0030`'s own `reverify` command into nonsense, because *mechanically rewriting a document
+whose subject is the string being rewritten destroys it*.
+
+Apply that reasoning here rather than the letter:
+
+- Rewriting an entry's **text** destroys evidence of what was claimed. Plainly forbidden.
+- Moving an entry's **position** changes no byte of what was claimed — and yet **position is
+  itself a record.** That these two entries sit at the bottom is the evidence that their
+  author appended them there. A silent relocation leaves a file in which the mistake never
+  happened.
+
+And the subject of *this* repair is the misplacement. So a relocation would be `0030`'s
+`reverify` accident repeated exactly: **mechanically rewriting the one document whose
+subject is the thing being rewritten.** Relocation is refused not on a technicality about
+what counts as an edit, but because it destroys the specific evidence this tree exists to
+preserve.
+
+That leaves a genuine tension, which the acceptance criteria name: **the top of the file
+must stop lying about what the most recent change was.** Doing nothing is not available.
+
+## Decision
+
+### (a) The rule
+
+> **Position is a record. A landed `CHANGES.md` entry is never moved, never re-dated, and
+> never re-titled. When an entry is in the wrong place, the repair is ADDITIVE: append a
+> dated pointer stub at the position the entry should have occupied, naming where the entry
+> actually is and why.**
+>
+> The file's ordering rule is then true for a top-down reader, the misplaced original is
+> untouched, and the mistake becomes *more* legible than before — it is now documented
+> rather than merely present.
+
+The general form, for any future instance: **when history is wrong about itself, add a
+record; do not edit one.** This is `MEMORY_ARCHITECTURE.md`'s layer-C discipline — *append
+once, supersede, never silently rewrite* — applied to the layer-D audit trail, which is the
+one place the project had not yet stated it.
+
+### (b) The chosen form — a pointer stub, not a re-publication
+
+The stub carries **only join keys and the reason**: the original's date, its leaf id, its
+title, its commit hash, and the line at which its body lives. It does **not** reproduce the
+body.
+
+Re-publishing the entry at the top — the third option `.1` put on the table — is
+**rejected**: it would create a second copy of a 65- and a 74-line entry, and a second copy
+of a fact is a shadow under decision `0033` (derivable ∧ growth-coupled ∧ silent) that can
+rot away from the original with nothing to catch it. The tree would be repairing a
+findability defect by minting a consistency defect.
+
+An in-place forward pointer *inside* the misplaced originals — the second option — is also
+**rejected**: appending a note to a landed entry is a retro-edit of that entry, which is
+precisely what (a) forbids, and it would not help the top-down reader who never gets there.
+
+### (c) Exactly what `.3` will do
+
+Determined from git, so `.3` implements rather than re-decides:
+
+- Two stubs, inserted **after** the entry at line 244 (`LIVE-DOC-REGISTRY-SHADOWS.2`,
+  `e873a6e`) and **before** the entry at line 380 (`BOOK-TEST-COUNT-SHADOWS.1`, `1a6f276`).
+- In this order, matching git: **`LIVE-DOC-REGISTRY-SHADOWS.1`** (`abf7090`) then
+  **`BOOK-TEST-COUNT-SHADOWS.2`** (`715019b`).
+- Each stub is dated as the **original** (`2026-07-31`) and written in the **current**
+  heading convention, because the stub is a new record written today, not a copy of an old
+  one.
+- **Zero bytes change at or below line 380.** `.3` proves this by hashing the file's tail
+  before and after and asserting equality, and by a `git diff` showing insertions only.
+
+### (d) What this decision does NOT license
+
+Stated explicitly so it cannot be cited later to justify a sweep:
+
+1. **It does not license moving, re-dating, re-titling or re-formatting any landed entry**,
+   in `CHANGES.md` or anywhere else. The permitted act is *insertion of a new record*.
+2. **It does not license repairing the 393 retired-convention headings.** They are correct
+   history in the convention of their time (`.1` Non-Goals) and stay exactly as they are.
+3. **It does not license fixing the two mis-dated headings found in §1(ii).** They are
+   landed content; the entries they head are in the correct order; and the date is what the
+   author wrote. Recorded, not corrected.
+4. **It does not license editing line 32289's unresolvable hash** (§1(vi)).
+5. **It does not license back-filling `Landed as:` into the 73 oldest entries.** Their
+   absence is a fact about when the convention started.
+6. **It is not a general permission to insert into the middle of `CHANGES.md`.** The
+   insertion is licensed *only* to restore an ordering the file itself declares, only where
+   the misordering is proven against git, and only in the additive stub form of (b).
+
+## Decisive test applied
+
+*"Does the repair leave a reader able to see the mistake exactly as it was made?"*
+
+Relocation fails it — after the move, nothing in the file records that anything was ever
+misplaced. The pointer stub passes it twice over: the original stays byte-identical where
+its author put it, **and** the stub states in prose that it was put there wrongly and why.
+That is a strictly better historical record than the file had before the repair, which is
+the bar `0031`'s rationale actually sets.
+
+## Rejected alternatives
+
+- **Relocate the two entries to their correct position.** Rejected — §2. The bytes would be
+  preserved but the *placement record* destroyed, and the placement record is this tree's
+  entire subject. It is decision `0030`'s `reverify` accident in a new document.
+- **Re-publish the full entries at the top, citing the originals.** Rejected — §(b). Creates
+  a second copy of a 65- and a 74-line body: a shadow under `0033`, silent on divergence.
+- **Append a forward pointer inside each misplaced original.** Rejected — §(b). That is a
+  retro-edit of a landed entry, and it does not reach the top-down reader.
+- **Do nothing; treat it as harmless because no data was lost.** Rejected — the acceptance
+  criterion is that the top of the file stops misreporting the most recent change, and a
+  cold session hits exactly that. Findability *is* the function of an audit trail.
+- **Also repair the two mis-dated headings while we are here.** Rejected — §(d)(3). They are
+  landed content, their entries are correctly ordered, and widening a repair beyond its
+  proven defect is how the `/tmp` sweep damaged `0030`.
+- **Adopt the date-keyed ordering scan as `.4`'s mechanism.** Rejected on measurement, and
+  recorded here so `.4` starts from the evidence rather than the intuition: it cries wolf on
+  2 of 3 findings, and *a gate that cries wolf gets deleted, taking its real coverage with
+  it* (the standing `EVIDENCE-CITATIONS` gotcha).
+- **Adopt the git-hash-keyed ordering scan as `.4`'s mechanism.** Rejected on measurement —
+  §1(iii). It is **vacuous for this exact defect**: the offending entries carry no hash, so
+  the check reports a clean file. It would manufacture confidence, which
+  `DOCTRINE_ENFORCEMENT.md` §6.1 names as worse than no check at all.
+- **Rule that `0031` simply does not apply to position, so relocation is free.** Rejected —
+  it reads `0031`'s letter and discards its reason. The reason is evidentiary, and position
+  is evidence.
+
+## Consequences
+
+- `CHANGES.md` gains a **stated rule for being wrong about itself**: add a record, never
+  edit one. The project had this discipline for layers C (decision records) and D (git); it
+  did not have it written for the human-readable audit trail, which is the layer most
+  tempting to tidy.
+- **The tree's scope narrows and its claim strengthens.** Measured against git, the file has
+  exactly **one** ordering defect, not an unknown number — so `.3` is a bounded, provable
+  two-stub insertion rather than an open-ended audit.
+- **`.4` inherits two dead mechanisms and the measurement that killed them.** Both obvious
+  designs are already disqualified: the date-keyed scan cries wolf (2 false of 3), the
+  hash-keyed scan is vacuous (blind to the only real defect). `.4` must either find a third
+  design or record that diligence is the right answer — and it now has the evidence to
+  justify either, which is the outcome `.1` said was valid.
+- **The root cause is named and is not the one the tree assumed.** It is a *stale template*
+  producing three co-occurring deviations, not a one-off ordering slip. That reframes `.4`:
+  the leverage may be in the authoring path (`COMMIT.md`'s step 2), not in a post-hoc gate.
+- `0031` is **applied, not amended**. Its prohibition is unchanged and this decision adds no
+  exception to it; it records the one act that was never prohibited.
+- Docs-only leaf: no `src/` change ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+## Open questions (for `.3` / `.4`)
+
+- `.3`: whether the stub should carry the original's **line number** (precise, but stale the
+  moment anything is inserted above it) or only its **commit hash + heading text** (stable,
+  and greppable). Leaning stable — a line number in an append-only file that grows at the
+  top is a shadow of the file's own length.
+- `.4`: whether a check keyed on the **authoring path** rather than the file — e.g. "the
+  staged `CHANGES.md` diff adds lines above the current first heading" — escapes both
+  measured failure modes. It is derivable from `git diff --cached`, it needs no date and no
+  hash, and it would have fired on both offending commits despite their being docs-only.
+- `.4`: whether the real repair is not a gate at all but the **template** — the three
+  deviations share one cause, and a gate that catches placement would still have let the
+  missing `Landed as:` line through.
+
+## Links
+
+- Tree: [`docs/tasks/CHANGES-ENTRY-PLACEMENT.md`](../tasks/CHANGES-ENTRY-PLACEMENT.md)
+  (`.1` audited and registered; this leaf is `.2`; `.3` applies; `.4` decides the mechanism).
+- Governing doctrine: [`0031`](0031-ssd-volume-exclusivity.md) — history is never rewritten;
+  `CHANGES.md` / `DEVELOPMENT_NOTES.md` are never retro-edited (owner, `2026-07-29`).
+- Method precedents: [`0037`](0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md)
+  (*delete the subject and re-run the check* — the vacuity test that disqualified the
+  hash-keyed scan), [`0033`](0033-shadow-enumeration-classification.md) (rule (2): sweep from
+  the authoritative set, not from the shape you found first — §1(v); and the shadow rule that
+  disqualified re-publication).
+- The check that cannot see this: `scripts/check_diagnosis_evidence.sh:43` — presence of
+  `CHANGES.md` in the staged list, never position, and scope-aware so docs-only commits are
+  exempt outright.
+- Standards: `MEMORY_ARCHITECTURE.md` §3 (layer C's *append once, supersede, never silently
+  rewrite*, here extended to layer D), `DOCTRINE_ENFORCEMENT.md` §6.1 (a box is earned, not
+  ticked — why a vacuous check is worse than none) and §9 (honest limits).
