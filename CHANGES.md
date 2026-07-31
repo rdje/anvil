@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — COVERAGE-STEERED-GENERATION.6 — one table, not five
 
-**Landed as:** `pending`. Previous: `a461b4b`.
+**Landed as:** `f335926`. Previous: `a461b4b`.
 **Code change** (`src/ir/knob_id.rs`) — **DUT byte-identical**, proven across 23
 comparisons against a `HEAD` release binary built in an isolated git worktree.
 
