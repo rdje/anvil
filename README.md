@@ -141,6 +141,7 @@ canonical destination below and leaves this file alone.
 | --- | --- |
 | User-facing flags, knobs, presets, gate invocations, examples | [`USER_GUIDE.md`](USER_GUIDE.md), [`book/src/`](book/src/SUMMARY.md) |
 | Current work, priorities, phase status | [`ROADMAP.md`](ROADMAP.md), [`docs/tasks/`](docs/tasks) |
+| Cross-tree status, one row per tree | [`docs/TASK_TREE.md`](docs/TASK_TREE.md) — its *row* contract: one frontier, not a per-leaf journal ([`0042`](docs/decisions/0042-task-tree-index-is-a-mixed-surface.md)) |
 | Release / change history | [`CHANGES.md`](CHANGES.md), git history |
 | Design rationale and rejected alternatives | [`docs/decisions/`](docs/decisions), [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) |
 | Banked gate evidence and coverage-fact tallies | [`docs/evidence/`](docs/evidence/README.md) |

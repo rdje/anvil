@@ -5,6 +5,44 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A "none found" is only as good as the instrument that looked — `OVERFLOW-DESTINATION-INSTRUMENTATION.8`
+
+Decision `0040` did something careful and honest: it evaluated two candidate detectors for the
+*mixed surface* category, **disqualified both on measurement**, and recorded that ANVIL had no such
+surface. Every step of that was right except the last, because a disqualified detector is evidence
+about the **detector**, not about the repository. Two leaves later the mixed surface turned up — and
+it was `docs/TASK_TREE.md`, the file that indexes all the work.
+
+**What found it was a third instrument, keyed on duplication rather than on dates.** Take the leaf
+IDs the owning `docs/tasks/<TREE>.md` **itself declares** as the authoritative set, then count how
+many the index's *"Current frontier"* cell re-states. Result: **416 of 508 — 81.9 %**, with one cell
+re-stating **75 of 75** of its tree's leaves. A field whose contract is *one value* was carrying a
+per-leaf journal that duplicates layer B. The instrument needs no baseline, no cap and no judgement,
+and it cannot cry wolf on `ROADMAP.md` — which has no leaf IDs to re-state, and which is exactly
+where the distinct-date instrument had failed.
+
+**Generalisation worth keeping: when a detector is disqualified, the honest record is "we do not
+know", not "there is none."** `0040` wrote *"ANVIL has no mixed surface today"* where the evidence
+supported only *"neither of these two instruments finds one."* The gap between those sentences is
+where a real defect lived for two leaves.
+
+**And the third landing of the same extractor lesson, in three consecutive leaves.** `.6`: a naive
+`|` count could not tell `\|` from `|` and reported 8 where 5 were real. `.7`: a neutering
+substitution silently did not apply, so a control "passed" while proving nothing. `.8`: a probe took
+every backticked `` `.N` `` as a leaf of that row's tree — but `.15` and `.22` were **schema
+versions** and `.10b.2` belonged to a **different tree**, so a plausible 95.4 % came out of a key
+that was mis-attributing. Every time, the fix was the same: **re-key the extractor onto a set that
+is unambiguous by construction** — here, the IDs the tree file declares about itself — rather than
+onto a pattern that merely looks right in the samples you happened to read.
+
+**Why nothing was swept.** `0040`'s rule for a mixed surface is *separation before instrumentation,
+never a cap*. Capping the index would answer a **location** problem by pressuring an author into
+deleting **facts**. The journal entries are duplicates, but "duplicate" is a claim that has to be
+proved per row before anything moves — the `.5a` lesson that a coarse probe reports *"has a home"*
+for entries whose only hits point back at the source. That is `.9`'s work, not `.8`'s.
+
+---
+
 ## 2026-07-31 — Measuring a class is not characterising it, and a gate that fails its own author is the one worth keeping — `OVERFLOW-DESTINATION-INSTRUMENTATION.7`
 
 **1. The repair is where the sub-classes appear.** `.6` measured 36 malformed table rows and

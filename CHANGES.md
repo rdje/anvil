@@ -1,6 +1,80 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.8 — the index is the mixed surface
+
+**Landed as:** `pending`. Previous: `6b00357`.
+**Docs + `scripts/` only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** `docs/TASK_TREE.md` — the task-tree index, the destination decision `0040` never
+classified and neither routing enumeration named — is classified as a **mixed surface**, the first
+one measured in ANVIL. Recorded as decision
+[`0042`](docs/decisions/0042-task-tree-index-is-a-mixed-surface.md), which **supersedes `0040`
+§(f)'s *"ANVIL has no mixed surface today."***
+
+**The measurement.** A column named *"Current frontier"* has a contract that is **one value**: the
+leaf that is next. Measured against the leaf IDs the owning `docs/tasks/<TREE>.md` files declare:
+
+| measure | value |
+| --- | ---: |
+| leaves declared across the 74 owning tree files | **508** |
+| **re-stated inside the index's frontier column** | **416 — 81.9 %** |
+| status cells re-stating ≥5 of their own tree's leaves | **22 of 74** |
+| worst single cell (`STRUCTURED-EMISSION-EXPANSION`) | **75 of 75** leaves + 60 completion words, in **one** cell of 39,095 chars |
+| file profile | **246,172 B / 376 lines = 654 B/line**; 95 % one table; frontier column **219,585** chars |
+
+That is the `0036` **lossy-copy** signature sitting inside the exact shape `0040` named and could
+not detect: a bounded index with an unbounded per-leaf journal accreted in its status field, and the
+journal duplicates layer B.
+
+**Why the verdict had to be read, not counted.** `.2` retired the distinct-date instrument because
+it puts `ROADMAP.md` in the log band on 15 dates that are **all** correct closure facts (`0039`
+rule (a)). That retirement binds here, so all **8** date-flagged cells were read individually. Of
+~27 dates: **6** are registration facts (*"Registered `2026-06-17`"*) — exactly what a status row
+should carry; **4** are dates **inside quoted evidence**, including `DATED-COUNT-SWEEP-EXEMPTION`
+quoting the very strings it exists to repair; and only the remaining **~15 per-leaf completion
+entries** are the journal. **The date count is not the signal; the accretion is.**
+
+**Validation.**
+- Every sweep records its authoritative set and match count per `0039` rule (b).
+- **The first key was wrong, and it is recorded rather than quietly replaced.** A naive probe
+  treating every backticked `` `.N` `` in a cell as a leaf of that row's tree reported 95.4 %
+  duplication over a denominator of 439. Opening the misses showed it **mis-attributing**: in
+  `LIVE-DOC-HYGIENE-BACKFILL` the tokens `.15` and `.22` are **schema versions**, and `.10b.2` /
+  `.5b.2` belong to a **different tree**. The key was inverted to the owning tree file's own
+  declared `ID:` set — unambiguous by construction — giving the 416/508 above. Same failure shape as
+  `.6`'s naive pipe count and `.7`'s silently-inapplicable substitution: **an extractor that cannot
+  tell its cases apart returns something plausible.**
+- `scripts/check_doctrines.sh` **9/9** after `git add`; `check_knowledge_map` OK; `mdbook build`
+  clean; `cargo check --all-targets` clean.
+
+**Impact.** **Nothing was swept.** `0040`'s rule for a mixed surface is *separation before
+instrumentation, never a cap* — capping the index would pressure an author into deleting recorded
+facts, and the facts are not the problem, their **location** is. `.9` is registered to own the
+separation, and `0042` explicitly licenses **no deletion**: *"duplicate"* is a claim about location,
+and `.9` must prove it **per row**, per the `.5a` lesson that a coarse probe reports *"has a home"*
+for entries whose only hits point back at the source.
+
+`0040` §(f) is **superseded, not edited** (`MEMORY_ARCHITECTURE.md` §10), and only its *factual*
+claim — its reasoning stands, since it was right that both candidate detectors were disqualified and
+`0042` resurrects neither. It found the surface with a **third** instrument, which is exactly why
+that conclusion needed re-testing rather than trusting. **A "none found" is only as good as the
+instrument that looked.**
+
+**The routing gap is closed in both enumerations**, deliberately **without** collapsing the
+difference `.2` recorded between them (the check's hint routes *new content* by kind; README's table
+routes a *reader*). Each gains `docs/TASK_TREE.md` beside `docs/tasks/`, qualified as routing to the
+index's **row-level contract** — one frontier — and explicitly **not** a licence to append a journal
+there. `0040` §(g)'s shape now has **two** instances — `CODEBASE_ANALYSIS.md` and
+`docs/TASK_TREE.md`, both unclassified and both unrouted — which turns it from an anecdote into the
+pattern `.4` carries into the portable policy: **a routing enumeration must be checked against the
+set of files it can send you to, or the busiest destinations are the ones nobody declared.**
+
+**Files touched.** `docs/decisions/0042-task-tree-index-is-a-mixed-surface.md` (new),
+`docs/decisions/INDEX.md`, `scripts/check_readme_growth.sh`, `README.md`, `docs/TASK_TREE.md`,
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.7 — every cell renders
 
 **Landed as:** `pending`. Previous: `bb446fc`.
