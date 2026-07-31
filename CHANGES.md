@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.3 — a date is not evidence of pastness
 
-**Landed as:** this commit. Previous: `e954fe8`.
+**Landed as:** `0941c5e`. Previous: `e954fe8`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Landed the two rules `.1` and `.2` measured, as decision
