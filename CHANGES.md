@@ -1,6 +1,64 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.3 — the second axis is live
+
+**Landed as:** this commit. Previous: `c1b765c`.
+**`scripts/` + docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** The derived **6,144-byte** cap on `MEMORY.md` is live, as `MEMORY_POINTER_BYTE_CAP` in
+`scripts/check_memory_architecture.sh`, beside the pre-existing 50-line cap. This closes the
+tree's central finding: **a cap binds only on the axis it measures.**
+
+**Not a ninth doctrine, deliberately.** `MEMORY-ARCH` already owns this file's size, so the byte
+cap is a **second assertion inside that check** rather than a registered doctrine of its own — a
+second mechanism for one job is what `feedback_full_factorization` forbids. The `DOCTRINES`
+registry is unchanged at **8**, and the `ENUMERATION-PARITY` pair still holds: that extractor
+reads only the *first column* of `DOCTRINE_ENFORCEMENT.md` §10's table, so amending the
+`MEMORY-ARCH` description cell cannot perturb it. Checked **before** editing, per the standing
+gotcha about grepping the doctrine checks for a file first.
+
+**Three controls, and the middle one is the one that matters.**
+
+| control | result |
+| --- | --- |
+| **baseline** — unmodified tree | exit **0**; `MEMORY.md is 6021 bytes (<= cap 6144)` |
+| **C1 — breach the BYTE axis alone**: 400 characters appended to an *existing* line so the line count stays at **30**, isolating the new axis from the pre-existing line cap | exit **1**, and the emitted failure is specifically `MEMORY.md is 6422 bytes (> cap 6144)` plus the routing hint — **proving the new assertion fired, not the old one**. Restore ⇒ exit 0 |
+| **C2 — vacuity probe** (`0037`, *delete the subject and re-run*): the byte comparison neutered to `if true; then`, the **same** 6,422-byte file re-checked | **passes** — which is what proves C1's failure came from **this** assertion and nothing else |
+
+C2 is the step the standing `COVERAGE-STEERED-GENERATION.6` gotcha demands: three controls once
+passed on the first try and **all three were too weak to fail**. So the control here was shown
+**capable of failing, for the right reason**, before being trusted. Both files were restored
+byte-for-byte and the final tree re-checked green.
+
+**The routing hint does not reproduce the hole one layer down** — which `.3`'s acceptance required
+explicitly. It names `docs/decisions/` (layer C), `docs/knowledge/` fact cards, `docs/tasks/`
+(layer B), and git + `CHANGES.md`: **every one classified by decision `0040` as an append-only
+record that is *supposed* to grow and is never capped.** It also carries the two rules a size
+number cannot: *leave a pointer, never a second copy* (`0033`/`0038`), and *raising the cap
+requires a new decision record, not an edit to the constant*.
+
+**The cap is derived, not fitted**, and the script says so where a future editor will read it: the
+contract's *one screen* at ≤ 50 lines × the demonstrated-achievable **64 B/line** (measured at
+`5043547`, the first commit after the architecture landed and the content was correctly layered),
+budgeted generously to ~120 B/line — deliberately **half** `README.md`'s 12,288, a resume pointer
+being a strictly smaller contract than a landing page.
+
+**Validation.** `scripts/check_doctrines.sh` **8/8** after `git add`; `MEMORY.md` at **30 lines /
+6,021 bytes** — 60 % of the line cap, 98 % of the byte cap. `DOCTRINE_ENFORCEMENT.md` §10's
+`MEMORY-ARCH` row amended to record the second axis, the measurement that motivated it, the
+derivation of 6,144, and why it is an assertion rather than a doctrine.
+
+**One thing `.3` deliberately did not do.** `MEMORY_ARCHITECTURE.md` §6 still states the
+resume-pointer cap as *"roughly one screen (≤ ~50 lines)"* and its §9 reference self-check script
+enforces **lines only** — so the **portable standard still ships the exact single-axis hole this
+leaf just closed locally.** That correction belongs to `.4`, whose acceptance was widened in this
+commit to cover it, with `.3`'s measurement as the evidence.
+
+**Files touched.** `scripts/check_memory_architecture.sh`, `DOCTRINE_ENFORCEMENT.md`,
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`,
+`MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.5b — MEMORY.md under its derived cap
 
 **Landed as:** `6c0c953`. Previous: `62f9e21`.

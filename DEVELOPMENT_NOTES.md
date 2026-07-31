@@ -5,6 +5,40 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — How to control a numeric cap: isolate the axis, then delete the subject — `OVERFLOW-DESTINATION-INSTRUMENTATION.3`
+
+Adding a second cap beside an existing one creates a control problem that a single-cap check does
+not have: **a breach that trips the old assertion tells you nothing about the new one.** Append 400
+characters as new *lines* and the file fails — but it fails the **line** cap, and the byte cap
+could be misspelled, unreferenced, or comparing the wrong variable and you would never know.
+
+So the control has to **isolate the axis**. Appending 400 characters to an *existing* line holds
+the line count at 30 and moves only the byte count, and the assertion under test is the only one
+that can fire. The emitted message is then the evidence: `MEMORY.md is 6422 bytes (> cap 6144)`,
+not a line-count message.
+
+**And that still is not enough.** A passing control proves the check said *fail*; it does not prove
+*which* predicate said it. The complement is decision `0037`'s probe applied to a numeric cap:
+**neuter the comparison — `if true; then` — and re-run the same over-cap file.** If it now passes,
+the earlier failure is attributable to that assertion and nothing else. If it still fails,
+something else was doing the work and the new cap may be inert — which is exactly the
+`hard_pct`-shaped defect of a declared control that affects no verdict.
+
+The general form, worth keeping for any future gate:
+
+> **Isolate the axis to prove the assertion *can* fire; delete the assertion to prove it is *what*
+> fired.** One control without the other leaves a cap that looks enforced.
+
+**A second, smaller lesson, about routing hints.** A cap that fails must tell the author where the
+content goes, or it just converts overflow into deletion. But naming a destination is precisely how
+this whole class of defect propagates — the tree exists because a README cap named destinations
+that nothing bounded. The rule that resolves it: **a routing hint may name only destinations that
+are already classified.** Here all four are append-only records under decision `0040`, i.e.
+surfaces that are *supposed* to grow, so the hint cannot move pressure into an unmeasured place. If
+a future hint needs to name a bounded surface, that surface must carry its own instrument first.
+
+---
+
 ## 2026-07-31 — A cap binds on the axis it measures; the growth moves to the one it does not — `OVERFLOW-DESTINATION-INSTRUMENTATION.2`
 
 The owner's finding was *a cap that redirects overflow must check where the overflow lands*, and
