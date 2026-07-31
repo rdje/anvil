@@ -2346,7 +2346,7 @@ In code (constructors / generator):
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
 - `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every leaf/cone probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`. The hierarchy binding decisions in `gen/hierarchy.rs` roll the hierarchy probability knobs through **the same** primitive, naming their `KnobId` inline at each of their seven decision sites: `hierarchy_sibling_route_prob`, `hierarchy_registered_sibling_route_prob`, `hierarchy_registered_sibling_mixed_support_prob`, `hierarchy_registered_child_input_cone_prob`, `hierarchy_child_input_cone_prob`, `hierarchy_parent_cone_instance_prob`, and `hierarchy_parent_flop_prob`. *(Until `COVERAGE-STEERED-GENERATION.3b` they did **not** — seven local `roll_hierarchy_*` helpers recorded into the same `m.knob_rolls` sink while skipping the steering prior, which is exactly the split this sentence used to describe as ordinary structure. See decision `0034`.)*
 - `COVERAGE-STEERED-GENERATION.3b` (decision `0034`): the roll primitive moved to `src/ir/knob_roll.rs` as `roll_knob_into(&mut KnobRollCounters, &SteeringConfig, &mut impl Rng, KnobId, f64)`, reached crate-wide through the `Generator::roll_knob(&mut self, m, knob, prob)` shim in `gen/mod.rs`; `cone::roll_knob(g, m, knob, prob)` survives only as a free-function alias so its 37 call sites keep their spelling. `KnobRollCounters::record` is **private to `ir::knob_roll`**, so a second roll primitive is a compile error (`error[E0624]`) rather than a review question — the structural close of the two-month window in which `gen/hierarchy.rs`'s seven local helpers left 6 of the 22 `KnobId`s, and the whole documented `hierarchy` steering category, unreachable by the prior. Unsteered emission byte-identical (snapshots 6/6); steered hierarchy emission now changes, proven by `steering_shifts_hierarchy_category_construct_distribution` (both weight directions, per-knob) and negative-controlled by reintroducing the pre-`.3b` shape.
-- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): the roll primitive applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: `state`/`selectors`/`datapath`/`terminals`/`motifs`/`emission`/`sharing`/`hierarchy`) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
+- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): the roll primitive applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: <!--enum:steer-categories-->`state`/`selectors`/`datapath`/`terminals`/`motifs`/`emission`/`sharing`/`hierarchy`<!--/enum:steer-categories-->) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
 - `Config::validate()` still enforces the legacy exact wrapper lane
   (`hierarchy_depth ∈ {0,1}`, `num_leaf_modules >= 1` when exact
@@ -2666,14 +2666,14 @@ In `ir::validate::validate_design`:
 - `mdbook build book` — clean.
 - `scripts/check_doctrines.sh` — the doctrine-enforcement registry+driver
   (`DOCTRINE-ENFORCEMENT-ADOPTION`, decision `0026`) — clean: every registered
-  doctrine `PASS` (`MEMORY-ARCH` → `scripts/check_memory_architecture.sh`;
+  doctrine `PASS` (<!--enum:doctrine-ids-->`MEMORY-ARCH` → `scripts/check_memory_architecture.sh`;
   `KNOWLEDGE-MAP` → `knowledge-map/scripts/check_knowledge_map.sh`;
   `CODE-CHANGE-EVIDENCE` → `scripts/check_diagnosis_evidence.sh`;
   `TASK-TREE-OWNERSHIP` → `scripts/check_task_tree_ownership.sh`;
   `NO-BOOT-VOLUME-REFS` → `scripts/check_no_boot_volume_refs.sh`;
   `EVIDENCE-CITATIONS` → `scripts/check_evidence_citations.sh`;
   `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh`;
-  `README-GROWTH` → `scripts/check_readme_growth.sh`). The driver
+  `README-GROWTH` → `scripts/check_readme_growth.sh`<!--/enum:doctrine-ids-->). The driver
   collects all results, meta-checks each registered check exists+executable,
   and exits nonzero on any breach. `.githooks/pre-commit` (E3) and
   `.github/workflows/ci.yml` (E4) both run it; the two code-scoped checks are
@@ -2682,7 +2682,16 @@ In `ir::validate::validate_design`:
   acceptance-checklist is `TOOLBOX.md`. This list is kept in parity with the
   driver by `ENUMERATION-PARITY` itself (`SHADOW-ENUMERATION-SWEEP.7`); it had
   gone two doctrines stale before that check existed, which is why it no longer
-  carries a hand-written count.
+  carries a hand-written count. Since `LIVE-DOC-REGISTRY-SHADOWS.3` the check
+  reads only the text inside this site's `<!--enum:doctrine-ids-->` fence rather
+  than grepping the whole file, and a **missing fence is a hard failure**:
+  decision `0037` measured the whole-file predicate **vacuous at 3 of its 10
+  sites** — both `book/src/api-tools.md` and `book/src/agent-mcp.md` still passed
+  with the downstream allow-list *deleted*, because `verilator` and `yosys` are
+  ordinary words in a chapter about running them. The general rule is that such a
+  check is strong in inverse proportion to how ordinary its ids are in the
+  document checked, so it is weakest exactly where the enumeration matters most;
+  this site survived only because doctrine ids are coined tokens.
 - Generator-output smoke: focused current default `tool_matrix`
   (`cargo run --bin tool_matrix -- --out
   anvil-signoff-surface-nflop-r1 --fail-on-coverage-gap

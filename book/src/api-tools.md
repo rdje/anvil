@@ -245,7 +245,7 @@ pass/fail counts.
 ## Controlled tools
 
 All four run real downstream tools through the **fixed allow-list**
-(`verilator` / `yosys` / `iverilog` / `sv2v` / `slang`), generate into a **sandboxed** per-run temp
+(<!--enum:adapter-ids-->`verilator` / `yosys` / `iverilog` / `sv2v` / `slang`<!--/enum:adapter-ids-->), generate into a **sandboxed** per-run temp
 dir (the agent never supplies a path), let the **RAM guard** decline to start
 more work under memory pressure, expose **no arbitrary shell**, and **audit-log**
 every call to `anvil://audit/log`. On ANVIL's valid-by-construction RTL the

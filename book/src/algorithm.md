@@ -372,9 +372,9 @@ it safe are deliberate:
 
 The target is set programmatically (the `steering` block of `Config`, so it
 rides every API call) or with the `--steer <key>=<weight>` CLI shim. A `key` is a
-knob name (`flop_prob`) or one of the eight coarse categories — `state`,
+knob name (`flop_prob`) or one of the eight coarse categories — <!--enum:steer-categories-->`state`,
 `selectors`, `datapath`, `terminals`, `sharing`, `hierarchy`, `motifs`,
-`emission` — so one entry can emphasise a whole family.
+`emission`<!--/enum:steer-categories--> — so one entry can emphasise a whole family.
 
 The last two are worth distinguishing, because they sit at opposite ends of the
 same pipeline and at opposite ends of *resolution*. **`motifs`** selects *what

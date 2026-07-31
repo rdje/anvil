@@ -347,6 +347,47 @@ costly failure.
 - Docs-only leaf: no `src/` change ⇒ **DUT byte-identical**, `tests/snapshots.rs`
   untouched.
 
+## Correction (`2026-07-31`, from implementing this in `.3`)
+
+Two claims in (c) above were written before the fence met the real files. Both are
+corrected here rather than edited away, because in each case *what the implementation
+found* is the reusable part.
+
+**1. "Bidirectional parity becomes correct" — withdrawn. The predicate stays
+one-directional.** The argument was that a fence dissolves the "a chapter may name a
+subset in an example" objection, so the fenced region could be held to exact parity.
+Measured against the actual sites, it cannot — not uniformly. Four of the thirteen
+fences must enclose a **bulleted list whose items carry prose**
+(`- MEMORY-ARCH — the durable memory-architecture invariants (the resume pointer's size
+cap …)`). Harvesting "the ids this region names" from such a region means harvesting
+every backticked token in that prose — `scripts/check_memory_architecture.sh`,
+`CHANGES.md`, `decision 0031` — and the extra-direction check would cry wolf on every
+one. Tightening the fence to exclude the prose is impossible: the prose *is* the list
+item.
+
+The reverse direction is in any case near-empty **by policy**: nothing is ever retired
+(`feedback_never_retire_strategies`), so *"the doc names an id that no longer exists"* is
+not a live failure mode in this repo. The direction that matters — a doc that fell behind
+the set — is fully held. Recorded because the general lesson is not about this check:
+**exact set parity requires both sides to be extractable, and a documentation region that
+must remain readable is not losslessly extractable.** Coverage is the honest predicate
+there.
+
+**2. A fence must contain the enumeration and nothing that merely *mentions* its ids.**
+Found by the negative control, and the offender was **this leaf's own prose**. The
+honest-limit paragraph added to `book/src/architecture.md` when `.2` landed sat *inside*
+what became the `doctrine-ids` fence, and it named `MEMORY-ARCH` a second time to
+illustrate the coined-token point. So dropping `MEMORY-ARCH` from the actual registry
+list left the gate **green** — 1 wrong pass out of 98 single-id controls, and it was the
+vacuity defect reproduced at fence scale, inside the fix for it, by the sentence
+explaining the defect.
+
+The repair was to move that commentary out of the fence, where it also reads better. The
+transferable rule: **the fence marks the enumeration, not the discussion of it**, and the
+way you find out you got it wrong is to drop each id at each site and check that all of
+them fail — not a sample. A duplicate-occurrence audit inside every fence is now part of
+the acceptance set for the same reason: it catches this class before the control does.
+
 ## Open questions (for `.3`)
 
 - Whether the fence marker carries the **set id** (`<!-- enumeration: steer-categories -->`)

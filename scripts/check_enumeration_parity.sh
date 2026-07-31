@@ -197,28 +197,124 @@ equal_sets() {
   return 0
 }
 
-# covers_set <pair> <src list> <file>  — every authoritative id must be named in
-# the declared documentation site. One-directional by design: a chapter may
-# legitimately name a subset in an example, and nothing is ever retired
-# (feedback_never_retire_strategies), so the failure that matters is a doc that
-# fell BEHIND the set.
-covers_set() {
-  local pair="$1" src="$2" file="$3" missing="" id
+# --- the fence ---------------------------------------------------------------
+#
+# A declared documentation site marks its enumeration with an INLINE HTML comment
+# pair carrying the SET ID:
+#
+#     … one of the eight coarse categories — <!--enum:steer-categories-->`state`,
+#     `selectors`, … `emission`<!--/enum:steer-categories--> — so one entry can …
+#
+# ── WHY A FENCE, AND NOT THE WHOLE FILE (decision 0037) ───────────────────────
+# This check used to ask "does this file contain each id anywhere?". MEASURED at
+# LIVE-DOC-REGISTRY-SHADOWS.2, that predicate was VACUOUS at 3 of its 10 sites:
+# deleting the guarded enumeration outright left the check GREEN at
+# book/src/api-tools.md, book/src/agent-mcp.md (both pair-3 sites — so the
+# adapter pair protected NOTHING) and book/src/knobs.md, because `verilator`,
+# `yosys`, `state` and `sharing` are ordinary vocabulary in the very chapters
+# that list them. USER_GUIDE.md missed vacuity by one word.
+#
+# The transferable rule, and the reason the fix is not "declare more sites":
+# **a coverage check's strength is inversely proportional to how ordinary its ids
+# are as WORDS in the checked document — and they are most ordinary in exactly
+# the document that documents them.** Pair 1b survived only on an accident of
+# vocabulary (`MEMORY-ARCH`, `README-GROWTH` occur nowhere but their list).
+#
+# A proximity window (all ids within K lines) was measured and REJECTED: with the
+# enumeration deleted the minimal spanning window at BOTH pair-3 sites is still
+# 2 lines, and a single-id omission leaves a 6-line window at algorithm.md and 4
+# at agent-mcp.md — because the explanatory prose that makes those chapters good
+# sits beside the list. A heuristic whose blind spots track documentation QUALITY
+# is measuring the wrong thing.
+#
+# ── WHY THE MARKERS ARE INLINE ────────────────────────────────────────────────
+# Measured against the real sites: most enumerations live mid-paragraph, inside a
+# Markdown table row, or inside a bulleted list. An HTML comment on its OWN line
+# is a CommonMark HTML *block*, which interrupts a paragraph and splits a table
+# or list — i.e. it would change the rendered book. Inline, it is raw inline HTML
+# and renders as nothing. The fence must be invisible: a gate that forces prose
+# to reflow so it stays checkable has inverted the relationship.
+#
+# ── WHY THE MARKER CARRIES A SET ID ───────────────────────────────────────────
+# book/src/agent-mcp.md and CODEBASE_ANALYSIS.md are each declared sites for TWO
+# different sets. An anonymous fence could not tell them apart.
+#
+# ── WHY THE FENCE IS NOT ITSELF A SHADOW (decision 0033 rule (a)) ─────────────
+# It names NO members. Growing the set from 8 to 9 never requires touching a
+# fence, so test (2) — growth-coupled — fails, and the repair does not introduce
+# the very thing the doctrine forbids.
+
+# fenced_region <file> <set-id> — print the text lying strictly BETWEEN the
+# markers, across any number of lines. Prints nothing when the fence is absent.
+# Character-scoped, not line-scoped: a marker that opens mid-line must not drag
+# in the words before it, or the vacuity leaks straight back in.
+fenced_region() {
+  awk -v id="$2" '
+    BEGIN { s = "<!--enum:" id "-->"; e = "<!--/enum:" id "-->"; inside = 0 }
+    {
+      line = $0
+      while (length(line) > 0) {
+        if (inside == 0) {
+          p = index(line, s)
+          if (p == 0) break
+          line = substr(line, p + length(s))
+          inside = 1
+        } else {
+          q = index(line, e)
+          if (q == 0) { print line; break }
+          print substr(line, 1, q - 1)
+          line = substr(line, q + length(e))
+          inside = 0
+        }
+      }
+      if (inside == 1 && length(line) == 0) print ""
+    }
+  ' "$1"
+}
+
+# covers_fenced_set <pair> <src list> <file> <set-id> — every authoritative id
+# must be named INSIDE the site's fence for that set.
+#
+# A missing fence is a HARD FAILURE, not a skip. That is what stops this repair
+# from silently degrading back into whole-file matching the first time somebody
+# reflows a chapter — and it is the same reasoning as the extractor count floors
+# above: a check that matches nothing must die loudly rather than pass vacuously.
+#
+# Still ONE-DIRECTIONAL (coverage, not exact parity). See the dated Correction in
+# decision 0037: exact parity is not uniformly available, because several fences
+# must enclose list items that carry prose (`- MEMORY-ARCH — the durable memory
+# invariants …`), so harvesting "the ids this region names" would also harvest
+# every other backticked token in that prose and cry wolf. The reverse direction
+# is in any case near-empty by policy: nothing is ever retired
+# (feedback_never_retire_strategies), so "the doc names an id that no longer
+# exists" is not a live failure mode in this repo. The failure that matters, and
+# the one this now genuinely catches, is a doc that fell BEHIND the set.
+covers_fenced_set() {
+  local pair="$1" src="$2" file="$3" set_id="$4" missing="" id region
   if [ ! -f "${file}" ]; then
     note "FAIL: ${pair} — declared documentation site is missing: ${file}"
     fail=1
     return 1
   fi
-  for id in ${src}; do
-    grep -q -- "${id}" "${file}" || missing="${missing} ${id}"
-  done
-  if [ -n "${missing}" ]; then
-    note "FAIL: ${pair} — ${file} does not name:${missing}"
-    note "      it documents the allow-list, so it must name every registered entry."
+  region="$(fenced_region "${file}" "${set_id}")"
+  if [ -z "$(printf '%s' "${region}" | tr -d '[:space:]')" ]; then
+    note "FAIL: ${pair} — ${file} has no <!--enum:${set_id}--> … <!--/enum:${set_id}--> fence"
+    note "      (or the fence is empty). A declared site must mark the enumeration"
+    note "      this pair checks; without it the check would silently fall back to"
+    note "      matching the whole file, which decision 0037 measured as vacuous."
     fail=1
     return 1
   fi
-  ok "${pair} — ${file} names every entry"
+  for id in ${src}; do
+    printf '%s\n' "${region}" | grep -q -- "${id}" || missing="${missing} ${id}"
+  done
+  if [ -n "${missing}" ]; then
+    note "FAIL: ${pair} — ${file}'s <!--enum:${set_id}--> fence does not name:${missing}"
+    note "      it documents the registry, so its enumeration must name every entry."
+    fail=1
+    return 1
+  fi
+  ok "${pair} — ${file} (fenced: ${set_id}) names every entry"
   return 0
 }
 
@@ -251,14 +347,14 @@ fi
 # omit, it misinforms. Sites are named here (not discovered) for the same reason
 # as pair 3.
 if floor_or_fail 'DOCTRINES registry ids (live-registry sites)' 5 "${registry_ids}"; then
-  covers_set 'live-registry list <-> the DOCTRINES registry' \
-    "${registry_ids}" 'README.md'
-  covers_set 'live-registry list <-> the DOCTRINES registry' \
-    "${registry_ids}" 'book/src/architecture.md'
-  covers_set 'live-registry list <-> the DOCTRINES registry' \
-    "${registry_ids}" 'docs/knowledge/doctrine-enforcement.md'
-  covers_set 'live-registry list <-> the DOCTRINES registry' \
-    "${registry_ids}" 'CODEBASE_ANALYSIS.md'
+  covers_fenced_set 'live-registry list <-> the DOCTRINES registry' \
+    "${registry_ids}" 'README.md' 'doctrine-ids'
+  covers_fenced_set 'live-registry list <-> the DOCTRINES registry' \
+    "${registry_ids}" 'book/src/architecture.md' 'doctrine-ids'
+  covers_fenced_set 'live-registry list <-> the DOCTRINES registry' \
+    "${registry_ids}" 'docs/knowledge/doctrine-enforcement.md' 'doctrine-ids'
+  covers_fenced_set 'live-registry list <-> the DOCTRINES registry' \
+    "${registry_ids}" 'CODEBASE_ANALYSIS.md' 'doctrine-ids'
 fi
 
 # Pair 2 — book/src/SUMMARY.md (shadow) mirrors book/src/*.md (authoritative).
@@ -280,12 +376,18 @@ fi
 # NAMED here rather than discovered, because "any chapter mentioning two adapter
 # ids" also matches an ordinary `--tools verilator,yosys` example — and a gate
 # that cries wolf gets deleted.
+#
+# MEASURED at LIVE-DOC-REGISTRY-SHADOWS.2: under the old whole-file predicate
+# BOTH of these sites passed with the allow-list DELETED — this pair protected
+# nothing for its entire life, because `verilator` (12 further occurrences in
+# api-tools.md) and `yosys` (18) are the ordinary vocabulary of a chapter about
+# running those tools. The fence is what makes the pair real. See decision 0037.
 adapter_ids="$(extract_adapter_ids)"
 if floor_or_fail 'downstream adapter ids' 5 "${adapter_ids}"; then
-  covers_set 'adapter allow-list <-> the adapter registry' \
-    "${adapter_ids}" 'book/src/api-tools.md'
-  covers_set 'adapter allow-list <-> the adapter registry' \
-    "${adapter_ids}" 'book/src/agent-mcp.md'
+  covers_fenced_set 'adapter allow-list <-> the adapter registry' \
+    "${adapter_ids}" 'book/src/api-tools.md' 'adapter-ids'
+  covers_fenced_set 'adapter allow-list <-> the adapter registry' \
+    "${adapter_ids}" 'book/src/agent-mcp.md' 'adapter-ids'
 fi
 
 # Pair 4 — the live docs that enumerate the `--steer` category taxonomy (shadow)
@@ -319,15 +421,35 @@ steering_categories="$(extract_steering_categories)"
 # *removing* a category would, and that is exactly the event worth stopping to
 # look at. That asymmetry is why a floor can be tightened to the real count
 # without becoming the hand-maintained list the doctrine forbids.
+# The site list grew from four to SEVEN at LIVE-DOC-REGISTRY-SHADOWS.3, and the
+# PROCEDURE matters more than the three names: decision 0037 measured that this
+# list CANNOT be derived (a threshold selector over tracked *.md fails in both
+# directions at once — loose, it selects append-only history whose OLD six-name
+# list is correct and may never be retro-edited under decision 0031; tight, it
+# drops algorithm.md and knobs.md because their lists wrap across two lines), so
+# the list is AUTHORITATIVE under decision 0033 rule (a) test (2), exactly like
+# check_no_boot_volume_refs.sh's allow-list and for the same underlying reason.
+# What replaced derivation is a written procedure: run the discovery selector
+# over the WHOLE TREE from the authoritative set and classify EVERY candidate as
+# live doc (declare) or history / incidental prose (do not). These three were
+# added that way — agent-mcp.md and api-introspection.md from the repair at .1,
+# CODEBASE_ANALYSIS.md:2349 from the sweep itself, which no bug report had
+# surfaced. Never add a site because it turned up in a bug report.
 if floor_or_fail 'KnobId steering categories' 8 "${steering_categories}"; then
-  covers_set 'steer categories <-> the knob_ids! table' \
-    "${steering_categories}" 'book/src/algorithm.md'
-  covers_set 'steer categories <-> the knob_ids! table' \
-    "${steering_categories}" 'book/src/knobs.md'
-  covers_set 'steer categories <-> the knob_ids! table' \
-    "${steering_categories}" 'USER_GUIDE.md'
-  covers_set 'steer categories <-> the knob_ids! table' \
-    "${steering_categories}" 'docs/AGENT_INTROSPECTION_SCHEMA.md'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'book/src/algorithm.md' 'steer-categories'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'book/src/knobs.md' 'steer-categories'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'USER_GUIDE.md' 'steer-categories'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'docs/AGENT_INTROSPECTION_SCHEMA.md' 'steer-categories'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'book/src/agent-mcp.md' 'steer-categories'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'book/src/api-introspection.md' 'steer-categories'
+  covers_fenced_set 'steer categories <-> the knob_ids! table' \
+    "${steering_categories}" 'CODEBASE_ANALYSIS.md' 'steer-categories'
 fi
 
 # --- verdict ----------------------------------------------------------------

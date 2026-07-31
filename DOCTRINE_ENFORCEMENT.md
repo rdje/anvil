@@ -260,14 +260,21 @@ from a clone.
   needed most. Its strength is inversely proportional to how ordinary its ids are as *words* in the
   document being checked — and ids are most ordinary in the very document that documents them.
   Measured in this repo (`2026-07-31`, decision `0037`): **3 of `ENUMERATION-PARITY`'s 10 coverage
-  sites still pass with the checked enumeration deleted outright**, because `verilator` / `yosys` /
-  `sharing` / `state` are ordinary vocabulary in the chapters that list them; the sites that survive
-  the probe do so on an accident of vocabulary (`MEMORY-ARCH`, `README-GROWTH` appear nowhere but
+  sites passed with the checked enumeration deleted outright**, because `verilator` / `yosys` /
+  `sharing` / `state` are ordinary vocabulary in the chapters that list them; the sites that survived
+  the probe did so on an accident of vocabulary (`MEMORY-ARCH`, `README-GROWTH` appear nowhere but
   their list). **The general acceptance test for any coverage-shaped check is therefore: delete the
   subject and re-run it.** A check that still passes with the thing it checks removed is checking
-  nothing — and per §6.1 it is *manufacturing* the confidence, not earning it. The repair is to scope
-  the match to an explicitly marked region rather than to the file (`ENUMERATION-PARITY` is being
-  moved to that predicate; the marker must name no members, or it becomes a fresh shadow).
+  nothing — and per §6.1 it is *manufacturing* the confidence, not earning it.
+  **Repaired** at `LIVE-DOC-REGISTRY-SHADOWS.3`: each site marks its enumeration with an invisible
+  inline HTML-comment fence carrying the set id, the check reads only inside it, and a **missing
+  fence is a hard failure** — so the predicate cannot silently degrade back to whole-file matching.
+  The marker names **no members**, so it is not itself a shadow. Two limits stay stated: the check is
+  **coverage, not exact parity** (a fence that must enclose prose-bearing list items is not
+  losslessly extractable, and nothing is ever retired here anyway), and **a fence must contain the
+  enumeration and nothing that merely mentions its ids** — commentary inside a fence re-imports the
+  vacuity at fence scale, which is how this repo's own honest-limit paragraph produced the single
+  wrong pass in a 98-control sweep.
 - **Goal is expensive-and-visible non-compliance, not literal impossibility** — defense in depth,
   not a single unbreakable wall.
 

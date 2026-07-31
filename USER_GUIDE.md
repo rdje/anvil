@@ -399,8 +399,8 @@ probability **prior**, never a generate-then-filter. ANVIL multiplies the named
 roll's probability by `weight` before its single seeded draw; with no `--steer`
 (or a neutral `=1.0`) the output is byte-identical to today. `key` is either a
 **knob name** (e.g. `flop_prob`, `coefficient_prob`) or one of the eight coarse
-**categories** — `state` / `selectors` / `datapath` / `terminals` / `sharing` /
-`hierarchy` / `motifs` / `emission` — so one entry can emphasise a whole family; `weight` is a
+**categories** — <!--enum:steer-categories-->`state` / `selectors` / `datapath` / `terminals` / `sharing` /
+`hierarchy` / `motifs` / `emission`<!--/enum:steer-categories--> — so one entry can emphasise a whole family; `weight` is a
 non-negative multiplier (`>1` emphasises, `<1` de-emphasises, `0` suppresses).
 The flag is repeatable and layers after `--profile` (explicit wins per key); an
 unknown key errors naming the categories, and a negative/non-finite weight is

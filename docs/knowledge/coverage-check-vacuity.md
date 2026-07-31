@@ -42,12 +42,29 @@ sites passed the probe** — both downstream-allow-list sites (so that pair prot
 nothing at either site) and one steering-taxonomy site. Adding more *sites* cannot fix
 this; the *predicate* is what is wrong.
 
-**The repair is to scope the match to an explicitly marked region** (an HTML-comment
-fence around the enumeration), not to the file and not to a proximity window. A window
-was measured and rejected: it leaves an id-rich chapter exactly as vacuous, and it misses
-a single-id omission wherever good explanatory prose sits beside the list — its blind
-spots correlate with documentation *quality*. The marker must name **no members**, or it
-becomes a fresh shadow under [[shadow-enumeration-classification]]'s test (2).
+**Repaired** at `LIVE-DOC-REGISTRY-SHADOWS.3`: every declared site marks its enumeration
+with an **inline HTML-comment fence** carrying the set id
+(`<!--enum:steer-categories-->` … `<!--/enum:steer-categories-->`), the check reads only
+inside the fence, and a **missing fence is a hard failure** so the predicate cannot decay
+back to whole-file matching. Markers are inline, not on their own line, because an HTML
+comment on its own line is a CommonMark *block* that would split the paragraph, table or
+list it sits in — the fence has to be invisible in the rendered book. It carries a set id
+because a single file can be a declared site for two different sets. It names **no
+members**, so it is not itself a shadow under
+[[shadow-enumeration-classification]]'s test (2).
+
+A proximity window was measured and **rejected**: it leaves an id-rich chapter exactly as
+vacuous, and it misses a single-id omission wherever good explanatory prose sits beside
+the list — its blind spots correlate with documentation *quality*.
+
+**Two limits of the fenced predicate, both earned in implementation.** It is **coverage,
+not exact parity** — a fence enclosing prose-bearing list items cannot be losslessly
+harvested, and the reverse direction is near-empty here anyway since nothing is ever
+retired. And **a fence must contain the enumeration, not the discussion of it**:
+commentary inside a fence that names an id a second time re-imports the vacuity at fence
+scale. That produced the single wrong pass in a 98-control sweep, and the offender was the
+paragraph explaining the defect. Audit each fence for duplicate ids, and drop **every** id
+at **every** site rather than sampling.
 
 Separately, the check's own **declared-site list is authoritative and stays
 hand-written**: it must be allowed to differ from "every tracked file naming the ids",

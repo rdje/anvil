@@ -30,7 +30,7 @@ and exits nonzero on any breach. The live registry (kept in parity with the
 driver by `ENUMERATION-PARITY` itself; no count is stated here because a number
 beside a list is a second copy of it):
 
-- `MEMORY-ARCH` → `scripts/check_memory_architecture.sh` (structural).
+- <!--enum:doctrine-ids-->`MEMORY-ARCH` → `scripts/check_memory_architecture.sh` (structural).
 - `KNOWLEDGE-MAP` → `knowledge-map/scripts/check_knowledge_map.sh` (structural).
 - `CODE-CHANGE-EVIDENCE` → `scripts/check_diagnosis_evidence.sh` (evidence,
   scope-aware: a staged code change must co-stage `CHANGES.md` + `MEMORY.md`).
@@ -49,7 +49,7 @@ beside a list is a second copy of it):
   stays a landing page within its reviewed line **and** byte caps, with the
   project-owned `README_POLICY.md` beside it; decision `0036`, owner directive
   `CLAUDE.md` §14. Not scope-aware — landing-page size is a property of the
-  tree, not of a change).
+  tree, not of a change).<!--/enum:doctrine-ids-->
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
 `src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`). `.githooks/pre-commit`

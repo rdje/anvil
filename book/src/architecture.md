@@ -479,7 +479,7 @@ re-checkable rather than a "trust me" claim. The standard is
 task-trees, the memory architecture (`MEMORY_ARCHITECTURE.md`), and the
 Knowledge Map. The live registry:
 
-- **`MEMORY-ARCH`** — the durable memory-architecture invariants (the
+- <!--enum:doctrine-ids-->**`MEMORY-ARCH`** — the durable memory-architecture invariants (the
   resume pointer's size cap and required fields, the bootstrap pointers,
   the decisions index).
 - **`KNOWLEDGE-MAP`** — the generated `KNOWLEDGE_MAP.md` is in sync with
@@ -498,23 +498,27 @@ Knowledge Map. The live registry:
 - **`ENUMERATION-PARITY`** — every *declared* docs/script enumeration
   pair is in parity with the set it mirrors (decision `0033`) — including
   this very list, which is checked against the registry it describes.
-  **Stated limit, measured `2026-07-31` (decision `0037`):** the pairs
-  that check *"this chapter names every id"* do so by grepping the whole
-  file, and **3 of those 10 sites still pass with the enumeration deleted
-  outright** — because `verilator`, `yosys`, `state` and `sharing` are
-  ordinary words in the very chapters that list them. This list survives
-  the probe only because `MEMORY-ARCH` and friends are coined tokens that
-  appear nowhere else. The repair — scoping each check to a fenced region
-  instead of the file — is tracked by
-  `LIVE-DOC-REGISTRY-SHADOWS.3`; until it lands, treat those three sites
-  as documented-but-unguarded rather than as covered.
 - **`README-GROWTH`** — `README.md` stays a landing page, within its
   reviewed line **and** byte caps, with the project-owned
   `README_POLICY.md` beside it (decision `0036`; owner directive
   `CLAUDE.md` §14). Both caps, because prose density means a file can sit
   well under the line cap while already over the byte cap. Fails with a
   routing hint naming the canonical home per kind of overflow; raising a
-  cap requires a new decision record, not an edit to the check.
+  cap requires a new decision record, not an edit to the check.<!--/enum:doctrine-ids-->
+
+**How that list is checked, and what it took to make the check real**
+(decision `0037`). Each site that publishes a registry marks its
+enumeration with an invisible HTML-comment fence, and the check reads
+only what is inside it. It used to grep the whole file — and measured
+`2026-07-31`, **3 of the 10 sites passed with the enumeration deleted
+outright**, because `verilator`, `yosys`, `state` and `sharing` are
+ordinary words in the very chapters that list them. The rule generalises:
+*a coverage check is strong in inverse proportion to how ordinary its ids
+are as words in the document being checked* — and they are most ordinary
+in exactly the document that documents them. This list survived only on
+an accident of vocabulary, its ids being coined tokens. The fence removes
+the accident, and the standing acceptance test for any check of this
+shape is now: **delete the thing it guards and confirm it fails.**
 
 The driver collects every check's result, meta-checks that each
 registered check exists and is executable (so the registry can never

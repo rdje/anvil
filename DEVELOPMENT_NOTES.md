@@ -5,6 +5,61 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — The fix reproduced the bug inside itself, and only an exhaustive control found it — `LIVE-DOC-REGISTRY-SHADOWS.3`
+
+The fence landed and the check went green at all 13 sites. The vacuity probe — delete the
+enumeration, re-run — flipped from passing at 3 sites to failing at all 13. That is the
+whole repair working.
+
+Then the single-id controls ran: drop each id, at each site, and confirm every drop fails.
+**97 of 98 did.** The one that did not was `MEMORY-ARCH` at
+`book/src/architecture.md` — and the cause was the paragraph `.2` had added to that
+chapter the previous commit, explaining that *"this list survives the probe only because
+`MEMORY-ARCH` and friends are coined tokens that appear nowhere else."* That sentence sat
+**inside** what became the `doctrine-ids` fence. So the id appeared twice in the region,
+and deleting it from the actual registry list left the check green.
+
+**The vacuity defect, reproduced at fence scale, inside the fix for it, by the sentence
+explaining it.** The rule that follows is small and should not need saying twice:
+
+> **A fence marks the enumeration, not the discussion of it.**
+
+Two things about *how it was caught* matter more than the defect.
+
+**Exhaustive, not sampled.** Had the control dropped one representative id per site — the
+obvious economy, 13 mutations instead of 98 — it would have passed, because 7 of the 8
+doctrine ids do fail correctly at that site. The set was **partitioned**, and a proof that
+samples one member cannot detect partitioning. That is the same failure `0034` recorded
+when a steering proof sampled a `cone.rs` knob while all seven `hierarchy.rs` knobs went
+unsteered for two months. The economy is exactly where the bug hides.
+
+**Restore from the index, never `git checkout --`.** Each control mutates a tracked file
+and must put it back. `git checkout -- <file>` restores from HEAD, which would have
+silently deleted all 13 fences — the entire leaf's work — mid-sweep, and the sweep would
+have kept reporting cheerfully. `git checkout-index -f -- <file>` restores from the
+**index**, so `git add` before controlling makes the work the restore point. The recorded
+gotcha said a checkout during a control sweep discards unrelated edits; the sharper form
+is that during a sweep *your own uncommitted work is the unrelated edit.*
+
+**And one design fact that only measurement produced.** `0037` specified fences and
+assumed the markers could sit on their own lines. Against the real files that is wrong:
+most enumerations live mid-paragraph, in a Markdown **table row**, or inside a bulleted
+list, and an HTML comment on its own line is a CommonMark HTML *block* — it interrupts the
+paragraph and splits the table. Own-line markers would have silently changed the rendered
+book, which is the owner's only window into the project. Inline markers are raw inline
+HTML and render as nothing. Verified by reading the generated HTML rather than by
+reasoning about the parser — *the fixture agrees with you; the tool does not*, for the
+fourth recorded time.
+
+The same measurement forced withdrawing `0037`'s claim that a fence makes **bidirectional**
+parity correct. Four fences must enclose bulleted list items that carry prose, so
+harvesting "the ids this region names" would harvest every backticked token beside them.
+Exact set parity needs both sides to be losslessly extractable, and **a documentation
+region that has to stay readable is not**. Coverage is the honest predicate there — and
+the reverse direction is near-empty in this repo anyway, since nothing is ever retired.
+
+---
+
 ## 2026-07-31 — Ask a check the one question it cannot bluff: delete the subject and re-run it — `LIVE-DOC-REGISTRY-SHADOWS.2`
 
 `ENUMERATION-PARITY` has ten sites of the shape *"this document names every member of

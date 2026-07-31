@@ -1,6 +1,100 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.3 — check the list, not the file (tree CLOSED)
+
+**Landed as:** `pending`. Previous: `d4dd326`.
+**Docs + one doctrine check** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Implements decision `0037`. `ENUMERATION-PARITY`'s `covers_set` — *"does this
+file contain each id anywhere?"* — becomes `covers_fenced_set`: it reads only the text
+between an inline `<!--enum:<set-id>-->` … `<!--/enum:<set-id>-->` pair, and **a declared
+site with no fence (or an empty one) is a hard failure**. 13 fences were added across 11
+files, and pair 4 now covers **7** sites (was 4).
+
+**The acceptance test, and it passes.** The vacuity probe — *delete the enumeration the
+pair guards, re-run the check* — **now fails at all 13 sites**, including the three that
+previously passed with it deleted outright: `book/src/api-tools.md` and
+`book/src/agent-mcp.md` (pair 3, which had therefore protected **nothing** at either site
+for its entire life) and `book/src/knobs.md`.
+
+**Controls at every site, not a sample.** 98 single-id drops — 8 categories x 7 sites, 5
+adapters x 2 sites, 8 doctrine ids x 4 sites — every one fails. Plus 2 empty-fence
+controls failing and the unmutated tree passing. Every site rather than a sampled one
+because a proof that samples one member of a set cannot detect that the set is
+**partitioned**, which is exactly how `hierarchy`'s seven unsteered knobs survived two
+months. Mutations were restored from the **index** (`git checkout-index -f`), never
+`git checkout --`, per the recorded gotcha that a checkout during a control sweep discards
+unrelated edits — here, all 13 fences.
+
+**The control caught a defect in this leaf's own work, and it is the finding worth
+keeping.** The first pair-1b sweep had **1 wrong pass of 32**: dropping `MEMORY-ARCH` from
+`book/src/architecture.md`'s registry list left the gate **green**. Cause — the
+honest-limit paragraph `.2` had just added to that chapter sat *inside* what became the
+`doctrine-ids` fence, and named `MEMORY-ARCH` a second time to illustrate the
+coined-token point. **The vacuity defect, reproduced at fence scale, inside the fix for
+it, by the sentence explaining it.** Repaired by moving that commentary out of the fence
+(where it reads better as a standalone note anyway), and a duplicate-id audit across all
+13 fences now reports none. Rule recorded: **a fence marks the enumeration, not the
+discussion of it.**
+
+**Why the markers are inline.** Measured against the real sites rather than chosen for
+style: most enumerations live mid-paragraph, inside a Markdown **table row**
+(`agent-mcp.md:186`, `api-introspection.md:111`) or inside a bulleted list. An HTML
+comment on its **own line** is a CommonMark HTML *block*, which interrupts a paragraph and
+splits a table or list — it would change the rendered book. Inline, it is raw inline HTML
+and renders as nothing. Verified in the generated HTML, not assumed: markers survive as
+invisible comments, none leaks as visible text at six spot-checked chapters, and
+`algorithm.md`'s category sentence is still one paragraph with the fence inside it. A gate
+that forces prose to reflow so it stays checkable has inverted the relationship.
+
+**Why the marker carries a set id.** `book/src/agent-mcp.md` and `CODEBASE_ANALYSIS.md`
+are each declared sites for **two** different sets, which settles `0037`'s open question
+by measurement rather than guess. `USER_GUIDE.md` has two enumerations; the prose one
+(`:402`) is fenced and the one inside the error-message code block (`:438`) deliberately is
+not — a marker there would be **visible**.
+
+**Two limits, recorded as a dated Correction on `0037` rather than edited away.**
+(i) **Bidirectional parity is withdrawn.** `0037` claimed a fence would make exact parity
+correct; measured against the real files it is not uniformly available, because four
+fences must enclose *bulleted list items that carry prose*, so harvesting "the ids this
+region names" would also harvest every other backticked token in it and cry wolf. The
+reverse direction is near-empty by policy anyway — nothing is ever retired
+(`feedback_never_retire_strategies`) — and the direction that matters, a doc falling
+behind the set, is fully held. The general lesson: **exact set parity needs both sides to
+be extractable, and a documentation region that must stay readable is not losslessly
+extractable.** (ii) The fence-contents rule above.
+
+**Why the site list is still hand-written.** Unchanged from `0037` and worth restating
+where the fences are: it **cannot** be derived. The list is authoritative under decision
+`0033` rule (a) test (2) — it is *supposed* to differ from "every tracked file naming the
+ids", because append-only history records the *old* set correctly and may never be
+retro-edited (decision `0031`). What replaced derivation is a **written procedure**, now
+in the script beside pair 4: sweep the whole tree from the authoritative set and classify
+every candidate; never add a site because it turned up in a bug report. The three new
+sites were added that way.
+
+**Validation.** `scripts/check_enumeration_parity.sh` green on all 15 pair checks;
+113 controls total (13 vacuity probes + 98 single-id drops + 2 empty-fence) all failing
+correctly, 1 positive passing; duplicate-id audit clean across 13 fences; `mdbook build`
+clean with rendered-HTML inspection; `scripts/check_doctrines.sh` 8/8 after `git add`;
+`check_knowledge_map.sh` in sync. `src/` untouched ⇒ DUT byte-identical by construction,
+so the `cargo test` / snapshot / byte-identity banks stand from `1a6f276` unchanged and
+were not re-run.
+
+**Impact.** `ENUMERATION-PARITY` now checks what it claims to. Pair 3 goes from zero real
+coverage to full coverage at both sites; pair 4 from 4 partly-vacuous sites to 7 exact
+ones; pair 1b from near-exact-by-accident to exact. Tree **CLOSED**.
+
+**Files touched.** `scripts/check_enumeration_parity.sh`, `README.md`,
+`book/src/architecture.md`, `book/src/api-tools.md`, `book/src/agent-mcp.md`,
+`book/src/algorithm.md`, `book/src/knobs.md`, `book/src/api-introspection.md`,
+`USER_GUIDE.md`, `docs/AGENT_INTROSPECTION_SCHEMA.md`, `CODEBASE_ANALYSIS.md`,
+`docs/knowledge/doctrine-enforcement.md`, `docs/knowledge/coverage-check-vacuity.md`,
+`docs/decisions/0037-…md` (dated Correction), `DOCTRINE_ENFORCEMENT.md`,
+`KNOWLEDGE_MAP.md`, `docs/tasks/LIVE-DOC-REGISTRY-SHADOWS.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.1 — audit + register: this file's two newest entries are at its bottom
 
 **Landed as:** `e37cec3`. Previous: `087ca7b`.

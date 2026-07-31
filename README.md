@@ -127,9 +127,9 @@ requires reading it.
   for the portable setup guide.
 - **Every doctrine is mechanically gated.** `scripts/check_doctrines.sh` is the
   single registry+driver, run by the git hook and by CI. Live registry:
-  `MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`,
+  <!--enum:doctrine-ids-->`MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`,
   `TASK-TREE-OWNERSHIP`, `NO-BOOT-VOLUME-REFS`, `EVIDENCE-CITATIONS`,
-  `ENUMERATION-PARITY`, and `README-GROWTH` (which keeps *this* file a
+  `ENUMERATION-PARITY`, and `README-GROWTH`<!--/enum:doctrine-ids--> (which keeps *this* file a
   landing page) — a list itself gated by `ENUMERATION-PARITY`.
 
 ## Where content goes
