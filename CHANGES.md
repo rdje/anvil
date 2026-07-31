@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.2 — the site list is authoritative; the predicate is not
 
-**Landed as:** `pending`. Previous: `abf7090`.
+**Landed as:** `e873a6e`. Previous: `abf7090`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** `.1` left a two-part question. Both halves are answered by measurement and
