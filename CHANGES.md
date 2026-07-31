@@ -1,6 +1,99 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.1 — the date is what carried it through
+
+**Landed as:** this commit. Previous: `349eeb6`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Registered a new tree on a defect found during session bootstrap, reading
+`book/src/architecture.md` as `SESSION_BOOTSTRAP.md` step 1 requires.
+`BOOK-TEST-COUNT-SHADOWS` closed on `2026-07-31` having deleted five per-file test counts
+from that chapter and replaced them with runnable derivations. **The grand total survived,
+57 lines below the repair, in the same file** — and a second copy of the same claim survived
+in `CODEBASE_ANALYSIS.md`. `.1` audits, measures and registers; **no repair is attempted**.
+
+**The measurement**, at `349eeb6`, using the three derivations `architecture.md:545-550`
+itself publishes:
+
+| site | claims | actual | |
+| --- | ---: | ---: | --- |
+| `book/src/architecture.md:612` | **294** passing tests | **946** | claim is **31 %** of reality |
+| `CODEBASE_ANALYSIS.md:2425` | **307** passing tests | **946** | claim is **32 %** of reality |
+| `CODEBASE_ANALYSIS.md:2423` | `tests/pipeline.rs` — 79 | **133** | |
+| `CODEBASE_ANALYSIS.md:2424` | `book_examples.rs` — 3 tests / 9 skips | **4** / **39** | |
+
+Split out: **751** (`cargo test --lib -- --list`) + **195** (`grep -c '#[test]' tests/`).
+Every error is an **under**-count — the monotone-decay signature that tree measured.
+
+**The first root-cause hypothesis was written down, tested, and REFUTED.** The intuitive
+explanation — *"the sweep did not re-scan the file it was editing"* — is **wrong**.
+`BOOK-TEST-COUNT-SHADOWS.1` swept 94 live-doc files keyed on *"a numeral immediately
+qualifying a countable repo noun"*, and its own verification log proves it examined
+`CODEBASE_ANALYSIS.md`: it rejected that file's *"all 7 categories"* as a false positive,
+with a reason. Both files were in scope. Both claims match the key. It is recorded as
+refuted rather than silently replaced, because a plausible-but-unmeasured cause is exactly
+what makes a repair miss its target.
+
+**The actual cause is the date.** `.1` and `.2` both applied an explicit **exclusion by
+kind**, recorded in `.2`'s log as *"banked-run citations … are dated measurements of a
+specific run and are exempt by the same reasoning `.1` used for append-only history."* That
+exemption is **correct** for a `CHANGES.md` entry or a banked evidence citation. It is wrong
+here, and the discriminator is exact:
+
+| | dated? | outcome |
+| --- | --- | --- |
+| the five per-file counts `.1` deleted | **no** — bare `` `src/ir/types.rs` — 40 tests `` | **caught and deleted** |
+| `architecture.md:612` | **yes** — *"(current HEAD, `cargo test` on 2026-04-30)"* | **survived** |
+| `CODEBASE_ANALYSIS.md:2425` | **yes** — *"(`cargo test`, 2026-05-02)"* | **survived** |
+
+`.1` deleted every *undated* count in that file and left every *dated* one.
+
+**The reusable finding.** *A date attached to a standing claim disguises it as history, and
+thereby exempts it from the very sweep designed to catch it.* The exemption must be keyed on
+**"is the enclosing record about the past, or about the present?"** — never on *"is it
+dated?"*. Both survivors answer **the present in their own words** — *"**Current** executed
+counts"*, *"**current HEAD**"* — while carrying a two- and three-month-old date. They are
+**self-refuting on their own terms**, which is precisely the signature
+`OVERFLOW-DESTINATION-INSTRUMENTATION.1` independently measured in PGEN (`Last updated:
+2026-06-02` over `2026-07-31` content). That tree's candidate instrument (b) — *a
+self-declared date that disagrees with the file's newest content* — generalises to this
+class, so `.3` must **share** it rather than build a second one; two trees building the same
+instrument is itself a `0033` shadow.
+
+**Why it matters beyond the numbers.** `SESSION_BOOTSTRAP.md` step 3 names
+`CODEBASE_ANALYSIS.md` *"the authoritative snapshot of the workspace"*, and the mdBook is by
+owner directive the only window into the project. A cold session reads *"307 passing tests"*
+and scopes work against a codebase a third its actual test mass. And the sharpest edge is
+internal: `architecture.md` now carries **the lesson and a live violation of it 57 lines
+apart** — `:543-555` explains that these counts *"had decayed — one by 72 %"* and that
+deriving them *"is the repair that cannot rot"*, while `:612` is decayed by **69 %**.
+
+**The class, swept from the authoritative set** (147 tracked `*.md`; `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `docs/tasks/` and `docs/evidence/` excluded by kind): **exactly these
+two live-doc sites**. The `docs/decisions/*.md` hits are **correctly exempt** — a decision
+record stating what was true when it was decided *is* a record about the past, which is the
+distinction the corrected rule captures. Also examined and **not** flagged:
+`USER_GUIDE.md:466` and `book/src/knobs.md:1081` (*"Exactly three knobs stay
+config-file-only"*), which `BOOK-TEST-COUNT-SHADOWS.2` already measured and deliberately
+**kept** as an authoritative enumeration of an exception; re-flagging them would be that
+tree's rejected false positive returning.
+
+**Validation.** `cargo check --all-targets` clean; `scripts/check_doctrines.sh` **8/8** after
+`git add`. Every claimed number re-derived from the repo at this HEAD, none carried from the
+closed tree. `src/` untouched ⇒ DUT byte-identical by construction; `tests/snapshots.rs`
+untouched.
+
+**Impact.** No content is repaired in this leaf, deliberately. What changes is that a live,
+measured defect is now **task-tree owned** rather than sitting in a session's head, the rung
+is fixed **before** the work (`0033` R1, deletion — *"update the numbers"* is explicitly off
+the table, and it is unusually tempting here because the correct numbers are now measured and
+written down), and the tree's real subject is named: **`.2` closes two instances, `.3` closes
+the class**, and `.3` exists so `.2` cannot be mistaken for completion.
+
+**Files touched.** `docs/tasks/DATED-COUNT-SWEEP-EXEMPTION.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.3 — two pointer stubs; nothing moved
 
 **Landed as:** `80edd42`. Previous: `709d4d0`.

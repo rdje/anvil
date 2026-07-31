@@ -5,6 +5,64 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A date turns a standing claim into apparent history, and exempts it from the sweep built to catch it — `DATED-COUNT-SWEEP-EXEMPTION.1`
+
+`BOOK-TEST-COUNT-SHADOWS` deleted five per-file test counts from
+`book/src/architecture.md` and closed. **The grand total survived 57 lines below the
+repair, in the same file**, and a second copy survived in `CODEBASE_ANALYSIS.md`. Measured:
+they claim 294 and 307 passing tests against an actual 946 — **31 %** and **32 %** of
+reality.
+
+**The obvious explanation is wrong, and testing it was the whole value of the leaf.** The
+intuitive cause is *"the sweep didn't re-scan the file it was editing."* But
+`BOOK-TEST-COUNT-SHADOWS.1`'s own verification log records that it examined
+`CODEBASE_ANALYSIS.md` — it rejected that file's *"all 7 categories"* as a false positive,
+with a stated reason. Both files were in scope, and both surviving claims match its
+recorded key (*"a numeral immediately qualifying a countable repo noun"*). So the sweep
+looked straight at them and passed.
+
+**What carried them through is the date.** `.1` and `.2` applied an explicit exclusion *by
+kind*: dated measurements of a specific run are exempt, by the same reasoning that exempts
+append-only history. The discriminator turns out to be exact — the five counts it
+**deleted** were undated bare numbers (`` `src/ir/types.rs` — 40 tests ``); the two that
+**survived** are parenthetically dated (*"(current HEAD, `cargo test` on 2026-04-30)"*,
+*"(`cargo test`, 2026-05-02)"*). It deleted every undated count in that file and left every
+dated one.
+
+The exemption is *correct* for a `CHANGES.md` entry or a banked evidence citation, where the
+enclosing record is a statement about a past run. It is wrong for a live doc whose job is to
+describe the present. **The rule must be keyed on "is the enclosing record about the past or
+the present?", not on "is it dated?"** — and both survivors answer *the present* **in their
+own words**: *"**Current** executed counts"*, *"**current HEAD**"*, over a date two and three
+months stale. They are self-refuting on their own terms.
+
+Three things follow that are worth more than the two deletions:
+
+**1. This is the same signature another tree measured independently, in another project.**
+`OVERFLOW-DESTINATION-INSTRUMENTATION.1` found PGEN's `LIVE_ACHIEVEMENT_STATUS.md`
+declaring `Last updated: 2026-06-02` while carrying `2026-07-31` content, and proposed as a
+candidate instrument *"a self-declared `Last updated:` that disagrees with the file's newest
+content."* That instrument generalises to exactly this class. Two trees converging on one
+mechanism from opposite directions is a signal the mechanism is real — and also a warning:
+**building it twice would itself be a `0033` shadow**, so the two trees must coordinate.
+
+**2. A date is a form of authority, and authority suppresses scrutiny.** The reason these
+two lines survived a sweep that caught weaker instances is that the date made them *look
+measured*. A bare number invites *"is that still true?"*; a number with a date and a command
+beside it answers that question pre-emptively — wrongly, but convincingly. Anywhere the
+project attaches provenance to a claim, it should ask whether the provenance is describing
+*when the claim was true* or being read as *why the claim is trustworthy*.
+
+**3. The file now contains the lesson and a live violation of it, 57 lines apart.**
+`architecture.md:543-555` explains that these counts *"had decayed — one by 72 %"* and that
+deriving them *"is the repair that cannot rot."* `:612` is decayed by **69 %**. A repair
+that states its own principle and then leaves a counterexample below it is worse than one
+that says nothing, because the principle is what a reader will trust.
+
+The tree is therefore split so the second point cannot be lost: `.2` deletes the two
+instances, and `.3` — which exists *specifically so `.2` cannot be mistaken for completion*
+— makes the corrected exemption rule durable enough that the next sweep inherits it.
+
 ## 2026-07-31 — A coordinate rots, an identity does not; and a count you cannot re-derive is not a measurement — `CHANGES-ENTRY-PLACEMENT.3`
 
 Applying decision [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md)
