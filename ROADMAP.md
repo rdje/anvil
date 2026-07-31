@@ -2806,6 +2806,21 @@ other five remain `active` with a design-first `.1` ADR frontier:
    takes steering's *width* (the 16 Bernoulli knobs with no `KnobId` at all — the
    recorded decision-`0023` follow-up). The closed `.1`/`.2` scope is not revisited.
 
+   **TREE CLOSED `2026-07-31` at `.6`.** Steering is complete in all three
+   dimensions: **reach** (`.3` + `.5` — every `KnobId` is steered at every one of
+   its roll sites, and a second prior-skipping primitive is a compile error),
+   **width** (`.4` — all **38** knobs that actually roll have a `KnobId`, a
+   category and per-roll telemetry; three are excluded *by kind* and say so
+   loudly, so decision `0017`'s API-completeness gate now holds for every
+   capability that rolls), and **maintainability** (`.6` — the `KnobId` list is
+   *derived* from one `knob_ids!` table, so adding the 39th knob is one row and
+   there is no second list to forget; `.4b.1`'s `index()` guard retired with the
+   list it guarded, taking its documented tail-truncation gap with it). The one
+   deferred decision-`0023` follow-up, the **in-generator adaptive schedule**
+   (re-deriving steering weights *during* a `--count` run rather than between
+   runs), was deferred at `.1` by design, blocks nothing, and would reopen the
+   tree as `.7`.
+
    The delivered `.1`/`.2` scope: construction-time coverage-feedback steering
    (rules-first, never
    generate-then-filter; byte-stable per steering-config) with an API-settable

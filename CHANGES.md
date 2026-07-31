@@ -1,6 +1,139 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — COVERAGE-STEERED-GENERATION.6 — one table, not five
+
+**Landed as:** `pending`. Previous: `a461b4b`.
+**Code change** (`src/ir/knob_id.rs`) — **DUT byte-identical**, proven across 23
+comparisons against a `HEAD` release binary built in an isolated git worktree.
+
+**What.** `src/ir/knob_id.rs` carried the same 38 knobs **five times** — the `KnobId`
+enum, `all()`, `index()`, `name()` and `category()`. One `macro_rules!` table now
+generates four of them from a single row per knob:
+
+```rust
+knob_ids! {
+    /// `Config::flop_prob` — per-depth chance that a leaf is a flop block.
+    FlopProb => "flop_prob", "state";
+    …
+}
+```
+
+`category_of_name()` stays hand-written beside it, because it inverts `name()` rather
+than duplicating the table. Measured with a per-variant occurrence count: at `HEAD`
+every one of the 38 variant names appears in the file **exactly 5 times** (`sort -u`
+over the 38 counts prints the single value `5`); it now prints `1`. The file drops
+**483 → 317 lines**. Repair rung **R1** of decision `0033` — retire a duplicated list
+rather than gate it forever. **Closes the `COVERAGE-STEERED-GENERATION` tree.**
+
+**Why now, and why deleting the guard is the point.** `.4b.1` guarded `all()` at rung
+**R2** — an exhaustive private `index()` (a new variant is `error[E0004]`) plus
+`all_is_complete_and_ordered` — and shipped with its residual gap documented rather
+than papered over: a **tail** truncation of `all()` is not caught, because the
+surviving `0..n-1` are still contiguous and in order. Reproduced live in the `HEAD`
+worktree for this slice: delete the last entry of `all()` while keeping the variant,
+and both the build *and* the guard test stay **green** (`2 passed`).
+
+The obvious patch cannot exist, and the impossibility is the diagnostic. A count
+**derived** from `all()` shrinks along with `all()`, so it cannot fail; a
+**hand-written** count is a second hand-maintained copy of the very list under guard,
+which decision `0033` forbids as a repair. Hence the rule now on file:
+
+> When a guard's residual gap can only be closed by adding another hand-written list,
+> the guard is at the wrong rung. Stop reinforcing the guard and remove what it
+> guards.
+
+So `index()` and `all_is_complete_and_ordered` were **deleted**, not kept beside the
+macro — two mechanisms for one job is `feedback_full_factorization`'s anti-pattern,
+and a retained guard would imply the omission is still expressible. It is not: with
+one table emitting both the enum and `all()`, skipping a knob means deleting its row,
+which deletes the **variant** — negative-controlled at `error[E0599]: no variant or
+associated item named CasezMuxIfEmitProb`. Lib test total **752 → 751**: exactly one
+test retired, nothing else lost.
+
+**The claim this slice made and then disproved.** The leaf's own acceptance criterion
+predicted that leaving `ENUMERATION-PARITY`'s extractor on `pub fn category` would
+read **zero** categories and trip the count floor loudly — a safe failure. **Measured,
+it reads the correct 8**, which is worse than zero, and it is recorded here rather
+than quietly amended. Two accidents stack: the extractor's `sed` range terminator
+`/^    }$/` **no longer exists where it used to** (the macro definition closes
+`    };`, the invocation closes `}` at column 0), so the range **over-runs 162 lines**
+and swallows the whole table on its way to `category_of_name`'s brace; and
+`grep -oE '"[a-z]+"'` over that over-run then skips every knob *name* only because
+each one happens to contain `_`. Right answer, wrong reason — and the coincidence is
+one row deep: probed, a knob named `"probe"` makes it emit a **phantom** category,
+which fails at every doc site for something that does not exist. That is the
+*cry-wolf* failure this repo notes gets a gate deleted, taking its real coverage with
+it. So the same-commit repoint is load-bearing, not tidy, and the transferable rule
+is: **a `sed` line-range whose terminator stops existing does not fail — it runs on
+and returns something plausible.**
+
+The repointed extractor matches a **whole row** (`Ident => "name", "category";`)
+rather than scanning for quoted words, which also retires
+`PARITY-EXTRACTOR-ARM-SHAPE-GAP`'s hazard at the root instead of working around it:
+**rustfmt does not format this macro invocation's body at all** — measured, not
+assumed, the longest row is **113 characters** and survives `cargo fmt` untouched,
+well past the 100-column `max_width` it would have wrapped if it owned the text. The
+layout is a source fact chosen by the author, which is exactly what that tree
+concluded an extractor must read.
+
+**Three book/analysis copies of the `KnobId` set, repaired by deletion.** Found while
+syncing the book, all pre-existing:
+- `book/src/architecture.md`'s `pub enum KnobId { … }` snippet listed **21 of 38**
+  variants with no ellipsis, so it read as complete — it had missed
+  `HierarchyRegisteredSiblingMixedSupportProb` and all 16 knobs added by `.4b.1`/`.4b.2`;
+- the same chapter's crate-layout diagram still attributed `KnobId` **and**
+  `KnobRollCounters` to `ir/types.rs`, two moves out of date (`.3b` and
+  `IR-TYPES-DECOMPOSITION.2`);
+- `book/src/knobs.md` cited `KnobId` at the pre-move path `src/ir/types.rs` and then
+  listed **18** of the 38 knob names as *"the full list"*.
+
+All three now show the table's *shape* and point at it, rather than copying its
+*contents* — decision `0033`'s R1, which also removes the growth-coupling that made
+them rot. The diagram gains `ir/knob_id.rs` and `ir/knob_roll.rs` entries.
+
+**Validation.**
+- `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
+  `cargo check --all-targets` — all clean, 0 warnings.
+- `cargo test` (under `scripts/ram_guard.sh --threshold 90`) — **17 suites, 0
+  failures**: lib 749, `tests/snapshots.rs` **6/6** byte-identical, `book_examples`
+  4/4, `pipeline` 133, `tool_matrix` 113.
+- `mdbook build` clean; `scripts/check_doctrines.sh` **8/8 PASS**; Knowledge Map
+  regenerated (88 facts / 889 question keys) + check green.
+- **Byte-identity: 23 valid comparisons across 22 distinct configurations, all
+  identical** — default seeds 42/7/2024; `--introspect` including `--memory-prob 0.5`
+  and `--profile structured-emission-max` (the two coverage-readout paths that would
+  expose any reordering of `all()`); `--dump-config` ×2; `--metrics` ×2 with stderr
+  captured; `--trace high`; four `--steer` runs (`state`, `motifs`, `emission`,
+  and neutral `1.0`); legacy depth-1 hierarchy ×3 and bounded recursive hierarchy ×3
+  including `--steer hierarchy=9.0`.
+- **Two earlier comparisons were discarded as vacuous, not counted.** Both sides
+  hashed `e3b0c44298fc` — the SHA-256 of the **empty string** — because
+  `--hierarchy-depth 1` errors without `--num-leaf-modules` and printed nothing, with
+  stderr suppressed. Caught by recognising the hash; the harness now refuses to score
+  a run that exits non-zero or produces no output, and reports byte counts (769 KB of
+  hierarchy SV, 87 KB of introspection) so a vacuous pass cannot be scored again.
+- **Negative controls, both directions, every in-place edit restored byte-exact and
+  verified with `cmp`** (never `git checkout --`, per the recorded gotcha): a probe
+  **row** reaches `all()`/`name()`/`category()`/`category_of_name()` with no other
+  edit; the `HEAD`-vs-now tail-truncation contrast above; a 9th category (`probecat`)
+  in the table **FAILs at all four doc sites** naming it; `USER_GUIDE.md` with
+  `datapath` masked **FAILs naming `datapath`**; a **reshaped row** (the sole
+  `sharing` row split across three lines) yields 7 < floor 8 and reports *"the
+  extractor is broken, not the enumeration"*.
+- **Three of the first-cut negative controls were too weak to fail** and are recorded
+  as such: masking `datapath` → `datapathXX` proved nothing because `covers_set`
+  matches a **substring**; reshaping the `CoefficientProb` row proved nothing because
+  `datapath` has **three** rows and survived on the other two; and the "reads zero"
+  prediction was never run until it was written down. *A negative control that passes
+  on the first try deserves more suspicion than one that fails.*
+
+**Files touched:** `src/ir/knob_id.rs`, `scripts/check_enumeration_parity.sh`,
+`book/src/architecture.md`, `book/src/knobs.md`, `CODEBASE_ANALYSIS.md`,
+`docs/decisions/0035-steering-width-motif-and-emission-knobs.md`,
+`docs/tasks/COVERAGE-STEERED-GENERATION.md`, `docs/TASK_TREE.md`, `ROADMAP.md`,
+`KNOWLEDGE_MAP.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — IR-TYPES-DECOMPOSITION.2 — refresh the resume pointer for handoff
 
 **Landed as:** `a195978`. Previous: `472b8da`.

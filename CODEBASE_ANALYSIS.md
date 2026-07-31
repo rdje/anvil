@@ -471,17 +471,33 @@ src/
 ├── ir/knob_id.rs     IR-TYPES-DECOMPOSITION.2 — the STEERING TAXONOMY,
 │                     split out of `ir/types.rs` because it answers "what
 │                     can be steered, and in which coverage family?", not
-│                     "what is a module?". Holds `enum KnobId` (one variant
-│                     per `gen_bool(cfg.<prob>)` site) + `all()` / `name()` /
-│                     `category()` / `category_of_name()` + the two guard
-│                     tests. Verified severable in BOTH directions before the
-│                     move: nothing in the data model referenced `KnobId`,
-│                     and the block referenced nothing from the data model.
-│                     `scripts/check_enumeration_parity.sh` reads
-│                     `KnobId::category`'s arms from here as the
-│                     authoritative `--steer` taxonomy — that the check
-│                     previously had to name `types.rs` was the evidence for
-│                     the split. Re-exported by `crate::ir`, so every
+│                     "what is a module?". Verified severable in BOTH
+│                     directions before the move: nothing in the data model
+│                     referenced `KnobId`, and the block referenced nothing
+│                     from the data model.
+│                     Since COVERAGE-STEERED-GENERATION.6 the file holds ONE
+│                     hand-maintained list — the `knob_ids!` macro table, one
+│                     row per `gen_bool(cfg.<prob>)` site in the shape
+│                     `Variant => "wire name", "category";`. `enum KnobId`,
+│                     `all()`, `name()` and `category()` all EXPAND from that
+│                     table, so a new knob is one row and the four cannot
+│                     disagree; `category_of_name()` is the one inversion of
+│                     `name()`, written by hand beside them. That collapsed
+│                     five parallel 38-entry tables into one and retired
+│                     `.4b.1`'s exhaustive private `index()` + its
+│                     `all_is_complete_and_ordered` ordering test, whose known
+│                     residual gap (a TAIL truncation of `all()` was not
+│                     caught) stopped existing with the list — rung R1 of
+│                     decision 0033: retire a shadow, do not gate it forever.
+│                     One test remains, on what a table row can still get
+│                     wrong: names unique, name/category namespaces disjoint,
+│                     `category_of_name` round-trips.
+│                     `scripts/check_enumeration_parity.sh` parses the table's
+│                     third column from here as the authoritative `--steer`
+│                     taxonomy — that the check previously had to name
+│                     `types.rs` was the evidence for the split, and its
+│                     repoint to the table landed in `.6`'s own commit.
+│                     Re-exported by `crate::ir`, so every
 │                     `crate::ir::KnobId` path is unchanged.
 │
 ├── ir/knob_roll.rs   COVERAGE-STEERED-GENERATION.3b (decision 0034) — the

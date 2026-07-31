@@ -42,7 +42,7 @@ src/
 │   ├── mod.rs       # re-exports.
 │   ├── types.rs     # Module, Port, Node, GateOp (with Hash derive),
 │   │                # Flop, FlopKind, FlopMux, MuxArm, DepSet,
-│   │                # KnobId, KnobRollCounters, Design, Instance.
+│   │                # Design, Instance.
 │   │                # Module
 │   │                # carries construction-time dedup tables
 │   │                # (gate_instances, const_instances), per-module
@@ -62,6 +62,17 @@ src/
 │   │                # and returns (NodeId, is_new). intern_constant()
 │   │                # is the constant analogue. Inline unit tests
 │   │                # pin each layer's contract.
+│   ├── knob_id.rs   # the STEERING TAXONOMY, not circuit IR: which
+│   │                # generator decisions are steerable, what each is
+│   │                # called on the wire, and which coverage family it
+│   │                # belongs to. One `knob_ids!` macro table generates
+│   │                # `enum KnobId` plus all()/name()/category(), so a
+│   │                # new knob is one row and the four cannot disagree.
+│   ├── knob_roll.rs # KnobRollCounters + roll_knob_into, the crate's
+│   │                # ONLY steering-aware roll primitive: it applies the
+│   │                # steering prior and records the attempt/fire in one
+│   │                # place. Its writers are private to this module, so a
+│   │                # second, unsteered primitive does not compile.
 │   ├── compact.rs   # Post-construction finalisation helpers:
 │   │                # bounded semantic gate merge + endpoint-aware
 │   │                # flop merge after D-cones exist,
@@ -347,23 +358,36 @@ pub fn merge_equivalent_fsms(m: &mut Module) -> u32;
 /// (surfaced via `Metrics::nodes_compacted`).
 pub fn compact_node_ids(m: &mut Module) -> u32;
 
-// Per-probability-roll telemetry:
-pub enum KnobId { FlopProb, CombMuxProb, PriorityEncoderProb,
-                  CaseMuxProb, CasezMuxProb, ForFoldProb,
-                  CoefficientProb, ConstShiftAmountProb,
-                  ConstComparandProb, ConstantProb,
-                  TerminalReuseProb, CombMuxEncodingProb,
-                  FlopMuxEncodingProb, ShareProb,
-                  FlopQFeedbackProb, HierarchySiblingRouteProb,
-                  HierarchyRegisteredSiblingRouteProb,
-                  HierarchyRegisteredChildInputConeProb,
-                  HierarchyChildInputConeProb,
-                  HierarchyParentConeInstanceProb,
-                  HierarchyParentFlopProb }
-pub struct KnobRollCounters {
-    pub attempts: HashMap<KnobId, u64>,
-    pub fires:    HashMap<KnobId, u64>,
+// ir/knob_id.rs — per-probability-roll telemetry + steering taxonomy.
+// One table generates the enum and all three projections, so the
+// authoritative list of knobs is the table itself; read it there
+// rather than from a copy that can fall behind.
+knob_ids! {
+    /// `Config::flop_prob` — per-depth chance that a leaf is a flop block.
+    FlopProb => "flop_prob", "state";
+    /// `Config::share_prob` — chance of a DAG-sharing fork at operand slots.
+    ShareProb => "share_prob", "sharing";
+    // … one row per steerable knob, grouped by coverage category …
 }
+// expands to:
+pub enum KnobId { FlopProb, ShareProb, /* … */ }
+impl KnobId {
+    pub fn all() -> &'static [KnobId];      // every knob, in table order
+    pub fn name(&self) -> &'static str;     // the wire key in Metrics
+    pub fn category(&self) -> &'static str; // the coverage family
+}
+
+// ir/knob_roll.rs — the one steering-aware roll primitive.
+pub struct KnobRollCounters { /* private attempts/fires maps */ }
+impl KnobRollCounters {
+    pub fn attempts(&self) -> &HashMap<KnobId, u64>;  // read-only
+    pub fn fires(&self)    -> &HashMap<KnobId, u64>;  // read-only
+}
+/// Applies the steering prior, draws once, records the attempt and the
+/// fire. The only writer of the counters — a second roll primitive that
+/// skipped the prior would not compile.
+pub fn roll_knob_into(c: &mut KnobRollCounters, s: &SteeringConfig,
+                      rng: &mut impl Rng, knob: KnobId, prob: f64) -> bool;
 
 pub enum Node {
     PrimaryInput{..}, Constant{..}, FlopQ{..}, InstanceOutput{..}, Gate{..}

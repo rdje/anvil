@@ -85,32 +85,57 @@ extract_adapter_ids() {
     grep -oE '"[a-z0-9]+"' | tr -d '"' | sort -u
 }
 
-# Authoritative: the steering category names in `KnobId::category`'s exhaustive
-# match. The match arms are the ONLY place the taxonomy is defined; every prose
-# copy of the list is a shadow of this (COVERAGE-STEERED-GENERATION.4c).
+# Authoritative: the steering category names in the `knob_ids!` table in
+# src/ir/knob_id.rs — the third column of each row. That table is the ONLY place
+# the taxonomy is defined; every prose copy of the list is a shadow of it
+# (COVERAGE-STEERED-GENERATION.4c).
 #
-# The path moved from src/ir/types.rs to src/ir/knob_id.rs at
-# IR-TYPES-DECOMPOSITION.2. That this extractor had to name `types.rs` at all was
-# the decisive evidence FOR that split: a doctrine check should not have to know
-# that a file called "types" houses a steering taxonomy. The count floor below is
-# what makes repointing it safe — a wrong path yields 0 categories, which trips
-# `floor_or_fail` loudly instead of passing vacuously.
+# ── WHERE THIS HAS POINTED, AND WHY IT MOVED EACH TIME ────────────────────────
+# (1) `src/ir/types.rs`, `KnobId::category`'s match arms. That a doctrine check
+#     had to name `types.rs` to find a steering taxonomy was the decisive
+#     evidence FOR splitting that file (IR-TYPES-DECOMPOSITION).
+# (2) `src/ir/knob_id.rs`, the same match arms, at IR-TYPES-DECOMPOSITION.2.
+# (3) Here: the `knob_ids!` table, at COVERAGE-STEERED-GENERATION.6, which made
+#     the enum + all() + name() + category() all EXPAND FROM that table (rung R1
+#     of decision 0033 — retire the duplicated list rather than gate it).
 #
-# ── WHY THIS DOES NOT MATCH ON `=>` (PARITY-EXTRACTOR-ARM-SHAPE-GAP.1) ────────
-# It used to be `grep -oE '=> "[a-z]+"'`, and that silently read **7 of 8**
-# categories for as long as it existed: `datapath` was invisible. Not because the
-# taxonomy was wrong, but because that arm's pattern is three `|`-joined variants,
-# which overflows the line width, so `rustfmt` renders it as a block:
+# Repoint (3) was LOAD-BEARING, and not for the reason first assumed. The guess
+# was that an extractor left on `pub fn category` would read ZERO (its body now
+# holds `$category`, not literals) and trip the floor loudly. MEASURED, it reads
+# the correct 8 — and that is worse. Two accidents stack:
+#
+#   (a) its range terminator `/^    }$/` no longer exists where it used to. The
+#       macro definition closes with `    };` (semicolon) and the invocation with
+#       `}` at column 0, so the range matches NEITHER and OVER-RUNS 162 lines,
+#       swallowing the whole table on its way to `category_of_name`'s brace;
+#   (b) `grep -oE '"[a-z]+"'` over that over-run then skips every knob NAME only
+#       because each one happens to contain `_`, and no category does.
+#
+# So it returns the right answer for the wrong reason, and the coincidence is one
+# row deep: a knob named `"probe"` makes it emit a PHANTOM category, which fails
+# at every doc site for something that does not exist — the cry-wolf failure this
+# file says elsewhere gets a gate deleted. Verified by probe at `.6`.
+#
+# The transferable rule: **a `sed` line-range whose terminator stops existing does
+# not fail — it runs on and returns something plausible.** Anchor an extraction to
+# a shape that cannot silently widen, and re-measure it whenever its target moves.
+#
+# ── WHY THIS MATCHES A WHOLE ROW (PARITY-EXTRACTOR-ARM-SHAPE-GAP.1) ───────────
+# It was once `grep -oE '=> "[a-z]+"'` over the match arms, and that silently
+# read **7 of 8** categories for as long as it existed: `datapath` was invisible.
+# Not because the taxonomy was wrong, but because that arm's pattern is three
+# `|`-joined variants, which overflows the line width, so `rustfmt` rendered it
+# as a block:
 #
 #     KnobId::CoefficientProb | KnobId::ConstShiftAmountProb | ... => {
 #         "datapath"
 #     }
 #
-# The `=>` and the string end up on different lines. **The regex encoded a source
-# FORMATTING assumption, not a source FACT** — and nobody wrote that formatting;
-# `rustfmt` chose it because the pattern got long. So the trigger was "a category
-# gains enough knobs to wrap", which biases the extractor against exactly the
-# categories that grow.
+# The `=>` and the string ended up on different lines. **The regex encoded a
+# source FORMATTING assumption, not a source FACT** — and nobody wrote that
+# formatting; `rustfmt` chose it because the pattern got long. So the trigger was
+# "a category gains enough knobs to wrap", which biased the extractor against
+# exactly the categories that grow.
 #
 # The floor could not catch it: a floor catches "matched nothing", not "matched
 # most" (7 >= 6). And `covers_set` is per-category, so a category this never
@@ -118,18 +143,22 @@ extract_adapter_ids() {
 # the taxonomy. (Measured at the time of the fix: all four sites did name
 # `datapath`, so the docs were fine and only the gate was blind.)
 #
-# The fix is format-independent by construction: `category()` returns
-# `&'static str` and every arm's value is a bare string literal, so **the set of
-# string literals in that function body IS the taxonomy**, however rustfmt chooses
-# to lay the arms out. Comment lines are dropped first so a future `// "note"`
-# cannot inject a phantom category — this check must fail loud, never cry wolf.
-# Deliberately NOT "widen the regex to also accept the block form": that fixes
-# this instance and leaves the class, and the next arm rustfmt reshapes breaks it
-# again.
+# The table removes the hazard at its root rather than working around it:
+# `rustfmt` does not format the body of this macro invocation at all, so the row
+# layout is a source fact chosen by the author. Measured, not assumed — the
+# longest row is 113 characters and survives `cargo fmt` untouched, well past
+# rustfmt's 100-column max_width, which is precisely what it would have wrapped
+# if it owned this text.
+#
+# The match is therefore the WHOLE row (`Ident => "name", "category";`), not a
+# loose scan for quoted lowercase words. Two consequences, both wanted: a
+# reshaped row produces nothing and trips the floor loudly, and a comment or a
+# doc line cannot inject a phantom category, because neither can start with an
+# identifier followed by `=>` — this check must fail loud, never cry wolf.
 extract_steering_categories() {
-  sed -n '/pub fn category(&self)/,/^    }$/p' src/ir/knob_id.rs |
-    grep -v '^[[:space:]]*//' |
-    grep -oE '"[a-z]+"' | tr -d '"' | sort -u
+  sed -n '/^knob_ids! {$/,/^}$/p' src/ir/knob_id.rs |
+    sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[a-z0-9_]+",[[:space:]]*"([a-z]+)";[[:space:]]*$/\1/p' |
+    sort -u
 }
 
 # --- helpers ----------------------------------------------------------------
@@ -260,7 +289,7 @@ if floor_or_fail 'downstream adapter ids' 5 "${adapter_ids}"; then
 fi
 
 # Pair 4 — the live docs that enumerate the `--steer` category taxonomy (shadow)
-# mirror `KnobId::category`'s match arms (authoritative). Added by
+# mirror the `knob_ids!` table's category column (authoritative). Added by
 # COVERAGE-STEERED-GENERATION.4c, which added two categories (`motifs`,
 # `emission`) and found the six-name list copied into five live docs plus the
 # book. A stale copy here is worse than an omission: `--steer` *errors* on an
@@ -291,13 +320,13 @@ steering_categories="$(extract_steering_categories)"
 # look at. That asymmetry is why a floor can be tightened to the real count
 # without becoming the hand-maintained list the doctrine forbids.
 if floor_or_fail 'KnobId steering categories' 8 "${steering_categories}"; then
-  covers_set 'steer categories <-> KnobId::category' \
+  covers_set 'steer categories <-> the knob_ids! table' \
     "${steering_categories}" 'book/src/algorithm.md'
-  covers_set 'steer categories <-> KnobId::category' \
+  covers_set 'steer categories <-> the knob_ids! table' \
     "${steering_categories}" 'book/src/knobs.md'
-  covers_set 'steer categories <-> KnobId::category' \
+  covers_set 'steer categories <-> the knob_ids! table' \
     "${steering_categories}" 'USER_GUIDE.md'
-  covers_set 'steer categories <-> KnobId::category' \
+  covers_set 'steer categories <-> the knob_ids! table' \
     "${steering_categories}" 'docs/AGENT_INTROSPECTION_SCHEMA.md'
 fi
 

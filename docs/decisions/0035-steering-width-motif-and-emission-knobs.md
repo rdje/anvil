@@ -15,11 +15,15 @@ answers:
   - "what are the motifs and emission steering categories"
   - "how do I steer all nine emit-projection surfaces at once"
   - "why is emission a separate steering category from motifs"
+  - "why is KnobId::all generated from a macro table"
+  - "where is the authoritative list of ANVIL steerable knobs"
+  - "when should a guard be removed instead of reinforced"
+  - "why was the KnobId index() guard deleted"
 date: 2026-07-30
 status: delivered
 tags: [steering, coverage, knob-roll, motifs, structured-emission, api-completeness, rules-first, telemetry, north-star]
-evidence: src/config.rs:1657-1729 (the 41-entry probability validation list — all 16 candidates are range-checked into [0,1], which is what makes the routing byte-identical); src/gen/module.rs:386-417 (the 4 module-level motif rolls) + src/gen/mod.rs:77-190,196-460 (the multi-clock / aggregate / 9 emit-projection call sites, each duplicated across `generate_module` and `generate_module_with_interface_profile`); src/ir/{soft_union,function_emit,generate_loop,task_emit,multi_output_task_emit,cone_function_emit,mux_if_emit,case_mux_if_emit,casez_mux_if_emit}.rs (the 9 `annotate_*(m, rng, prob)` signatures that must gain a `&SteeringConfig`); src/ir/knob_roll.rs (the one primitive, decision 0034); src/ir/types.rs (`KnobId::all` — the 22-entry list this widens to 38); docs/AGENT_INTROSPECTION_SCHEMA.md §6.8 (`coverage_readout` is a map, so widening its key set is data, not shape); DELIVERED by .4b.1 (7 motif knobs) + .4b.2 (9 emission knobs) + .4c (docs), on the guard .5 completed
-reverify: cargo run --release -- --seed 7 --profile structured-emission-max --introspect   # introspection.coverage_readout.knob_fire_rates must carry all 8 non-version-gated emission knobs, each ~0.25, under a single `emission` category; before .4b.2 it carried NONE. Then: cargo run --release -- --seed 7 --memory-prob 0.5 --introspect  # memory_prob under `motifs`; the readout was EMPTY before .4b.1
+evidence: src/config.rs:1657-1729 (the 41-entry probability validation list — all 16 candidates are range-checked into [0,1], which is what makes the routing byte-identical); src/gen/module.rs:386-417 (the 4 module-level motif rolls) + src/gen/mod.rs:77-190,196-460 (the multi-clock / aggregate / 9 emit-projection call sites, each duplicated across `generate_module` and `generate_module_with_interface_profile`); src/ir/{soft_union,function_emit,generate_loop,task_emit,multi_output_task_emit,cone_function_emit,mux_if_emit,case_mux_if_emit,casez_mux_if_emit}.rs (the 9 `annotate_*(m, rng, prob)` signatures that must gain a `&SteeringConfig`); src/ir/knob_roll.rs (the one primitive, decision 0034); src/ir/types.rs (`KnobId::all` — the 22-entry list this widens to 38); docs/AGENT_INTROSPECTION_SCHEMA.md §6.8 (`coverage_readout` is a map, so widening its key set is data, not shape); DELIVERED by .4b.1 (7 motif knobs) + .4b.2 (9 emission knobs) + .4c (docs), on the guard .5 completed; SINCE .6 (2026-07-31, see the Resolution section) the knob universe lives in src/ir/knob_id.rs as ONE `knob_ids!` macro table that generates the enum + all() + name() + category(), so the `KnobId::all` list this decision widened no longer exists to be widened — a new knob is one row
+reverify: cargo run --release -- --seed 7 --profile structured-emission-max --introspect   # introspection.coverage_readout.knob_fire_rates must carry all 8 non-version-gated emission knobs, each ~0.25, under a single `emission` category; before .4b.2 it carried NONE. Then: cargo run --release -- --seed 7 --memory-prob 0.5 --introspect  # memory_prob under `motifs`; the readout was EMPTY before .4b.1. Then, for the .6 Resolution: for v in $(sed -n '/^knob_ids! {$/,/^}$/p' src/ir/knob_id.rs | sed -nE 's/^[[:space:]]*([A-Za-z0-9_]+)[[:space:]]*=>.*;$/\1/p'); do grep -c "\b$v\b" src/ir/knob_id.rs; done | sort -u   # must print exactly `1` — every variant name appears once in the file; the same loop against `git show 218277d:src/ir/knob_id.rs` prints `5`
 ---
 
 # 0035 - COVERAGE-STEERED-GENERATION.4: steering's width
@@ -338,3 +342,65 @@ emit group alone touches ~99 call sites:
   `src/ir/knob_roll.rs` (unchanged — it is the target), `src/gen/module.rs`,
   `src/gen/mod.rs`, the nine `src/ir/*_emit.rs` / `soft_union.rs` passes,
   `book/src/{algorithm,knobs,structured-emission}.md`, `USER_GUIDE.md`.
+
+---
+
+## Resolution — `2026-07-31` (`COVERAGE-STEERED-GENERATION.6`): the guard was at the wrong rung
+
+The open question above proposed guarding `KnobId::all()` at rung **R2** — a private
+exhaustive `index()` plus a derived ordering test. `.4b.1` shipped exactly that, and it
+worked as designed: a new variant became `error[E0004]`, and a middle omission became a
+red test. But its own negative control found the hole it could not close: **drop the
+*last* entry from `all()` and the remaining indices are still contiguous and in order**,
+so the test stays green.
+
+The natural patch — assert a length — cannot work, and *why* it cannot is the durable
+part. Any expected count **derived** from `all()` shrinks along with `all()`, so it
+asserts nothing; and a **hand-written** count is a second hand-maintained copy of the
+very list under guard, which decision [`0033`](0033-shadow-enumeration-classification.md)
+forbids as a repair. Both routes fail, and that is the diagnostic:
+
+> **When a guard's residual gap can only be closed by adding another hand-written list,
+> the guard is at the wrong rung.** Stop reinforcing it and remove what it guards
+> (rung **R1**).
+
+`.6` does that. One `knob_ids!` macro table — `Variant => "name", "category";` — expands
+to the `KnobId` enum, `all()`, `name()` and `category()`. Measured at
+`git show HEAD:src/ir/knob_id.rs`, each of the 38 variant names appeared **5 times** in
+the file, once per parallel table; it now appears **exactly once**. A knob that exists
+cannot be missing from `all()`, because the same table emits both — so `index()` and
+`all_is_complete_and_ordered` were **deleted**, not kept beside the macro (two mechanisms
+for one job is `feedback_full_factorization`'s anti-pattern, and a retained guard would
+imply the omission is still expressible).
+
+Two consequences worth recording:
+
+- **The authority moved, so the doctrine check moved with it, in the same commit — and
+  the reason is not the one initially assumed.** `ENUMERATION-PARITY` pair 4 extracts the
+  `--steer` taxonomy from `src/ir/knob_id.rs`. The expectation was that an extractor left
+  on `pub fn category` would read **zero** categories (its body now holds `$category`,
+  not literals) and trip the count floor loudly. **Measured, it reads the correct 8** —
+  which is worse than zero, and is why the repoint is load-bearing rather than tidy. Two
+  accidents stack: its range terminator `/^    }$/` no longer exists where it used to (the
+  macro definition closes `    };`, the invocation closes `}` at column 0), so the range
+  **over-runs 162 lines** and swallows the table on its way to `category_of_name`'s brace;
+  and `grep -oE '"[a-z]+"'` over that over-run then skips the knob *names* only because
+  every one of them happens to contain `_`. Right answer, wrong reason, one row deep: a
+  knob named `"probe"` makes it emit a **phantom** category that fails at every doc site
+  for something that does not exist — the cry-wolf failure that gets a gate deleted.
+  Verified by probe. The general rule earned here: **a `sed` line-range whose terminator
+  stops existing does not fail; it runs on and returns something plausible.**
+  The check now parses the table's third column, matching a whole row
+  (`Ident => "name", "category";`) rather than scanning for quoted words. That also
+  retires
+  [`PARITY-EXTRACTOR-ARM-SHAPE-GAP`](../tasks/PARITY-EXTRACTOR-ARM-SHAPE-GAP.md)'s hazard
+  at its root instead of working around it: `rustfmt` does not format this macro
+  invocation's body at all — measured, the longest row is **113 characters** and survives
+  `cargo fmt` untouched, well past the 100-column `max_width` it would have wrapped if it
+  owned the text. The layout is a source fact chosen by the author, which is exactly what
+  that tree concluded an extractor must read.
+- **The remaining test is the one that still has something to catch.**
+  `knob_names_and_categories_are_disjoint_and_total` survives, because a *row* can still
+  carry a duplicated or colliding string — and `--steer`'s key classifier depends on knob
+  names and category names being disjoint. Structure is now enforced by construction;
+  strings are not, so they are still asserted.

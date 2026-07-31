@@ -5,6 +5,114 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A guard you can only patch with another hand-written list is at the wrong rung — `COVERAGE-STEERED-GENERATION.6`
+
+`.4b.1` guarded `KnobId::all()` at rung **R2**: a private exhaustive
+`fn index(self) -> usize` (so a new variant is `error[E0004]`) plus
+`all_is_complete_and_ordered` (so a variant omitted from the *middle* of `all()`
+declares the wrong index and the test goes red). It did what it was built to do,
+and it was negative-controlled both ways.
+
+Its own negative control found the hole: **truncate `all()` at the tail** and the
+surviving `0..n-1` are still contiguous and in order, so the test stays green.
+
+The obvious patch is a length assertion, and it is worth writing out exactly why
+neither form of it works, because the impossibility is the signal:
+
+- a count **derived** from `all()` (`all().len()`) shrinks along with `all()`, so
+  it asserts nothing — it cannot fail;
+- a **hand-written** count is a second hand-maintained copy of the very list under
+  guard, which decision `0033` forbids as a repair (it would then need its own
+  guard, and so on).
+
+`.4b.1` did draft the derived form, noticed it could not fail, and deleted it
+rather than shipping a green box that proves nothing. That was the right call, and
+it left the real conclusion on the table:
+
+> When a guard's residual gap can only be closed by adding another hand-written
+> list, the guard is at the wrong rung. Stop reinforcing the guard and remove what
+> it guards — decision `0033`'s rung **R1**.
+
+So `.6` deletes the list instead of fortifying it. One `knob_ids!` macro table,
+one row per knob (`Variant => "name", "category";`), expands to the enum, `all()`,
+`name()` and `category()`. Measured: each of the 38 variant names appeared **5
+times** in `src/ir/knob_id.rs` (once per parallel table) and now appears **exactly
+once**; the file drops 483 → 317 lines. A knob that exists cannot be missing from
+`all()`, because one table emits both — so `index()` and
+`all_is_complete_and_ordered` were **deleted**, not left beside the macro. Keeping
+them would be two mechanisms for one job (`feedback_full_factorization`) and would
+imply, falsely, that the omission is still expressible.
+
+**The corollary that cost the most thought: moving the authority moves the gate —
+and the gate did not fail the way I predicted.** `ENUMERATION-PARITY` pair 4 reads
+the `--steer` taxonomy out of `src/ir/knob_id.rs`. I wrote, before measuring, that
+an extractor left on the generated `pub fn category` would read **zero** categories
+(its body holds `$category`, not literals) and trip the count floor loudly — the
+floor earning its keep. **Measured, it reads the correct 8.** That claim was wrong,
+and the truth is the more useful finding, so it is recorded rather than quietly
+amended.
+
+Two accidents stack to produce it:
+
+- the extractor's range terminator `/^    }$/` **no longer exists where it used
+  to** — the macro definition closes with `    };` (semicolon) and the invocation
+  closes with `}` at column 0, so the range matches neither and **over-runs 162
+  lines**, swallowing the whole table on its way down to `category_of_name`'s
+  closing brace;
+- `grep -oE '"[a-z]+"'` over that over-run then skips every knob *name* only
+  because each one happens to contain `_`, and no category does.
+
+Right answer, wrong reason — and the coincidence is exactly one row deep. Probed:
+add a knob named `"probe"` and the un-repointed extractor emits a **phantom**
+category, which then fails at every doc site for something that does not exist.
+That is the *cry-wolf* failure mode, and this repo's own doctrine notes that a gate
+which cries wolf gets deleted, taking its real coverage with it. So the repoint was
+load-bearing, not tidy.
+
+Two rules out of it. The narrow one: **a `sed` line-range whose terminator stops
+existing does not fail — it runs on and returns something plausible.** Anchor an
+extraction to a shape that cannot silently widen, and re-measure it whenever its
+target moves; "it still prints the right thing" is not evidence that it still
+*reads* the right thing. The broad one: **a derive-the-list refactor is not
+complete until every consumer that parsed the old shape has been repointed** — and
+the way to find them is to grep for the *file*, not the symbol, because a shell
+script does not `use` anything.
+
+This also cost three wrong negative controls before it cost a right one, and the
+pattern in all three is worth naming: each was too weak to fail. Masking
+`datapath` → `datapathXX` proved nothing because `covers_set` matches a
+**substring**, so the masked text still contained the token. Reshaping the
+`CoefficientProb` row proved nothing because `datapath` has **three** rows and
+survived on the other two — to test that a reshaped row is invisible you must
+reshape the *only* row of its category (`ShareProb`/`sharing`). And the "reads
+zero" prediction was never run at all until it was written down. **A negative
+control that passes on the first try deserves more suspicion than one that
+fails** — check that it can fail before trusting that it did.
+
+Choosing *what* the repointed extractor reads mattered too.
+`PARITY-EXTRACTOR-ARM-SHAPE-GAP.1`'s lesson was "never parse a formatter's output
+for a semantic set". The table satisfies that at the root rather than by working
+around it: **rustfmt does not format this macro invocation's body at all.**
+Measured, not assumed — the longest row is 113 characters and survives
+`cargo fmt` untouched, well past the 100-column `max_width` rustfmt would have
+wrapped if it owned the text. So the row layout is a source fact chosen by the
+author, and the extractor matches a whole row
+(`Ident => "name", "category";`) rather than scanning for quoted lowercase words.
+Matching the whole row buys two things: a reshaped row yields nothing and trips
+the floor loudly, and no comment or doc line can inject a phantom category,
+because neither can begin with an identifier followed by `=>`.
+
+**What still needs a test, and what does not.** Structure is now enforced by
+construction, so `knob_names_and_categories_are_disjoint_and_total` is the only
+survivor — a *row* can still carry a duplicated name, or a knob name that collides
+with a category name, and `--steer`'s key classifier depends on those two
+namespaces being disjoint. The general shape: after a derive-the-list refactor,
+re-ask which of the old assertions were about *structure* (now free) and which
+were about *content* (still yours to check). Deleting the second kind along with
+the first is how a refactor quietly loses coverage.
+
+---
+
 ## 2026-07-31 — Never parse a formatter's output for a semantic set — `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1`
 
 `ENUMERATION-PARITY`'s steering-category extractor read **7 of 8** categories for

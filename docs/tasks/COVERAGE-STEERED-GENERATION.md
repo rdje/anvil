@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `COVERAGE-STEERED-GENERATION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: `Usability / effectiveness — coverage-steered generation (north star, idea 6)`
 - Created: `2026-06-17`
-- Last updated: `2026-07-30` (**`.3` CLOSED**, `.4a` design ADR landed (decision `0035`); frontier `.4b.1`. — `.3a` design ADR (decision `0034`, since amended with a dated Correction), `.3b` the fix (one steering-aware knob-roll primitive; a second one is now a compile error; `--steer hierarchy` works), `.3c` docs. Frontier: **`.4`** — steering's *width*. The `.1`/`.2` scope stays closed and is not revisited.)
+- Last updated: `2026-07-31` (**TREE CLOSED at `.6`** — `KnobId::all()` is derived from one macro table, so the list and `.4b.1`'s guard retire together; the `ENUMERATION-PARITY` extractor repointed in the same commit. Prior: `2026-07-30` (**`.3` CLOSED**, `.4a` design ADR landed (decision `0035`); frontier `.4b.1`. — `.3a` design ADR (decision `0034`, since amended with a dated Correction), `.3b` the fix (one steering-aware knob-roll primitive; a second one is now a compile error; `--steer hierarchy` works), `.3c` docs. Frontier: **`.4`** — steering's *width*. The `.1`/`.2` scope stays closed and is not revisited.))
 - Owner: repo-local workflow
 
 ## Goal
@@ -47,10 +47,10 @@ design space while preserving every lane invariant.
 ## Task Tree
 
 - ID: `COVERAGE-STEERED-GENERATION`
-  Status: `active`
+  Status: `done`
   Goal: `Construction-time coverage-feedback steering (rules-first, reproducible) with an API-settable coverage target + an API-queryable achieved-coverage readout.`
   Closure: `The .1/.2 scope closed 2026-06-22 and is NOT reopened: every acceptance criterion of that scope was met (the roll_knob per-category/per-knob prior multiplier measurably shifts the distribution rules-first + reproducible (.2a); the achieved coverage is API-queryable (.2b) and the target API-settable (.2c.1) per decision 0017; unsteered DUT byte-identical; documented (.2c.2)). The tree returns to 'active' on 2026-07-30 for the new .3 node (decision 0034: a MEASURED SILENT NO-OP in the shipped surface — 6 of the 22 KnobIds, and therefore the whole documented 'hierarchy' steering category, are never reached by the prior because src/gen/hierarchy.rs defines seven roll primitives of its own) and .4 (the recorded decision-0023 follow-up: the 16 Bernoulli knobs that have no KnobId at all). Nothing retired (feedback_never_retire_strategies); the Phase-4 closure pattern — a closed scope stays closed, new work lands as new nodes.`
-  Children: `COVERAGE-STEERED-GENERATION.1`, `.2`, `.3`, `.4`, `.5`
+  Children: `COVERAGE-STEERED-GENERATION.1`, `.2`, `.3`, `.4`, `.5`, `.6`
 
 - ID: `COVERAGE-STEERED-GENERATION.1`
   Status: `done`
@@ -182,6 +182,13 @@ design space while preserving every lane invariant.
   Commit: `COVERAGE-STEERED-GENERATION.5 — the guard covers the state, not just the API`
   Ordering: `BEFORE .4b.1 — .4b.1 introduces a NEW writer path (the pending-counter drain for the three pre-module motif rolls) and that path should be designed against a complete guard, not an incomplete one.`
 
+- ID: `COVERAGE-STEERED-GENERATION.6`
+  Status: `done`
+  Goal: `Retire the KnobId list by DERIVING it — rung R1 (decision 0033: repair a shadow by removing it, not by gating it forever). src/ir/knob_id.rs currently carries FIVE parallel tables of the same 38 variants: the enum, all(), index(), name(), category(). Generate all five from ONE macro_rules! table whose row is `Variant => "name", "category";`, so the enum and its three projections cannot disagree by construction and .4b.1's index()/all_is_complete_and_ordered guard pair retires with the list it guarded. Registered at .4b.1, whose own negative control proved that guard cannot catch a TAIL truncation of all() — and a length assertion cannot close that, because any count derived from all() shrinks with it while a hand-written count is the second list decision 0033 forbids as a repair.`
+  Acceptance: `(i) exactly one hand-maintained table of the 38 knobs remains in the crate, and a new knob is ONE row — negative-controlled by adding a probe row and observing it reach all()/name()/category() with no other edit, and by the fact that no `all()` list exists to omit it from; (ii) index() and all_is_complete_and_ordered are DELETED, not kept alongside (two mechanisms for one job is feedback_full_factorization's anti-pattern); (iii) scripts/check_enumeration_parity.sh's extract_steering_categories is repointed at the macro table's category column IN THE SAME COMMIT, and the repointed extractor must read a source FACT, not a rustfmt-chosen layout (PARITY-EXTRACTOR-ARM-SHAPE-GAP.1's lesson); (iv) both parity directions still negative-controlled (a 9th category in the table FAILs at every doc site; a doc that drops one FAILs naming it); (v) unsteered + default generation byte-identical (tests/snapshots.rs 6/6 untouched) — this is a pure re-derivation of the same tables, so EVERY --introspect coverage readout and every emitted .sv must be bit-identical, not merely equivalent; (vi) full COMMIT.md cargo gate.`
+  Verification: `done — src/ir/knob_id.rs 483 -> 317 lines. ONE macro table (`knob_ids! { Variant => "name", "category"; }`) expands to the enum + all() + name() + category(); category_of_name() stays hand-written beside it as the single inversion of name(). MEASURED with a per-variant occurrence count: at HEAD every one of the 38 variant names appears exactly 5 times in the file (enum/all/index/name/category) — `sort -u` over the 38 counts prints the single value `5`; it now prints `1`. index() and all_is_complete_and_ordered DELETED, not kept beside the macro; lib test total 752 -> 751, i.e. exactly one test retired and nothing else lost. NEGATIVE-CONTROLLED, every in-place edit restored byte-exact and verified with `cmp` (never `git checkout --`, per the recorded gotcha): (A) one probe ROW reaches all()/name()/category()/category_of_name() with NO other edit (a temporary tests/nc_probe.rs asserts it, green); (A2) THE DECISIVE ONE — at HEAD, deleting the LAST entry of all() while keeping the variant leaves both the build AND all_is_complete_and_ordered GREEN (reproduced live in the HEAD worktree: `2 passed`), which is the documented residual gap; now the same omission requires deleting the ROW, which deletes the VARIANT, so cargo check dies with `error[E0599]: no variant or associated item named CasezMuxIfEmitProb` — the gap has no syntactic form left; (B) a 9th category (`probecat`) in the table FAILs at all four doc sites naming it; (C) USER_GUIDE.md with `datapath` masked FAILs naming `datapath`; (D) a RESHAPED row (the sole `sharing` row split across 3 lines) yields 7 < floor 8 and reports `the extractor is broken, not the enumeration`. A CLAIM THIS SLICE MADE AND THEN DISPROVED, recorded rather than quietly amended: the acceptance criterion originally predicted that leaving the extractor on `pub fn category` would read ZERO categories and trip the floor loudly. MEASURED, it reads the correct 8 — worse than zero, and why the same-commit repoint is load-bearing rather than tidy. Its range terminator `/^    }$/` no longer exists where it used to (the macro definition closes `    };`, the invocation closes `}` at column 0), so the range OVER-RUNS 162 lines and swallows the table; `grep -oE '"[a-z]+"'` then skips the knob NAMES only because every one contains `_`. Right answer, wrong reason, one row deep: a probe knob named `"probe"` makes it emit a PHANTOM category, failing at every doc site for something that does not exist — the cry-wolf failure that gets a gate deleted. Rule recorded in DEVELOPMENT_NOTES + decision 0035: a sed line-range whose terminator stops existing does not fail, it runs on and returns something plausible. THREE of the first-cut negative controls were too weak to fail (a `datapathXX` mask that covers_set still substring-matches; a reshaped `CoefficientProb` row when `datapath` has three rows; and the unrun "reads zero" prediction) — all three redone. BYTE-IDENTICAL: 23 valid comparisons across 22 distinct configurations against a HEAD release binary built in an isolated git worktree — default seeds 42/7/2024, --introspect (incl. --memory-prob 0.5 and --profile structured-emission-max, the two coverage-readout paths), --dump-config x2, --metrics x2 (stderr captured), --trace high, four --steer runs (state/motifs/emission/neutral), legacy depth-1 hierarchy x3 and bounded recursive hierarchy x3 (incl. --steer hierarchy=9.0) — ALL identical, none empty. TWO EARLIER COMPARISONS WERE DISCARDED AS VACUOUS and re-run: `--hierarchy-depth 1` without --num-leaf-modules errors and prints nothing, and both sides hashed equal as e3b0c44298fc — the SHA-256 of the empty string. Caught by recognizing the hash; the harness gained an emptiness+exit-code guard and now reports byte counts (769 KB of hierarchy SV, 87 KB of introspection) so a vacuous pass cannot be scored again. FULL GATE: cargo fmt --all --check clean, cargo clippy --all-targets -- -D warnings clean, cargo check --all-targets clean, cargo test green (17 suites, 0 failures: lib 749, snapshots 6/6, book_examples 4/4, pipeline 133). mdbook build clean.`
+  Commit: `pending`
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
@@ -206,15 +213,23 @@ design space while preserving every lane invariant.
 | 11 | `COVERAGE-STEERED-GENERATION.4b.1` | `done` | The 7 module-level motif knobs are now steerable **and** measurable: 7 new `KnobId`s + the `motifs` category + a `Generator::pending_knob_rolls` buffer for the 3 that roll *before any `Module` exists*, drained at **one** point outside every branch. `--memory-prob 0.5 --introspect` went from an **empty** readout to `memory_prob 1/1`; a `motifs` steer moves the achieved rate `0.267 → 0.833 / 0.033` over 24 seeds. 17 configurations byte-identical vs `HEAD`. |
 | 12 | `COVERAGE-STEERED-GENERATION.4b.2` | `done` | The 9 emit-projection knobs: a `&SteeringConfig` parameter across nine `annotate_*` passes and ~99 call sites, 9 new `KnobId`s, the `emission` category. `--profile structured-emission-max --introspect` went from reporting **no** emission knob to all eight non-version-gated surfaces with per-gate counts, every achieved rate ~`0.25` — decision `0032`'s calibrated value, now *observable*. Steers `0.397 → 0.069`. 16 configurations byte-identical. |
 | 13 | `COVERAGE-STEERED-GENERATION.4c` | `pending` | **Next.** Docs + close `.4`: `book/src/algorithm.md` (six categories → eight), `knobs.md`, `structured-emission.md` (the nine surfaces are now measurable per-gate — the missing input to the measure→derive→re-steer loop), `USER_GUIDE.md`, a KM card. |
-| 14 | `COVERAGE-STEERED-GENERATION.6` | `pending` | Make `KnobId::all()` **derived** from one macro table (rung **R1**), retiring the list *and* `.4b.1`'s guard together. Registered because `.4b.1`'s own negative control proved that guard cannot catch a **tail** truncation — and a hand-written count would be a second copy of the very list decision `0033` forbids as a repair. |
+| 14 | `COVERAGE-STEERED-GENERATION.6` | `done` | `KnobId::all()` is now **derived**: one `knob_ids!` table expands to the enum + `all()` + `name()` + `category()`, so each of the 38 variant names went from appearing **5 times** in the file to **exactly once**, and `index()` + `all_is_complete_and_ordered` were **deleted** with the list they guarded. The tail-truncation gap they could not catch — reproduced live at `HEAD` as a green build *and* a green test — now has no syntactic form: omitting a knob means deleting its row, which deletes the variant (`error[E0599]`). The `ENUMERATION-PARITY` extractor was repointed in the same commit, and measuring *why* disproved this leaf's own prediction: the un-repointed extractor reads the right 8 by accident (a 162-line range over-run plus an underscore coincidence) and injects a **phantom** category one row later. 23 comparisons byte-identical. |
 
-**Tree status: `active` (`2026-07-30`).** The `.1`/`.2` scope stays closed
-(`2026-06-22`) and `.3` closed the same day it opened. Open frontier: **`.4c`** (docs, closes `.4`), then **`.6`**. Steering's *width*
-is delivered: `.4a` design (decision `0035`), `.5` the completed guard, `.4b.1`
-the 7 motif knobs, `.4b.2` the 9 emission knobs — all 38 `KnobId`s are now
-steered at every roll site and visible in the coverage readout.
-The remaining decision-`0023` follow-up (the in-generator adaptive schedule) is
-still a future `.N` and is unaffected by any of it.
+**Tree status: `done` (`2026-07-31`) — every registered node is closed.** The
+`.1`/`.2` scope stays closed (`2026-06-22`); `.3` closed the same day it opened;
+`.4` closed at `.4c`; `.5` completed the guard; and `.6` retired that guard along
+with the list it protected. Steering is complete in all three dimensions —
+**reach** (`.3` + `.5`: every `KnobId` is steered at every one of its roll sites,
+and a second, prior-skipping roll primitive is a compile error), **width**
+(`.4`: all 38 knobs that actually roll have a `KnobId`, a category, and per-roll
+telemetry; three are excluded *by kind* and say so loudly), and **maintainability**
+(`.6`: adding the 39th knob is one table row, and there is no second list to
+forget).
+The remaining decision-`0023` follow-up — the **in-generator adaptive schedule**,
+where the steering weights are re-derived *during* a `--count` run rather than
+between runs — was deliberately deferred at `.1` and is unaffected by any of this.
+It stays a future node and would reopen this tree as `.7`; it is not a blocker and
+nothing here depends on it.
 
 ## Decisions
 
@@ -335,6 +350,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-31` | `COVERAGE-STEERED-GENERATION.6` | `src/ir/knob_id.rs 483 -> 317 lines: one knob_ids! macro table expands to the enum + all() + name() + category(); index() + all_is_complete_and_ordered DELETED with the list they guarded (lib test total 752 -> 751, exactly one test retired). MEASURED per-variant occurrence count 5 -> 1 for all 38 names. NEGATIVE-CONTROLLED, all edits restored byte-exact via cmp (never git checkout --): a probe ROW reaches all four projections with no other edit; at HEAD, dropping the last all() entry keeps build AND guard test GREEN (the documented tail gap, reproduced live) while now the same omission deletes the VARIANT (error[E0599]); a 9th category FAILs at all 4 doc sites; a doc dropping datapath FAILs naming it; a reshaped row yields 7 < floor 8 with `the extractor is broken, not the enumeration`. THIS LEAF DISPROVED ITS OWN PREDICTION: the un-repointed extractor does NOT read zero — it reads the correct 8 via a 162-line sed range over-run plus an underscore coincidence, and emits a PHANTOM category one probe row later (cry-wolf, the failure that gets a gate deleted); recorded in DEVELOPMENT_NOTES + decision 0035 rather than quietly amended. 23 valid comparisons / 22 distinct configurations byte-identical vs a HEAD release binary in an isolated worktree; 2 earlier comparisons DISCARDED as vacuous (both sides hashed e3b0c44298fc, the empty-string SHA-256, because --hierarchy-depth 1 errors without --num-leaf-modules) and re-run under a new emptiness+exit-code guard. cargo fmt --check / clippy --all-targets -D warnings / check --all-targets all clean; cargo test 17 suites 0 failures (lib 749, snapshots 6/6, book_examples 4/4); mdbook build clean; scripts/check_doctrines.sh 8/8.` | `done` |
 | `2026-06-17` | `COVERAGE-STEERED-GENERATION` | `tree registered (docs-only); no code` | `registered` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.1` | `decision 0023 written; INDEX + tree + TASK_TREE + DEVELOPMENT_NOTES updated; KM regen+check green; mem-arch green; docs-only / DUT byte-identical` | `done` |
 | `2026-06-21` | `COVERAGE-STEERED-GENERATION.2a` | `SteeringConfig + KnobId::category() + roll_knob prior multiplier + ConfigError::SteeringWeight; cargo check --all-targets, cargo test (snapshots 6/6 + new steering unit/integration tests), cargo clippy -D warnings, cargo fmt --check all green; rules-first / DUT byte-identical when unset` | `done` |
@@ -354,6 +370,7 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `COVERAGE-STEERED-GENERATION.6` | `COVERAGE-STEERED-GENERATION.6 — one table, not five` | Rung **R1**: the `KnobId` list is *derived*. One `knob_ids!` table generates the enum, `all()`, `name()` and `category()`; `index()` + `all_is_complete_and_ordered` deleted with it. `ENUMERATION-PARITY`'s extractor repointed at the table in the same commit — and measuring why disproved the leaf's own prediction (it read 8 by accident, not 0, and would have gone on to cry wolf). Book/`CODEBASE_ANALYSIS` `KnobId` copies repaired by deletion. 23 comparisons byte-identical. **Closes the tree.** |
 | `COVERAGE-STEERED-GENERATION` | `USABILITY-LANE-OWNERSHIP.1 — register 7 owner-directed usability/capability lanes + API-first decision 0017` | Tree registered (not yet started); frontier `.1` (design ADR) pending. |
 | `COVERAGE-STEERED-GENERATION.1` | `COVERAGE-STEERED-GENERATION.1 — design ADR (decision 0023)` | Design-only; pins the rules-first prior-multiplier steering primitive at `roll_knob`, the byte-stability contract, the `SteeringConfig` target, the SCHEMA-DERIVED coverage readout, the outer feedback loop, and the API surface; pre-splits `.2` into `.2a`/`.2b`/`.2c`. |
 | `COVERAGE-STEERED-GENERATION.2a` | `COVERAGE-STEERED-GENERATION.2a — steering core (SteeringConfig + roll_knob prior multiplier)` | First code slice: `KnobId::category()` (exhaustive 21-variant taxonomy), `SteeringConfig` (`per_knob`/`per_category` weights + `weight()`/`effective_prob()`/`is_empty()`/`validate()`), `Config.steering` (only `skip_serializing_if`), `ConfigError::SteeringWeight`, the `roll_knob` prior multiplier. Three proofs green (byte-identical default; distribution shift; no-filter) + full cargo gate. Rules-first / DUT byte-identical when unset. |
@@ -610,3 +627,26 @@ A pre-implementation code survey, recorded so `.2a` lands clean (continuity):
   `DOCTRINE_ENFORCEMENT.md`'s hand-written *"Three today"* pair count was **deleted rather
   than incremented**: a number beside a list is one more copy of it, and decision `0033`
   repairs that by deletion, never by gating the count too.
+- `2026-07-31`: `.6` closed the tree by **deleting the list instead of fortifying its
+  guard**. `.4b.1` had guarded `KnobId::all()` at rung **R2** and documented the gap it
+  could not close — a *tail* truncation. The patch for that gap cannot exist: a count
+  derived from `all()` shrinks with it and cannot fail, and a hand-written count is the
+  second copy decision `0033` forbids as a repair. That impossibility is the diagnostic —
+  **when a guard's residual gap can only be closed by adding another hand-written list,
+  the guard is at the wrong rung** — so one `knob_ids!` table now expands to the enum,
+  `all()`, `name()` and `category()`, each variant name goes from **5** occurrences to
+  **1**, and both guards are deleted with the list. The omission has no syntactic form
+  left: skipping a knob means deleting its row, which deletes the variant.
+  The slice also **disproved its own written prediction**, which is recorded rather than
+  quietly amended: leaving `ENUMERATION-PARITY`'s extractor on `pub fn category` does
+  *not* read zero and trip the floor — it reads the correct **8**, because its range
+  terminator stopped existing and the range over-ran 162 lines into the table, where a
+  `"[a-z]+"` scan skips knob names only by the coincidence that all of them contain `_`.
+  One probe row named `"probe"` turns that into a **phantom** category and the gate starts
+  crying wolf. General rule now on file: *a `sed` line-range whose terminator stops
+  existing does not fail — it runs on and returns something plausible.*
+  Three first-cut negative controls were **too weak to fail** (a `datapathXX` mask that
+  `covers_set` still substring-matches; a reshaped row for a category with three rows; and
+  a prediction never actually run) and two byte-identity comparisons were **vacuous** —
+  both sides hashed `e3b0c44298fc`, the SHA-256 of the empty string, because the run
+  errored. Caught, re-run, and the harness now refuses to score an empty or failed run.

@@ -1573,18 +1573,12 @@ counts taken during construction. The empirical fire-rate
   the generator — and *every* site of each listed knob, not merely
   most of them: the counters and the steering multiplier are written
   by the same primitive, and the method that writes them is private to
-  it, so an uninstrumented roll of a listed knob does not compile. See
-  `KnobId` in `src/ir/types.rs` for
-  the full list (`flop_prob`, `comb_mux_prob`,
-  `priority_encoder_prob`, `coefficient_prob`,
-  `const_shift_amount_prob`, `const_comparand_prob`,
-  `constant_prob`, `terminal_reuse_prob`,
-  `comb_mux_encoding_prob`, `flop_mux_encoding_prob`,
-  `share_prob`, `flop_qfeedback_prob`, `hierarchy_sibling_route_prob`,
-  `hierarchy_registered_sibling_route_prob`,
-  `hierarchy_registered_child_input_cone_prob`,
-  `hierarchy_child_input_cone_prob`,
-  `hierarchy_parent_cone_instance_prob`, `hierarchy_parent_flop_prob`).
+  it, so an uninstrumented roll of a listed knob does not compile. The
+  full list is the `knob_ids!` table in `src/ir/knob_id.rs` — one row per
+  knob, giving its wire name and its steering category. Read it there;
+  it is also what `--introspect`'s `coverage_readout` enumerates for a
+  run, so `anvil --seed 42 --introspect` shows you the same set without
+  opening the source.
 
 This is the measurability doctrine in its most direct form:
 every probability dial's effect is a simple division away.
