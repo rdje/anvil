@@ -13,6 +13,11 @@ answers:
   - "which directories are excluded from every audit"
   - "where do the standing directives live now that MEMORY.md points at them"
   - "why is a directive not recorded in the resume pointer"
+  - "how often should I push to the remote"
+  - "what is the push cadence for this project"
+  - "how many unpushed commits are acceptable"
+  - "should I push after every commit or after a batch"
+  - "is the push cadence mechanically enforced"
 date: 2026-07-31
 status: accepted
 tags: [owner-directive, workflow, task-tree, memory-architecture, provenance, autonomy, audit, north-star]
@@ -114,6 +119,32 @@ removes it themselves.** It is excluded from every audit.
 This is the one directive of the three that constrains an *action* rather than a *judgement*, and
 it is the one most likely to be violated by a well-meaning cleanup sweep — which is why it is
 recorded beside the other two rather than left as a line in a file that gets overwritten.
+
+### (d) The push cadence is every 200 commits
+
+**Owner-set, `2026-08-01`, verbatim: *"The push cadence is every 200 commits."*** Stated in answer
+to an agent that had surfaced 105 unpushed commits as a durability risk — so the recorded fact is
+not merely the number but that **105 was explicitly judged acceptable**, and an agent below the
+threshold should neither push nor re-raise it.
+
+**Why this is layer C and not a line in `COMMIT.md`.** It is an *owner preference*, not a workflow
+step, and it resolves a question the project's own documents leave open in both directions:
+`MEMORY_ARCHITECTURE.md` §8 says *"push regularly"* without a number, and `COMMIT.md`'s nine
+workflow steps **never mention pushing at all**. A cadence recorded only inside a workflow step
+would also be re-derived every time a session asked *"is 105 a lot?"* — which is precisely the
+archaeology layer C exists to eliminate. `COMMIT.md` gains a **pointer** here, not a copy
+(`feedback_full_factorization`: one mechanism, never two).
+
+**It is deliberately NOT mechanically gated, and the reason is stated rather than left implicit**
+(`DOCTRINE_ENFORCEMENT.md` §9). A check is *technically* available and needs no network —
+`git rev-list --count origin/main..HEAD` reads the last-known remote ref locally. It is not built
+because a cadence is an owner **preference about risk appetite**, not an invariant of the
+repository: the correct threshold is a judgement the owner has now made once and may revise, and a
+gate that blocked a commit over it would convert a preference into a rule the owner never asked
+for. Registering a doctrine is a deliberate act (`OVERFLOW-DESTINATION-INSTRUMENTATION.7` applied
+the factorization test explicitly rather than waving it through); this does not clear that bar
+today. **If the count is ever missed in practice, that is the evidence that changes the answer** —
+and the check is one line when it is wanted.
 
 ## Decisive test applied
 

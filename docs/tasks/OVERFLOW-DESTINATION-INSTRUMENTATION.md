@@ -273,6 +273,13 @@ that outcome in a sibling project; ANVIL is one workflow-habit away from it.
   Verification: `pending`
   Commit: `pending`
 
+- ID: `OVERFLOW-DESTINATION-INSTRUMENTATION.10`
+  Status: `done`
+  Goal: `Record the owner's push-cadence directive of 2026-08-01 in layer C, as .5a did for the other owner directives, and close the gap it exposed: COMMIT.md's workflow steps never mentioned pushing at all.`
+  Acceptance: `Recorded VERBATIM with owner + date in decision 0041, the existing layer-C home, rather than in a new record (dedupe before forking a near-duplicate, MEMORY_ARCHITECTURE.md §10). COMMIT.md gets a POINTER, never a copy of the number.`
+  Verification: `done — owner directive 2026-08-01, verbatim: "The push cadence is every 200 commits." Recorded as directive (d) in 0041. IT IS LAYER C AND NOT A WORKFLOW NUMBER because it is an owner PREFERENCE, and it resolves a question the project left open in BOTH directions: MEMORY_ARCHITECTURE.md §8 says "push regularly" with no number, and COMMIT.md's nine steps never mentioned pushing at all — so COMMIT.md gains a new step 10 that POINTS at the record (feedback_full_factorization: one mechanism, never two). THE RECORDED FACT IS NOT ONLY THE NUMBER: the directive answered a session that had surfaced 105 unpushed commits as a durability risk, so 0041 (d) also records that 105 WAS EXPLICITLY JUDGED ACCEPTABLE and an agent below the threshold should neither push nor re-raise it. DELIBERATELY NOT GATED, reason stated per DOCTRINE_ENFORCEMENT.md §9: a check needs no network (git rev-list --count origin/main..HEAD reads the last-known remote ref locally) but a cadence is an owner RISK APPETITE, not a repository invariant, and a gate would convert a revisable preference into a rule the owner never asked for; .7 applied the doctrine-registration test explicitly and this does not clear it. KM 107 -> 108 facts / 1,029 -> 1,043 keys (0041 gained five push-cadence retrieval questions); check_doctrines.sh 9/9 after git add. Docs-only => DUT byte-identical.`
+  Commit: `pending`
+
 - ID: `OVERFLOW-DESTINATION-INSTRUMENTATION.4`
   Status: `pending`
   Goal: `Feed the correction back into the PORTABLE policy, since the owner located the hole at policy level rather than in one project.`

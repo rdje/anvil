@@ -140,6 +140,19 @@ If any item cannot be affirmatively answered, the commit does not proceed. No ex
    - `git --no-pager log -1 --oneline`
    - Record the new commit hash in `MEMORY.md` as the most recent entry (this can be part of the next commit, or a tiny follow-up commit; do not fake-edit history).
 
+10. **Push on cadence — do not push per commit.**
+    - The cadence is an **owner preference recorded in layer C**, not a number kept here:
+      see [`docs/decisions/0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md)
+      §(d). Read it rather than guessing, and check the count with
+      `git rev-list --count origin/main..HEAD`.
+    - A pointer, not a copy: the cadence may be revised by the owner, and a second copy here
+      would drift from the record (`feedback_full_factorization` — one mechanism, never two).
+    - Below the threshold, **do not push and do not re-raise it** — `0041` §(d) records that a
+      specific below-threshold count was explicitly judged acceptable.
+    - Nothing gates this. `MEMORY_ARCHITECTURE.md` §8 is still true — an unpushed commit does not
+      survive a machine loss — so the cadence is a deliberate, owner-set risk appetite, not an
+      oversight.
+
 ## Task-tree-managed commits
 
 When a commit completes a leaf of an active task tree

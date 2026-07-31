@@ -1,6 +1,44 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — Record the owner's push cadence in layer C, and give COMMIT.md its missing push step
+
+**Landed as:** `pending`. Previous: `567d284`.
+**Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+**Not task-tree owned, and exempt:** pure-docs + *recording doctrine itself*
+(`docs/TASK_TREE.md` "ANVIL Adoption Scope").
+
+**What.** Owner directive of `2026-08-01`, verbatim — *"The push cadence is every 200 commits."*
+Recorded as directive **(d)** in
+[`0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md), the layer-C home for
+owner standing directives.
+
+**Why it is layer C and not a number in `COMMIT.md`.** It is an owner **preference**, and it
+resolves a question the project's own documents left open **in both directions**:
+`MEMORY_ARCHITECTURE.md` §8 says *"push regularly"* with no number, and `COMMIT.md`'s nine workflow
+steps **never mentioned pushing at all**. Recording it only inside a workflow step would also mean
+re-deriving it every time a session asks *"is N unpushed a lot?"* — the archaeology layer C exists
+to eliminate. `COMMIT.md` therefore gains a **new step 10 that points at the record**, not a copy
+(`feedback_full_factorization`: one mechanism, never two).
+
+**The recorded fact is not only the number.** The directive was given in answer to a session that
+surfaced **105** unpushed commits as a durability risk, so `0041` §(d) also records that **105 was
+explicitly judged acceptable** — an agent below the threshold should neither push nor re-raise it.
+
+**Deliberately not gated, with the reason stated** (`DOCTRINE_ENFORCEMENT.md` §9). A check is
+available and needs no network (`git rev-list --count origin/main..HEAD` reads the last-known remote
+ref locally). It is not built because a cadence is an owner **risk appetite**, not a repository
+invariant: a gate would convert a revisable preference into a rule the owner never asked for, and
+registering a doctrine is a deliberate act that this does not clear today
+(`OVERFLOW-DESTINATION-INSTRUMENTATION.7` applied that test explicitly). If the count is ever
+missed in practice, that is the evidence that changes the answer.
+
+**Validation.** `check_knowledge_map` OK (**107 → 108** facts / **1,029 → 1,043** keys — `0041`
+gained five push-cadence retrieval questions); `scripts/check_doctrines.sh` **9/9** after `git add`.
+
+**Files touched.** `docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md`,
+`docs/decisions/INDEX.md`, `COMMIT.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.8 — the index is the mixed surface
 
 **Landed as:** `pending`. Previous: `6b00357`.
