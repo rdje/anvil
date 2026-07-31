@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.3 — two pointer stubs; nothing moved
 
-**Landed as:** this commit. Previous: `709d4d0`.
+**Landed as:** `80edd42`. Previous: `709d4d0`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Applied decision [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md):
