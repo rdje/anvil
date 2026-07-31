@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.1 — audit + register: this file's two newest entries are at its bottom
+
+**Landed as:** `pending`. Previous: `087ca7b`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+Tree registration only; no repair is attempted in this commit, deliberately.
+
+**What.** Registers `CHANGES-ENTRY-PLACEMENT` for a defect found while writing the
+previous entry: **the top of this file did not name the two changes that had just
+landed.**
+
+Measured at `087ca7b`. This file states its ordering on line 2 — *"Newest entries at the
+top"* — `COMMIT.md` §2 restates it as mandatory, and the file is newest-first for all
+43,843 lines. Yet:
+
+| line | heading | commit |
+| ---: | --- | --- |
+| 43642 | `2026-04-15-0001 — Initial scaffold + Phase 1 cone-adapter hardening` | the **oldest** entry |
+| 43706 | `2026-07-31-book-test-count-shadows-2 — BOOK-TEST-COUNT-SHADOWS.2 …` | `715019b` |
+| 43780 | `2026-07-31-live-doc-registry-shadows-1 — LIVE-DOC-REGISTRY-SHADOWS.1 …` | `abf7090` |
+
+The two newest entries are **below the oldest entry in project history**, and in the
+`## YYYY-MM-DD-slug` heading convention retired after `2026-06-14` (measured: 249
+headings in the current convention, 245 in the retired one, with an otherwise clean
+boundary).
+
+Both commits **did** stage `CHANGES.md` (`+74` and `+65` lines), so the mandatory-
+amendment rule was followed and the entries themselves are complete. Only the
+**placement** is wrong — a *findability* defect, not data loss.
+
+**Why it matters.** This file is the evidence artifact `COMMIT.md`,
+`CODE-CHANGE-EVIDENCE` and `DOCTRINE_ENFORCEMENT.md` §6 are all built on. A session
+recovering cold reads it top-down and concludes the last change was
+`BOOK-TEST-COUNT-SHADOWS.1` — **two leaves stale, with nothing signalling the gap.**
+
+**Why no mechanism caught it.** `scripts/check_diagnosis_evidence.sh:43` is the whole
+check: `grep -qx 'CHANGES.md'` over the *staged file list*. It asks whether the file was
+staged; it cannot ask **where** the entry landed, or whether one exists. And it is
+scope-aware — code-touching commits only — so a **docs-only** commit is exempt outright,
+which is what both offending commits were.
+
+**That is the same finding as decision `0037`, one layer up:** a check scoped to a
+**file** when the property it means to hold lives in a **region** of that file.
+`covers_set` greps a whole chapter for ids that belong in one list; `CODE-CHANGE-EVIDENCE`
+greps a whole staged-file list for a name whose position *inside* the file is the point.
+Both pass while the property they exist to hold is false. The two trees stay separate —
+different subject, and this one has a doctrine conflict the other does not — but the root
+cause is named once, in both places.
+
+**Why nothing is repaired here.** `CHANGES.md` is **append-only and never retro-edited**
+(decision `0031`, standing owner directive: *"Keep it raw, keep honest, so that people
+can follow the whole history."*). Relocating two landed entries is an edit to published
+content, and whether that is a permitted correction of *position* or a prohibited sweep
+is a **decision that must be recorded before anything moves** — `.1` owns exactly that,
+with three options on the table (relocate, in-place forward pointer, or re-publish at the
+top citing the original). The recorded gotcha about mass-rewriting a document whose
+*subject* is the thing being rewritten applies directly: this lane has already once
+destroyed a decision record's own `reverify` line with a well-intentioned sweep.
+
+**Validation.** Placement and convention counts measured from the file at `087ca7b`;
+both commits' `CHANGES.md` deltas confirmed via `git show --stat`; the check's presence-
+only behaviour read directly at `scripts/check_diagnosis_evidence.sh:43`.
+`scripts/check_doctrines.sh` 8/8 after `git add`.
+
+**Impact.** None to the tree's behaviour — a registration. The defect is now owned, per
+the standing directive that a defect is only handled if a task-tree owns it.
+
+**Files touched.** `docs/tasks/CHANGES-ENTRY-PLACEMENT.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.2 — the site list is authoritative; the predicate is not
 
 **Landed as:** `e873a6e`. Previous: `abf7090`.
