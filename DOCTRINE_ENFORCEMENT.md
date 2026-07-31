@@ -256,6 +256,18 @@ from a clone.
   at pre-commit; the un-fakeable oracle legs are the `cargo`/`tool_matrix` gates (`COMMIT.md` + CI).
 - **A check cannot prove intent / understanding** — only that the *artifacts and oracles reproduce*.
   That reproducibility is the point.
+- **A "does the doc name every id" check can pass VACUOUSLY**, and it does so exactly where it is
+  needed most. Its strength is inversely proportional to how ordinary its ids are as *words* in the
+  document being checked — and ids are most ordinary in the very document that documents them.
+  Measured in this repo (`2026-07-31`, decision `0037`): **3 of `ENUMERATION-PARITY`'s 10 coverage
+  sites still pass with the checked enumeration deleted outright**, because `verilator` / `yosys` /
+  `sharing` / `state` are ordinary vocabulary in the chapters that list them; the sites that survive
+  the probe do so on an accident of vocabulary (`MEMORY-ARCH`, `README-GROWTH` appear nowhere but
+  their list). **The general acceptance test for any coverage-shaped check is therefore: delete the
+  subject and re-run it.** A check that still passes with the thing it checks removed is checking
+  nothing — and per §6.1 it is *manufacturing* the confidence, not earning it. The repair is to scope
+  the match to an explicitly marked region rather than to the file (`ENUMERATION-PARITY` is being
+  moved to that predicate; the marker must name no members, or it becomes a fresh shadow).
 - **Goal is expensive-and-visible non-compliance, not literal impossibility** — defense in depth,
   not a single unbreakable wall.
 

@@ -1,6 +1,142 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.2 — the site list is authoritative; the predicate is not
+
+**Landed as:** `pending`. Previous: `abf7090`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** `.1` left a two-part question. Both halves are answered by measurement and
+land as decision
+[`0037`](docs/decisions/0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md).
+No mechanism changed in this leaf; `.3` is registered to implement what it decided.
+
+**(i) Can `ENUMERATION-PARITY` pair 4's declared-site list be *derived*? No — and it
+fails in both directions at once.**
+
+The candidate selector — *every tracked `*.md` naming ≥ **T** of the eight category words
+on one line* — was **run** over `git ls-files '*.md'` at `abf7090`:
+
+| T | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| files selected | 56 | 20 | 16 | 14 | 13 | 6 | 5 |
+
+**No threshold yields the four declared sites**, and the two failure modes share no
+threshold:
+
+- **`T ≤ 6` selects append-only history.** Not incidental prose — the *literal* six-name
+  list, correct when it was written: `CHANGES.md:8400`, `DEVELOPMENT_NOTES.md:3999`, and
+  `docs/tasks/COVERAGE-STEERED-GENERATION.md:75` (which records the historical
+  21-variant / 6-category state). A derived site list would require these to name all
+  eight, satisfiable **only** by retro-editing history — absolutely forbidden (decision
+  `0031`: *"keep it raw, keep honest"*) — or by an exclusion list, which is the same
+  hand-maintained list with its sign flipped, now growth-coupled to a file that grows
+  every commit.
+- **`T ≥ 7` drops two of the four declared sites.** `book/src/algorithm.md` and
+  `book/src/knobs.md` enumerate across two lines because their prose wrapped. A tight
+  selector therefore silently exempts a site **on a reflow accident** — the
+  `PARITY-EXTRACTOR-ARM-SHAPE-GAP` hazard (an extractor encoding a formatting
+  assumption) re-imported on the doc side. And it *still* keeps two task files, so
+  tightening buys loss, not purity.
+
+Under decision `0033`'s own three-question rule the site list **fails test (2)**: it is
+*supposed* to differ from "every tracked file naming the ids", and the gap **is** the
+content of the rule — structurally identical to `check_no_boot_volume_refs.sh`'s
+allow-list, and for the same underlying reason. **Authoritative; stays hand-written.**
+The fifth entry on decision `0033` §1's list of hard cases, and the first that sits at
+the *enforcement* layer rather than the content layer.
+
+The pair's own comment already asserted this outcome (*"a grep for any file mentioning
+two category words also matches ordinary prose"*). It measured **true** — but the real
+reason is different and stronger than the asserted one: not ordinary prose, but **history
+that must stay raw**. Recorded because this lane keeps finding asserted premises to be
+false when finally measured, and one that survives measurement is worth the same ink.
+
+**The selector is kept, and demoted.** It surfaced `CODEBASE_ANALYSIS.md:2349` — all
+eight categories on one line, in a live doc, undeclared — alongside the two chapters `.1`
+repaired. So it becomes a **review-time discovery instrument**, explicitly barred from
+being a gate input: decision `0033` (c)'s *"discovered by review, held by derivation"*
+given a written procedure. Pair 4 goes from 4 to 7 declared sites in `.3`, and the
+procedure — sweep the whole tree from the authoritative set, classify **every**
+candidate — is what distinguishes that from the opportunistic extension the tree's
+Non-Goals forbid.
+
+**(ii) Is `covers_set` the right predicate? No, and the hole is larger than `.1`
+reported.**
+
+`.1` found one site scoring 7/8 against a 6/8 list. Applying decision `0033` rule (2) —
+*search from the authoritative set, never from the shadow you found first* — the
+authoritative set here is **every use of the predicate** (10 sites: 4 + 2 + 4), not the
+one instance that surfaced. The probe is the sharpest one available: **delete the
+enumeration and re-run the check.**
+
+**Three of ten still pass:**
+
+| pair | site | with the enumeration deleted |
+| --- | --- | --- |
+| 3 | `book/src/api-tools.md` | **still passes** |
+| 3 | `book/src/agent-mcp.md` | **still passes** |
+| 4 | `book/src/knobs.md` | **still passes** |
+| 4 | `USER_GUIDE.md` | fails on one word (`terminals`) |
+
+**Pair 3 protects nothing at either of its sites.** Delete the whole downstream
+allow-list from `book/src/api-tools.md` and `ENUMERATION-PARITY` stays green.
+
+The predictor is measurable — occurrences of each id *outside* its enumeration:
+`yosys` 18, `verilator` 12, `sv2v` 2, `slang` 2, `iverilog` 1 in `api-tools.md`, against
+`MEMORY-ARCH` 0, `README-GROWTH` 0, `KNOWLEDGE-MAP` 0 in `architecture.md`.
+
+> **A coverage check's strength is inversely proportional to how ordinary its ids are as
+> *words* in the checked document — and they are most ordinary in exactly the document
+> that documents them.**
+
+Pair 1b survives on an accident of vocabulary, and only just: `README.md` and
+`CODEBASE_ANALYSIS.md` each fail the probe by 7 of 8, so one doctrine id already appears
+outside their lists.
+
+**A proximity window was evaluated and rejected on measurement**, not on taste. With the
+allow-list deleted the minimal spanning window is **still 2 lines** at *both* pair-3
+sites, so it fixes neither of the worst cases; and a single-id omission leaves a 6-line
+window at `book/src/algorithm.md` and 4 at `book/src/agent-mcp.md`, which any usable `K`
+passes — because `.1`'s **own** explanatory sentence (`motifs` rolls once per module,
+`emission` once per candidate gate) sits three lines below the list. Its blind spots
+correlate with documentation *quality*, which is the wrong thing for a gate to reward.
+
+**Repair chosen:** an HTML-comment **fence** around each declared enumeration, with the
+check reading only inside it, exact parity in **both** directions (the one-directional
+design existed to allow a chapter to name a subset *in an example*; with a fence,
+examples live outside it), and a missing fence a hard failure. The fence **names no
+members**, so it fails decision `0033` test (2) and cannot become the next shadow.
+
+**Adopted repo-wide:** *delete the subject and re-run the check* is now the standard
+acceptance test for any coverage-shaped doctrine check, recorded in
+`DOCTRINE_ENFORCEMENT.md` §9 alongside the live 3-of-10 vacuity — which stays **stated**
+until `.3` removes it, per that section's own no-over-claiming discipline.
+
+**Why.** A gate whose coverage is a hand-written list of sites inherits the failure it
+exists to prevent — that is why `.1` opened the question. The answer turned out to be
+that the *list* is fine and the *predicate* is not, which is only visible if you sweep
+from the predicate rather than from the reported site.
+
+**Validation.** Selector run at seven thresholds over `git ls-files '*.md'` with every
+candidate classified; vacuity probe run against all ten `covers_set` sites; window
+predicate measured under two controls (enumeration deleted, single id dropped);
+id-distinctiveness counted per site. `scripts/check_doctrines.sh` 8/8 after `git add`;
+`mdbook build` clean; `check_knowledge_map.sh` in sync (90 facts / 909 question keys,
+from 88 / 889 — the decision record plus one new fact card). `src/` untouched ⇒ DUT
+byte-identical by construction, so the `cargo test` / snapshot / byte-identity banks
+stand from `1a6f276` unchanged and were not re-run.
+
+**Impact.** No mechanism changed yet; `ENUMERATION-PARITY` behaves exactly as before.
+What changed is that its real coverage is now known and written down, `.3` is registered
+to fix it, and the vacuity probe is available to every future check.
+
+**Files touched.** `docs/decisions/0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md`
+(new), `docs/decisions/INDEX.md`, `docs/knowledge/coverage-check-vacuity.md` (new),
+`KNOWLEDGE_MAP.md` (regenerated), `DOCTRINE_ENFORCEMENT.md` (§9),
+`book/src/architecture.md`, `docs/tasks/LIVE-DOC-REGISTRY-SHADOWS.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them
 
 **Landed as:** `1a6f276`. Previous: `48cbc0a`.

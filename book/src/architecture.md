@@ -498,6 +498,16 @@ Knowledge Map. The live registry:
 - **`ENUMERATION-PARITY`** — every *declared* docs/script enumeration
   pair is in parity with the set it mirrors (decision `0033`) — including
   this very list, which is checked against the registry it describes.
+  **Stated limit, measured `2026-07-31` (decision `0037`):** the pairs
+  that check *"this chapter names every id"* do so by grepping the whole
+  file, and **3 of those 10 sites still pass with the enumeration deleted
+  outright** — because `verilator`, `yosys`, `state` and `sharing` are
+  ordinary words in the very chapters that list them. This list survives
+  the probe only because `MEMORY-ARCH` and friends are coined tokens that
+  appear nowhere else. The repair — scoping each check to a fenced region
+  instead of the file — is tracked by
+  `LIVE-DOC-REGISTRY-SHADOWS.3`; until it lands, treat those three sites
+  as documented-but-unguarded rather than as covered.
 - **`README-GROWTH`** — `README.md` stays a landing page, within its
   reviewed line **and** byte caps, with the project-owned
   `README_POLICY.md` beside it (decision `0036`; owner directive

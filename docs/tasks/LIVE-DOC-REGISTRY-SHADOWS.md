@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (`.1` **done** — three sites repaired, KM regenerated; frontier `.2`)
+- Last updated: `2026-07-31` (`.2` **done** — decision `0037`; frontier `.3`, newly registered)
 - Owner: repo-local workflow
 
 ## Goal
@@ -103,7 +103,7 @@ tree exists rather than a one-line doc fix.
 - ID: `LIVE-DOC-REGISTRY-SHADOWS`
   Status: `active`
   Goal: `Repair three live-doc sites that name a strict subset of an authoritative registry, and decide whether ENUMERATION-PARITY's declared-site list can stop being hand-maintained.`
-  Children: `.1` (repair the three sites), `.2` (the declared-site question)
+  Children: `.1` (repair the three sites), `.2` (the declared-site question), `.3` (implement the list-scoped predicate `.2` decided on)
 
 - ID: `LIVE-DOC-REGISTRY-SHADOWS.1`
   Status: `done`
@@ -116,6 +116,13 @@ tree exists rather than a one-line doc fix.
   Status: `pending`
   Goal: `Answer whether ENUMERATION-PARITY pair 4's declared-site list can be DERIVED (e.g. every tracked doc that names >= 3 category words on one line) rather than hand-maintained, and either replace it or record precisely why a hand-maintained list is correct here.`
   Acceptance: `The candidate derived selector is RUN against the tree and its output compared to the current four sites; if it over-matches, the false positives are named. Decision 0033's own middle test (growth-coupled) is applied explicitly, since the pair's comment already argues a discovered list would cry wolf on ordinary prose about "state and sharing" — that argument is re-tested with a real selector rather than assumed. Whatever the outcome, it lands as a decision record, because both answers are load-bearing for every future pair.`
+  Verification: `done — decision 0037. BOTH HALVES ANSWERED BY MEASUREMENT, and the two turned out to be coupled. (i) THE SITE LIST CANNOT BE DERIVED — and not for the predicted reason. The candidate selector ("every tracked *.md naming >= T of the eight category words on one line") was RUN over git ls-files '*.md' at abf7090: it selects 56/20/16/14/13/6/5 files at T=2..8, and NO threshold yields the four declared sites. It fails in BOTH directions and the two failures share no threshold. Loose (T<=6): it selects append-only history — CHANGES.md:8400 and DEVELOPMENT_NOTES.md:3999 hold the LITERAL six-name list ((state)/(selectors)/(datapath)/(terminals)/(sharing)/(hierarchy)), correct when written, and docs/tasks/COVERAGE-STEERED-GENERATION.md:75 records the historical 21-variant/6-category state. Under a derived site list the gate would demand these name all eight, satisfiable ONLY by retro-editing history (absolutely forbidden, decision 0031: "keep it raw, keep honest") or by an exclusion list — the same hand-maintained list, sign-flipped, and now growth-coupled to a file that grows every commit. Tight (T>=7): it DROPS book/src/algorithm.md and book/src/knobs.md, 2 of the 4 declared sites, purely because their enumerations wrap across two lines — a prose-reflow accident silently exempting a site, which is PARITY-EXTRACTOR-ARM-SHAPE-GAP's exact hazard re-imported on the doc side — and it still retains two task files, so tightening buys loss, not purity. Under decision 0033 rule (a) the declared-site list therefore FAILS TEST (2): it is SUPPOSED to differ from "every file naming the ids", and the gap IS the content of the rule — structurally identical to check_no_boot_volume_refs.sh's allow-list, for the same underlying reason (history must stay raw). AUTHORITATIVE, leave it hand-written; the fifth hard case on 0033's list and the first at the ENFORCEMENT layer rather than the content layer. The pair's own comment asserted this ("a grep for any file mentioning two category words also matches ordinary prose") and it measured TRUE — but the real reason is different and stronger than the asserted one. The selector is NOT discarded: it correctly surfaced CODEBASE_ANALYSIS.md:2349 (all eight on one line, undeclared) alongside the two chapters .1 repaired, so it is adopted as a REVIEW-TIME DISCOVERY INSTRUMENT and explicitly barred from being a gate input — decision 0033 (c)'s "discovered by review, held by derivation" given a written procedure. (ii) covers_set IS THE WRONG PREDICATE, and the defect is larger than .1's 7/8 miscount. Applying 0033 rule (2) — sweep from the AUTHORITATIVE SET, which here is EVERY USE OF THE PREDICATE (10 sites: 4+2+4), not the one instance reported — and probing each by DELETING THE ENUMERATION AND RE-RUNNING: 3 of 10 STILL PASS. book/src/api-tools.md and book/src/agent-mcp.md (pair 3, the downstream allow-list) are BOTH vacuous, so pair 3 provides ZERO protection at either site; book/src/knobs.md (pair 4) likewise; USER_GUIDE.md misses by ONE word (terminals). Pair 1b survives on an accident of vocabulary, and only just — CODEBASE_ANALYSIS.md and README.md each fail by 7 of 8, so one doctrine id already appears outside their lists. The predictor is measurable: occurrences of an id OUTSIDE its enumeration are yosys 18 / verilator 12 / sv2v 2 / slang 2 / iverilog 1 in api-tools.md, versus MEMORY-ARCH 0 / README-GROWTH 0 / KNOWLEDGE-MAP 0 in architecture.md. THE RULE: a coverage check is strong in inverse proportion to how ordinary its ids are as words in the checked document — and they are most ordinary in exactly the document that documents them, so it is weakest where the pair matters most. A PROXIMITY WINDOW WAS EVALUATED AND REJECTED ON MEASUREMENT, not on taste: with the enumeration deleted the minimal spanning window in api-tools.md is STILL 2 lines and in agent-mcp.md 2 lines, so a window fixes neither pair-3 site; and a single-id omission (motifs removed) leaves a 6-line window at algorithm.md and a 4-line window at agent-mcp.md, both of which any usable K passes — because .1's OWN explanatory prose (motifs rolls once per module, emission once per candidate gate) sits three lines below the list. Its miss cases correlate with documentation QUALITY, which is the wrong thing for a gate to punish. CHOSEN REPAIR: an HTML-comment fence delimiting each declared enumeration, with covers_set reading only inside the fence, exact parity in BOTH directions (the one-directional design existed because "a chapter may name a subset in an example" — with a fence, examples live outside it), and a missing fence a hard failure. The fence NAMES NO MEMBERS, so it fails 0033 test (2) and cannot become the next shadow. Adopted repo-wide: "delete the subject and re-run the check" is now the standard acceptance test for any coverage-shaped doctrine check, recorded in DOCTRINE_ENFORCEMENT.md 9 (honest limits) alongside the live 3-of-10 vacuity, which stays stated until .3 removes it. Scope split per COMMIT.md task-tree rule 3: this leaf is the decision; .3 implements. Checks: check_doctrines.sh 8/8 after git add; mdbook build clean; check_knowledge_map.sh in sync. Docs-only => DUT byte-identical.`
+  Commit: `pending`
+
+- ID: `LIVE-DOC-REGISTRY-SHADOWS.3`
+  Status: `pending`
+  Goal: `Implement decision 0037: fence every declared enumeration with an HTML comment carrying its set id, rewrite covers_set to read only the fenced region and to require exact parity in both directions, fail hard on a declared site with no fence, and declare the three reviewed pair-4 sites (book/src/agent-mcp.md, book/src/api-introspection.md, CODEBASE_ANALYSIS.md) so pair 4 goes from 4 sites to 7.`
+  Acceptance: `The vacuity probe — delete the enumeration, re-run the check — must now FAIL at all three sites where it currently passes (book/src/api-tools.md, book/src/agent-mcp.md pair 3, book/src/knobs.md pair 4); it is the acceptance test, so it is run before and after. Every pair negative-controlled in both directions: drop one id from a fenced list => FAIL, restore => PASS, at every declared site, not a sampled one (a proof sampling one member of a set cannot detect the set is partitioned). A declared site with no fence FAILS loudly. Fences are invisible in the rendered book (mdbook build clean, spot-checked in the generated HTML). No new hand-maintained list is introduced: the fence carries a set id and no members. check_doctrines.sh 8/8; docs + scripts only => DUT byte-identical.`
   Verification: `pending`
   Commit: `pending`
 
@@ -124,7 +131,8 @@ tree exists rather than a one-line doc fix.
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
 | 1 | `LIVE-DOC-REGISTRY-SHADOWS.1` | `done` | All three sites repaired against re-measured registries: the KM card gained the missing `coverage` tool and lost its `9`, its `schema_version 1.11` became a pointer to `introspect::SCHEMA_VERSION`, and both book chapters now name all eight categories with the `motifs`-vs-`emission` resolution difference spelled out. Negative control **fails pre-repair, passes post** — and in failing, exposed that `covers_set` greps the whole *file*, not the *list*, which is now `.2`'s central question rather than an afterthought. |
-| 2 | `LIVE-DOC-REGISTRY-SHADOWS.2` | `pending` | **Next.** The general question, and `.1` sharpened it: it is no longer only *"can the declared-site list be derived?"* but also *"is `covers_set` even the right predicate?"* — `.1` measured it scoring `api-introspection.md` 7/8 when its list was 6/8, because a missing word appeared elsewhere in the file. A gate that reads the file instead of the list can pass on a doc whose enumeration is short. Both halves land as one decision record. |
+| 2 | `LIVE-DOC-REGISTRY-SHADOWS.2` | `done` | Both halves answered by measurement and landed as decision `0037`. **(i) No** — the derived selector over- *and* under-matches, with no threshold in between: at `T ≤ 6` it selects append-only history holding the literal six-name list, so the gate would be satisfiable only by rewriting history (decision `0031`, forbidden) or by an inverted hand-maintained list; at `T ≥ 7` it drops 2 of the 4 declared sites on a prose-reflow accident. The site list **fails `0033` test (2)** and is authoritative — history must stay raw. The selector is kept as a **review-time discovery instrument** (it found `CODEBASE_ANALYSIS.md:2349` undeclared). **(ii) Yes, and worse than reported** — sweeping all 10 uses of the predicate, **3 pass with the enumeration deleted outright**, including *both* pair-3 sites, so pair 3 checks nothing today. A proximity window was measured and rejected. Repair: fence the enumeration. |
+| 3 | `LIVE-DOC-REGISTRY-SHADOWS.3` | `pending` | **Next.** Implement `0037`: fences at every declared site, `covers_set` scoped to the fenced region with exact bidirectional parity, a missing fence a hard failure, and pair 4 declared over its 7 reviewed sites. The acceptance test is the vacuity probe itself — *delete the enumeration and re-run* must FAIL at the three sites where it currently passes. Touches `scripts/check_enumeration_parity.sh` + 9 docs; still `src/`-free ⇒ DUT byte-identical. |
 
 ## Decisions
 
@@ -136,6 +144,23 @@ tree exists rather than a one-line doc fix.
   its site list is short), and one of these needs a `scripts/` change. Same
   reasoning that split `BOOK-TEST-COUNT-SHADOWS` from
   `PARITY-EXTRACTOR-ARM-SHAPE-GAP`: two focused trees beat one muddled one.
+- `2026-07-31` (`.2`, decision [`0037`](../decisions/0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md)):
+  the declared-site list is **authoritative and stays hand-written**, because it must be
+  allowed to differ from "every tracked file naming the ids" — append-only history holds
+  the *old* list correctly and may never be retro-edited (decision `0031`). Measured, not
+  assumed: no threshold of the candidate selector reproduces the declared sites, and the
+  two ways it fails do not share a threshold.
+- `2026-07-31` (`.2`): the discovery selector is **kept and demoted** rather than
+  discarded — a review-time instrument, never a gate input. It earned that by finding a
+  real undeclared site (`CODEBASE_ANALYSIS.md:2349`) that no bug report had surfaced.
+- `2026-07-31` (`.2`): `covers_set` moves from **file-scoped to fence-scoped**, and
+  from one-directional coverage to **exact parity inside the fence**. The
+  one-directional design existed to permit a chapter naming a subset in an example; a
+  fence makes that concern disappear, because examples sit outside it.
+- `2026-07-31` (`.2`): the implementation is **split into `.3`** rather than folded in
+  here. `COMMIT.md` task-tree rule 3 (one leaf per commit), and the fence touches nine
+  files and needs its own negative-control pass — including re-running the vacuity probe
+  in the failing direction.
 - `2026-07-31`: Repair rung fixed **before** the work starts, per this lane's
   convention. The **count** `9` beside the tool list is **R1, delete** — a number
   beside a list is one more copy of it. The **list** is **repaired**, not deleted:
@@ -150,6 +175,7 @@ tree exists rather than a one-line doc fix.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-31` | `LIVE-DOC-REGISTRY-SHADOWS.2` | `ran the candidate derived selector over git ls-files '*.md' at seven thresholds (T=2..8 -> 56/20/16/14/13/6/5 files) and classified every candidate: no threshold yields the four declared sites; T<=6 selects CHANGES.md:8400 + DEVELOPMENT_NOTES.md:3999 + docs/tasks/* holding the literal historical six-name list (unsatisfiable without a forbidden history rewrite), T>=7 drops book/src/algorithm.md + book/src/knobs.md because their lists wrap across two lines. Ran the VACUITY PROBE (delete the enumeration, re-run covers_set) against ALL TEN uses of the predicate, not the one .1 reported: 3 still pass — book/src/api-tools.md and book/src/agent-mcp.md (pair 3, both sites, so pair 3 protects nothing) and book/src/knobs.md (pair 4); USER_GUIDE.md misses by one word. Measured the predictor (id occurrences outside the enumeration: yosys 18 / verilator 12 vs MEMORY-ARCH 0 / README-GROWTH 0). Evaluated and rejected a proximity window by measurement: window is still 2 lines at both pair-3 sites with the allow-list deleted, and a single-id omission leaves 6 lines at algorithm.md / 4 at agent-mcp.md. Landed decision 0037 + the honest limit in DOCTRINE_ENFORCEMENT.md 9. check_doctrines.sh 8/8 after git add; mdbook build clean; check_knowledge_map.sh in sync` | `done — decision 0037; .3 registered` |
 | `2026-07-31` | `LIVE-DOC-REGISTRY-SHADOWS.1` | `re-measured all three registries at repair time (tools/list = 10; SCHEMA_VERSION = 1.27; knob_ids! categories = 8) and repaired every site: coverage added to the KM card's tool list + the "9" deleted (R1), schema_version 1.11 replaced by a pointer to introspect::SCHEMA_VERSION, the card's evidence frontmatter stripped of its three counts, and motifs + emission added to both book chapters with the once-per-module vs once-per-gate distinction spelled out. KNOWLEDGE_MAP.md regenerated from the cards and verified in sync, with the stale count confirmed absent from the generated map. Negative control run in BOTH directions against git show HEAD: — agent-mcp.md fails pre-repair missing {emission, motifs}, api-introspection.md fails missing {motifs}, both pass after — and it exposed that covers_set greps the whole file rather than the list, scoring api-introspection.md 7/8 when its list held 6/8. mdbook build clean; check_doctrines.sh 8/8 after git add` | `done` |
 | `2026-07-31` | `LIVE-DOC-REGISTRY-SHADOWS` | `measured a live tools/list (10 tools; docs/knowledge/api-reference.md lists 9, coverage absent) and the knob_ids! category column (8; book/src/agent-mcp.md and book/src/api-introspection.md each name 6, omitting motifs + emission); confirmed the other five list sites name all eight; confirmed ENUMERATION-PARITY pair 4 passes because neither offending chapter is one of its four declared sites; confirmed prompts/list = 5 so the card's "5 prompts" is correct` | `defect confirmed, pre-existing, live` |
 
@@ -158,9 +184,18 @@ tree exists rather than a one-line doc fix.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `LIVE-DOC-REGISTRY-SHADOWS.1` | `LIVE-DOC-REGISTRY-SHADOWS.1 — name the whole registry, not the part we found` | `coverage` added to the KM card's tool list + the count R1-deleted; `schema_version` de-snapshotted; both book chapters completed to all eight steering categories. Negative control fails pre-repair. |
+| `LIVE-DOC-REGISTRY-SHADOWS.2` | `LIVE-DOC-REGISTRY-SHADOWS.2 — the site list is authoritative; the predicate is not` | Decision `0037`. The site list cannot be derived (history must stay raw); `covers_set` is vacuous at 3 of 10 sites, both pair-3 sites among them. Window predicate measured and rejected. `.3` registered to implement the fence. |
 
 ## Changelog
 
+- `2026-07-31` (`.2`): the tree's central question turned out to have a **larger second
+  half than its first**. "Can the site list be derived?" resolved to a clean *no* with a
+  reason worth keeping (history must stay raw). "Is `covers_set` the right predicate?"
+  resolved to a *no* that found **a live gate protecting nothing at two sites** — pair 3,
+  the downstream allow-list, passes with its enumeration deleted outright. That was
+  reachable only by sweeping from the authoritative set (every use of the predicate)
+  rather than from the site `.1` reported: decision `0033` rule (2), third application,
+  and the second time it has turned a one-site report into a class.
 - `2026-07-31`: Created by `BOOK-TEST-COUNT-SHADOWS.2`'s effect-keyed sweep. The
   finding that makes the tree worth opening is not any one stale list — it is
   that **the gate for this exact defect class was green throughout**, because a

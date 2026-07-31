@@ -5,6 +5,76 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — Ask a check the one question it cannot bluff: delete the subject and re-run it — `LIVE-DOC-REGISTRY-SHADOWS.2`
+
+`ENUMERATION-PARITY` has ten sites of the shape *"this document names every member of
+set S"*. Every one of them had a passing negative control at the time it was written, in
+both directions. Three of the ten **still pass with the enumeration they guard deleted
+outright.**
+
+The two facts are compatible, and that is the lesson. A both-directions negative control
+proves the check *can* fire. It says nothing about whether it fires **on the right
+input**. `covers_set` greps the whole file, so at `book/src/api-tools.md` it was never
+reading the downstream allow-list at all — it was reading a chapter that happens to say
+`verilator` twelve more times and `yosys` eighteen more times elsewhere. Delete the
+allow-list; the gate stays green. Pair 3 has protected nothing at either site for its
+entire life.
+
+**The predictor is structural, so it can be seen before the check is written:**
+
+> A coverage check's strength is inversely proportional to how ordinary its ids are as
+> *words* in the document being checked — and ids are most ordinary in exactly the
+> document that documents them.
+
+Measured: `MEMORY-ARCH` and `README-GROWTH` occur **0** times outside their list, so pair
+1b is near-exact. `verilator`/`yosys`/`state`/`sharing` occur throughout the chapters
+that list them, so pairs 3 and 4 degrade toward nothing. The check is weakest precisely
+where the enumeration is most worth guarding — and *nothing about adding more sites
+touches that*, which is why `.1`'s instinct to question the predicate rather than the
+site list was the right one.
+
+**Why the obvious fix is not the fix.** Requiring all ids inside `K` consecutive lines
+looks like it should work — every current site has a 1–3 line list. Measured against two
+controls it fails both. With the enumeration deleted the minimal window at *both* pair-3
+sites is still **2 lines**, so the worst cases are untouched. And a single-id omission —
+the realistic drift, a ninth category shipping while one site lags — leaves a **6-line**
+window at `book/src/algorithm.md` and **4** at `book/src/agent-mcp.md`, which any usable
+`K` passes.
+
+The reason is worth sitting with: the prose that closes those windows is `.1`'s **own**
+repair — the sentence explaining that `motifs` rolls once per module while `emission`
+rolls once per candidate gate, which is *why* they are separate categories. It is the
+best paragraph on that page. **A proximity heuristic is defeated by good writing**, and a
+gate whose blind spots track documentation quality is measuring the wrong thing. The
+repair has to read the list, not the neighbourhood: a fence, carrying a set id and **no
+members** (a marker that named members would be the next shadow).
+
+**And the mirror-image result, which is the part that generalises further.** The same
+leaf asked whether the check's *declared-site list* could stop being hand-maintained. It
+cannot, and the reason is not the one the pair's comment claimed. The candidate selector
+fails in **both** directions with no threshold in between: loose, it selects
+`CHANGES.md`, `DEVELOPMENT_NOTES.md` and the task files — which hold the *literal*
+six-name list, **correct on the day it was written** — so the gate would be satisfiable
+only by retro-editing append-only history, which decision `0031` forbids absolutely;
+tight, it drops two real sites because their lists wrapped across two lines.
+
+So the site list is **authoritative for the same reason `check_no_boot_volume_refs.sh`'s
+allow-list is**: the gap between it and "every file that matches" *is* the rule. History
+must be allowed to record the old set. That is decision `0033` test (2) landing at the
+enforcement layer for the first time, and it is the general shape of it:
+
+> **A doctrine check that can only be satisfied by breaching another doctrine is
+> misdesigned, and the breach it invites is the diagnosis.**
+
+Both halves in decision `0037`. The transferable artifacts are two: the **vacuity
+probe** (*delete the subject, re-run the check*) as a standing acceptance test beside the
+negative control, and the **discovery selector demoted to a review instrument** — it
+still earned its keep by finding an undeclared live site (`CODEBASE_ANALYSIS.md:2349`)
+that no bug report had surfaced. Discovery and enforcement want different tools; the
+mistake is letting one instrument be both.
+
+---
+
 ## 2026-07-31 — A guard you can only patch with another hand-written list is at the wrong rung — `COVERAGE-STEERED-GENERATION.6`
 
 `.4b.1` guarded `KnobId::all()` at rung **R2**: a private exhaustive
