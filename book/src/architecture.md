@@ -523,34 +523,51 @@ catalogued in `TOOLBOX.md`.
 Three layers:
 
 **Unit tests** live inline in each source module under
-`#[cfg(test)] mod tests { ... }`. Current counts:
+`#[cfg(test)] mod tests { ... }`, so a module's tests move with it and
+a reader never has to hunt a parallel test tree. To count them for any
+file — or for the crate — ask the source rather than this page:
 
-- `src/ir/types.rs` — 40 tests covering factorization,
-  identity-mode, rewrite-layer semantics, and design-aware
-  control-port visibility.
-- `src/ir/validate.rs` — 26 tests (valid modules, undefined drive
-  roots, canonical flop/`FlopQ` backrefs, missing-D / mux-ref
-  failures, representative gate-shape rejection classes, and
-  design-level hierarchy acceptance/rejection).
-- `src/gen/cone.rs` — 42 tests covering picker, anti-collapse,
-  width-adapter, exact-selector `CaseMux` / `CasezMux` cleanup, and
-  motif-edge cases.
-- `src/emit/sv.rs` — 17 tests (module header, clk/rst_n omission,
-  `always_ff` shape, operator + constant rendering, Slice/Concat,
-  Mux ternary, procedural structured surfaces, and hierarchy
-  control-port propagation across comb-only, direct-wrapper, and
-  grandparent-wrapper cases).
-- `src/metrics.rs` — 18 tests (empty module, per-kind gate
-  counting, per-shape flop counting, variable-vs-constant shift-rhs,
-  and hierarchy design metrics for reuse, under-instantiation,
-  parent-side composition, sibling-routed child inputs,
-  direct sibling helper routes, parent-cone helper output support,
-  budgeted parent-cone helpers, registered helper-sourced child-input D
-  cones, direct registered sibling helper routes, stateful
-  parent-composed helper child-input routes, recursive tree shape,
-  per-depth branching
-  profiles, mixed-depth recursion, and profiled on-demand interface
-  realization).
+<!-- book-test: skip — these read `src/` and must run from the repository root; the example harness runs each block in a scratch working directory, so they would fail on a missing path rather than on being wrong -->
+```bash
+grep -c '#\[test\]' src/metrics.rs            # one file
+grep -rc '#\[test\]' src/ --include='*.rs' |
+  awk -F: '{s+=$2} END {print s}'             # the whole crate
+cargo test --lib -- --list | tail -1          # what actually runs
+```
+
+This chapter used to print those numbers, and four of the five had
+decayed — one by 72 % — because nothing forces prose to follow a new
+test (`BOOK-TEST-COUNT-SHADOWS`). They are derived above instead of
+copied here, which is the repair that cannot rot.
+
+Where the mass sits, and what each cluster is *for*:
+
+- `src/ir/types.rs` — factorization, identity-mode, rewrite-layer
+  semantics, and design-aware control-port visibility.
+- `src/ir/validate.rs` — valid modules, undefined drive roots,
+  canonical flop/`FlopQ` backrefs, missing-D / mux-ref failures,
+  representative gate-shape rejection classes, and design-level
+  hierarchy acceptance/rejection.
+- `src/gen/cone.rs` — picker, anti-collapse, width-adapter,
+  exact-selector `CaseMux` / `CasezMux` cleanup, and motif-edge cases.
+- `src/emit/sv.rs` — module header, clk/rst_n omission, `always_ff`
+  shape, operator + constant rendering, Slice/Concat, Mux ternary,
+  procedural structured surfaces, and hierarchy control-port
+  propagation across comb-only, direct-wrapper, and grandparent-wrapper
+  cases.
+- `src/metrics.rs` — empty module, per-kind gate counting, per-shape
+  flop counting, variable-vs-constant shift-rhs, and hierarchy design
+  metrics for reuse, under-instantiation, parent-side composition,
+  sibling-routed child inputs, direct sibling helper routes,
+  parent-cone helper output support, budgeted parent-cone helpers,
+  registered helper-sourced child-input D cones, direct registered
+  sibling helper routes, stateful parent-composed helper child-input
+  routes, recursive tree shape, per-depth branching profiles,
+  mixed-depth recursion, and profiled on-demand interface realization.
+- `src/ir/knob_id.rs` — that knob names are unique and disjoint from
+  category names, which `--steer`'s key classifier depends on. The
+  structural properties it used to assert are now enforced by the
+  `knob_ids!` table itself.
 - Other unit tests cover compaction, config validation, module
   finalisation, hierarchy validation, and CLI overrides.
 

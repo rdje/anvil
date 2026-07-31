@@ -1,6 +1,85 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them
+
+**Landed as:** `pending`. Previous: `48cbc0a`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** `book/src/architecture.md` published a *"Current counts"* list of per-file
+unit-test totals. All five are **deleted** and replaced by the *derivation* — how a
+reader gets the current number themselves — plus the prose that was actually carrying
+information: what each test cluster is *for*. Repair rung **R1** (deletion), fixed at
+tree registration precisely so the cheap wrong fix ("just update the numbers") was not
+available later under pressure.
+
+**Re-measured at `f335926`, immediately before deleting:**
+
+| file | claimed | measured | |
+| --- | ---: | ---: | --- |
+| `src/ir/types.rs` | 40 | **40** | ✓ — *accidentally* |
+| `src/ir/validate.rs` | 26 | 26 | ✓ |
+| `src/gen/cone.rs` | 42 | **43** | −1 |
+| `src/emit/sv.rs` | 17 | **26** | −9 |
+| `src/metrics.rs` | 18 | **31** | −13 (72 % understated) |
+
+The `types.rs` row is the tree's own predicted illustration, and it had come true in
+the interval: `IR-TYPES-DECOMPOSITION.2` moved exactly two tests out, walking 42
+**down onto** the stale 40. *A number that can become correct by coincidence is not
+carrying information.*
+
+**The sweep, keyed on the effect rather than on this instance's shape.** Decision
+`0033` rule (2) — search from the authoritative set, not from the shape you already
+found — so the sweep looked for *any numeral immediately qualifying a countable repo
+noun* across **94 live-doc files**. `CHANGES.md`, `DEVELOPMENT_NOTES.md` and
+`docs/tasks/*.md` are excluded **by kind**: an append-only, dated measurement is
+honest history, not a standing claim, and sweeping them would pressure exactly the
+history rewrite decision `0031` forbids.
+
+**Two more live shadows, found and repaired by deletion:** `book/src/api-tools.md`'s
+*"The `anvil-mcp` server exposes **10 tools**"* and `book/src/api-reference.md`'s
+*"the 10 tools: …"* and *"the 5 workflow prompts"*. All three are derivable
+(`tools/list`, `prompts/list`), growth-coupled, and silent. **Both counts were
+measured against the running server before anything was edited, and both were
+correct** — 10 tools, 5 prompts. So they are recorded as **latent**, not as live
+inconsistencies. That distinction is `PARITY-EXTRACTOR-ARM-SHAPE-GAP.1`'s lesson
+applied to its sibling: *measure whether the guarded thing actually drifted,
+separately from whether the guard works* — overstating it would have been as wrong as
+missing it. `api-tools.md` now points the reader at the server itself; `api-reference.md`
+keeps the **list** and drops the **number beside it**.
+
+**Three false positives, rejected with reasons** — which is what separates an
+effect-keyed sweep from a shape-keyed one that would have "fixed" them into lies:
+
+- `structured-emission.md`'s *"the six surfaces above"* / *"the other six surfaces"* is
+  **positional narrative** about the moment the seventh surface landed. It stays true
+  as the set grows, so decision `0033`'s test (2), growth-coupling, fails.
+- Its *"nine surfaces"* and *"≥ 8"* mirror the **real identifiers**
+  `saw_all_nine_emit_surfaces_in_one_module` and `saw_all_emit_surfaces_in_one_module`.
+  A tenth surface forces a rename **in code**, so test (3), silence, fails.
+- `CODEBASE_ANALYSIS.md`'s *"all 7 categories"* is the **Phase-7 microdesign manifest
+  fact** categories — not the steering taxonomy — and 7 is correct there. A sweep keyed
+  on "a count near the word *categories*" would have rewritten a true statement.
+
+**One find deliberately not guessed at, split to `.2`.** `USER_GUIDE.md`'s *"The 16
+knobs documented below as 'config-file' knobs are now also first-class CLI flags"* is a
+real same-class candidate, but verifying it means reading the section it points at
+rather than pattern-matching the sentence, and it carries a second count whose list
+follows it. `.2` measures before editing.
+
+**Validation.** `mdbook build` clean; `cargo test --test book_examples` **4/4 green**;
+`scripts/check_doctrines.sh` **8/8 PASS** — re-run deliberately after editing
+`book/src/api-tools.md`, which is a declared `ENUMERATION-PARITY` pair-3 site (the
+recorded gotcha: grep the doctrine checks for a file *before* touching it; only the
+count line changed, no adapter id). The two new `bash` blocks carry **reasoned skip
+sentinels** — they read `src/` or need `anvil-mcp` on `PATH`, and the harness runs each
+block in a scratch working directory, so unsentineled they would have failed on a
+missing path rather than on being wrong.
+
+**Files touched:** `book/src/architecture.md`, `book/src/api-tools.md`,
+`book/src/api-reference.md`, `docs/tasks/BOOK-TEST-COUNT-SHADOWS.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — COVERAGE-STEERED-GENERATION.6 — one table, not five
 
 **Landed as:** `f335926`. Previous: `a461b4b`.

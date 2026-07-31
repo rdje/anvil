@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (registered; frontier `.1`)
+- Last updated: `2026-07-31` (`.1` **done** — counts deleted + live docs swept; frontier `.2`, the one find `.1` declined to guess at)
 - Owner: repo-local workflow
 
 ## Goal
@@ -93,12 +93,19 @@ is itself the finding: the claim was not measured when it was made.
 - ID: `BOOK-TEST-COUNT-SHADOWS`
   Status: `active`
   Goal: `Delete the per-file test-count shadows from the book and sweep the live docs for the same shape.`
-  Children: `.1` (delete + sweep + close)
+  Children: `.1` (delete + sweep), `.2` (the one sweep find `.1` did not guess at)
 
 - ID: `BOOK-TEST-COUNT-SHADOWS.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Replace book/src/architecture.md's "Current counts" list with the derivation instead of the snapshot; sweep the live docs for other prose counts of derivable sets, searching from the effect rather than from this instance's shape; record what the sweep finds.`
   Acceptance: `No per-file test count remains in book/src/architecture.md; the reader can still learn where tests live and how to count them; the sweep's results are recorded in this tree; mdbook build clean; docs-only.`
+  Verification: `done — the five per-file counts are GONE from book/src/architecture.md, replaced by three runnable derivations (per-file grep, whole-crate grep+awk, `cargo test --lib -- --list`) plus the per-file prose describing what each cluster is FOR, which is the part that was actually carrying information. Re-measured at f335926 before deleting: types.rs 40 (claimed 40 — ACCIDENTALLY TRUE, exactly as this tree predicted: IR-TYPES-DECOMPOSITION.2 moved 2 tests out and walked 42 down onto the stale number), validate.rs 26 (claimed 26), cone.rs 43 (claimed 42), emit/sv.rs 26 (claimed 17), metrics.rs 31 (claimed 18). A knob_id.rs bullet was added for the cluster COVERAGE-STEERED-GENERATION.6 just reshaped. SWEEP (94 live-doc files; CHANGES.md / DEVELOPMENT_NOTES.md / docs/tasks/*.md EXCLUDED BY KIND — an append-only dated measurement is honest history, not a standing claim), keyed on the EFFECT (a numeral immediately qualifying a countable repo noun) rather than on this instance's shape, per decision 0033 rule (2). It found 2 more live shadows and, just as usefully, three FALSE POSITIVES that the three-part test correctly rejects. FOUND AND REPAIRED HERE: `book/src/api-tools.md` "exposes **10 tools**" and `book/src/api-reference.md` "the 10 tools: <all ten listed>" + "the 5 workflow prompts" — all three derivable (tools/list, prompts/list), growth-coupled and silent. MEASURED AGAINST THE RUNNING SERVER FIRST: both are CURRENTLY CORRECT (10 tools, 5 prompts), so these were LATENT, not live inconsistencies — stated precisely rather than overstated, per PARITY-EXTRACTOR-ARM-SHAPE-GAP.1's lesson that whether the guarded thing drifted must be measured separately from whether the guard works. Repaired by DELETION (R1): api-tools.md now tells the reader to ask the server (`tools/list`), and api-reference.md keeps the LIST and drops the NUMBER beside it — decision 0033's "a number beside a list is one more copy of it". FALSE POSITIVES, rejected with the reason: (a) structured-emission.md's "the six surfaces above" / "the other six surfaces" is POSITIONAL NARRATIVE about the moment the 7th surface landed and stays true as the set grows — test (2) fails; (b) its "nine surfaces" / ">= 8" mirror the REAL identifiers `saw_all_nine_emit_surfaces_in_one_module` / `saw_all_emit_surfaces_in_one_module`, so a 10th surface forces a rename in code — test (3) fails, it is not silent; (c) CODEBASE_ANALYSIS.md's "all 7 categories" is the Phase-7 microdesign MANIFEST FACT categories, not the steering taxonomy, and 7 is correct for that set — a shape-keyed sweep would have "fixed" it wrongly. SPLIT OUT as .2 rather than guessed at: USER_GUIDE.md:464 "The 16 knobs documented below as config-file knobs" — a real same-class candidate, but verifying it means reading the section it points at, and it carries a second count ("Three knobs stay config-file-only") whose list follows it. Checks: mdbook build clean; cargo test --test book_examples green (two new bash blocks carry REASONED skip sentinels — both read src/ or need anvil-mcp on PATH, and the harness runs blocks in a scratch CWD, so unsentineled they would fail on a missing path rather than on being wrong); scripts/check_doctrines.sh 8/8 (book/src/api-tools.md is a declared ENUMERATION-PARITY pair-3 site, so it was re-checked after editing, per the recorded gotcha about grepping the doctrine checks for a file before touching it). Docs-only => DUT byte-identical.`
+  Commit: `pending`
+
+- ID: `BOOK-TEST-COUNT-SHADOWS.2`
+  Status: `pending`
+  Goal: `Resolve the one sweep find .1 deliberately did not guess at: USER_GUIDE.md:464's "The 16 knobs documented below as 'config-file' knobs are now also first-class CLI flags", plus the "Three knobs stay config-file-only: library_prob, use_async_reset, max_nodes_per_module" beside it. MEASURE both against the real Config/CLI surface first — the count may be right, wrong, or referring to a set that no longer has crisp boundaries — then apply the rung the measurement earns.`
+  Acceptance: `The claim is measured against src/config.rs + the CLI flag table BEFORE any edit, and the measurement is recorded whatever it says (decision 0033 rule (0): never write "currently correct" without measuring it). If it is a shadow, repaired at rung R1 by deletion — the sentence's real content is "config knobs are also CLI flags, except these three", which needs no total. The three-name exclusion list stays: it is an authoritative enumeration of an exception, not a shadow of a derivable set, and its own count ("Three") is verifiable against the list it introduces. mdbook/USER_GUIDE consistency preserved; docs-only.`
   Verification: `pending`
   Commit: `pending`
 
@@ -106,7 +113,8 @@ is itself the finding: the claim was not measured when it was made.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-TEST-COUNT-SHADOWS.1` | `pending` | **Next.** The book is the owner's only window into the project, so a stale number there misinforms rather than merely omits — the same reason decision `0033` ranked a stale Knowledge Map card as the worst case of this class. |
+| 1 | `BOOK-TEST-COUNT-SHADOWS.1` | `done` | The five per-file counts are replaced by three runnable derivations; the prose that was actually informative (what each test cluster is *for*) is kept. The predicted embarrassment was **live at the time of deletion**: `types.rs` claimed 40 and measured 40, because `IR-TYPES-DECOMPOSITION.2` had walked 42 down onto the stale number. The sweep found 2 more live shadows (**repaired**: the MCP `10 tools` / `5 workflow prompts` counts, both measured **currently correct** and therefore latent, not live) and correctly **rejected three false positives**. |
+| 2 | `BOOK-TEST-COUNT-SHADOWS.2` | `pending` | **Next.** `USER_GUIDE.md`'s *"The 16 knobs documented below as config-file knobs"* — the one sweep find `.1` refused to guess at, because verifying it means reading the section it points at rather than pattern-matching the sentence. Measure before editing. |
 
 ## Decisions
 
@@ -127,12 +135,14 @@ is itself the finding: the claim was not measured when it was made.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-31` | `BOOK-TEST-COUNT-SHADOWS.1` | `re-measured the five claims at f335926 (types 40 vs claimed 40 — accidentally true; validate 26 vs 26; cone 43 vs 42; emit/sv 26 vs 17; metrics 31 vs 18), deleted all five and replaced them with runnable derivations; swept 94 live-doc files from the EFFECT (a numeral qualifying a countable repo noun), excluding append-only history by kind; measured the 2 finds against the RUNNING MCP server (tools/list = 10, prompts/list = 5) BEFORE editing and recorded them as latent-not-live; repaired 3 sites by deletion; rejected 3 false positives with reasons; split the 1 ambiguous find into .2. mdbook build clean; cargo test --test book_examples green; scripts/check_doctrines.sh 8/8 (re-run after touching pair-3 site book/src/api-tools.md)` | `done` |
 | `2026-07-31` | `BOOK-TEST-COUNT-SHADOWS` | `measured all five "Current counts" claims in book/src/architecture.md against git show HEAD:<file> | grep -c '#[test]' — 4 of 5 stale (types.rs 40 vs 42, cone.rs 42 vs 43, emit/sv.rs 17 vs 26, metrics.rs 18 vs 31; only validate.rs at 26 correct); every error an UNDER-count; confirmed all three of decision 0033 rule (a)'s tests hold for the shape` | `defect confirmed, pre-existing` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `BOOK-TEST-COUNT-SHADOWS.1` | `BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them` | R1 deletion in `book/src/architecture.md` + the effect-keyed sweep. Also repaired the MCP `10 tools` / `5 workflow prompts` counts (measured correct first — latent, not live). Three false positives rejected with reasons; one ambiguous find split to `.2`. |
 
 ## Changelog
 

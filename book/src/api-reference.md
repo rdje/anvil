@@ -30,8 +30,8 @@ config, coverage, IR relations). Neither computes anything new — the
 | Page | Covers |
 | --- | --- |
 | Overview & Protocol (this page) | the JSON-RPC envelope, transports, lifecycle methods, the error model, content-addressing, versioning |
-| [Tools](api-tools.md) | the 10 tools: `generate`, `introspect`, `dump_config`, `analyze`, `coverage`, `coverage_gaps`, `validate`, `minimize`, `hunt`, `divergence` |
-| [Resources & Prompts](api-resources-prompts.md) | the `anvil://…` resource URIs and the 5 workflow prompts |
+| [Tools](api-tools.md) | the tools: `generate`, `introspect`, `dump_config`, `analyze`, `coverage`, `coverage_gaps`, `validate`, `minimize`, `hunt`, `divergence` |
+| [Resources & Prompts](api-resources-prompts.md) | the `anvil://…` resource URIs and the workflow prompts |
 | [Introspection & Analysis Schemas](api-introspection.md) | the `--introspect` document, the `analyze` query result schemas, the wire contract |
 
 ## Transports

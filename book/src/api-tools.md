@@ -1,6 +1,13 @@
 # API Reference: Tools
 
-The `anvil-mcp` server exposes **10 tools**, called with `tools/call`:
+The `anvil-mcp` server exposes the tools below, called with `tools/call`.
+For the authoritative list at any commit, ask the server itself — it is the
+registry, and this page is a description of it:
+
+<!-- book-test: skip — needs the `anvil-mcp` binary on PATH; this is the reader's own environment, not a build artifact the harness can assume -->
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | anvil-mcp
+```
 
 ```json
 { "jsonrpc": "2.0", "id": 1, "method": "tools/call",
