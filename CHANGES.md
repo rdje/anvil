@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.3 — check the list, not the file (tree CLOSED)
 
-**Landed as:** `pending`. Previous: `d4dd326`.
+**Landed as:** `ff2406c`. Previous: `d4dd326`.
 **Docs + one doctrine check** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Implements decision `0037`. `ENUMERATION-PARITY`'s `covers_set` — *"does this
