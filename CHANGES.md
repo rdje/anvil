@@ -1,6 +1,87 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.1 — the cap moved the pressure; audit + register
+
+**Landed as:** this commit. Previous: `43aad06`.
+**Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** A new tree, opened on an **owner finding measured in PGEN** and sent back as a
+lesson: *"A cap that redirects overflow must also check where the overflow lands…
+naming four overflow destinations without requiring any of them to be bounded is a
+**policy-level hole, not a PGEN accident**."* PGEN capped its `README.md` on two axes and
+routed the overflow into `LIVE_ACHIEVEMENT_STATUS.md`, which had no cap, no staleness check
+and nothing else — and reached **1,547,057 bytes, 94.7 % of it a dated changelog**. The cap
+did not remove the pressure; it moved it to an uninstrumented neighbour.
+
+**Why it is ANVIL's problem.** ANVIL adopted that policy — `README_POLICY.md`, decision
+[`0036`](docs/decisions/0036-readme-landing-page-restoration.md), doctrine `README-GROWTH`
+— so it inherits the hole **by construction** unless measured. The owner's closing clause is
+the load-bearing one, and it is why this became a tree rather than a note.
+
+**Hole confirmed, identical in kind.** Measured at `43aad06`:
+`scripts/check_readme_growth.sh` caps `README.md` on two axes and, on failure, names six
+canonical destinations at lines 63–67 — **all inside `note` strings**, i.e. advice, never
+assertions. Across every check in the repository, **exactly two files carry a size
+instrument**: `README.md` (line **and** byte, `:89-90`) and `MEMORY.md` (line only,
+`check_memory_architecture.sh:38`). Every named overflow destination is **unmeasured**.
+
+**Severity is *not* PGEN's, and that is stated rather than assumed.** Run-log /
+banked-evidence line density (`anvil-<bank>` · `` `rNN` `` · `saw_*` · `NNN/0` ·
+`coverage_gaps`): `ROADMAP.md` **13.9 %** (400/2,874), `book/src/architecture.md` **13.8 %**
+(123/892), `USER_GUIDE.md` **8.8 %** (218/2,466), `CODEBASE_ANALYSIS.md` **7.8 %**
+(212/2,727). Against PGEN's **94.7 %** these are an order of magnitude cleaner. Claiming
+parity to make the finding land harder would have been as wrong as missing it — the
+`PARITY-EXTRACTOR-ARM-SHAPE-GAP` corollary that you measure whether the guarded thing
+actually drifted, separately from whether the guard exists.
+
+**But line counts hide the exposure.** The longest **single line** in
+`CODEBASE_ANALYSIS.md` is **24,990 characters — 2.03× ANVIL's entire README byte cap**
+(12,288), with a second at 13,472; `ROADMAP.md`'s longest is 3,653. Prose density confirms
+it: **103 B/line** for `CODEBASE_ANALYSIS.md` against 64–65 for `README.md` and
+`ROADMAP.md`. So any instrument this tree adds must be **byte-first** — a line cap on these
+surfaces would pass while the file doubled. This is decision `0036` §(c)'s "both caps,
+because prose density is the hidden variable" at its limit, where one *line* clears the byte
+cap twice over.
+
+**The correction the lesson needs — the part the source project cannot see alone.** *"Cap
+every overflow destination"* would be **wrong here, and actively harmful**. `CHANGES.md`
+(2,311,825 B) and `DEVELOPMENT_NOTES.md` (987,868 B) are **append-only by absolute owner
+directive** (decision [`0031`](docs/decisions/0031-ssd-volume-exclusivity.md): *"Keep it
+raw, keep honest"*), and `docs/tasks/` (2,678,491 B) + `docs/decisions/` (646,803 B) are
+layer-B/C records. Capping any of them would pressure authors into precisely the history
+rewrite `0031` forbids — which is decision
+[`0033`](docs/decisions/0033-shadow-enumeration-classification.md) **test (2)** exactly: an
+artifact *supposed* to differ from the bound is authoritative, and bounding it destroys the
+property it exists to hold. The rule is therefore **classify, then instrument only the
+bounded ones**.
+
+**And a third category, which is what PGEN actually hit.** A **mixed** surface — a bounded
+status view with an unbounded dated changelog inside one file — has **no valid cap because
+of the mixture**, and the mixture is exactly what hides the growth. Its repair is
+**separation before instrumentation**, never a cap on the mixture.
+
+**No repair attempted, deliberately.** Nothing was capped and no content trimmed: four
+destinations must never be capped, and deciding which are bounded is `.2`'s job. `.3`
+applies with a control **proven capable of failing** before it is trusted (the standing
+gotcha from `CSG.6`, where three negative controls passed on the first try and all three
+were too weak). `.4` pushes the corrected rule back into the **portable** policy documents,
+since fixing only ANVIL leaves every other adopter of that policy exposed.
+
+**Validation.** Every figure re-derived from the tree at `43aad06`; the routing hint read
+directly from the check script rather than from its documentation; sizes measured in **both**
+lines and bytes for all eleven live docs plus three directories; run-log density measured per
+surface rather than asserted. `scripts/check_doctrines.sh` green after `git add`. `src/`
+untouched ⇒ DUT byte-identical by construction; the full `cargo test` was green at `e85ec03`
+earlier this session and `src/` has not moved since.
+
+**Impact.** No behaviour changes and no cap added. What changes is that a hole the owner
+found in a sibling project is now measured in ANVIL, owned by a tree, and — because `.4`
+targets the portable policy — on a path to being closed for every adopter rather than one.
+
+**Files touched.** `docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md` (new),
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.2 — position is a record: repair by pointer, not relocation
 
 **Landed as:** `e85ec03`. Previous: `c758c6c`.
