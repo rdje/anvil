@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.2 — the pressure went to the unmeasured axis
 
-**Landed as:** this commit. Previous: `e4b4fd5`.
+**Landed as:** `4a91c45`. Previous: `e4b4fd5`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** Classified every overflow destination as decision
