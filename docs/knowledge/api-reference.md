@@ -17,7 +17,7 @@ answers:
 date: 2026-06-17
 status: current
 tags: [api, mcp, reference, book, introspection, json-rpc, agent, docs]
-evidence: book/src/api-reference.md (Overview & Protocol — JSON-RPC envelope, transports, lifecycle methods, error model, versioning); book/src/api-tools.md (the 9 tools with input schemas + examples); book/src/api-resources-prompts.md (resources + the 5 prompts); book/src/api-introspection.md (the --introspect document envelope + the 4 analyze query schemas + the schema_version contract); book/src/agent-mcp.md (the narrative tutorial that links the reference); src/mcp/mod.rs (the source of truth: tools_list / resources_list / prompts / dispatch / error codes); docs/AGENT_INTROSPECTION_SCHEMA.md (the field-by-field wire contract); docs/decisions/0017-api-first-everything-mcp-accessible.md
+evidence: book/src/api-reference.md (Overview & Protocol — JSON-RPC envelope, transports, lifecycle methods, error model, versioning); book/src/api-tools.md (the callable tools with input schemas + examples); book/src/api-resources-prompts.md (resources + the workflow prompts); book/src/api-introspection.md (the --introspect document envelope + the analyze query result schemas + the schema_version contract); book/src/agent-mcp.md (the narrative tutorial that links the reference); src/mcp/mod.rs (the source of truth: tools_list / resources_list / prompts / dispatch / error codes); docs/AGENT_INTROSPECTION_SCHEMA.md (the field-by-field wire contract); docs/decisions/0017-api-first-everything-mcp-accessible.md
 reverify: 'mdbook build book   (the API Reference pages build clean; their schemas are derived verbatim from src/mcp/mod.rs tools_list / resources_list / prompts and docs/AGENT_INTROSPECTION_SCHEMA.md)'
 ---
 
@@ -35,11 +35,14 @@ ANVIL's **agent/automation API** is documented in the mdBook in two layers
     `resources.*`/`prompts.*`), the **error model** (protocol errors `-32700`
     parse / `-32601` method-not-found / `-32602` invalid-params **vs** tool-level
     `isError: true` results), content-addressing, and the versioning/stability
-    contract (`protocolVersion 2024-11-05`, `schema_version 1.11` MINOR/MAJOR, the
-    `SCHEMA-DERIVED` no-new-truth invariant).
-  - `book/src/api-tools.md` — the **9 tools** (`generate`, `introspect`,
-    `dump_config`, `analyze`, `coverage_gaps` [pure]; `validate`, `minimize`,
-    `hunt`, `divergence` [controlled]), each with a parameter table
+    contract (`protocolVersion 2024-11-05`, the `schema_version` MINOR/MAJOR
+    policy, the `SCHEMA-DERIVED` no-new-truth invariant). The live schema
+    version is `introspect::SCHEMA_VERSION` in `src/introspect/mod.rs` — read it
+    there rather than from a number copied into this card, which is exactly how
+    this line came to say `1.11` against a live `1.27`.
+  - `book/src/api-tools.md` — the tools (`generate`, `introspect`,
+    `dump_config`, `analyze`, `coverage`, `coverage_gaps` [pure]; `validate`,
+    `minimize`, `hunt`, `divergence` [controlled]), each with a parameter table
     (name/type/required/default/constraints), the result shape, errors, and a
     request → response example.
   - `book/src/api-resources-prompts.md` — the `anvil://…` resources

@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (registered; frontier `.1`)
+- Last updated: `2026-07-31` (`.1` **done** — three sites repaired, KM regenerated; frontier `.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -106,10 +106,10 @@ tree exists rather than a one-line doc fix.
   Children: `.1` (repair the three sites), `.2` (the declared-site question)
 
 - ID: `LIVE-DOC-REGISTRY-SHADOWS.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Repair the three measured sites: add the missing coverage tool to the KM card's list and delete the 9 beside it; re-derive that card's schema_version; add motifs + emission to both book chapters' category lists. Regenerate KNOWLEDGE_MAP.md from the cards.`
   Acceptance: `A live tools/list, the knob_ids! table, and introspect::SCHEMA_VERSION are each re-measured at repair time and the doc matches; the count beside the tool list is gone (R1) while the list itself is complete; check_knowledge_map.sh clean; mdbook build clean; check_doctrines.sh 8/8; docs-only.`
-  Verification: `pending`
+  Verification: `done — RE-MEASURED at repair time (rule 0), all three confirming the registration measurement: a live tools/list returns 10 (generate, introspect, dump_config, validate, minimize, coverage_gaps, analyze, coverage, hunt, divergence); introspect::SCHEMA_VERSION is "1.27"; the knob_ids! category column yields 8. REPAIRED. (a) docs/knowledge/api-reference.md: the tool list gained the missing `coverage` entry and the count "9" beside it was DELETED (rung R1 — a number beside a list is one more copy of it, the same repair .1 of BOOK-TEST-COUNT-SHADOWS applied to api-reference.md); the pure/controlled split was taken from book/src/api-tools.md rather than guessed, putting `coverage` in the pure group. The card's `schema_version 1.11` was replaced by a POINTER to introspect::SCHEMA_VERSION plus an explicit note that copying the number is how the line came to say 1.11 against a live 1.27 — the derivation-not-snapshot rung again. The `evidence:` frontmatter line carried the same three counts ("the 9 tools", "the 5 prompts", "the 4 analyze query schemas"); all three numbers dropped there too, since a count in a retrieval card is read INSTEAD of re-deriving. (b) book/src/agent-mcp.md and (c) book/src/api-introspection.md: both category lists completed to all eight, and both gained the one sentence that makes the two new members non-obvious — `motifs` rolls at most once per module while `emission` rolls once per candidate gate, which is WHY they are separate categories and not one. KNOWLEDGE_MAP.md regenerated from the cards (88 facts / 889 question keys) and check_knowledge_map.sh reports in-sync; verified the stale count is absent from the generated map, i.e. the fix went into the SOURCE card and propagated, not into the derived file. NEGATIVE CONTROL, and it genuinely fails: a probe copy of check_enumeration_parity.sh with the two chapters added to pair 4 was run against `git show HEAD:<file>` (pre-repair) and against the worktree (post-repair) — agent-mcp.md FAILS at HEAD missing {emission, motifs} and passes after; api-introspection.md FAILS at HEAD missing {motifs} and passes after. Per the recorded gotcha, a control that passes on the first try is worthless, so this was checked in both directions before being believed. THE CONTROL ALSO SURFACED A REAL WEAKNESS IN THE PROPOSED MECHANISM, recorded here as input to .2: covers_set is a WHOLE-FILE SUBSTRING grep, so api-introspection.md scored 7/8 rather than 6/8 — the word "emission" appears elsewhere in that file, far from the list. Extending pair 4 to these sites would therefore have caught agent-mcp.md outright but only partially diagnosed api-introspection.md, and a file whose list is short can pass outright if every missing word happens to appear somewhere else in it. That is the same shape as the documented datapath/covers_set over-match hazard, and it means .2 cannot simply add sites — it has to decide whether covers_set should check the LIST rather than the FILE. Also corrected in passing: the BOOK-TEST-COUNT-SHADOWS container node still read Status: active after its metadata was flipped to done in the previous commit. Checks: mdbook build clean; check_knowledge_map.sh in sync; scripts/check_doctrines.sh 8/8 after git add. Docs-only => DUT byte-identical.`
   Commit: `pending`
 
 - ID: `LIVE-DOC-REGISTRY-SHADOWS.2`
@@ -123,8 +123,8 @@ tree exists rather than a one-line doc fix.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `LIVE-DOC-REGISTRY-SHADOWS.1` | `pending` | **Next.** Three measured, live, user-visible inaccuracies — two of them in the book, which is the owner's only window into the project. Repair is mechanical once measured; the measurement is already done and recorded above. Re-measure at repair time anyway (rule 0). |
-| 2 | `LIVE-DOC-REGISTRY-SHADOWS.2` | `pending` | The general question. `.1` fixes three sites; `.2` decides whether the *gate* can stop depending on someone having found them. Deliberately second: repair the live inaccuracy first, then reason about the mechanism with the tree clean. |
+| 1 | `LIVE-DOC-REGISTRY-SHADOWS.1` | `done` | All three sites repaired against re-measured registries: the KM card gained the missing `coverage` tool and lost its `9`, its `schema_version 1.11` became a pointer to `introspect::SCHEMA_VERSION`, and both book chapters now name all eight categories with the `motifs`-vs-`emission` resolution difference spelled out. Negative control **fails pre-repair, passes post** — and in failing, exposed that `covers_set` greps the whole *file*, not the *list*, which is now `.2`'s central question rather than an afterthought. |
+| 2 | `LIVE-DOC-REGISTRY-SHADOWS.2` | `pending` | **Next.** The general question, and `.1` sharpened it: it is no longer only *"can the declared-site list be derived?"* but also *"is `covers_set` even the right predicate?"* — `.1` measured it scoring `api-introspection.md` 7/8 when its list was 6/8, because a missing word appeared elsewhere in the file. A gate that reads the file instead of the list can pass on a doc whose enumeration is short. Both halves land as one decision record. |
 
 ## Decisions
 
@@ -150,13 +150,14 @@ tree exists rather than a one-line doc fix.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-07-31` | `LIVE-DOC-REGISTRY-SHADOWS.1` | `re-measured all three registries at repair time (tools/list = 10; SCHEMA_VERSION = 1.27; knob_ids! categories = 8) and repaired every site: coverage added to the KM card's tool list + the "9" deleted (R1), schema_version 1.11 replaced by a pointer to introspect::SCHEMA_VERSION, the card's evidence frontmatter stripped of its three counts, and motifs + emission added to both book chapters with the once-per-module vs once-per-gate distinction spelled out. KNOWLEDGE_MAP.md regenerated from the cards and verified in sync, with the stale count confirmed absent from the generated map. Negative control run in BOTH directions against git show HEAD: — agent-mcp.md fails pre-repair missing {emission, motifs}, api-introspection.md fails missing {motifs}, both pass after — and it exposed that covers_set greps the whole file rather than the list, scoring api-introspection.md 7/8 when its list held 6/8. mdbook build clean; check_doctrines.sh 8/8 after git add` | `done` |
 | `2026-07-31` | `LIVE-DOC-REGISTRY-SHADOWS` | `measured a live tools/list (10 tools; docs/knowledge/api-reference.md lists 9, coverage absent) and the knob_ids! category column (8; book/src/agent-mcp.md and book/src/api-introspection.md each name 6, omitting motifs + emission); confirmed the other five list sites name all eight; confirmed ENUMERATION-PARITY pair 4 passes because neither offending chapter is one of its four declared sites; confirmed prompts/list = 5 so the card's "5 prompts" is correct` | `defect confirmed, pre-existing, live` |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| — | — | `.1` pending |
+| `LIVE-DOC-REGISTRY-SHADOWS.1` | `LIVE-DOC-REGISTRY-SHADOWS.1 — name the whole registry, not the part we found` | `coverage` added to the KM card's tool list + the count R1-deleted; `schema_version` de-snapshotted; both book chapters completed to all eight steering categories. Negative control fails pre-repair. |
 
 ## Changelog
 

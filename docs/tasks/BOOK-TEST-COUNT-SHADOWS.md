@@ -91,7 +91,7 @@ is itself the finding: the claim was not measured when it was made.
 ## Task Tree
 
 - ID: `BOOK-TEST-COUNT-SHADOWS`
-  Status: `active`
+  Status: `done`
   Goal: `Delete the per-file test-count shadows from the book and sweep the live docs for the same shape.`
   Children: `.1` (delete + sweep), `.2` (the one sweep find `.1` did not guess at) — both `done`
 

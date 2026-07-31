@@ -43640,3 +43640,68 @@ Files: `USER_GUIDE.md`, `docs/tasks/BOOK-TEST-COUNT-SHADOWS.md`,
 Checks: `cargo check --all-targets` clean; the published derivation re-run and
 its output matched the corrected prose exactly; `scripts/check_doctrines.sh`
 8/8 after `git add`. Docs-only ⇒ DUT byte-identical.
+
+## 2026-07-31-live-doc-registry-shadows-1 — LIVE-DOC-REGISTRY-SHADOWS.1 name the whole registry, not the part we found
+
+Three live-doc sites named a **strict subset** of a registry that is
+authoritative elsewhere in the repo. All three re-measured at repair time
+(decision `0033` rule 0), each confirming the registration measurement:
+
+- a live `tools/list` returns **10** tools; `docs/knowledge/api-reference.md`
+  said *"the 9 tools"* and **listed nine** — `coverage` was absent from the
+  enumeration, so the defect was **membership**, not merely a count;
+- `introspect::SCHEMA_VERSION` is **`1.27`**; the same card cited `1.11`;
+- the `knob_ids!` category column yields **8**; `book/src/agent-mcp.md` and
+  `book/src/api-introspection.md` each named **6**, omitting `motifs` and
+  `emission` — and `agent-mcp.md` called its six *"the fixed set"*, which makes
+  the omission a positive false claim rather than a partial example.
+
+**Repairs.** The KM card's tool list gained `coverage` (placed in the *pure*
+group by reading `book/src/api-tools.md`'s class column rather than guessing)
+and the `9` beside it was **deleted** — rung R1, a number beside a list is one
+more copy of it. Its `schema_version 1.11` became a **pointer** to
+`introspect::SCHEMA_VERSION`, with an explicit note that hand-copying the number
+is exactly how the line came to be stale. The card's `evidence:` frontmatter
+carried the same three counts (`9 tools`, `5 prompts`, `4 analyze query
+schemas`); all three numbers were dropped there too, because a count inside a
+retrieval card is read *instead of* re-deriving. Both book chapters were
+completed to all eight categories, each gaining the one sentence that makes the
+two new members non-obvious: `motifs` rolls at most once per module while
+`emission` rolls once per candidate gate, which is *why* they are separate
+categories rather than one.
+
+`KNOWLEDGE_MAP.md` was regenerated from the cards (88 facts / 889 question keys)
+and verified in sync; the stale count is confirmed absent from the generated
+map, i.e. the fix went into the **source card** and propagated rather than being
+patched into the derived file.
+
+**Negative control, run in both directions.** A probe copy of
+`check_enumeration_parity.sh` with the two chapters added to pair 4 was run
+against `git show HEAD:<file>` and against the worktree. It genuinely fails
+pre-repair — `agent-mcp.md` missing `{emission, motifs}`, `api-introspection.md`
+missing `{motifs}` — and passes after. Per the recorded gotcha that a control
+passing on the first try is worthless, this was checked before being believed.
+
+**The control also exposed a real weakness in the mechanism `.2` was going to
+propose**, and that is the more valuable result: `covers_set` greps the whole
+**file**, not the **list**, so `api-introspection.md` scored 7/8 when its
+enumeration held 6/8 — the word `emission` appears elsewhere in that file, far
+from the list. Extending pair 4 to these sites would have caught `agent-mcp.md`
+outright but only partially diagnosed `api-introspection.md`, and a doc whose
+list is short passes outright whenever every missing word happens to appear
+somewhere else in it. That is the same shape as the documented
+`datapath`/`covers_set` over-match hazard, and it turns `.2` from *"can the
+declared-site list be derived?"* into the sharper *"is `covers_set` even the
+right predicate?"*.
+
+Also corrected in passing: `BOOK-TEST-COUNT-SHADOWS`'s container node still read
+`Status: active` after its metadata was flipped to `done` in the previous commit.
+
+Files: `docs/knowledge/api-reference.md`, `book/src/agent-mcp.md`,
+`book/src/api-introspection.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/LIVE-DOC-REGISTRY-SHADOWS.md`,
+`docs/tasks/BOOK-TEST-COUNT-SHADOWS.md`, `MEMORY.md`, `CHANGES.md`.
+
+Checks: `mdbook build` clean; `check_knowledge_map.sh` in sync;
+`scripts/check_doctrines.sh` 8/8 after `git add`. Docs-only ⇒ DUT
+byte-identical.

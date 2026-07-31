@@ -1075,8 +1075,13 @@ cargo run --release -- --seed 42 --steer state=4 --steer coefficient_prob=3 --st
 The steering target is the durable, reproducible artifact a sweep or a CI finding
 pins to: re-running with the same `(seed, knobs, steering-config)` is
 byte-identical forever. The taxonomy a category key uses is the fixed set
-`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy`; a key
-may also be any individual knob name (e.g. `flop_prob`). See
+`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy` /
+`motifs` / `emission`; a key may also be any individual knob name (e.g.
+`flop_prob`). Two of those are worth telling apart before you steer by category:
+`motifs` picks *what kind of module this is* and rolls at most once per module,
+while `emission` picks how an already-built cone is *rendered* and rolls once per
+candidate gate — so a single module contributes thousands of `emission` attempts
+against one `motifs` attempt. See
 [Knobs and Reproducibility](knobs.md) for the per-knob roll-rate contract and
 [The Fanin Cone Algorithm](algorithm.md#construction-time-coverage-steering) for
 the steering mechanism.

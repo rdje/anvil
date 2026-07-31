@@ -108,7 +108,7 @@ the envelope as a `CoverageDocument`'s `coverage` payload).
 | Field | Meaning |
 | --- | --- |
 | `knob_fire_rates` | per-knob (keyed by knob name) `{ attempts, fires, fire_rate }` — the empirical fire rate `fires / attempts` over the construction-time rolls. Only knobs rolled at least once appear. |
-| `category_fire_rates` | the same cell pooled over each coarse category (`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy`) — attempt-weighted. |
+| `category_fire_rates` | the same cell pooled over each coarse category (`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy` / `motifs` / `emission`) — attempt-weighted. Note that `motifs` rolls at most once per module while `emission` rolls once per candidate gate, so their attempt counts differ by orders of magnitude; that is why they are separate categories rather than one. |
 | `gate_kind_histogram` | count of emitted gates per `GateOp` kind. |
 | `gate_operand_count_histogram` | histogram of gate operand counts (arity). |
 | `gate_depth_histogram` | histogram of per-gate combinational depth. |
