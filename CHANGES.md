@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them
 
-**Landed as:** `pending`. Previous: `48cbc0a`.
+**Landed as:** `1a6f276`. Previous: `48cbc0a`.
 **Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** `book/src/architecture.md` published a *"Current counts"* list of per-file
