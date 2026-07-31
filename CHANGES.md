@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.3 — the second axis is live
 
-**Landed as:** this commit. Previous: `c1b765c`.
+**Landed as:** `e801617`. Previous: `c1b765c`.
 **`scripts/` + docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
 
 **What.** The derived **6,144-byte** cap on `MEMORY.md` is live, as `MEMORY_POINTER_BYTE_CAP` in
