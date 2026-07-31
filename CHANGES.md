@@ -1,6 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.5a — the directive against parking things in MEMORY.md was parked in MEMORY.md
+
+**Landed as:** this commit. Previous: `85e4b7f`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Relocated the owner's standing directives out of the overwrite-only resume pointer into
+layer C as decision
+[`0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md), leaving a
+two-line pointer behind. **Owner-authorised** on `2026-07-31` (*"OK then to relocate"*) — asked
+before acting, the content being owner-set.
+
+**Why it was more than a size trim.** `0040` §4 had measured that 65 % of `MEMORY.md` is layer-C
+content. Measuring *what depends on it* found the sharper problem: **13 citations across 9
+decision records** point at these directives, and **4** name the location literally as
+*"(`MEMORY.md` standing directives, `2026-07-30`)"*. `MEMORY.md` is layer **A** —
+`MEMORY_ARCHITECTURE.md` §3 defines it as **overwritten** on each update with a hard cap, and §6
+states it as *"Overwrite, don't append."* So nine decision records were citing, as durable
+provenance, a file the standard guarantees will be destroyed.
+
+And the most-cited directive of the set is the one that says, in the owner's own words, *"If you
+just record in `MEMORY.md` it will be lost there."* **The directive warning against parking things
+in the resume pointer was itself parked in the resume pointer.** That is the failure mode
+operating on its own statement.
+
+**Four of seven were pointed at, not moved — and separating CITED from RECORDED is what made the
+difference.** A coarse probe reported *"has a layer-C home"* for entries whose only hits were
+citations pointing **back** at `MEMORY.md`. Every hit was opened and read — `ODI.1`'s own caution,
+*a reference count is not a dependency measure*, applied to this leaf's own instrument. Measured:
+
+| directive | verdict |
+| --- | --- |
+| never rewrite history · the SSD is the only project volume · shared means shared · harness runtime files belong to the harness | **already recorded in `0031`, with the owner's verbatim quotes** (`:72` the *"keep it raw, keep honest"* quote, `:80-82` the prohibitions, `:111`/`:156` `CARGO_HOME`/`RUSTUP_HOME`, `:138` the harness limit) ⇒ `MEMORY.md`'s copies were **`0033` shadows**, repaired at rung **R1 by pointer** |
+| a defect is only handled if a task-tree owns it · decide, don't ask · `~/Documents/github` is owner-owned | **no layer-C home at all** ⇒ recorded **verbatim** in `0041` |
+
+Restating `0031`'s four here would have been the second copy this project's own doctrine forbids —
+the same reasoning `0038` §(b) used to reject re-publication.
+
+**No citation needed editing, and that is the reusable half.** All 13 cite by **owner + date**,
+which is stable across a move. The provenance style `README-POLICY-PROVENANCE.1` mandated — *cite
+an owner directive by owner and date, never by a harness bootstrap file* — is exactly what made
+this relocation cheap. A citation keyed on a **location** would have required 13 edits across 9
+landed decision records, which `0031` forbids anyway.
+
+**Validation — loss proved by whole-range token sweep, not a phrase list** (`0036` §(iii)):
+
+| sweep | swept | residue |
+| --- | ---: | ---: |
+| backticked tokens in the removed 2,696-byte range | **29** | **0** |
+| words of ≥ 5 characters in the same range | **162** | **1** |
+
+The single residue is **`doc/code`** — a **composite of covered parts** (`doc` 63 hits, `code` 57
+in `docs/decisions/` alone), which is exactly the residue shape `0036` predicts for a *working*
+sweep. Its underlying fact — *no live doc or code points at a boot-volume path* — is not merely
+recorded but **mechanically gated** by `NO-BOOT-VOLUME-REFS`. **No orphaned fact.**
+
+Also: `cargo check --all-targets` clean; knowledge-map regenerated (**93 → 94** facts / **944 →
+955** question keys) and `check_knowledge_map` OK; `scripts/check_doctrines.sh` **8/8** after
+`git add`.
+
+**Bytes, and the gap reported rather than closed.** `MEMORY.md` **19,885 → 18,157 B** (−1,728 net
+of the two-line pointer block), **49 → 44 lines**. The derived **6,144**-byte cap is **not**
+reached by this leaf: **12,013 B remain over**, and per `0040` non-license 3 that is **reported,
+not met by raising the cap**. `.5b` carries the remainder.
+
+**`.5` was split into `.5a` / `.5b`.** Different content kind (owner policy vs operational lessons)
+and different destination (a decision record vs Knowledge Map cards, which
+`KNOWLEDGE_MAP_ARCHITECTURE.md` §4 names explicitly for gotchas), so each gets its own loss-proof
+and its own commit.
+
+**Files touched.** `docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md` (new),
+`docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.6 — register the finding instead of parking it
 
 **Landed as:** `8473821`. Previous: `b102936`.
