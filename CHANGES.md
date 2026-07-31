@@ -1,6 +1,94 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.5b — MEMORY.md under its derived cap
+
+**Landed as:** this commit. Previous: `62f9e21`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Relocated the remaining layer-C content out of the resume pointer into twelve Knowledge
+Map fact cards and pointer blocks, and tightened `## Current state` so it points rather than
+summarises. **`MEMORY.md` is now inside the cap decision `0040` derived for it, without that cap
+being raised.**
+
+| | lines | bytes | vs 6,144 cap |
+| --- | ---: | ---: | ---: |
+| at the start of `.5` | 49 | 19,885 | **3.24×** |
+| after `.5a` (directives → `0041`) | 44 | 18,157 | 2.96× |
+| after `.5b` (this commit) | **30** | **6,037** | **98 % — under** |
+
+A **69.6 %** reduction, and `.3` — which installs the cap as a second assertion in
+`check_memory_architecture.sh` — is therefore **unblocked**.
+
+**Twelve fact cards**, one per coherent retrieval question, each *pointing* at its canonical home
+rather than copying it: `sandbox-clear-during-test-run` · `sweep-must-not-rewrite-its-own-subject`
+· `baseline-from-git-show-not-the-worktree` · `deleting-a-live-doc-safely` ·
+`negative-control-must-be-able-to-fail` · `probability-is-priority-under-mutual-exclusion` ·
+`defect-class-audit-rules` · `run-a-new-tool-against-real-output` ·
+`never-parse-a-formatter-for-a-semantic-set` · `doctrine-check-must-classify-not-guess` ·
+`gated-workflow-shell-gotchas` · `verilator-declfilename-on-fixed-filename-dumps`.
+`KNOWLEDGE_MAP_ARCHITECTURE.md` §4 names a **gotcha** explicitly as card material, and §3(6)
+requires a card to point at the canonical home rather than duplicate it. Knowledge Map
+**94 → 106 facts / 955 → 1,022 question keys**; `check_knowledge_map` OK.
+
+**`## Lane invariants` and `## Validation policy` were pointed at, not moved.** Probed
+individually: the four `feedback_*` invariants, rules-first/valid-by-construction, SCHEMA-DERIVED
+/ no-shadow-simulator and doctrine-enforcement are all already recorded in decisions `0004`,
+`0006`, `0007`, `0011`, `0017`, `0026` or in `book/src/by-construction.md` + `algorithm.md`; and
+**both** halves of the validation policy — the 90 % `ram_guard` threshold with its
+environment-stop framing, and the focused-checks-for-workflow-leaves owner instruction — are in
+decision [`0003`](docs/decisions/0003-resource-safe-validation.md), whose own `answers:` keys
+already ask *"what RAM threshold stops a full suite"* and *"when is focused workflow validation
+enough"*. Both sections were therefore `0033` shadows, repaired at rung **R1 by pointer**.
+
+**The gotchas pointer is a DERIVATION, not a list — and this is the call worth recording.**
+Naming the twelve cards in `MEMORY.md` would have been derivable, growth-coupled and silent:
+every future gotcha card would have to remember to update it. That is a **fresh shadow minted by
+the leaf whose whole purpose is removing shadows.** The pointer publishes
+`grep -l 'gotcha' docs/knowledge/*.md` instead, and every card carries the `gotcha` tag.
+
+**The scope widening is required by the leaf's own goal, and is stated as such.** `0040` §(d)
+scoped `.5` to the two named sections — but removing only those leaves **6,698 B**, still over the
+cap. So `## Lane invariants`, `## Validation policy` and the `## Current state` tightening are
+demanded by the goal, not opportunistic; the `DATED-COUNT-SWEEP-EXEMPTION.2` precedent applies,
+where every added line was measured before it was touched. `## Current state` was itself
+**5,028 B** of layer-A prose summarising decisions `0040`/`0041` that already hold the content —
+the same defect one level in.
+
+**Validation — loss proved by whole-range token sweep** (`0036` §(iii)), over the removed
+**11,743 bytes**:
+
+| token class | swept | residue |
+| --- | ---: | ---: |
+| backticked | 104 | 4 |
+| words ≥ 5 chars | 565 | 3 |
+| numerals | 37 | 0 |
+| **total** | **706** | **7** |
+
+**Every one of the seven was opened and verified a composite or re-phrasing of covered parts, with
+zero orphaned facts:** `135 |=` / `13 extend` / `1 max` are recorded verbatim at `0033:106-107` as
+`135 × |=` + `13 × .extend()` + `1 × .max()` (only the multiplication sign differs);
+`10,297 B / 141 lines` at `deleting-a-live-doc-safely.md:36`; `sites/` at `0034:139` as *"8 sites
+in 2 files"*; `dialects` and `policy/history` are re-phrasings whose facts are carried in full.
+
+**Two of the new cards fired during their own verification**, which is the best evidence they were
+worth writing. `git grep` reported the `10,297` residue as missing — because the new cards were
+still **untracked**, and `git grep` sees tracked content only (`gated-workflow-shell-gotchas`).
+And a single-line grep missed *"policy and history documents first"* because it **wraps across a
+line break** (`never-parse-a-formatter-for-a-semantic-set`).
+
+Also: `cargo check --all-targets` clean; `scripts/check_doctrines.sh` **8/8** after `git add`;
+`MEMORY.md`'s four required fields (`active_work_unit`, `next_action`, `in_flight_uncommitted`,
+`blockers`) all present.
+
+**Impact.** The resume pointer is a resume pointer again: **30 lines / 6,037 bytes**, pointing at
+`0031`, `0041`, twelve fact cards and the decision records, rather than carrying 65 % layer-C
+content the line cap could not see. `.3` is unblocked and can install the byte cap against a file
+that already passes it.
+
+**Files touched.** `docs/knowledge/` (12 new cards), `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.5a — the directive against parking things in MEMORY.md was parked in MEMORY.md
 
 **Landed as:** `4f3d508`. Previous: `85e4b7f`.
