@@ -1,6 +1,121 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.3 — a date is not evidence of pastness
+
+**Landed as:** this commit. Previous: `e954fe8`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Landed the two rules `.1` and `.2` measured, as decision
+[`0039`](docs/decisions/0039-sweep-exemption-past-vs-present-and-recorded-recall.md), and gave
+`0033` a dated **pointer** Amendment rather than a restatement. This closes the tree at its
+*rule*, not at its two victims.
+
+| # | the rule |
+| --- | --- |
+| **(a)** | A sweep **exempts a hit when the enclosing record is a statement about the PAST — never for carrying a DATE.** A standing claim with a date on it is still a standing claim, and the date makes it *look* like history precisely to the sweep built to catch it. The test is asked of the **enclosing record**, not the numeral: *does this describe what was true at a named moment, or what is true now?* |
+| **(b)** | A sweep **records its MATCH COUNT, not only its finds** — the authoritative set and its size, the key verbatim, the number of candidates matched, and every candidate's disposition. Reporting finds alone reports *precision* and leaves *recall* unmeasurable, which makes the coverage claim unfalsifiable. |
+
+**Why here, and not in `0033`.** `0033` §(c) closed on *"this class is discovered by review
+and held by derivation"* and then specified the **derivation** half completely — the four-rung
+repair ladder, the `ENUMERATION-PARITY` doctrine — and the **review** half not at all. Both of
+this tree's measured misses landed in the unspecified half. `0033`'s subject is *what a list
+is*; these are rules for *how a sweep is run and recorded*, and they bind sweeps with nothing
+to do with enumerations — the `/tmp` sweep that rewrote decision `0030`'s own `reverify` into
+nonsense fails rule (a) too. Folding conduct into classification would bury a general rule
+inside a specific one. (Procedure agrees independently: `0033` is `accepted`, so a substantive
+addition is a new record or a supersession, never an edit — `0038`'s boundary.) `0033` gets a
+five-line dated Amendment that states **nothing in it changes** and routes the reader onward.
+
+**Why no separate Knowledge Map card — settled from the repo's own mechanism, not from taste.**
+`KM_SCAN_DIRS` is `docs/knowledge docs/decisions`, so a decision record carrying `answers:`
+front-matter is indexed into `KNOWLEDGE_MAP.md` **directly**. Probed: `0038`'s answer keys
+resolve to its record, and `0039`'s twelve now do the same (map regenerated **91 → 92 facts /
+920 → 932 question keys**, `check_knowledge_map` OK). A sweep author asking *"what is exempt
+from a shadow sweep?"* therefore reaches `0039` in **one lookup**, which makes an extra card a
+**second copy of a rule whose entire subject is that second copies rot** — decision `0033` R1
+applied to this leaf's own output. Distinguished in the record from the `coverage-check-vacuity`
+precedent: that card carries a *portable method* generalised out of a project-specific
+enforcement decision, whereas here the record **is** the portable method.
+
+**The coordination question was settled by MEASUREMENT, and the answer is "precondition", not
+"duplicate".** `.2` flagged that `OVERFLOW-DESTINATION-INSTRUMENTATION.1` §6 finding 2 proposes
+*a self-declared date disagreeing with the file's newest content* as an instrument, and that two
+trees building one instrument would itself be a `0033` shadow. Measured at `e954fe8`:
+
+| measurement | result |
+| --- | ---: |
+| file-level self-declared freshness field in either survivor file | **0** |
+| the same field across the 108-file live-doc set | **0** |
+| the same field across `docs/tasks/*.md` (excluded set — negative control) | **75 files / 76 lines** |
+| of those 75 — tree status `done` / `closed` | **60** |
+| of those 75 — tree status `active` | **14** |
+| of those 75 — `TEMPLATE.md` (`proposed`) | **1** |
+| the same pattern on a synthetic line appended to a live-doc copy | **1** |
+
+Three conclusions, none available without measuring. **(1)** Instrument (b) **could not have
+caught this class**: its subject is a *file-level* freshness field, against which the file's
+newest content is a derivable baseline, whereas this class's dates are *inline parentheticals
+inside one sentence*, for which no such baseline exists — and neither survivor carried a
+freshness field at all. There is no duplicated mechanism to avoid. **(2)** It has **zero**
+subjects in ANVIL's live docs; all 75 real subjects are task-tree files. **(3)** **Rule (a) is a
+precondition for instrument (b), not a competitor**: **60 of the 74** real trees are
+`done`/`closed`, where `Last updated:` is a statement about the past and correctly frozen, so a
+mechanical staleness comparison applied without rule (a) would **cry wolf on 60 of 74** — which
+is `0033` **test (2)** exactly, and the failure mode that gets a gate deleted.
+`OVERFLOW-DESTINATION-INSTRUMENTATION.2` inherits the measurement instead of re-taking it.
+
+**No gate, deliberately, on two independent grounds** (recorded in `0039` §(c)): `0033` §(c)
+already ruled the past-vs-present relation **semantic** and therefore not mechanizable as
+discovery; and a gate on rule (b) would check a match-count line's **presence**, never its
+**truth**.
+
+**Validation.** Rule (b) was **applied to this leaf's own sweeps**, not merely written down.
+
+- **Sweep A** — key: a file-level self-declared freshness field. Authoritative set: 108 tracked
+  `*.md` minus the by-kind exclusions. **Match count 0.** Negative-controlled **both ways**, and
+  the control was checked to be *capable* of failing before it was trusted (the `CSG.6` gotcha):
+  the same key returns **75 files / 76 lines** over the excluded `docs/tasks/` set and **1** on a
+  synthetic freshness line appended to a copy of `TOOLBOX.md`.
+- **Sweep B** — key: a dated standing test-count claim, re-verifying `.2`'s R1 repair. Same
+  authoritative set. **Match count 2**, both lines in `docs/TASK_TREE.md`, both **opened and read
+  individually** rather than judged in bulk — `:101` is this tree's own index row quoting the
+  survivors' text; `:131` is `STRUCTURED-EMISSION-EXPANSION`'s row carrying per-leaf
+  `cargo test --lib` verification records (493 / 600 / 605 / 636). Every one is a past-tense
+  record of a named leaf's completed action ⇒ correctly exempt, **0 live standing claims remain**.
+- **Sweep C** — key: a numeral qualifying *"decision record(s)"*, run **before** adding `0039` to
+  check that a new record rots nothing. Authoritative set: all tracked files minus the by-kind
+  exclusions. **Match count 0** — nothing in the repo counts decision records, and
+  `check_memory_architecture.sh` enforces index membership per file (loud, not silent).
+- `mdbook build` clean; `knowledge-map` regenerate + `check_knowledge_map` OK;
+  `cargo check --all-targets` clean; `scripts/check_doctrines.sh` **8/8** after `git add`.
+
+**Two findings recorded rather than quietly fixed.**
+
+1. **`docs/TASK_TREE.md` is exempt BY KIND** — it is the task-tree *index*, layer-B history of
+   the same kind as `docs/tasks/`. `.2` swept it and hand-checked its two hits; the corrected
+   rule classifies it out, which is the by-kind exclusion list becoming **derivable from the
+   rule** instead of carried by habit.
+2. **Print the bucket you could not classify.** Writing this record's own measurement, a status
+   extractor whose `sed` script began with a greedy `.*` before the capture group returned
+   `surelog` as a tree's status — it took the **last** backticked token on the line rather than
+   the first after `Status:`. It was caught **only** because the sweep printed its unclassified
+   bucket instead of silently binning it. That is rule (b) in miniature, and the third instance
+   of this repo's standing gotcha that *an extractor must die on a missing field, never fall
+   through to something plausible*. Recorded as a corollary in `0039` §(b).
+
+**Impact.** The review half of `0033` §(c) now has written conduct rules, so a sweep is
+reproducible and its coverage claim is falsifiable. Every sweep's verification log gains one
+required field — the match count — which is precisely the line that would have exposed both of
+this tree's failures. `DATED-COUNT-SWEEP-EXEMPTION` **closes**; five explicit non-licenses in
+`0039` keep it from being cited to justify tidying history.
+
+**Files touched.** `docs/decisions/0039-sweep-exemption-past-vs-present-and-recorded-recall.md`
+(new), `docs/decisions/0033-shadow-enumeration-classification.md` (dated pointer Amendment +
+one Links row), `docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/DATED-COUNT-SWEEP-EXEMPTION.md`, `docs/TASK_TREE.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — DATED-COUNT-SWEEP-EXEMPTION.2 — the second copy was six times bigger
 
 **Landed as:** `a3c446d`. Previous: `72d7d4b`.

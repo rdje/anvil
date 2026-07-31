@@ -381,8 +381,25 @@ would have licensed exactly the damage the tree's Non-Goals forbid.
 - Whether `ENUMERATION-PARITY`'s declared-pairs table lives in the check script or in a
   small tracked data file that the check reads.
 
+## Amendment (`2026-07-31` — a pointer, not a change: the review half now has conduct rules)
+
+**Nothing in this record changes.** The three-question rule, the four-rung repair ladder, the
+four hard cases and the §(c) mechanizability verdict all stand exactly as written. This
+paragraph exists because §(c) closed on *"this class is discovered by review and held by
+derivation"* and then specified only the **derivation** half — and both subsequent misses
+landed in the unspecified **review** half.
+
+[`0039`](0039-sweep-exemption-past-vs-present-and-recorded-recall.md) supplies it, with two
+rules measured by `DATED-COUNT-SWEEP-EXEMPTION`: a sweep's **exemption is keyed on whether
+the enclosing record speaks about the past or the present, never on whether it is dated**,
+and a sweep **records its match count, not only its finds**, or its recall is unauditable.
+Read `0039` before running a sweep under this record's rule; it is a refinement of the
+*practice*, not of the classification.
+
 ## Links
 
+- Conduct rules for the review half: [`0039`](0039-sweep-exemption-past-vs-present-and-recorded-recall.md)
+  (see the Amendment above).
 - Tree: [`docs/tasks/SHADOW-ENUMERATION-SWEEP.md`](../tasks/SHADOW-ENUMERATION-SWEEP.md)
   (`.1` registered the class and the first audit; this leaf is `.2`).
 - Owner doctrine: **A DEFECT IS ONLY HANDLED IF A TASK-TREE OWNS IT** and **DECIDE, DON'T

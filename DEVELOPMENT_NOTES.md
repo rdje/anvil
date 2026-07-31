@@ -5,6 +5,66 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A date is not evidence of pastness; and print the bucket you could not classify — `DATED-COUNT-SWEEP-EXEMPTION.3`
+
+Decision `0033` §(c) closed on *"this class is discovered by review and held by derivation"*
+and then specified the **derivation** half completely — the four-rung repair ladder, the
+`ENUMERATION-PARITY` doctrine — and the **review** half not at all. Both of this tree's
+measured misses landed in the unspecified half. Decision `0039` supplies it with two rules,
+neither reasoned and both earned.
+
+**Rule (a) — the exemption is keyed on the enclosing record, not on the numeral.** Ask *"does
+this record describe what was true at a named moment, or what is true now?"* — never *"is it
+dated?"*. The distinction matters because a date is the disguise, not the evidence:
+`BOOK-TEST-COUNT-SHADOWS.1` deleted every *undated* count in the chapter it repaired and left
+both *dated* ones, and both dated survivors called themselves ***current*** in their own text
+while carrying a two- and three-month-old date.
+
+Stating the rule at the level of the **record** rather than the line is the part worth keeping.
+A numeral is ambiguous in isolation; *"what is this file for"* is answerable once per file and
+reusable across every hit in it. It also makes the by-kind exclusion list **derivable from the
+rule** instead of carried by habit — `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `docs/tasks/`,
+`docs/TASK_TREE.md`, `docs/evidence/` and `docs/decisions/` are exempt *because they are records
+of the past*. That immediately corrected one entry: `docs/TASK_TREE.md` is the task-tree index,
+layer-B of the same kind as `docs/tasks/`, and `.2` had been sweeping it and hand-checking its
+hits.
+
+**Rule (b) — record the match count, not only the finds.** *"Found 2 shadows and 3 false
+positives"* is compatible with a key that matched 5 candidates and with one that matched 500;
+only the second is a miss, and nothing in the log distinguishes them. The denominator is the
+falsifiable part. This is the sibling of `CHANGES-ENTRY-PLACEMENT.3`'s finding two commits
+earlier — there an extractor whose *pattern* was unrecorded, here one whose *match set* was.
+
+**Neither rule is gated, on two independent grounds.** `0033` §(c) already ruled the
+past-vs-present relation *semantic* and therefore not mechanizable as discovery; and a gate on
+rule (b) would check a match-count line's **presence**, never its **truth**. What stays
+mechanized is what is structural: `ENUMERATION-PARITY` holds the declared pairs, and `0037`'s
+*delete-the-subject* probe proves a coverage check non-vacuous. These rules govern the review
+that finds the pairs in the first place.
+
+**The corollary, earned inside the leaf that wrote the rule.** *Print the bucket you could not
+classify.* Measuring how many task trees carry a `Last updated:` field, a status extractor whose
+`sed` script began with a greedy `.*` before the capture group returned `surelog` as a tree's
+status — the `.*` had taken the **last** backticked token on the line instead of the first after
+`Status:`, because that tree's status line is
+`` - Status: `active` (… `surelog`/UHDM … `.2d+` future picks) ``. It was caught **only** because
+the sweep printed its unclassified bucket rather than silently binning it. Third instance of the
+standing gotcha that *an extractor must die on a missing field, never fall through to something
+plausible* — and the first where the instrument being audited was the one writing the rule.
+
+**The coordination finding is the reusable half for other trees.** Before adopting a shared
+staleness instrument from `OVERFLOW-DESTINATION-INSTRUMENTATION`, it was measured rather than
+agreed with: a *file-level self-declared freshness field* has **0** subjects in either survivor
+file and **0** across the 108-file live-doc set, so it could not have caught this class at all —
+its subject has a derivable baseline (the file's newest content) while an *inline dated
+parenthetical* has none. And of its **75** real subjects, all `docs/tasks/*.md`, **60** are
+`done`/`closed` trees where the field is correctly frozen — so applied without rule (a) it would
+cry wolf on **60 of 74**. The generalisable shape: **"should we share this instrument?" is a
+measurement, not a negotiation**, and the measurement can convert an apparent duplication into
+an ordering — here rule (a) is a *precondition* for the instrument, not a competitor to it.
+
+---
+
 ## 2026-07-31 — Two copies of one number rotted to two different wrong values; and a sweep that reports its finds but not its match count cannot be audited — `DATED-COUNT-SWEEP-EXEMPTION.2`
 
 `.1` registered three stale lines in `CODEBASE_ANALYSIS.md`. Enumerating that file against
