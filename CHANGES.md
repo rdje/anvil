@@ -1,6 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — CHANGES-ENTRY-PLACEMENT.3 — two pointer stubs; nothing moved
+
+**Landed as:** this commit. Previous: `709d4d0`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Applied decision [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md):
+two dated **pointer stubs** were inserted at the position the file's two misplaced entries
+should have occupied — `LIVE-DOC-REGISTRY-SHADOWS.1` (`abf7090`) then
+`BOOK-TEST-COUNT-SHADOWS.2` (`715019b`), in that order, matching git — immediately above the
+`BOOK-TEST-COUNT-SHADOWS.1` (`1a6f276`) entry and below `LIVE-DOC-REGISTRY-SHADOWS.2`
+(`e873a6e`). Each stub carries **only join keys and the reason**: the leaf id, the entry's
+commit hash and commit time, the entry's exact heading, a `grep` recipe to find it, and why it
+is where it is. **No body is reproduced** — a second copy of a 65-/74-line entry would be a
+shadow under decision `0033`. **The misplaced originals were not touched.**
+
+**The line numbers `0038` fixed had already drifted, so placement was re-derived.** `0038`
+determined the insertion point as *"after line 244, before line 380"*, measured at `c758c6c`.
+By the time `.3` ran, two `OVERFLOW-DESTINATION-INSTRUMENTATION.1` entries had landed above
+them and those lines were **490** and **626** — a drift of **246 lines in the same day**. The
+*identity* (leaf + hash) was stable; only the coordinates rotted. `.3` therefore re-derived
+the position from the headings themselves and, on that evidence, settled `0038`'s open
+question the stable way: **the stubs cite no line number**, only a hash and a `grep` recipe. A
+line number in a file that grows at the top is a shadow of the file's own length.
+
+**Validation — insertion-only, proven three ways.** Baseline hashes were taken before the
+edit. (1) `head -n 625` is byte-identical: `7197950b…ced29` before and after. (2) The tail
+below the insertion point — all **43,704** lines from the old line 626 to EOF — is
+byte-identical: `3621b281…d5883` before and after. (3) `git diff --numstat` reports
+**`63  0  CHANGES.md`**: sixty-three insertions, **zero** deletions, zero
+deletion lines (`grep -c '^-[^-]'` = 0) and zero modification hunks.
+
+**The ordering oracle still reports zero violations.** Re-run after the insertion over the
+authoritative form — a canonical `**Landed as:** \`hash\`` provenance line, resolved against
+`git rev-list HEAD`: **269** citations, **268** resolved, **1** unresolved, and the resolved
+commit indices descend **monotonically with zero violations**. The single unresolved hash is
+`cf3dc3c164b0f8bb908d23d15b8248c275b683fb`, exactly the one `0038` §1(vi) recorded; it is now
+at line 32598, which is 32289 + 246 (drift since `c758c6c`) + 63 (this insertion) — the
+arithmetic confirms it is the same citation, left raw per `0031`. The date-keyed scan is
+unchanged at 3 hits, of which `0038` proved 2 false: lines 9853 and 26995 (mis-dated headings
+over correctly-ordered entries) plus the real one at 44255.
+
+**Two measurements that correct the record rather than being quietly dropped.**
+
+**(a) `0038`'s "388 entries at a wider extraction width" is not reproducible from its own
+description, and both naive widenings are worse instruments.** `.2` recorded the oracle *"run
+at two extraction widths (266 → 388 resolved as the pattern widened), zero violations each"*
+but did not record what "wider" meant. Two candidate widenings were tried here. Taking the
+first git-resolvable backticked hash anywhere in an entry yields **449** entries and **19**
+apparent violations; falling back to the provenance line's `previous:` hash when an entry's
+own is absent yields **360** and **14**. **Every one of those apparent violations is an
+extractor artifact of the form `idx == prev`** — the widened pattern grabbing a *reference* to
+another commit, or the same commit twice in a row, rather than the entry's own provenance.
+Neither is evidence of a real inversion, and neither reproduces 388. The conclusion `.2`
+reached is **independently confirmed at the strict width** (zero violations over 269
+citations), so its *finding* stands; what does not stand is the reproducibility of its
+*instrument*. This is the repo's own recorded rule arriving from the other side: an extractor
+must be specified precisely enough to re-run, and widening a pattern to raise its count trades
+coverage for noise.
+
+**(b) The `**Landed as:**` line is present far more often than it is complete: 574 lines, but
+only 269 carry a hash and 181 still say `\*\*Landed as:\*\* this commit`.** `COMMIT.md` §9
+mandates backfilling that placeholder with the real hash after the commit lands, and decision
+`0038`'s same-day Amendment was written specifically to license that backfill as *"a
+completion, not a correction"*. Measured, the step is **skipped for roughly a third of all
+provenance lines**. This both sharpens and enlarges `.2`'s root-cause finding — the defect is
+a skipped authoring step, and it is not confined to the two entries this tree was opened on —
+and it explains why the hash-keyed oracle sees only 269 of 651 entry headings. It is **not
+repaired here**: back-filling 181 landed entries is neither this leaf's scope nor obviously
+licensed, and `0038` §(d)(5) already refuses the adjacent act for the 73 oldest. Recorded, and
+handed to `.4`, which now has a third and much larger piece of evidence that the leverage is
+in the authoring path rather than in a post-hoc placement gate.
+
+**Impact.** `CHANGES.md`'s stated ordering — *"Newest entries at the top"* — is now true for a
+top-down reader: the two most recent leaves are named where a cold session looks for them. The
+originals stay byte-identical where their author put them, and the mistake is now *documented*
+rather than merely present, which is the bar `0031`'s rationale actually sets. `.4` inherits a
+materially stronger evidence base than `0038` handed it.
+
+**Files touched.** `CHANGES.md` (the two stubs + this entry),
+`docs/tasks/CHANGES-ENTRY-PLACEMENT.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.1 — measure the mixed surface (evidence appendix)
 
 **Landed as:** `0860b85`. Previous: `5f31d33`.
@@ -622,6 +704,69 @@ to fix it, and the vacuity probe is available to every future check.
 `KNOWLEDGE_MAP.md` (regenerated), `DOCTRINE_ENFORCEMENT.md` (§9),
 `book/src/architecture.md`, `docs/tasks/LIVE-DOC-REGISTRY-SHADOWS.md`,
 `docs/TASK_TREE.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
+## 2026-07-31 — LIVE-DOC-REGISTRY-SHADOWS.1 — POINTER STUB (the entry itself is at the bottom of this file)
+
+**This is a pointer, not the entry.** No content is reproduced here — copying a landed body
+would mint a second copy of it, which is a shadow under decision
+[`0033`](docs/decisions/0033-shadow-enumeration-classification.md).
+
+- **Entry landed as:** `abf7090`, committed `2026-07-31T02:51:59+02:00`.
+- **Entry heading:** `## 2026-07-31-live-doc-registry-shadows-1 — LIVE-DOC-REGISTRY-SHADOWS.1 name the whole registry, not the part we found`.
+- **Find it:** `grep -n 'live-doc-registry-shadows-1' CHANGES.md` — no line number is cited on
+  purpose; this file grows at the top, so a line number here would be a shadow of the file's
+  own length. (The line numbers decision `0038` recorded for this very repair had already
+  drifted by 246 lines by the time `.3` came to apply it.)
+- **Stub added by:** `CHANGES-ENTRY-PLACEMENT.3`, under decision
+  [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md).
+
+**Why the entry is down there.** Its author appended it below the *oldest* entry in project
+history instead of at the top, so this file's stated ordering — *"Newest entries at the
+top"*, line 2 — was false for a top-down reader, and a session recovering cold read the top
+and concluded the most recent change was two leaves older than it actually was.
+
+**Why it was not simply moved.** Decision `0038`: **position is itself a record.** That this
+entry sits at the bottom is the evidence its author put it there; relocating it would leave a
+file in which the mistake never happened. Since the misplacement is the very thing being
+repaired, moving it would repeat decision `0030`'s `reverify` accident exactly — mechanically
+rewriting the one document whose subject is the thing being rewritten. The repair is therefore
+**additive**: this stub is inserted at the position the entry should have occupied, the
+original is not touched, and the mistake becomes *more* legible than before, because it is now
+documented rather than merely present.
+
+**Root cause, measured.** The entry deviates in **three** ways, not one: bottom placement, the
+`## DATE-slug` heading convention retired after `2026-06-14`, and a missing `**Landed as:**`
+provenance line. That line is present in 571 entries and absent in 75 — the 73 oldest as one
+contiguous run, **plus this entry and its sibling below**. Those two are the only entries
+written after the convention was adopted that lack it, so all three deviations share one
+cause: a **stale authoring template**, not an ordering slip.
+
+## 2026-07-31 — BOOK-TEST-COUNT-SHADOWS.2 — POINTER STUB (the entry itself is at the bottom of this file)
+
+**This is a pointer, not the entry.** No content is reproduced here, for the reason given in
+the stub above.
+
+- **Entry landed as:** `715019b`, committed `2026-07-31T02:47:46+02:00`.
+- **Entry heading:** `## 2026-07-31-book-test-count-shadows-2 — BOOK-TEST-COUNT-SHADOWS.2 the count matched neither referent`.
+- **Find it:** `grep -n 'book-test-count-shadows-2' CHANGES.md`.
+- **Stub added by:** `CHANGES-ENTRY-PLACEMENT.3`, under decision
+  [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md).
+
+**Same defect, same cause, same repair.** This entry and the one above are the two the
+`CHANGES-ENTRY-PLACEMENT` tree was opened on, and they are the file's **only** ordering
+defect: measured against git — the authoritative ordering oracle — 388 of the 646 entry
+headings cite a resolvable commit hash, and their commit indices descend **monotonically, with
+zero violations**. Everywhere the oracle can see, the file is correctly ordered.
+
+**Why no check caught it.** `scripts/check_diagnosis_evidence.sh:43` asks only whether
+`CHANGES.md` appears in the staged-file list — never whether an entry was added, and never
+*where*. It is also scope-aware, so a docs-only commit is exempt outright, which is what both
+offending commits were. A hash-keyed ordering check would not have helped either: it is
+**vacuous for exactly this defect**, because both entries carry no `**Landed as:**` line and
+so sit 4,516 lines below its horizon — decision
+[`0037`](docs/decisions/0037-enumeration-parity-declared-sites-and-list-scoped-coverage.md)'s
+*delete-the-subject* test firing without deleting anything. Whether any mechanism is warranted
+is `CHANGES-ENTRY-PLACEMENT.4`'s question.
 
 ## 2026-07-31 — BOOK-TEST-COUNT-SHADOWS.1 — derive the counts, do not print them
 

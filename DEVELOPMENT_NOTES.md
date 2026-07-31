@@ -5,6 +5,71 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A coordinate rots, an identity does not; and a count you cannot re-derive is not a measurement — `CHANGES-ENTRY-PLACEMENT.3`
+
+Applying decision [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md)
+produced three lessons that are worth more than the two stubs it inserted.
+
+**1. The decision's own line numbers rotted before the decision was applied.** `0038` fixed
+the insertion point as *"after line 244, before line 380"*, measured at `c758c6c`. By the time
+`.3` ran — the same day — two `OVERFLOW-DESTINATION-INSTRUMENTATION.1` entries had landed at
+the top of `CHANGES.md` and those lines were **490** and **626**. A 246-line drift, in hours,
+in a decision whose entire subject is that this file grows at the top.
+
+The identity — leaf id plus commit hash plus heading text — did not move at all. So `0038`'s
+open question (*should a stub cite the original's line number, or only its hash and heading?*)
+answered itself in the doing, and the stubs cite **no line number**. Generalised: **a pointer
+into an append-at-top document must be keyed on identity, never on position.** A line number
+there is a shadow of the file's own length under decision
+[`0033`](docs/decisions/0033-shadow-enumeration-classification.md)'s three tests — derivable
+(`grep -n`), growth-coupled (every entry above it invalidates it), and silent (nothing fails
+when it goes stale). The same argument applies to any citation of `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`, or `docs/tasks/*.md` in a doc or a script.
+
+**2. A widened extractor is not a stronger extractor.** `.2` recorded its git-order oracle as
+*"run at two extraction widths (266 → 388 resolved as the pattern widened), zero violations
+each"* — but did not record **what the wider pattern was**. `.3` could not reproduce 388. Two
+plausible widenings were tried: taking the first git-resolvable backticked hash anywhere in an
+entry gives **449** entries and **19** apparent violations; falling back to the provenance
+line's `previous:` hash when the entry's own is missing gives **360** and **14**.
+
+Every one of those 33 apparent violations has the form `idx == prev` — the widened pattern
+grabbing a *reference* to some other commit, or the same commit twice in a row, instead of the
+entry's own provenance. So both widenings **cry wolf**, which is the exact failure mode `0038`
+disqualified the date-keyed scan for. The strict form — a canonical
+`**Landed as:** \`hash\`` line and nothing else — gives 269 citations and **zero** violations,
+and is the one adopted.
+
+Two rules fall out. **(a) An extractor must be specified precisely enough to re-run**; a
+recorded *count* whose *pattern* is not recorded is a number, not a measurement, and the
+number is what a later reader will trust. This is the repo's standing *"never parse a
+formatter's output for a semantic set"* gotcha arriving from the other side: there the
+extractor was too narrow and silently under-read; here it is too broad and noisily over-reads.
+**(b) Widening a pattern to raise its count trades coverage for noise.** `.2`'s *finding* —
+that the file has exactly one ordering defect — is independently confirmed at the strict
+width, so nothing it concluded is wrong; only its instrument is unreproducible, and that is
+recorded rather than quietly dropped.
+
+**3. The provenance line is present far more often than it is complete.** Measuring the whole
+file rather than the two entries in hand: `**Landed as:**` appears on **574** lines, but only
+**269** carry a resolvable hash, and **181** still read `**Landed as:** this commit`.
+
+`COMMIT.md` §9 mandates replacing that placeholder once the commit exists, and `0038`'s own
+same-day Amendment was written specifically to license the backfill as *"a completion, not a
+correction"*. Measured, the step is skipped for roughly a third of all provenance lines. That
+**enlarges** the root cause `.2` named: the stale authoring template is not a property of two
+entries, it is a systematically skipped authoring step — which is also why the hash-keyed
+oracle can only see 269 of 651 entry headings, a much bigger blind spot than the 4,516-line
+horizon `0038` measured from the two strays alone.
+
+It is deliberately **not repaired here**. Back-filling 181 landed entries is outside `.3`'s
+scope, and *widening a repair beyond its proven defect is how the `/tmp` sweep damaged decision
+`0030`*. But it is not obviously forbidden either, and that ambiguity is itself worth naming:
+`0038`'s Amendment permits an edit that *"supplies a value the entry itself left explicitly
+pending"*, and `this commit` is literally such a value. So unlike the six non-licenses in
+`0038` §(d), this one is arguably permitted — and `.4` is required to rule on it explicitly
+rather than leave it to inference.
+
 ## 2026-07-31 — Position is a record; and the two obvious ordering checks are both wrong — `CHANGES-ENTRY-PLACEMENT.2`
 
 Decision [`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md). Three
