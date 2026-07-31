@@ -468,6 +468,32 @@ src/
 │                     proper low-bits Slice gates render as an internal
 │                     `union soft` overlay (see `ir/soft_union.rs`).
 │
+├── ir/intern.rs      IR-TYPES-DECOMPOSITION.3 — the CANONICALIZATION
+│                     ENGINE, split out of `ir/types.rs` because it answers
+│                     "is this node the same expression as one I already
+│                     have?", not "what is a circuit?". Five functions, moved
+│                     VERBATIM (byte-identical lines, proven by a whole-file
+│                     line census: zero original non-blank lines lost, and
+│                     the only additions are the module doc + one `use`):
+│                     `intern_gate` (structural interning + commutative
+│                     operand normalization), `intern_constant`,
+│                     `fold_constants`, `flatten_associative` (same-op
+│                     splicing, AND/OR dedup, XOR pair cancellation) and
+│                     `apply_peephole` (the rewriter: constant comparison,
+│                     mux-const selector collapse, full-width slice and
+│                     single-operand concat identities, double-NOT, NOT/EQ
+│                     inversions, width-modular all-const evaluation).
+│                     An inherent `impl Module` in a sibling module is legal
+│                     in the defining crate, so NO call site changed and NO
+│                     field visibility widened — `gate_instances` and
+│                     `const_instances` were already `pub(crate)`. Blast
+│                     radius was exactly `src/ir/` (3 files). The 37 engine
+│                     tests moved with it and `fold_fixture` moved with them;
+│                     `port`/`comb_child`/`seq_child` STAYED, because the
+│                     fixture usage was measured per side and no fixture is
+│                     needed by both — so nothing was duplicated
+│                     (`feedback_full_factorization`).
+│
 ├── ir/knob_id.rs     IR-TYPES-DECOMPOSITION.2 — the STEERING TAXONOMY,
 │                     split out of `ir/types.rs` because it answers "what
 │                     can be steered, and in which coverage family?", not

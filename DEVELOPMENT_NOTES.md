@@ -5,6 +5,41 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A move is only "pure" if something other than your reading of the diff says so — `IR-TYPES-DECOMPOSITION.3`
+
+Three things from extracting the 2,123-line canonicalization engine out of `types.rs`.
+
+**1. Prove a verbatim move with a line census, not by reviewing the diff.** A 2,000-line move is
+exactly the size at which diff review stops being evidence — the reviewer skims, and a dropped or
+silently reflowed line survives. The cheap mechanical proof: keep a pre-image of the file, then
+assert that **every non-blank line of the original appears byte-identical in one of the two output
+files**, and that the only lines in the new file absent from the original are the ones you
+deliberately wrote (here: a module doc and one `use`). Residue 0 is a fact; "the diff looked fine"
+is an impression.
+
+**2. An inherent `impl` may live in any module of the defining crate — so "split the file" rarely
+needs "widen the visibility".** The instinct when moving methods out is to make fields `pub(crate)`
+to reach them. Unnecessary: an inherent `impl Module` in `crate::ir::intern` sees exactly what
+`crate::ir::types` sees, and the two fields this engine touches were already `pub(crate)`. Call
+sites are untouched because method resolution goes through the *type*, not the module. **If a split
+forces a visibility change, that is a signal the cut is in the wrong place**, not a cost to pay.
+
+**3. Let the function-call graph choose the cut, not the function list you wrote down first.** The
+leaf named three functions; the block was contiguous and contained two more — `fold_constants`
+(0 callers outside the file) and `apply_peephole` (1 caller: `intern_gate`). Measured callers, not
+names, decide membership: a function with zero external callers that sits between two you are
+moving belongs to the thing you are moving.
+
+**And the sharp one.** The first test run was `cargo test | tail -40`, and I reported its exit code
+as proof the suite passed. **A pipeline's exit status is the last command's** — that was `tail`
+succeeding, and the truncation had hidden the 749-test lib suite entirely. This repo already carries
+that exact lesson as a Knowledge Map card (`gated-workflow-shell-gotchas`, whose first answer key is
+literally *"why did cargo test appear to pass when it failed"*). Having the card did not help,
+because the card is retrieved by *question* and I never asked the question — I asked for a readable
+log and got a laundered status as a side effect. **The durable fix is at the command, not in the
+notes: never pipe a command whose exit status you intend to trust.** Redirect to a file and read
+`$?`; if you want a summary, grep the file afterwards.
+
 ## 2026-07-31 — A "none found" is only as good as the instrument that looked — `OVERFLOW-DESTINATION-INSTRUMENTATION.8`
 
 Decision `0040` did something careful and honest: it evaluated two candidate detectors for the

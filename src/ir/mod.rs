@@ -8,6 +8,10 @@ pub mod cone_function_emit;
 pub mod dedup;
 pub mod function_emit;
 pub mod generate_loop;
+/// The canonicalization engine (`IR-TYPES-DECOMPOSITION.3`). It adds an inherent
+/// `impl Module`, so there is nothing to re-export: every `intern_gate` /
+/// `intern_constant` call site resolves through `Module` exactly as before.
+pub mod intern;
 pub mod knob_id;
 pub mod knob_roll;
 pub mod multi_output_task_emit;

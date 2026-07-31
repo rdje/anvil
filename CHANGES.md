@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — IR-TYPES-DECOMPOSITION.3 — extract the canonicalization engine into src/ir/intern.rs
+
+**Landed as:** `pending`. Previous: `dd3aadc`.
+**Pure move** — `src/ir/` only, no semantic change ⇒ **DUT byte-identical** (`tests/snapshots.rs`
+6/6, **no `.snap` rewritten**).
+
+**What.** `src/ir/types.rs` **3,607 → 1,485 lines**; new `src/ir/intern.rs` (2,173) owns the
+canonicalization engine: `intern_gate` (structural interning + commutative operand normalization),
+`intern_constant`, `fold_constants`, `flatten_associative` (same-op splicing, AND/OR dedup, XOR
+pair cancellation) and `apply_peephole` (the rewriter). `types.rs` now answers *"what is a
+circuit?"*; `intern.rs` answers *"is this node the same expression as one I already have?"*
+
+**The goal named three functions; measurement said five.** The engine is **contiguous** at lines
+742–1904, and `fold_constants` (326 lines, **0** callers outside `types.rs`) and `apply_peephole`
+(422 lines, **1** caller — `intern_gate` itself) sit between the named three. Moving around them
+would have split one engine across two files and left `types.rs` holding code only the other file
+calls. The list was widened on evidence, and the reason is recorded rather than applied silently.
+
+**Why an inherent `impl Module` in a sibling module is legal, and why that matters.** Rust permits
+an inherent impl in any module of the *defining crate*, and the only two fields the engine touches
+— `gate_instances`, `const_instances` — were **already `pub(crate)`**. So **no visibility widened
+and no call site changed**: `intern_gate` (91 references) and `intern_constant` (15) resolve
+through `Module` exactly as before. That is what makes this a move rather than a redesign.
+
+**Validation.**
+- **Verbatim proven by whole-file line census against a pre-image**, not by reading the diff:
+  every non-blank line of the original 3,608-line `types.rs` appears **byte-identical** in
+  `types.rs` or `intern.rs` afterwards — **residue 0** — and the only lines in `intern.rs` absent
+  from the original are the 17-line module doc plus one `use`.
+- **The import list came from the compiler, not from guessing**: the first build named `DepSet`
+  missing and `HashMap` unused; both fixed.
+- **`#[test]` count exactly conserved: 40 → 3 + 37.**
+- **Fixture split measured per side**, as the acceptance demanded: `fold_fixture` has **7** uses,
+  all from engine tests ⇒ **moved**; `port` (12), `comb_child` (1), `seq_child` (1) are used only
+  by the three staying tests ⇒ **stayed**. No fixture is needed by both, so **nothing was
+  duplicated and no copy was left behind** (`feedback_full_factorization`).
+- **Blast radius exactly `src/ir/`** — 3 files. Zero call sites changed anywhere else, which is the
+  tree's own review criterion for purity.
+- `cargo test` **1,058 passed / 0 failed** across 17 suites (lib 749, downstream 133, pipeline 113);
+  `clippy --all-targets -D warnings` clean; `fmt --all --check` clean.
+
+**Method correction, recorded because it nearly shipped an unfounded claim.** The first test run was
+invoked as `cargo test … | tail -40`. **A pipeline's exit status is the last command's**, so the
+reported "exit code 0" was `tail`'s, not cargo's — and the truncated log hid the 749-test lib
+suite entirely. This repo already carries that exact lesson as a Knowledge Map card
+(`gated-workflow-shell-gotchas`, *"why did cargo test appear to pass when it failed"*) and it
+happened anyway. The run was redone **unpiped with `$?` captured to a file** before any green claim
+was made. *A recorded gotcha prevents nothing unless the command is written to obey it.*
+
+**Files touched.** `src/ir/intern.rs` (new), `src/ir/types.rs`, `src/ir/mod.rs`,
+`CODEBASE_ANALYSIS.md`, `docs/tasks/IR-TYPES-DECOMPOSITION.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — Record the owner's push cadence in layer C, and give COMMIT.md its missing push step
 
 **Landed as:** `pending`. Previous: `567d284`.
