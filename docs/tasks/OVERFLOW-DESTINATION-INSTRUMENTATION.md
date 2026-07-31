@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / doctrine-policy completeness
 - Created: `2026-07-31`
-- Last updated: `2026-07-31` (`.2` **done** — decision [`0040`](../decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md): **three** classes not two, and the pressure went to the **unmeasured AXIS** of `MEMORY.md`; tree grows to five leaves, frontier **`.5`**)
+- Last updated: `2026-07-31` (`.2` **done** — decision [`0040`](../decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md): **three** classes not two, and the pressure went to the **unmeasured AXIS** of `MEMORY.md`; tree grows to **six** leaves — `.6` registers `0040` §(g)'s long-line finding so it is task-tree-owned rather than parked in decision prose; frontier **`.5`**)
 - Owner: repo-local workflow — **opened on an owner finding measured in PGEN**
 
 ## Goal
@@ -208,7 +208,7 @@ that outcome in a sibling project; ANVIL is one workflow-habit away from it.
 - ID: `OVERFLOW-DESTINATION-INSTRUMENTATION`
   Status: `active`
   Goal: `Close the policy-level hole the owner measured in PGEN: a cap that redirects overflow must require its destinations to be bounded or to be deliberately unbounded records, and must name the mixed-surface category that has no valid cap at all.`
-  Children: `.1` (audit + register), `.2` (classify + decide the instrument), `.5` (demote MEMORY.md's layer-C content — ordered BEFORE `.3`, which cannot land while the file is 3.3x over the derived cap), `.3` (apply the instrument), `.4` (feed the correction back into the portable policy)
+  Children: `.1` (audit + register), `.2` (classify + decide the instrument), `.5` (demote MEMORY.md's layer-C content — ordered BEFORE `.3`, which cannot land while the file is 3.3x over the derived cap), `.3` (apply the instrument), `.6` (own 0040 §(g)'s unrepaired long-line finding), `.4` (feed the correction back into the portable policy)
 
 - ID: `OVERFLOW-DESTINATION-INSTRUMENTATION.1`
   Status: `done`
@@ -238,6 +238,13 @@ that outcome in a sibling project; ANVIL is one workflow-habit away from it.
   Verification: `pending`
   Commit: `pending`
 
+- ID: `OVERFLOW-DESTINATION-INSTRUMENTATION.6`
+  Status: `pending`
+  Goal: `Own the finding 0040 §(g) surfaced but did not repair: CODEBASE_ANALYSIS.md carries a single line of 24,990 characters — 2.03x the entire README byte cap — plus a second at 13,472, and it is named by NEITHER routing enumeration despite being a mandatory bootstrap read (SESSION_BOOTSTRAP.md step 3) and a per-commit checklist item (COMMIT.md §5).`
+  Acceptance: `Registered here rather than left in decision prose, per the owner's standing directive that a defect is only handled if a task-tree owns it — a finding parked in a record nobody re-reads is the same failure mode 0039 was written for. FIRST MEASURE, THEN DECIDE, and the two questions are separable: (i) is the long line a DEFECT at all, and for whom? It renders correctly, so the cost is not the reader — it is that git produces a useless diff for any edit to it, that a line-oriented grep or extractor can backtrack catastrophically on it (this leaf's own sibling hit exactly that: a bounded-context regex over docs/TASK_TREE.md's 7,021- and 39,370-char rows timed out at 120 s), and that decision 0040 classified the file B2, so a size cap is NOT available as the answer. Quantify the class across the tree before deciding — measure the distribution of longest-line lengths over every tracked *.md, not just this file, and record the match count per 0039 rule (b). (ii) if it is worth repairing, the repair is REFLOW ONLY: not one word of content changes, and the file must be byte-compared for content equality (strip newlines, hash, assert equal) so the diff is provably whitespace-only. NON-GOALS, inherited: this is not a content sweep (the tree's Non-Goals), and CHANGES.md / DEVELOPMENT_NOTES.md / docs/tasks/ are append-only and out of scope entirely even though they contain the longest lines in the repo (docs/tasks/ tops out at 33,890) — 0031, and 0040 non-license 1. If the honest answer is that reflow is not worth the churn, record THAT with the measurement rather than leaving the finding open; a measured "no" closes a leaf just as well as a repair.`
+  Verification: `pending`
+  Commit: `pending`
+
 - ID: `OVERFLOW-DESTINATION-INSTRUMENTATION.4`
   Status: `pending`
   Goal: `Feed the correction back into the PORTABLE policy, since the owner located the hole at policy level rather than in one project.`
@@ -253,7 +260,8 @@ that outcome in a sibling project; ANVIL is one workflow-habit away from it.
 | 2 | `OVERFLOW-DESTINATION-INSTRUMENTATION.2` | `done` | Classified as decision [`0040`](../decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md), and measuring first changed **both** the classification and the target. The classes are **three**, not two — `.1`'s binary would have forced five *bounded-in-kind-but-not-in-size* surfaces (`USER_GUIDE.md`, `book/src/`, `ROADMAP.md`, `TOOLBOX.md`, `CODEBASE_ANALYSIS.md`) into "bounded ⇒ must be instrumented", which is exactly where *"cap every destination"* turns harmful. And the pressure went **one category beyond** what the tree opened on: not to a neighbouring *surface* but to the **unmeasured axis of an already-capped file** — `MEMORY.md` sits at **exactly 50 of 50 lines** and **20,311 bytes = 1.65× the byte cap `README.md` is held to**, having gone **19 → 50 lines (capped) while bytes went 1,227 → 20,311 (16.6×)** since the line cap landed. Both instruments `.1` proposed are **retired on measurement**. |
 | 3 | `OVERFLOW-DESTINATION-INSTRUMENTATION.5` | `pending` | **Next.** Demote `MEMORY.md`'s layer-C content — **65 %** of the resume pointer (`## Operating gotchas` 10,491 B in 14 lines = **749 B/line**, `## Standing directives` 2,696 B) — into layers B/C behind **pointers**. Ordered **before** `.3` because the gate cannot land while the file is **3.3×** the derived cap: switching it on at HEAD would block every commit. `MEMORY_ARCHITECTURE.md` §6 prescribes exactly this: *"if it exceeds the cap, information is in the wrong layer; move it down to B or C."* |
 | 4 | `OVERFLOW-DESTINATION-INSTRUMENTATION.3` | `pending` | Apply the derived **6,144-byte** cap as a second assertion inside `check_memory_architecture.sh` (not a new doctrine — `MEMORY-ARCH` already owns that file's size). Control proven capable of failing before it is trusted. |
-| 5 | `OVERFLOW-DESTINATION-INSTRUMENTATION.4` | `pending` | Push the corrected rule back into the portable policy — the owner's point was that this is a policy hole, so fixing only ANVIL leaves every other adopter exposed. `.2` sharpened what must travel: not just *classify your destinations* but **instrument every axis of a bounded surface, or the cap measures the one thing that is not growing.** |
+| 5 | `OVERFLOW-DESTINATION-INSTRUMENTATION.6` | `pending` | Owns the finding `0040` §(g) **surfaced but deliberately did not repair**: `CODEBASE_ANALYSIS.md`'s **24,990-character** line (2.03× the whole README byte cap), on a file named by **neither** routing enumeration. Registered rather than left in decision prose — a finding parked in a record nobody re-reads is the failure mode `0039` exists for. Measures the class tree-wide before deciding, and a measured *"not worth the churn"* closes it just as well as a reflow. |
+| 6 | `OVERFLOW-DESTINATION-INSTRUMENTATION.4` | `pending` | Push the corrected rule back into the portable policy — the owner's point was that this is a policy hole, so fixing only ANVIL leaves every other adopter exposed. `.2` sharpened what must travel: not just *classify your destinations* but **instrument every axis of a bounded surface, or the cap measures the one thing that is not growing.** |
 
 ## Decisions
 
@@ -307,7 +315,10 @@ that outcome in a sibling project; ANVIL is one workflow-habit away from it.
 ## Blockers
 
 - None. `.5` is next and needs only `0040`'s measurement. `.3` is **blocked on `.5`** by design,
-  not by an external dependency: the instrument it installs cannot pass at HEAD.
+  not by an external dependency: the instrument it installs cannot pass at HEAD. `.6` was opened
+  in the same turn that surfaced its finding, per the standing directive that **a defect is only
+  handled if a task-tree owns it** — `0040` §(g) had recorded it as *"for a future leaf"*, which is
+  exactly the prose-only parking the directive forbids.
 
 ## Verification Log
 

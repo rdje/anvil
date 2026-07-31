@@ -1,6 +1,56 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.6 — register the finding instead of parking it
+
+**Landed as:** this commit. Previous: `b102936`.
+**Docs-only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** Registered `OVERFLOW-DESTINATION-INSTRUMENTATION.6` to own the finding decision
+[`0040`](docs/decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md)
+§(g) surfaced but deliberately did not repair: `CODEBASE_ANALYSIS.md` carries a single line of
+**24,990 characters** — **2.03× the entire README byte cap** — plus a second at 13,472, on a file
+named by **neither** routing enumeration despite being a mandatory bootstrap read
+(`SESSION_BOOTSTRAP.md` step 3) and a per-commit checklist item (`COMMIT.md` §5).
+
+**Why a separate commit rather than a note.** `0040` §(g) recorded the finding *"for a future
+leaf"*. That is precisely the prose-only parking the owner's standing directive forbids — **a
+defect is only handled if a task-tree owns it**, and *"surfacing a finding is step one; opening
+the tree is step two, in the same turn."* A decision record is not a work queue: nothing re-reads
+`0040` §(g) looking for outstanding work, so the finding would have been discoverable only by
+someone who already knew it existed. This is the same failure shape decision
+[`0039`](docs/decisions/0039-sweep-exemption-past-vs-present-and-recorded-recall.md) was written
+for one commit earlier — an instrument (here, the project's work queue) is only as good as what
+gets recorded into it.
+
+**What `.6` is scoped to do, and what it is not.** It **measures before deciding**, and separates
+two questions that are easy to conflate:
+
+1. **Is the long line a defect at all, and for whom?** It renders correctly, so the reader is not
+   the cost. The costs are that `git` produces a useless diff for any edit to it; that a
+   line-oriented extractor can backtrack catastrophically on it — **this very session hit that**,
+   with a bounded-context regex over `docs/TASK_TREE.md`'s 7,021- and 39,370-character rows timing
+   out at 120 s; and that `0040` classified the file **B2**, so a size cap is *not* available as
+   the answer. `.6` must quantify the class across every tracked `*.md` before deciding, recording
+   its match count per `0039` rule (b) — not reason from the one instance in hand, which is
+   decision `0033` rule (2).
+2. **If it is worth repairing, the repair is reflow only.** Not one word of content changes, and
+   the file is byte-compared for content equality (strip newlines, hash, assert equal) so the diff
+   is provably whitespace-only.
+
+**Non-goals, inherited and restated.** Not a content sweep (the tree's own Non-Goals).
+`CHANGES.md`, `DEVELOPMENT_NOTES.md` and `docs/tasks/` are **out of scope entirely** even though
+they hold the longest lines in the repo (`docs/tasks/` tops out at **33,890**) — they are
+append-only by decision `0031`, and `0040` non-license 1. And a measured *"not worth the churn"*
+**closes `.6` just as well as a reflow would**; the leaf exists so the answer is recorded either
+way, not so that a repair is guaranteed.
+
+**Validation.** `scripts/check_doctrines.sh` **8/8** after `git add`. Tree metadata, frontier
+(six leaves, `.6` at order 5), Children list and Blockers updated in the same commit per
+`COMMIT.md` task-tree rule #2.
+
+**Files touched.** `docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.2 — the pressure went to the unmeasured axis
 
 **Landed as:** `4a91c45`. Previous: `e4b4fd5`.
