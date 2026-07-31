@@ -5,6 +5,50 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-07-31 — A repair can be *unavailable*, not merely expensive — and the number three leaves quoted was never rendered — `OVERFLOW-DESTINATION-INSTRUMENTATION.6`
+
+Two lessons, and the second one is the uncomfortable one.
+
+**1. "Is this repair worth it?" is the wrong first question when the repair may not exist.**
+`.6` was opened to decide whether a 24,990-byte line in `CODEBASE_ANALYSIS.md` deserved reflowing,
+and its acceptance sanctioned exactly one repair: **reflow only**, content byte-identical, diff
+provably whitespace-only. The instinct is to reach for cost/benefit. But **a Markdown table row
+cannot carry a newline** — a newline *terminates* the row — so for a table row the sanctioned
+repair is not a poor trade, it is **unobtainable**. Measured, **54 of the 95** in-scope long lines
+are table rows, including both worst cases; another 26 sit in `KNOWLEDGE_MAP.md`, which is
+generated and would revert. A leaf reasoning about churn alone reaches "no" for the wrong reason
+and leaves "we could reflow it later" standing. **Check whether the repair is even in the option
+set before pricing it.**
+
+**2. An unescaped `|` inside a table cell — *including inside backticks* — silently deletes
+content from every rendered page.** GFM splits a table row on unescaped `|` **before** inline
+parsing, so a code span gives a pipe no protection, and the spec then says excess cells beyond the
+header count are **ignored**. The text is in the source, absent from the render, and nothing marks
+the gap. Tree-wide: **36 malformed rows dropping 57,283 characters**, including **5 cells that
+were a row's own link to its detail file**. The fix is one backslash: `\|`.
+
+**And here is the part worth remembering.** The 24,990-byte line this tree has cited since `.1` —
+quoted in three leaves and in decision `0040` as the exhibit for *"the instrument must be
+byte-first"* — **is malformed**, and **24,229 of its 24,990 bytes (97.0 %) have never rendered.**
+`0040` called it *"a formatting defect, not a size defect"* and was right on the noun and wrong on
+the axis: it is not ugly, it is **invisible**. Three leaves cited the number; none of them had
+looked at the rendered page. **A number quoted often enough starts to feel verified** — which is
+this repo's own rule 0 (*never write "currently correct" without measuring it*) pointed back at the
+tree that wrote it.
+
+**Method notes, both earned the hard way.** The first detector, a naive `gsub(/\|/)` count, flagged
+8 malformed rows in `docs/TASK_TREE.md`; the escape-aware count flags **5**, because three rows use
+the correct `\|` idiom — the third landing of the standing lesson that *an extractor which cannot
+distinguish its cases reports something plausible instead of dying*. And the claim was
+**render-proved in both directions** with `mdbook`/`pulldown-cmark` (the engine that builds
+`book/`) rather than argued from the spec: the broken form loses the trailing link from the HTML;
+the `\|` form restores it. Reading the spec would have supported the same conclusion with none of
+the evidence — and the spec is exactly where a subtly wrong reading would have gone unnoticed.
+
+Retrieval card: `docs/knowledge/gfm-table-unescaped-pipe-drops-content.md`.
+
+---
+
 ## 2026-07-31 — How to control a numeric cap: isolate the axis, then delete the subject — `OVERFLOW-DESTINATION-INSTRUMENTATION.3`
 
 Adding a second cap beside an existing one creates a control problem that a single-cap check does

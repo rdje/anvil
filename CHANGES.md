@@ -1,6 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.6 — the long line was invisible, not just long
+
+**Landed as:** `pending`. Previous: `f33601e`.
+**Docs only** — no `src/`, `tests/`, or `examples/` change ⇒ **DUT byte-identical**.
+
+**What.** `.6` owned the finding decision `0040` §(g) surfaced but deliberately did not repair:
+`CODEBASE_ANALYSIS.md` carries a single **24,990-byte** line, 2.03× the entire README byte cap. Its
+acceptance required measuring the class **tree-wide** before deciding, and licensed a measured
+*"not worth the churn"* as a valid closure. Both halves happened, and the sweep changed the
+answer twice over.
+
+**The verdict on the leaf's own question: no — and for a structural reason, not an economic one.**
+`.6`'s acceptance named **reflow only** as the sanctioned repair, with the diff to be provably
+whitespace-only. Measured, that repair is **unavailable by construction** for the lines that
+motivated the leaf: **a Markdown table row cannot carry a newline** — inserting one terminates the
+row and changes the rendered document. **54 of the 95** in-scope long lines are table rows,
+including **both** top offenders. Of the 33 in-scope list-items, **26** live in `KNOWLEDGE_MAP.md`,
+whose own header reads *AUTO-GENERATED — DO NOT EDIT*, so a hand reflow is reverted by the next
+generator run. The genuinely reflowable residue is **15 lines**, largest `book/src/architecture.md`
+at 6,327 and `ROADMAP.md` at 3,653 — nothing near the headline number.
+
+**The premise was also wrong about which line is worst.** Over all **243** tracked `*.md`,
+`CODEBASE_ANALYSIS.md` is **third**: `docs/TASK_TREE.md` carries **39,679** and
+`docs/tasks/SEMANTIC-INTROSPECTION-EXPANSION.md` **33,890**. Longest-line distribution:
+`≥20,000` = 3 · `10,000–19,999` = 0 · `5,000–9,999` = 7 · `2,000–4,999` = 21 · `1,000–1,999` = 33 ·
+`500–999` = 57 · `<500` = 122.
+
+**And the sweep found a different, worse defect — one no size instrument could ever have caught.**
+Auditing GFM table well-formedness across all 243 files (**394 tables, 2,310 data rows**) found
+**36 malformed rows** whose cell count **exceeds their header**. GFM splits a row on unescaped `|`
+*before* inline parsing — so a pipe inside a code span still splits — and the spec then **ignores
+the excess cells**. That content sits in the source and is **absent from every rendered page**:
+**57,283 characters** tree-wide, including **5 cells that were a row's own link to its detail
+file**. The convergence that settles the leaf: `CODEBASE_ANALYSIS.md:2270` — the exact line the
+tree has cited since `.1` — **is one of them**, 5 cells against a 4-column header, dropping
+**24,229 of its 24,990 bytes = 97.0 %**. `0040` called it *"a formatting defect, not a size
+defect"*: correct, and understated. It is not ugly, it is **invisible**.
+
+**Why.** Three leaves quoted that line as a *size* exhibit and none had rendered it. A number
+quoted often enough starts to feel verified — which is this tree's own rule 0 (*never write
+"currently correct" without measuring it*) turned back on the tree.
+
+**Validation.**
+- **Render-proved in both directions** with the project's own renderer (`mdbook` /
+  `pulldown-cmark`, the engine that builds `book/`), not asserted from the spec. Broken form:
+  a 3-column table row carrying an unescaped pipe inside a code span rendered 3 cells and the
+  trailing `[LINKB](y.md)` was **absent from the HTML**. Negative control: the same row with `\|`
+  rendered 3 cells with the link **present** and the pipe literal. The fix is one backslash — and
+  the repo already uses it correctly in the same table.
+- **The first detector was wrong, and it is recorded rather than quietly fixed.** A naive
+  `gsub(/\|/)` count flagged 8 malformed rows in `docs/TASK_TREE.md`; the escape-aware count flags
+  **5** — rows 103/130/136 are false positives using the correct `\|` idiom. Two sibling precision
+  notes in the same spirit: the first scoped audit ran past the table into a later 2-column table
+  and was re-bounded; and the headline line is **24,990 bytes / 24,970 characters** (20 multi-byte),
+  stated so the pair cannot later read as a discrepancy.
+- **Costs of length measured, not asserted.** Git: the last five commits touching
+  `docs/TASK_TREE.md` are each **+1/−1 lines** and produce diff payloads of **37,132 / 42,134 /
+  37,199 / 30,116 / 37,092 bytes** — a one-row status update costs ~37 KB of diff. Agent context:
+  one `grep -n` hit on `docs/TASK_TREE.md:131` injects **39,679 bytes ≈ 9,900 tokens**, the same
+  currency `0040`'s byte cap protects. Regex backtracking: **shape-dependent, not inherent** —
+  every linear scan run here crossed all 243 files in seconds.
+- Every sweep records its authoritative set and match count per decision `0039` rule (b).
+- `check_knowledge_map` OK (**106 → 107** facts / **1,022 → 1,029** keys);
+  `scripts/check_doctrines.sh` green after `git add`.
+
+**Impact.** **Nothing was repaired**, deliberately: the fix is four backslashes and one duplicate
+link — small enough to be tempting — but folding it into the measuring leaf would merge a
+measurement with a sweep (how the `/tmp` sweep damaged `0030`) and would leave the *gate* unowned.
+Two leaves are registered instead, per the standing directive that a defect is only handled once a
+task-tree leaf owns it: **`.7`** (repair + an escape-aware, fence-aware gate) and **`.8`**
+(classify `docs/TASK_TREE.md` — **a second instance of `0040` §(g)'s shape**: `0040` classified
+`docs/tasks/`, a different path, and neither routing enumeration names the index, which is now the
+worst-profile non-append-only file in the repo at **648 B/line** against the **406** that made
+`MEMORY.md` the tree's central finding, with **79.0 %** of it inside the *Current frontier*
+column). Whether that column is this tree's own **mixed-surface** category is deliberately **not**
+claimed here: the distinct-date probe fires on 8 of 74 rows and `.2` retired exactly that
+instrument for crying wolf, so each cell must be read first.
+
+**Files touched.** `docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md`, `docs/TASK_TREE.md`,
+`docs/knowledge/gfm-table-unescaped-pipe-drops-content.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`.
+
 ## 2026-07-31 — OVERFLOW-DESTINATION-INSTRUMENTATION.3 — the second axis is live
 
 **Landed as:** `e801617`. Previous: `c1b765c`.
