@@ -1,6 +1,72 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)
+
+**Landed as:** _pending_. Previous: `83a2a5b`, `4ad09a4`, `da73827`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Decision leaf — nothing built.**
+
+**What.** `.2` decides the carrier for *"a negative control must prove its sabotage landed"* and
+records it as decision
+[`0047`](docs/decisions/0047-negative-control-carrier-is-the-mutation.md) **before** any code, per
+the leaf's own acceptance.
+
+**The answer reframes the question.** The tree registered a menu — sourceable helper, `TOOLBOX.md`
+instrument, doctrine check, or nothing — and `.1`'s measurement makes the menu the wrong shape:
+the failure lives in **one mutation primitive**, so the object to carry is the **mutation**, not
+the control, and the best carrier is the one that makes the assertion **unnecessary**.
+
+- **R1, preferred — remove the need.** Where a control can use a mutation form that has no *match*
+  step, leg 3 **ceases to exist**. Five live forms are tabled with a working example each:
+  in-language inside a `#[test]` (`src/ir/case_qualifier.rs` breaks its fixture with a Rust
+  statement, after asserting the fixture is clean *before* the break), a compiler-checked probe
+  (the landing **is** the `E0624`/`E0616` diagnostic), a constructed fixture
+  (`README-POLICY-ADOPTION.3`'s isolated root at exact counts the check echoes back), a
+  `git show HEAD:`-derived baseline (`LIVE-DOC-REGISTRY-SHADOWS.1`), and a mutation-free test seam
+  (`DOCTRINE_STAGED_OVERRIDE`) — the last admissible only where it does not bypass the extraction
+  under test.
+- **R2, fallback — where a textual substitution is genuinely unavoidable**, one tracked helper whose
+  `apply` step **refuses a zero-count substitution** before any verdict can be read, whose `restore`
+  verifies with `cmp`, and whose `--self-test` is the **control on the control**. The contract is
+  pinned in the ADR so `.3` implements rather than re-derives it.
+
+**Every candidate carries its failure mode, and three are refuted by measurement rather than taste.**
+(A) *a helper that merely makes the right probe easy* is necessary but not sufficient — this repo's
+own episode refutes it: `.cache/book_link_controls.sh` **existed**, its author **knew** it existed,
+and both failures were written outside it in the same hour. (B) *a `TOOLBOX.md` instrument* is
+`DOCTRINE_ENFORCEMENT.md` §7's **E1 discovery**, which that standard states is **not** enforcement —
+and this tree exists precisely because the rule was already discoverable in two documents. (C) *a
+doctrine check* is **structurally disqualified**: the mutation is reverted before the commit **by
+construction**, so the only readable trace is the author's own prose, which makes such a gate a §6.1
+**self-tick** one level up, cry wolf on every legitimately mutation-free control, and satisfiable by
+**typing the words** — it would take the reported rate from 2 of 39 to **39 of 39** while changing
+nothing anyone does. (D) *nothing* is refused because the only two episodes that ran leg 3 both ran
+it with a **tool** (`.1`: 0 failures in 10 harness-written probes against 2 in 3 ad-hoc ones).
+
+**Why.** The tree registered the doctrine objection as a *possibility*; `.1` turned it into a
+measured fact, and a decision that leaves it implicit would be re-litigated by the next session. The
+tempting wrong answer is written down explicitly for the same reason.
+
+**Honest limits, stated in the ADR rather than discovered later.** Use is **not** compelled — an
+author can still write a bare `perl -pi -e`; the narrower true claim is that the *tool* cannot
+produce the silent failure, so a mistyped substitution becomes a **loud error** instead of a
+**plausible wrong finding**. R1 is a preference, not a check. The 37 unknowable episodes stay
+unknowable and are deliberately not re-run. And the decision **does not raise the leg-3 report rate**
+— a carrier that made the record look complete without changing conduct is candidate C.
+
+**Validation.** Docs-only. `scripts/check_doctrines.sh` **11/11**; the Knowledge Map regenerates
+from the new ADR's `answers:` front-matter and `check_knowledge_map.sh` reports in sync;
+`check_markdown_tables.sh` ok. No `src/`, `tests/` or `examples/` touched ⇒ **DUT byte-identical**;
+`tests/snapshots.rs` untouched.
+
+**Impact.** `.3` is the last leaf and now has a pinned contract instead of a design question. The
+class this tree leaves behind is not *"controls"* but **"a tool whose success and no-op share an
+exit code"** — a transferable rule beyond this repo.
+
+**Files touched.** `docs/decisions/0047-negative-control-carrier-is-the-mutation.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/NEGATIVE-CONTROL-HARNESS.md`, `docs/TASK_TREE.md`,
+`KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.1 — measure the record: leg 3 is reported in 2 of 39 episodes
 
 **Landed as:** `4ad09a4`. Previous: `da73827`, `3b0d2c2`, `425c0ca`.

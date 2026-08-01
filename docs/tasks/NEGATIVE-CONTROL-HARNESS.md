@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / gate quality
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.1` **done** — the record measured; frontier `.2`, the carrier decision)
+- Last updated: `2026-08-01` (`.1` + `.2` **done** — measured, then decision `0047`; frontier `.3`, build it)
 - Owner: repo-local workflow
 
 ## Goal
@@ -232,15 +232,15 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
   Commit: `NEGATIVE-CONTROL-HARNESS.1 — measure the record: leg 3 is reported in 2 of 39 episodes`
 
 - ID: `NEGATIVE-CONTROL-HARNESS.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Decide the carrier — sourceable helper, TOOLBOX instrument, doctrine check, or nothing — and record it BEFORE building.`
   Acceptance: `Each candidate's failure mode stated, including the structural objection that a control leaves no commit artifact, which may disqualify the doctrine shape outright. The decision cites .1's measurement rather than intuition.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — decision 0047 recorded BEFORE any code, with all five candidates and their failure modes. THE ANSWER REFRAMES THE QUESTION: the carrier is the MUTATION, not the control, because .1 measured the failure into one primitive. R1 (preferred) — pick a mutation form with no match step and leg 3 CEASES TO EXIST; the five live forms are tabled with a working example each (in-language, compiler-checked, constructed fixture, git show HEAD: baseline, mutation-free test seam), with the seam's own limit carried over from test-seam-bypassing-the-extraction-under-test. R2 — where a textual substitution is genuinely unavoidable, one tracked helper whose apply step refuses a zero-count substitution; its contract is pinned here so .3 implements rather than re-derives (apply asserts the count, restore verifies with cmp, probe runs the whole cycle against a DECLARED expectation, --self-test is the control on the control). REJECTED, each with its measured reason: (A) a helper that merely makes the right probe EASY is necessary but not sufficient — .cache/book_link_controls.sh existed and its author knew it, and both failures were written outside it in the same hour; (B) a TOOLBOX instrument is DOCTRINE_ENFORCEMENT.md section 7's E1 discovery, which that standard states is not enforcement, and this tree exists because the rule was already discoverable in two documents; (C) a doctrine check is STRUCTURALLY DISQUALIFIED, not merely unattractive — the mutation is reverted before the commit BY CONSTRUCTION so the only readable trace is the author's own prose, which makes it a section 6.1 self-tick one level up, cries wolf on every legitimately mutation-free control, and is satisfiable by typing the words (it would take the reported rate to 39 of 39 while changing nothing anyone does); (D) nothing is refused because the only two episodes that ran leg 3 both ran it with a TOOL — 0 failures in 10 harness probes against 2 in 3 ad-hoc ones. FOUR HONEST LIMITS STATED UP FRONT rather than discovered later, including the decisive one: the helper cannot compel its own use either, and what it changes is that a mistyped substitution becomes a LOUD ERROR instead of a plausible wrong finding. Docs-only; no mechanism built in this leaf.`
+  Commit: `NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)`
 
 - ID: `NEGATIVE-CONTROL-HARNESS.3`
   Status: `pending`
-  Goal: `Implement .2's choice, or record why nothing is warranted per DOCTRINE_ENFORCEMENT.md section 9.`
+  Goal: `Implement decision 0047's R2 helper to the contract pinned there — apply asserts the substitution count, restore verifies with cmp, probe runs the whole cycle against a declared expectation, --self-test is the control on the control — plus one TOOLBOX.md discovery row. NOT registered in DOCTRINES: per 0047 candidate C there is nothing for a gate to read.`
   Acceptance: `If a harness lands it is itself negative-controlled: removing its marker assertion must make it fail loudly, not silently pass. If nothing lands, the reason is recorded where a future session will meet it.`
   Verification: `pending`
   Commit: `pending`
@@ -249,8 +249,8 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `NEGATIVE-CONTROL-HARNESS.2` | `pending` | **Next.** The carrier decision, and `.1` narrowed what it has to carry: the failure mode belongs to **one mutation primitive** (textual substitution, which exits `0` either way), not to controls in general, and the only commit-visible artifact is the class of controls that **ship as code**. Both facts disqualify candidates rather than merely informing them. |
-| 2 | `NEGATIVE-CONTROL-HARNESS.3` | `pending` | Build `.2`'s choice, or record why nothing is warranted. |
+| 1 | `NEGATIVE-CONTROL-HARNESS.3` | `pending` | **Next, and last.** Build decision `0047`'s **R2** helper to the contract pinned there, plus one `TOOLBOX.md` discovery row. It is **not** a doctrine — `0047` candidate C disqualifies that on structure. The acceptance that matters is the **control on the control**: removing the helper's own count assertion must make its `--self-test` fail loudly, not silently pass. |
+| — | `NEGATIVE-CONTROL-HARNESS.2` | `done` | **The carrier is the *mutation*, not the control** — decision [`0047`](../decisions/0047-negative-control-carrier-is-the-mutation.md), recorded before any code. **R1** prefer a mutation form with no *match* step (five live forms tabled) so leg 3 ceases to exist; **R2** one helper that refuses a zero-count substitution where a textual one is unavoidable. A doctrine check is **structurally disqualified**: the mutation is reverted before the commit by construction, so the only trace is the author's prose — a §6.1 self-tick that would reach *39 of 39* while changing nothing. |
 | — | `NEGATIVE-CONTROL-HARNESS.1` | `done` | Measured, not asserted. **Leg 3 is visibly reported in 2 of 39 leaf-episodes**, both on the day the rule was written; the other 37 are **unknowable**, not absent. The finding is the asymmetry: the same file-versus-baseline check is run **27** times on the *revert* and **twice** on the *mutation*, because only the revert has a gate watching it. |
 
 ## Decisions
@@ -273,6 +273,18 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
   `.2`**. A KM card is one of the candidate carriers — discoverable, but still a habit, and this
   tree exists precisely because the rule was already written down in two places. `.2` picks the
   carrier; if a card is part of the answer it lands there, on the record, rather than by reflex.
+- `2026-08-01` (`.2`, decision [`0047`](../decisions/0047-negative-control-carrier-is-the-mutation.md)):
+  **The carrier question was answered by narrowing its subject, not by picking from the registered
+  menu.** `.1` measured the failure into **one mutation primitive**, so the thing to carry is the
+  *mutation*, and the best carrier is the one that makes the assertion unnecessary (**R1**) rather
+  than the one that remembers it (**R2**). Both of the tree's own framings were therefore slightly
+  wrong and are corrected on the record: it is not *"a helper for probes"*, and it is not
+  *"controls" as a class*.
+- `2026-08-01` (`.2`): **The registered objection held.** This tree opened saying a doctrine check
+  *may* be structurally impossible; `.1` established that it **is**, and `0047` records *why* in a
+  form a future session can check rather than re-litigate — the mutation is reverted before the
+  commit by construction, so the only artifact is a prose claim, and a gate over it reaches
+  **39 of 39** without changing a single experiment.
 - `2026-08-01` (`.1`): **No mechanism, and no repair, in a measurement leaf.** The 37 unknowable
   episodes are **not** re-opened or re-run. Re-conducting historical controls would cost days and
   could not change what the record says, which is the thing under study.
@@ -286,11 +298,12 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
   committed (`src/ir/knob_roll.rs` keeps its `E0624` control as prose), and the prose record is a
   claim the author writes about their own conduct — `DOCTRINE_ENFORCEMENT.md` §6.1's self-tick one
   level up. A doctrine over classes 2 and 3 would gate a *claim*, not a *fact*.
-- **Can a helper compel its own use?** Still open. A sourceable helper only protects probes written
-  inside it — and both failures here were written *outside* it, by an author who knew it existed.
-  `.1` sharpens the question rather than answering it: the helper does not have to compel *general*
-  use, only use of **one primitive**, and the repo already has a **mutation-free** alternative in
-  the two staged-set test seams, where the question dissolves instead of being enforced.
+- **Can a helper compel its own use?** **No — and `.2` accepts that rather than working around it**
+  (decision `0047`, honest limits). Nothing forces a probe through the helper; an author can still
+  write a bare `perl -pi -e`. The narrower claim `0047` does make is the one that survives: the
+  *tool* cannot produce the silent failure, so a mistyped substitution becomes a **loud error**
+  instead of a **plausible wrong finding**. The residual risk is bounded further by **R1**, where
+  the question dissolves instead of being enforced.
 - ~~**Is the real subject narrower — shell substitutions?**~~ **ANSWERED by `.1`: yes, measured.**
   `sed -i` and `perl -pi -e` exit **`0`** whether or not the pattern matched; all **three** recorded
   leg-3 failures in the repo are textual substitutions; **no** in-language, compiler-checked,
@@ -307,6 +320,7 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-01` | `.2` | `decision 0047 written + INDEX row, BEFORE any code. Five candidates, each with its failure mode: (A) easy-probe helper — necessary not sufficient, refuted by this repo's own episode (the helper existed and was known; both failures were written outside it in the same hour); (B) TOOLBOX instrument — section 7 E1 discovery, which that standard states is not enforcement; (C) doctrine check — STRUCTURALLY disqualified (mutation reverted before the commit by construction ⇒ only a prose claim to read ⇒ section 6.1 self-tick, cries wolf on mutation-free controls, satisfiable by typing the words, reaches 39 of 39 while changing nothing); (D) nothing — refused, since the only two episodes that ran leg 3 both ran it with a tool; (E) chosen — carry the MUTATION, R1 prefer a form with no match step, R2 a helper refusing a zero-count substitution. R2 contract pinned for .3; four honest limits stated. check_doctrines.sh 11/11; check_knowledge_map in sync after regen; check_markdown_tables ok.` | `done` — carrier decided and recorded; **no mechanism built** (docs-only ⇒ DUT byte-identical) |
 | `2026-08-01` | `.1` | `region STATED and CORRECTED before counting: all 80 docs/tasks/*.md, every section, because only 30 of 180 control mentions (17 percent) sit in a "## Verification Log" — the acceptance's own region would have measured one sixth of the corpus. S derived TWICE: narrow term set 18 files, broadened 19 (PARITY-EXTRACTOR-CHARSET-GAP.md records four controls without writing "negative"), plus one named false positive from the widening (SEMANTIC-INTROSPECTION-EXPANSION.md, "control ports"). 180 mentions expanded to 114 context windows and classified BY READING all of them, not by keyword. Denominator 39 leaf-episodes / ~240 self-reported probes (101 in one leaf). Mechanism measured on a scratch file: sed -i and perl -pi -e exit 0 on a NON-matching substitution and 0 on a matching one; a count-asserting form exits 9 vs 0. First attempt at that probe mis-fired (sed -i '' mis-parsed, exit 2) and was re-run correctly before anything was recorded. Shipped-control census: 4 self-declared #[test] controls, 1 --self-test, 2 DOCTRINE_STAGED_OVERRIDE test seams.` | **leg 3 visibly reported in 2 of 39** (`BOOK-LINK-INTEGRITY.3`, `USER-GUIDE-CLI-TABLE-SHADOW.7`, both `2026-08-01`, both the leaves that produced the rule); **37 unknowable, not absent**; revert-verified **27** occurrences across 6 files vs mutation-verified **2** leaves; commit-visible artifact exists for the ship-as-code class only. Docs-only ⇒ DUT byte-identical |
 | `2026-08-01` | `.0` | `found while BOOK-LINK-INTEGRITY.3 proved its extractor load-bearing: 3 attempts for 1 control, 2 silently-failed mutations. Distribution: 0 leg-3 failures in 10 harness-written probes, 2 in 3 ad-hoc probes. Ownership search run, not assumed: DOCTRINE_ENFORCEMENT.md 6.1 governs gated checklist boxes (not controls); grep over scripts/ for a sabotage/mutation helper returns nothing.` | `registered` (docs-only; DUT byte-identical) |
 
@@ -314,11 +328,34 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `.2` | `NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)` | Decision leaf — **nothing built**. Records `0047`: R1 prefer a mutation that cannot no-op, R2 a helper refusing a zero-count substitution, and the doctrine shape rejected on **structure**. `.3`'s contract is pinned in the ADR so it implements rather than re-derives. Docs-only ⇒ DUT byte-identical. |
 | `.1` | `4ad09a4` — `NEGATIVE-CONTROL-HARNESS.1 — leg 3 is reported in 2 of 39 episodes` | Measurement only; **no mechanism, no KM card, no repair** — each deliberately deferred to `.2` with the reason recorded. Docs-only ⇒ DUT byte-identical. |
 | `.0` (registration) | `3b0d2c2` — `NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention (`RESUME-POINTER-CONTRACT.0`, `EMIT-SURFACE-INTERACTION-GATE.0`), required because `.githooks/commit-msg` rejects a subject that names no leaf. |
 
 ## Changelog
 
+- `2026-08-01`: `.2` done — **the carrier is the *mutation*, not the control** (decision
+  [`0047`](../decisions/0047-negative-control-carrier-is-the-mutation.md), recorded before any
+  code). The answer reframes the question rather than picking from the menu the tree registered,
+  and it does so on `.1`'s measurement: the failure lives in **one primitive**, so the object to
+  carry is the mutation, and the best carrier is the one that makes the assertion **unnecessary**.
+  **R1** — prefer a mutation form with no *match* step (in-language, compiler-checked, constructed
+  fixture, `git show HEAD:` baseline, mutation-free test seam; five live examples tabled) and leg 3
+  **ceases to exist**. **R2** — where a textual substitution is genuinely unavoidable, one tracked
+  helper whose `apply` **refuses a zero-count substitution**, with `restore` verified by `cmp` and a
+  `--self-test` that is the control on the control. The contract is pinned in the ADR so `.3`
+  implements rather than re-derives it.
+  **A doctrine check is disqualified on structure, and that is the tree's registered objection
+  confirmed rather than assumed:** the mutation is reverted before the commit *by construction*, so
+  the only readable trace is the author's own prose — a `DOCTRINE_ENFORCEMENT.md` §6.1 self-tick one
+  level up, which would cry wolf on every legitimately mutation-free control and is satisfiable by
+  **typing the words**. It would take the reported rate from 2 of 39 to **39 of 39** while changing
+  nothing anyone actually does. That trap is written down so a future session meets it instead of
+  re-proposing it.
+  **The limits are stated up front, including the uncomfortable one:** the helper cannot compel its
+  own use either. What it changes is the *shape* of the failure — a mistyped substitution becomes a
+  loud error rather than a plausible wrong finding — and that is the only candidate acting at the
+  moment and place of the mistake.
 - `2026-08-01`: `.1` done — **the record is measured, and it says leg 3 is reported in 2 of 39
   leaf-episodes.** Both reporting leaves are dated the same day as the rule they produced
   (`BOOK-LINK-INTEGRITY.3`, `USER-GUIDE-CLI-TABLE-SHADOW.7`); no leaf recorded it before, and none
