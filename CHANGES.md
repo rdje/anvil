@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5
 
-**Landed as:** `pending`. Previous: `c793cf3`, `cd7f24b`, `f2d282e`.
+**Landed as:** `9a7772b`. Previous: `c793cf3`, `cd7f24b`, `f2d282e`.
 **Docs + one enforcement script; no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** `USER_GUIDE.md`'s CLI flag table — given a stated contract by `.2` — is now
