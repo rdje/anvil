@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — RESUME-POINTER-CONTRACT.0 — register the owner finding on the `MEMORY.md` cap
 
-**Landed as:** pending. Previous: `cf5deac`, `4f36cde`, `702695d`.
+**Landed as:** `ac05f01`. Previous: `cf5deac`, `4f36cde`, `702695d`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Nothing is repaired.**
 
 **What.** A task tree registering an owner finding so it survives a session boundary. The agent
