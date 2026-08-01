@@ -1,9 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.1 — audit + register the CLI-table shadow
+
+**Landed as:** `pending`. Previous: `1df0071`.
+**Docs-only** ⇒ **DUT byte-identical**; no `src/` and **no `USER_GUIDE.md`** change — this
+leaf audits and registers, it does not repair.
+
+**How it was found.** `CAPABILITY-BREADTH-EXPANSION.4b.3` added two rows
+(`--unique-case-prob`, `--priority-case-prob`) to `USER_GUIDE.md`'s CLI flag table. Adding
+rows to a table that was already missing thirteen sharpened an inconsistency rather than
+creating one, so the honest response was to measure the whole table instead of quietly
+matching the local style.
+
+**Measured at `1df0071` against `./target/release/anvil --help`:**
+
+| bucket | count |
+| --- | ---: |
+| clap flags on `anvil --help` | **108** |
+| in the CLI flag table | **75** |
+| mentioned elsewhere in `USER_GUIDE.md`, not tabled | **20** |
+| **absent from `USER_GUIDE.md` entirely** | **13** |
+| table rows naming a flag that **no longer exists** | **2** (`--divergence`, `--no-minimize`) |
+
+So the shadow has drifted in **both** directions. Eight of the 13 absent are hierarchy knobs
+— one lane's flags added without a documentation pass, not thirteen independent slips — and
+two of them (`--operand-duplication-rate`, `--mux-arm-duplication-rate`) are the *promoted
+unswept knobs* `SIGNOFF-AUTOMATION-EXPANSION.2b` built an entire gate to prove fire by
+construction. Gated, banked, and undocumented.
+
+**It is a genuine decision-`0033` silent shadow, all three tests passing.** Derivable (the
+authoritative set is clap's registry, reachable by `anvil --help`); growth-coupled (`README.md`
+calls `USER_GUIDE.md` *"the live CLI reference: **every** flag"*, so a new flag requires a row
+for the document to be what it claims); silent (13 flags are absent and every gate in the repo
+is green). Contrast `check_no_boot_volume_refs.sh`'s allow-list, which passes test (1) and
+**fails** test (2) and is therefore authoritative — that is the case the rule protects, and
+this is not it.
+
+**The instrument was corrected mid-audit, and the first number was wrong.** A
+backtick-anchored matcher reported **22** absent; it missed `` `--artifact dut` `` because the
+flag and its value share **one code span**, so a `` `--artifact` `` pattern never matches. The
+word-boundary matcher gives **13**. That is the **fourth** extractor correction in this
+repository's recent history — decision `0045` catalogues three more — which is why the count
+above is published together with the matcher that produced it.
+
+**Repair deliberately deferred to `.2`.** The obvious move (add the missing rows) presumes the
+table is exhaustive, and 20 flags are documented in prose instead. Writing rows first would
+answer *"exhaustive or curated?"* by accident. That matters beyond style: a **curated** table
+is authoritative under `0033` test (2) and must never be gated, so `.2`'s ruling determines
+whether `.3` may propose a mechanism at all.
+
+**Validation.** Docs-only; `scripts/check_doctrines.sh` 9/9.
+
+**Files touched.** `docs/tasks/USER-GUIDE-CLI-TABLE-SHADOW.md` (new), `docs/TASK_TREE.md`,
+`MEMORY.md`, `CHANGES.md`.
+
 ## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.4 — the mechanism question, answered on measurement
 
-**Landed as:** `pending`. Previous: `928817f`.
+**Landed as:** `1df0071`. Previous: `928817f`.
 **Docs-only** ⇒ **DUT byte-identical**; no `src/` change. Decision
 [`0045`](docs/decisions/0045-changes-entry-placement-authoring-path-check.md) recorded; `.5`
 registered to implement it.
