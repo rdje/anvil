@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.1 — split the wall-of-text paragraphs; worst block down 62 %
 
-**Landed as:** `pending`. Previous: `ff548e2`, `ebd7869`, `9060993`.
+**Landed as:** `df7bc6e`. Previous: `ff548e2`, `ebd7869`, `9060993`.
 **Book-only (`architecture`, `hierarchy`, `ir`, `knobs`, `api-introspection`); no `src/` change** ⇒
 **DUT byte-identical**.
 
