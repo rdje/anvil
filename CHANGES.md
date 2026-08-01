@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.5 — give `tool_matrix`'s options one home
 
-**Landed as:** pending. Previous: `176c868`, `ccfbc23`, `5ce2dd3`.
+**Landed as:** `9b73e80`. Previous: `176c868`, `ccfbc23`, `5ce2dd3`.
 **Docs-only (`book/src/knobs.md`, `USER_GUIDE.md`); no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** `book/src/knobs.md` §*`tool_matrix` auxiliary binary* carried a hand-maintained
