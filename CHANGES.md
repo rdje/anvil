@@ -1,9 +1,84 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — IR-TYPES-DECOMPOSITION.4 — re-measure and close: it is one thing now
+
+**Landed as:** `pending`. Previous: `f0eb8fb`.
+**Docs-only** ⇒ **DUT byte-identical**; no `src/` change. **Closes the tree.**
+
+**What.** The closing leaf of the ownership-split tree. `.4` was deliberately written as
+*re-measure and decide*, with "it is one coherent data model now, stop" named up front as a
+legitimate and preferred outcome. Re-measured — and that is the outcome.
+
+`src/ir/types.rs` at `1b1793e`, **1,473 lines** (from **4,069**):
+
+| region | lines | share | answers the question |
+| --- | ---: | ---: | --- |
+| `struct Module` declaration | 438 | 29.7 % | *"what is a module?"* |
+| `Node` / `GateOp` / `Flop` / `MuxArm` / `DepSet` / … | 363 | 24.6 % | *"what is a node?"* |
+| `#[cfg(test)] mod tests` | 178 | 12.1 % | — (the engine's ~37 tests left with it at `.3`) |
+| `impl Module` — accessors + port/domain predicates | 165 | 11.2 % | *"what does this module contain or expose?"* |
+| `Instance` / `Memory` / `Fsm` + impls | 152 | 10.3 % | *"what is a block?"* |
+| `Port` / `ParamEnv` / `Aggregate*` / `ClockDomain` / … | 137 | 9.3 % | *"what is a port / a parameter / a domain?"* |
+| `struct Design` | 5 | 0.3 % | *"what is a design?"* |
+
+**The candidate third split evaporated under measurement, which is the point of the leaf.**
+`.1` estimated *"~649 lines of port / clock-domain / emitted-port predicates"* as a possible
+third tenant. That region is **302** lines today (137 declarations + a 165-line `impl
+Module`), and the `impl Module` half is **16 small accessors over a struct declared 170 lines
+above them** — `has_local_flops`, `flop_domain`, `effective_clock_domains`,
+`is_emitted_input_port`, `input_port` / `output_port`, and so on. **Separating a struct from
+its own accessors is a line-count boundary, not an ownership one**, and this tree's Goal
+refuses exactly that split.
+
+**One number is recorded as unreproducible rather than rationalised.** Two figures reproduce
+exactly: `impl Module` was **1,327 lines / 21 methods** at `.1` and is **165 lines / 16
+methods** now, the difference being precisely the five engine functions `.3` moved (21 − 16 =
+5). The `~649` basis could **not** be reproduced — it was taken while the interning engine was
+still mixed into that block — so it is written down as an estimate that did not survive
+contact with a measurement, instead of being back-fitted to today's numbers.
+
+The foreign-tenant probe agrees with the decision: the file's only non-`std` imports are
+`CaseQualifier` and a re-export of `KnobRollCounters`, both *field types* — nothing left in
+the file answers a different question.
+
+**Net result of the tree.** `types.rs` **4,069 → 1,473** across three moves that changed
+**zero call sites**, producing two single-purpose modules (`src/ir/knob_id.rs`,
+`src/ir/intern.rs`). `.3`'s commit hash (`1b1793e`) is backfilled, and two stale frontier rows
+are corrected — `COVERAGE-STEERED-GENERATION.6` (landed `f335926`) and `.3` were both still
+listed `pending`.
+
+**A malformed index row was fixed, and it was hiding 2,040 characters.** The
+`docs/TASK_TREE.md` row for this tree had its `[docs/tasks/…]` link **mid-cell**, with `.3`'s
+entire update appended *after* it — a **sixth** cell in a five-column table. GFM ignores cells
+past the header count, so `.3`'s whole note (the five-functions-not-three widening, the line
+census, the 1,058-test run) **was in the source and absent from every rendered page**. The row
+now has five cells with the link last, and the dropped text is merged back into the notes
+column.
+
+`TABLE-RENDER-FIDELITY` is what caught it: the first commit attempt was **blocked** with
+*"1 cell(s) past the header's 5 column(s) — 73 rendered characters are DROPPED"*. Worth stating
+plainly because it is the doctrine layer paying for itself — the defect was **pre-existing**,
+invisible in review, invisible in the rendered book, and I would not have found it by reading
+the row. `OVERFLOW-DESTINATION-INSTRUMENTATION.6` measured this class at 36 rows and 57,283
+characters; `.7` gated it.
+
+**Surfaced, deliberately not acted on.** `src/ir/compact.rs` is now **5,453** lines — the
+largest file under `src/ir/` and third-largest in the crate. Under this tree's own bar that is
+**not by itself a defect**, and no measurement of its tenancy exists, so the honest status is
+*unmeasured, therefore unknown*. Folding it in here would be splitting by line count, the one
+thing the Goal forbids; if picked up it needs its own tree and its own `.1` audit.
+
+**Validation.** Docs-only, so no build state changed; `scripts/check_doctrines.sh` 9/9. The
+measurements were taken with `wc`, a brace-matched region scan over `src/ir/types.rs`, and the
+same scan over the file as it stood at the `.1` commit.
+
+**Files touched.** `docs/tasks/IR-TYPES-DECOMPOSITION.md`, `docs/TASK_TREE.md`, `MEMORY.md`,
+`CHANGES.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.3 — case-qualifier user docs; the strand closes
 
-**Landed as:** `pending`. Previous: `955e387`.
+**Landed as:** `f0eb8fb`. Previous: `955e387`.
 **Docs-only** ⇒ **DUT byte-identical**; no `src/` change.
 
 **What.** The user-facing documentation for the `unique` / `priority` case qualifiers, which

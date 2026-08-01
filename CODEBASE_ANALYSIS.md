@@ -494,6 +494,22 @@ src/
 │                     needed by both — so nothing was duplicated
 │                     (`feedback_full_factorization`).
 │
+│                     IR-TYPES-DECOMPOSITION.4 re-measured what was left in
+│                     `ir/types.rs` after this move and CLOSED the tree:
+│                     1,473 lines (from 4,069), every region answering "what
+│                     is a <thing>?" — Module 29.7 %, nodes 24.6 %, tests
+│                     12.1 %, `impl Module` accessors 11.2 %, blocks 10.3 %,
+│                     ports/params/aggregates/domains 9.3 %, Design 0.3 %.
+│                     The candidate third split (`.1`'s "~649 lines of
+│                     port/clock-domain predicates") measured 302 lines, and
+│                     its `impl Module` half is 16 small accessors over a
+│                     struct declared 170 lines above them — a line-count
+│                     boundary, not an ownership one. Net across three moves:
+│                     4,069 -> 1,473, two single-purpose modules, ZERO call
+│                     sites changed. `ir/compact.rs` (5,453 lines) is now the
+│                     largest file under `src/ir/` and is UNMEASURED — noted,
+│                     not folded in, since that would be splitting by size.
+│
 ├── ir/knob_id.rs     IR-TYPES-DECOMPOSITION.2 — the STEERING TAXONOMY,
 │                     split out of `ir/types.rs` because it answers "what
 │                     can be steered, and in which coverage family?", not

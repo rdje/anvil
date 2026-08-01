@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `IR-TYPES-DECOMPOSITION`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Codebase hygiene / module ownership — owner-directed
 - Created: `2026-07-31`
-- Last updated: `2026-08-01` (`.3` landed — the canonicalization engine extracted to `src/ir/intern.rs`, `types.rs` 3607 → **1485**; verbatim move proven by line census, **1,058** tests pass, no `.snap` rewritten; frontier **`.4`**)
+- Last updated: `2026-08-01` (**CLOSED at `.4`** — re-measured and decided: `types.rs` **4,069 → 1,473**, and what remains is one coherent data model. The candidate third split did not survive measurement)
 - Owner: repo-local workflow
 
 ## Goal
@@ -90,7 +90,7 @@ call-site change anywhere.
 ## Task Tree
 
 - ID: `IR-TYPES-DECOMPOSITION`
-  Status: `active`
+  Status: `done`
   Goal: `Split src/ir/types.rs so each file owns one job: the steering taxonomy, the canonicalization engine, and the circuit data model.`
   Children: `.1` (audit + register), `.2` (extract KnobId), `.3` (extract the interning engine + its tests), `.4` (re-measure and close)
 
@@ -113,14 +113,14 @@ call-site change anywhere.
   Goal: `Extract the canonicalization engine into src/ir/intern.rs: flatten_associative (539 lines) + intern_gate (141) + intern_constant, as an impl Module block in the new module (Rust permits inherent impls in any module of the defining crate, so no field visibility changes), together with the ~38 fold_*/peephole_*/flatten_associative_*/intern_gate_* tests that exercise them. This is the single largest tenant: ~1830 lines with its tests, 45% of the file.`
   Acceptance: `Same as .2. Additionally: the moved tests keep their fixtures (fold_fixture, port, comb_child, seq_child) — duplicate a fixture only if BOTH files still need it, otherwise move it, and never leave a copy behind (feedback_full_factorization).`
   Verification: `done — VERBATIM MOVE, PROVEN RATHER THAN ASSERTED. src/ir/types.rs 3,607 -> 1,485 lines; new src/ir/intern.rs 2,173. FIVE functions moved, not the three the goal named: measuring the block found it CONTIGUOUS at lines 742-1904 and containing fold_constants (326 lines, pub(crate), ZERO callers outside types.rs) and apply_peephole (422 lines, pub(crate), ONE caller — intern_gate itself) between the named three. Moving intern_gate/intern_constant/flatten_associative while leaving those two behind would have split one engine across two files and left types.rs holding code only the other file calls, so the goal's list was widened on measurement and the reason is recorded here rather than silently. SEVERABILITY PROVEN IN BOTH DIRECTIONS BEFORE CUTTING, as .2 did: (a) the two fields the engine touches, gate_instances and const_instances, are already pub(crate), so a SIBLING module of crate::ir reaches them and NO visibility widened — Rust permits an inherent impl in any module of the defining crate, which is what makes this a move rather than a redesign; (b) the engine's only outward calls are self.effective_factorization_level() (pub, stays in types.rs) and the four engine fns themselves. VERBATIM PROVEN BY WHOLE-FILE LINE CENSUS against a pre-image copy, not by reading the diff: every non-blank line of the original 3,608-line types.rs appears byte-identical in types.rs or intern.rs afterwards — RESIDUE 0 — and the only lines in intern.rs absent from the original are the 17-line module doc plus one use. The import list was derived from the COMPILER, not guessed: the first build named DepSet as missing and HashMap as unused, both fixed, giving use super::types::{DepSet, GateOp, Module, Node, NodeId}. TEST COUNT EXACTLY CONSERVED: 40 -> 3 + 37. FIXTURE SPLIT MEASURED PER SIDE rather than assumed, which is what the acceptance demanded: fold_fixture has 7 uses, ALL from engine tests, 0 from stayers => MOVED; port (12 uses), comb_child (1) and seq_child (1) are used ONLY by the three staying tests => STAYED. No fixture is needed by both, so NOTHING was duplicated and no copy was left behind. BLAST RADIUS exactly src/ir/ — 3 files (types.rs, mod.rs, new intern.rs); ZERO call sites changed anywhere, because intern_gate (91 refs) and intern_constant (15 refs) are inherent methods on Module and resolve identically. Checks: cargo test 1,058 passed / 0 failed across 17 suites (lib 749, downstream 133, pipeline 113) with a REAL captured exit status of 0; tests/snapshots.rs 6/6 and NO .snap rewritten => DUT BYTE-IDENTICAL; cargo clippy --all-targets -D warnings clean; cargo fmt --all --check clean; cargo check --all-targets clean. METHOD CORRECTION RECORDED: the first test run was invoked as `cargo test | tail -40`, whose exit status is TAIL'S, not cargo's — the repo's own gated-workflow-shell-gotchas card warns of exactly this, and it still happened; the run was redone unpiped with $? captured to a file before any green claim was made.`
-  Commit: `pending`
+  Commit: `1b1793e`
 
 - ID: `IR-TYPES-DECOMPOSITION.4`
-  Status: `pending`
+  Status: `done`
   Goal: `Re-measure src/ir/types.rs and decide, on evidence, whether a third split is warranted (candidate: the ~649 lines of port/clock-domain/emitted-port predicates) or whether what remains is one coherent data model and the tree should close. Record the decision either way — "it is one thing now" is a legitimate and preferred outcome.`
   Acceptance: `A measured per-region table like the one above, and an explicit close-or-continue decision recorded in this tree.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — RE-MEASURED AT 1b1793e; DECISION: CLOSE. src/ir/types.rs is 1,473 lines (from 4,069), and the per-region table is in the Decisions section below. THE CANDIDATE THIRD SPLIT DID NOT SURVIVE RE-MEASUREMENT, which is the whole reason this leaf exists. .1 estimated "~649 lines of port/clock-domain/emitted-port predicates"; measured today that region is 137 declaration lines + a 165-line impl Module block = 302 lines, 20.5 % of the file. The two numbers I can reproduce exactly are these: impl Module was 1,327 lines / 21 methods at .1 and is 165 lines / 16 methods now, the difference being precisely the five engine functions .3 moved (21 - 16 = 5). I could NOT reproduce .1's exact ~649 basis and am recording that rather than reverse-engineering a justification for it: the estimate was taken when the impl block still had the interning engine mixed into it, and it did not survive contact with a measurement. WHY CLOSE RATHER THAN SPLIT AGAIN: every remaining region answers the ONE question a types file exists to answer — "what is a <thing>?" (Module 29.7 %, nodes 24.6 %, tests 12.1 %, impl Module accessors 11.2 %, blocks 10.3 %, ports/params/aggregates/domains 9.3 %, Design 0.3 %). The 16 surviving impl Module methods are small accessors and predicates OVER THE STRUCT DECLARED 170 LINES ABOVE THEM (has_local_flops, flop_domain, effective_clock_domains, is_emitted_input_port, emitted_data_input_ports, input_port/output_port, ...); separating a struct from its own accessors is not an ownership boundary, it is a line-count boundary — the exact thing this tree's Goal rejects ("the bar is OWNERSHIP, not line count"). The foreign-tenant probe agrees: types.rs's only non-std imports are CaseQualifier (a field type) and a re-export of KnobRollCounters (a field type), i.e. nothing that answers a different question. "It is one thing now" is the outcome the leaf named as legitimate and preferred, and it is the measured one.`
+  Commit: `IR-TYPES-DECOMPOSITION.4`
 
 ## Current Frontier
 
@@ -128,9 +128,9 @@ call-site change anywhere.
 | --- | --- | --- | --- |
 | 1 | `IR-TYPES-DECOMPOSITION.1` | `done` | Audit + register. The measurement is the work product: two tenants foreign to a types file are **55 %** of it, the blast radius of a split is **zero call sites** (`pub use types::*`, only 2 explicit `types::` sites repo-wide), and one doctrine check hard-codes the path. Ordering fixed against `CSG.6`. |
 | 2 | `IR-TYPES-DECOMPOSITION.2` | `done` | `types.rs` **4069 → 3607**; `src/ir/knob_id.rs` is 483 lines; tests conserved exactly (42 → 40 + 2). Severability proven in **both** directions before cutting. Blast radius exactly as `.1` predicted: **one** import line, inside `src/ir/`. Surfaced two pre-existing defects, both now tree-owned. |
-| — | **`COVERAGE-STEERED-GENERATION.6`** | `pending` | **Next, and it is in a different tree.** `KnobId` now lives alone, so the rung-R1 macro table lands in a file that owns one thing. |
-| 3 | `IR-TYPES-DECOMPOSITION.3` | `pending` | The largest tenant (~1830 lines with tests, 45 %). Deliberately **after** `CSG.6`: it moves an `impl Module` block plus ~38 tests, and it should not be interleaved with a semantic change to a different type. |
-| 4 | `IR-TYPES-DECOMPOSITION.4` | `pending` | Re-measure and close. Splitting further without re-measuring would be splitting by line count, which this tree explicitly rejects. |
+| — | **`COVERAGE-STEERED-GENERATION.6`** | `done` | Landed `f335926` in its own tree, as this ordering required. `KnobId` had already moved out at `.2`, so the rung-R1 macro table landed in a file that owns one thing — `knob_id.rs` 483 → 344 lines. |
+| 3 | `IR-TYPES-DECOMPOSITION.3` | `done` | `1b1793e`. `types.rs` **3,607 → 1,473**; new `intern.rs` 2,193. **Five** functions moved, not the three the goal named — measuring the block found it contiguous and found `fold_constants` / `apply_peephole` sitting between the named three, so leaving them would have split one engine across two files. Verbatim proven by whole-file line census (residue 0), tests conserved 40 → 3 + 37, zero call sites changed. |
+| 4 | `IR-TYPES-DECOMPOSITION.4` | `done` | **Re-measured, and the answer was CLOSE.** The candidate third split evaporated under measurement: `.1`'s *"~649 lines of port/clock-domain predicates"* is **302** today (137 declarations + a 165-line `impl Module`), and those 165 lines are 16 small accessors over a struct declared 170 lines above them. Separating a struct from its own accessors is a line-count boundary, not an ownership one — the exact thing this tree's Goal rejects. **The tree is closed.** |
 
 ## Decisions
 
@@ -155,16 +155,61 @@ call-site change anywhere.
   construction (`pub use types::*` is already the pattern). That is what makes a
   move of this size safe to review: if a call site changed, the move was not pure.
 
+- `2026-08-01` (`.4`): **CLOSE — what remains is one coherent data model.** Measured
+  at `1b1793e`, `src/ir/types.rs` is **1,473** lines (from **4,069**), and every
+  region answers the one question a types file exists to answer:
+
+  | region | lines | share | answers the question |
+  | --- | ---: | ---: | --- |
+  | `struct Module` declaration | 438 | 29.7 % | *"what is a module?"* |
+  | `Node` / `ForFoldKind` / `GateOp` / `ResetKind` / `FlopKind` / `MuxArm` / `FlopMux` / `Flop` / `DepSet` | 363 | 24.6 % | *"what is a node?"* |
+  | `#[cfg(test)] mod tests` | 178 | 12.1 % | — (the engine's ~37 tests left with it at `.3`) |
+  | `impl Module` — accessors + port/domain predicates | 165 | 11.2 % | *"what does this module contain or expose?"* |
+  | `Instance` / `Memory` / `Fsm` + impls | 152 | 10.3 % | *"what is a block?"* |
+  | `Port` / `Direction` / `WidthExpr` / `ParamEnv` / `Aggregate*` / `ModuleInterfaceProfile` / `ClockDomain` | 137 | 9.3 % | *"what is a port / a parameter / a domain?"* |
+  | `struct Design` | 5 | 0.3 % | *"what is a design?"* |
+
+  **The candidate third split evaporated under measurement**, which is precisely why
+  this leaf was written as *re-measure and decide* rather than *split again*. `.1`
+  estimated *"~649 lines of port / clock-domain / emitted-port predicates"*; the
+  region is **302** lines today. Two numbers reproduce exactly and are worth keeping:
+  `impl Module` was **1,327 lines / 21 methods** at `.1` and is **165 lines / 16
+  methods** now — a difference of exactly the five engine functions `.3` moved. The
+  `~649` basis could **not** be reproduced and is recorded as unreproducible rather
+  than reverse-engineered into a justification: it was taken while the interning
+  engine was still mixed into that block.
+
+  Those 165 lines are 16 small accessors and predicates over the struct declared
+  **170 lines above them** (`has_local_flops`, `flop_domain`,
+  `effective_clock_domains`, `is_emitted_input_port`, `emitted_data_input_ports`,
+  `input_port` / `output_port`, …). **Separating a struct from its own accessors is a
+  line-count boundary, not an ownership one** — the exact split this tree's Goal
+  refuses. The foreign-tenant probe agrees: the file's only non-`std` imports are
+  `CaseQualifier` and a re-export of `KnobRollCounters`, both *field types*, so
+  nothing in the file answers a different question.
+
+  Recorded as the preferred outcome the leaf itself named: **"it is one thing now."**
+
+- `2026-08-01` (`.4`, observed not acted on): `src/ir/compact.rs` is now **5,453**
+  lines — the largest file under `src/ir/` and the third-largest in the crate. Under
+  this tree's own bar that is **not by itself a defect**, and no measurement of its
+  tenancy exists, so the honest status is *unmeasured, therefore unknown*. Deliberately
+  **not** folded into this tree: doing so would be splitting by line count, which is
+  the one thing the Goal forbids. If it is ever picked up it needs its own tree and
+  its own `.1` audit — the same shape that made this one work.
+
 ## Open Questions
 
 - Whether `.2`'s new module should be `src/ir/intern.rs` or `src/ir/canonical.rs`.
   Leaning `intern.rs`: the entry points are `intern_gate` / `intern_constant`, and
   `src/ir/dedup.rs` already owns the *design*-level dedup, so `canonical` would be
   ambiguous between the two.
-- Whether the `~649` lines of port / clock-domain / emitted-port predicates are a
-  third tenant or part of the data model. **Deliberately unanswered until `.3`**,
-  after the two clear tenants are gone and the remainder can be measured rather
-  than guessed.
+- ~~Whether the `~649` lines of port / clock-domain / emitted-port predicates are a
+  third tenant or part of the data model.~~ **ANSWERED at `.4`: part of the data
+  model, and the `~649` did not survive measurement** — the region is **302** lines
+  today (137 declarations + a 165-line `impl Module` of 16 accessors). Holding this
+  question open until the remainder could be *measured rather than guessed* is
+  exactly what stopped a third split from happening on a stale estimate.
 
 ## Blockers
 
@@ -174,6 +219,7 @@ call-site change anywhere.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-01` | `IR-TYPES-DECOMPOSITION.4` | `re-measured src/ir/types.rs at 1b1793e = 1,473 lines with a per-region table (Module 438 / nodes 363 / tests 178 / impl Module 165 / blocks 152 / ports+params+aggregates+domains 137 / Design 5); impl Module measured 1,327 lines + 21 methods at .1 vs 165 lines + 16 methods now, the delta being exactly the five engine fns .3 moved; the .1 ~649 estimate NOT reproducible and recorded as such; foreign-tenant probe = only CaseQualifier + KnobRollCounters, both field types; no code touched` | `CLOSE — one coherent data model; docs-only, DUT byte-identical` |
 | `2026-07-31` | `IR-TYPES-DECOMPOSITION.2` | `severability proven both ways (no KnobId reference in types.rs outside the block; no data-model reference inside it); types.rs 4069 -> 3607, knob_id.rs 483, #[test] 42 -> 40+2 conserved; exactly ONE call site changed (an import in src/ir/knob_roll.rs), zero outside src/ir/; extractor repointed + negative-controlled (wrong path -> 0 categories -> floor trip, exit 1); cargo fmt/check/clippy/test all PASS with tests/snapshots.rs untouched; check_doctrines.sh 8/8` | `pure move; DUT byte-identical` |
 | `2026-07-31` | `IR-TYPES-DECOMPOSITION.1` | `tree registered (docs-only); measured src/ir/types.rs = 4069 lines at bd7dba2 with the per-region table above; confirmed src/ir/mod.rs already does pub use types::*, and that only 2 sites repo-wide write types:: explicitly; confirmed scripts/check_enumeration_parity.sh hard-codes src/ir/types.rs in extract_steering_categories; no code touched` | `registered` |
 
@@ -183,6 +229,8 @@ call-site change anywhere.
 | --- | --- | --- |
 | `IR-TYPES-DECOMPOSITION.1` | `30e731b` — `IR-TYPES-DECOMPOSITION.1 — audit + register the ownership-split tree` | Docs-only; no code moved. |
 | `IR-TYPES-DECOMPOSITION.2` | `218277d` — `IR-TYPES-DECOMPOSITION.2 — extract KnobId into src/ir/knob_id.rs` | Pure move ⇒ DUT byte-identical. |
+| `IR-TYPES-DECOMPOSITION.3` | `1b1793e` — `IR-TYPES-DECOMPOSITION.3 — extract the canonicalization engine` | Pure move ⇒ DUT byte-identical. `types.rs` 3,607 → 1,473; new `intern.rs` 2,193. **Five** functions moved, not the three the goal named — the block was contiguous and `fold_constants` / `apply_peephole` sat between them. Verbatim proven by whole-file line census (residue 0); tests conserved 40 → 3 + 37; zero call sites changed. |
+| `IR-TYPES-DECOMPOSITION.4` | `IR-TYPES-DECOMPOSITION.4 — re-measure and close: it is one thing now` | Docs-only; no code touched. Re-measured `types.rs` at **1,473** lines with a per-region table and decided **CLOSE**: every region answers *"what is a ⟨thing⟩?"*. The candidate third split evaporated — `.1`'s `~649` is **302** today, and its 165 `impl Module` lines are 16 accessors over a struct declared 170 lines above them. **Closes the tree** (`4,069 → 1,473`, two new single-purpose modules, zero call sites changed across all three moves). |
 
 ## Changelog
 
@@ -190,3 +238,17 @@ call-site change anywhere.
   who does what"* is load-bearing and is written into the Non-Goals: this tree
   will not split by line count, and `.4` may legitimately conclude that what
   remains is one coherent thing and close without splitting further.
+- `2026-08-01`: **`.4` done — and it concluded exactly that. The tree is CLOSED.**
+  `src/ir/types.rs` went **4,069 → 1,473** across three moves that changed **zero
+  call sites**, producing two single-purpose modules (`knob_id.rs`, `intern.rs`).
+  `.4` re-measured rather than split: the candidate third tenant — `.1`'s *"~649
+  lines of port / clock-domain predicates"* — is **302** lines today, and its
+  `impl Module` half is 16 small accessors over a struct declared 170 lines above
+  them, which is a line-count boundary rather than an ownership one. The `~649`
+  basis could not be reproduced and is recorded as unreproducible rather than
+  rationalised. **The escape hatch the tree wrote for itself on day one is the one
+  it took**, which is the point worth keeping: a decomposition tree needs a leaf
+  whose licensed answer is *stop*, or it will keep splitting until the criterion
+  is size. Also observed and deliberately not acted on: `src/ir/compact.rs` is now
+  **5,453** lines, unmeasured — it would need its own tree and its own `.1` audit,
+  never a silent widening of this one.

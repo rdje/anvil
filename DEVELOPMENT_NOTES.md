@@ -5,6 +5,52 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A decomposition tree needs a leaf whose licensed answer is STOP — `IR-TYPES-DECOMPOSITION.4`
+
+`IR-TYPES-DECOMPOSITION` closed by **not** splitting. That is the interesting part, and it did
+not happen by luck: `.4` was written on day one as *"re-measure and decide, and 'it is one
+coherent data model now' is a legitimate and preferred outcome."*
+
+**Why that leaf has to exist.** A tree named *split this file* has a built-in gradient toward
+splitting. Each leaf lands, the file is smaller, and the next question is naturally *"what
+else can come out?"* — at which point the criterion has quietly become **size**, because size
+is the only thing that is still obviously true. The stated bar here was **ownership**, and the
+only way to stop honouring it is to keep going without re-deriving it. A terminal leaf whose
+licensed answer is *stop* is what converts "we ran out of obvious moves" into a decision.
+
+**What re-measuring actually bought.** `.1` had flagged *"~649 lines of port / clock-domain /
+emitted-port predicates"* as a possible third tenant. It reads like a real candidate. Measured
+today it is **302** lines — 137 declarations plus a 165-line `impl Module` — and the
+`impl Module` half is **16 small accessors over a struct declared 170 lines above them**.
+Splitting those out would separate a struct from its own accessors, which is a **line-count**
+boundary wearing an ownership costume. Had `.4` been written as *"do the third split"* instead
+of *"re-measure and decide"*, it would have been done, and it would have been wrong.
+
+**The number that could not be reproduced, and what to do about that.** Two figures reproduce
+exactly: `impl Module` was **1,327 lines / 21 methods** at `.1` and is **165 / 16** now, the
+delta being precisely the five engine functions `.3` moved. The `~649` itself does **not**
+reproduce from anything I can measure — it was taken while the interning engine was still
+mixed into that block. The temptation is to reverse-engineer a basis that lands near 649 and
+present the tree as internally consistent. **Don't.** It is recorded as an estimate that did
+not survive contact with a measurement, because that is both true and the more useful fact:
+the estimate's *failure* is the evidence for `.4`'s existence.
+
+**Two small hygiene notes from the same pass**, worth recording because both are silent:
+
+- Two frontier rows were **stale in the direction that hides work**: `CSG.6` and `.3` were
+  listed `pending` while both had landed. A frontier that lags reads as *"this is next"* to a
+  recovering session, which is the failure a frontier exists to prevent.
+- The `docs/TASK_TREE.md` row had its `[docs/tasks/…]` link **mid-cell** with later prose
+  appended after it — a **sixth** cell in a five-column table. GFM ignores cells past the
+  header count, so `.3`'s **entire 2,040-character note was in the source and rendered
+  nowhere**. `TABLE-RENDER-FIDELITY` **blocked the commit** over it, which is the doctrine
+  layer earning its keep: the defect was pre-existing, invisible in review, and invisible in
+  the book. The habit that prevents it: when you append to a table row, append **inside** the
+  notes column, never after the final one — and the cheap manual check is that the row still
+  ends with `) |`.
+
+---
+
 ## 2026-08-01 — A measurement is attached to the command that produced it — `CAPABILITY-BREADTH-EXPANSION.4b.3`
 
 The docs leaf, and the one interesting thing in it is a near-miss.
