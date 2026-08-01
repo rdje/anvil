@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3
 
-**Landed as:** `pending`. Previous: `425c0ca`, `9ad7385`, `6539c32`.
+**Landed as:** `3b0d2c2`. Previous: `425c0ca`, `9ad7385`, `6539c32`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Registration only — nothing repaired.**
 
 **What.** A new tree owns a finding `BOOK-LINK-INTEGRITY.3` surfaced: the rule *"a negative control
