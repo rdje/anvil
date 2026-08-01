@@ -256,6 +256,49 @@ Restored with `cmp`-verified identity and rebuilt clean.
   deserves a checker is `.2`'s question, and per `0047` the by-product route is preferred to a new
   gate.
 
+### ⚠ CONFLICT found `2026-08-02` — read this before executing `.3`
+
+- **Owner directive `2026-08-02`: do NOT use `{{#include ...}}`.** *"I prefer having a link pointing
+  the `.md` files than using `{{#include ...}}`."* This **agrees with** decision
+  [`0046`](../decisions/0046-book-never-links-outside-book-src.md) candidate **D**, which already
+  rejected `{{#include}}` on four counts (a 163 KB chapter injection, anchor collisions worsened in
+  `print.html`, a build dependency outside `src`, …). Settled, no conflict.
+
+- **But the LINK form the owner chose is the one `0046` explicitly REJECTED.** `0046` candidate
+  **B — absolute GitHub URL — is marked ❌**, for two stated reasons: (i) `book/book.toml` sets
+  `git-repository-url = ""` and `edit-url-template = ""`, so the book is **deliberately built
+  host-agnostic**, and hard-coding a host contradicts a setting the project already made
+  (**verified**: both lines are live at `book/book.toml:14-15`); and (ii) it breaks on a fork, an
+  org rename, a mirror, **or an offline reader**, and must pin either `main` (a moving target) or a
+  SHA (stale on landing). `0046`'s accepted form **A** is to *name* the file in backticks and not
+  link at all — measured unanimous at **31 of 32** sites.
+
+- **An error in this tree's own record, corrected here rather than left standing.** The entry
+  committed at `a5645c1` said the absolute-link form was *"not a new convention — an existing one"*
+  and that `.3` *"extends the established pattern"*. **That is wrong.** The 6 absolute links were
+  introduced by `AGENT-INTROSPECTION-MCP.7`, `ACCEPTANCE-DIVERGENCE-HUNTING.2f` and
+  `BOOK-API-REFERENCE.1`, all of which **predate `0046`** (`9ad7385`, `2026-08-01`). They are
+  **residue that predates the decision rejecting the form**, not an endorsed convention. The claim
+  was made from a count without checking the dates, and it materially understated the conflict.
+
+- **The owner's directive governs — but the supersession must be EXPLICIT, not silent.**
+  `docs/decisions/INDEX.md` is unambiguous: *"To change a fact, add a new record or mark the old one
+  superseded; do not silently rewrite the old decision."* So `.3` **may not** simply start adding
+  absolute links: it must first land a decision record that supersedes `0046`'s candidate-B
+  rejection, states the owner directive and date, and answers `0046`'s two live objections — above
+  all the **offline reader**, which is the very case the owner raised. Whether `book.toml`'s
+  host-agnostic setting should also change is part of that record.
+
+- **RESOLVED `2026-08-02` by decision [`0048`](../decisions/0048-book-links-to-the-file-it-stopped-duplicating.md)**,
+  which supersedes `0046` candidate **B** *narrowly* — absolute links are admitted **only** where the
+  link is the sole route to content the book deliberately removed; form **A** still governs every
+  incidental reference and the 31/32 convention is not reopened.
+- **The owner's preferred "works on both surfaces" option was tested and does not exist.** `book/src`
+  and `book/book-out` sit at the same depth, so a relative `../../ROADMAP.md` *would* resolve from
+  either — but a probe chapter proved mdBook rewrites the target to `.html` in **both** the markdown
+  form **and the raw-HTML `<a href>` form**. No relative form survives into the rendered book, so the
+  absolute URL is the only one live on GitHub *and* locally. Probe removed, book rebuilt clean.
+
 ## Open Questions
 
 - **Is 1,500 characters the right threshold, or an artifact of this census?** It separates the 6

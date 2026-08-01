@@ -1,6 +1,79 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3 — decision 0048: the book links to the file it stopped duplicating
+
+**Landed as:** `pending`. Previous: `a5645c1`, `9b4aad5`, `edc9ad7`.
+**Docs-only; no `src/` and no `book/src/` change** ⇒ **DUT byte-identical**. **Decision only — no
+book content removed yet.**
+
+**What.** Decision [`0048`](docs/decisions/0048-book-links-to-the-file-it-stopped-duplicating.md)
+lands, **narrowly superseding** [`0046`](docs/decisions/0046-book-never-links-outside-book-src.md)
+candidate **B**: where the book *stops duplicating* a repo file it links to it with an **absolute
+GitHub URL**. `0046`'s form **A**, and its **C** and **D** rejections, stand unchanged.
+
+**Why this needed a record and not just an edit.** `0046` **explicitly rejected** the absolute
+GitHub URL. Starting to add such links would have silently contradicted an accepted decision, and
+`docs/decisions/INDEX.md` is unambiguous — *"to change a fact, add a new record or mark the old one
+superseded; do not silently rewrite the old decision."* The conflict was found by reading `0046`
+before executing, not after.
+
+**The distinction that makes this a narrowing rather than a reversal.** `0046` decided how a chapter
+makes an **incidental reference** — *"see `USER_GUIDE.md` for the level table"* — where the chapter
+stands on its own and the pointer is a courtesy; it measured form A unanimous at **31 of 32** sites.
+This is a case `0046` never faced: a reference that is the **sole route** to content deliberately
+deleted from the page. In that position a reference that cannot be followed **is** a deletion.
+
+**The owner's first choice was tested and does not exist.** Asked for links working *"on both GitHub
+and locally"*, with *"prioritize GitHub"* as the fallback. The relative form is the only candidate
+that could satisfy both, and the layout makes it look reachable — `book/src` and `book/book-out` sit
+at the **same depth**, so `../../ROADMAP.md` resolves to the repo root from either. A probe chapter
+settled it by measurement:
+
+| Authored | Rendered | Verdict |
+| --- | --- | --- |
+| `[ROADMAP.md](../../ROADMAP.md)` | `href="../../ROADMAP.html"` | rewritten ❌ |
+| `<a href="../../ROADMAP.md">` (**raw HTML**) | `href="../../ROADMAP.html"` | **also rewritten** ❌ |
+| `[Knobs](knobs.md)` | `href="knobs.html"` | intra-book, correct ✔ |
+
+**The raw-HTML escape hatch — the obvious bypass for a markdown-level rewrite — fails too.** So no
+relative form survives into the rendered book, and the absolute URL is the only one live on **both**
+surfaces. Probe removed, book rebuilt clean.
+
+**`0046`'s two objections, answered rather than waved through.** (i) `book.toml`'s
+`git-repository-url = ""` / `edit-url-template = ""` (verified live at lines 14–15) govern mdBook's
+**chrome** — the repo icon and *Edit this file* link — not what prose may name; reversing that
+setting is deliberately out of scope. (ii) Fork / rename / mirror / **offline** breakage is real and
+**accepted as a stated cost**: a local reader has the repository on disk and the link text names the
+path, whereas form A alone *after a deletion* leaves a networked reader no route at all.
+
+**`{{#include}}` stays rejected, now on two authorities.** Owner directive `2026-08-02`, and `0046`
+candidate **D**. It is the only clickable-*and*-offline-*and*-host-agnostic option, so its rejection
+is recorded rather than assumed: it injects the file as a chapter and would bring the
+**7,159-character** paragraph straight back into the rendered output — undoing
+`BOOK-PARAGRAPH-BLOBS.1`.
+
+**A correction to this repo's own record.** The entry at `a5645c1` claimed the absolute-link form was
+*"not a new convention — an existing one"*. **That was wrong.** The 6 absolute links in the book were
+introduced by `AGENT-INTROSPECTION-MCP.7`, `ACCEPTANCE-DIVERGENCE-HUNTING.2f` and
+`BOOK-API-REFERENCE.1`, all of which **predate `0046`** (`9ad7385`). They are residue that predates
+the decision rejecting the form, not precedent for it. The claim came from a count without a date
+check, and it understated the conflict. Corrected in the tree and stated in `0048` so it cannot be
+re-derived from the count.
+
+**Validation.** `scripts/check_doctrines.sh` **11/11** (`MEMORY-ARCH` verifies the
+`docs/decisions/` index is in sync). Knowledge map regenerated — **124** facts. `mdbook build book`
+exit `0` after probe removal. Docs-only ⇒ **DUT byte-identical**; `tests/snapshots.rs` untouched.
+
+**Impact.** `.3` can now execute without contradicting an accepted decision, and the next session
+inherits a stated rule instead of a conflict. The limits are recorded up front: these links are
+**gated by nothing** (`check_book_link_targets.sh:149` skips `https?:`), so they rot silently on a
+rename — `.2`'s question.
+
+**Files touched.** `docs/decisions/0048-book-links-to-the-file-it-stopped-duplicating.md` (new),
+`docs/decisions/INDEX.md`, `docs/tasks/BOOK-PARAGRAPH-BLOBS.md`, `KNOWLEDGE_MAP.md` (derived),
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.1 — split the wall-of-text paragraphs; worst block down 62 %
 
 **Landed as:** `df7bc6e`. Previous: `ff548e2`, `ebd7869`, `9060993`.
