@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `PARITY-EXTRACTOR-CHARSET-GAP`
-- Status: `closed` (`.1` landed — both extractors widened, both controls fail-before/pass-after)
+- Status: `closed` (`.2` landed — the class is now held by a STANDING guard, not by two corrected values)
 - Roadmap lane: Doctrine enforcement — a gate that under-verifies
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.1` landed; **tree CLOSED**)
+- Last updated: `2026-08-01` (**REOPENED then CLOSED at `.2`** — `.1` closed the instances, not the class its own Goal names)
 - Owner: repo-local workflow
 
 ## Goal
@@ -16,9 +16,19 @@ narrower than the ids the authoritative set can legally contain. A value outside
 that class is not *mis-read* — it is **not read at all**, so it never enters the
 authoritative set, and every doc-parity assertion about it passes **vacuously**.
 
-Close it at the **class** level, not the instance: widen both extractors to the
-charset their sources actually permit, and prove each one *sees* such an id with
-a control that fails before the fix and passes after.
+Close it at the **class** level, not the instance. Concretely that means three
+things, and `.1` delivered only the first:
+
+1. widen both extractors so the ids in play are read (`.1`);
+2. **stop specifying a charset at all** — the quotes already delimit the value, so
+   a *widened guess* is still a guess (`.2`, rung R1);
+3. **make a silent skip impossible** — a standing check that an extractor accounts
+   for every item it walks, so the next narrowing (of any kind, by anyone) fails
+   loudly instead of passing vacuously (`.2`, rung R2).
+
+Without (3) the repair is two corrected values plus prose, which is the bottom of
+the repair ladder and the anti-pattern `DOCTRINE_ENFORCEMENT.md` §11 names: *a
+rule nothing checks is a rule nothing follows.*
 
 ## How it was found (measured, not theorised)
 
@@ -124,6 +134,10 @@ covers it would report the wrong diagnosis even when it fires.
   what is being repaired.
 - The extractors' existing count floors still hold, and the recorded history
   comment gains the charset lesson beside the arm-shape one.
+- **A STANDING guard, not a one-off probe** (`.2`): re-running the exact historic
+  scenario — a narrowed capture plus a member outside it — must produce a **hard
+  failure**, with no human remembering to re-probe. This is the criterion `.1`
+  did not meet, and closing the tree without it was premature.
 - `scripts/check_doctrines.sh` green; no `src/` change.
 
 ## Task Tree
@@ -131,7 +145,7 @@ covers it would report the wrong diagnosis even when it fires.
 - ID: `PARITY-EXTRACTOR-CHARSET-GAP`
   Status: `done`
   Goal: `Widen both ENUMERATION-PARITY extractors to the charset their sources permit, with a per-extractor control proving the gate now sees such an id.`
-  Children: `PARITY-EXTRACTOR-CHARSET-GAP.1`
+  Children: `PARITY-EXTRACTOR-CHARSET-GAP.1`, `PARITY-EXTRACTOR-CHARSET-GAP.2`
 
 - ID: `PARITY-EXTRACTOR-CHARSET-GAP.1`
   Status: `done`
@@ -140,11 +154,36 @@ covers it would report the wrong diagnosis even when it fires.
   Verification: `done — extract_steering_categories' category capture "([a-z]+)" -> "([a-z0-9_]+)" (now matching the name column on the same row) and extract_adapter_ids' "[a-z0-9]+" -> "[a-z0-9_-]+". BOTH CONTROLS MEASURED FAIL-BEFORE / PASS-AFTER on the real source, then restored to a zero diff: (A) a category renamed `qualifiers` -> `case_qualifier` produced 0 FAILs before the widening (the vacuous pass being repaired) and 7 FAILs after, each naming case_qualifier at its fenced site; (B) an adapter id renamed `iverilog` -> `iverilog-compile` produced 1 FAIL before — but the WRONG one, the count floor reporting "produced 4 entries (floor 5)", which points at the extractor rather than at the missing doc entry — and 2 correct parity FAILs after, each naming iverilog-compile. So the repair improves DIAGNOSIS at the adapter site and adds COVERAGE at the category site. Extractors still read the full authoritative sets (9 categories incl. the new `qualifiers`; 5 adapter ids), so both count floors hold. The script's history comment gains the charset lesson beside the arm-shape one, including WHY a floor covers a rename but not an addition (shrink-coupled, not growth-coupled — the script's own note) and the transferable rule: capture the charset the SOURCE permits, not the charset its current members happen to use. scripts/check_doctrines.sh green, all 9 doctrines; no src/ change.`
   Commit: `PARITY-EXTRACTOR-CHARSET-GAP.1`
 
+- ID: `PARITY-EXTRACTOR-CHARSET-GAP.2`
+  Status: `done`
+  Goal: `Close the class MECHANICALLY, which .1 did not. .1 corrected two charsets and wrote prose; nothing standing would catch the next narrowing, so the repair sat at the bottom of the repair ladder while this tree's Goal says "close it at the class level, not the instance". Two rungs: (R1, derive) stop guessing a charset at all — the quotes already delimit the value, so capture "([^"]+)"; a widened guess is still a guess. (R2, standing guard) add total_or_fail: an extractor must ACCOUNT FOR every item it walks, comparing a deliberately LOOSER candidate predicate against the extraction, so a SILENTLY SKIPPED item becomes a hard failure instead of an invisible one.`
+  Acceptance: `The exact historic scenario (narrowed charset + a member outside it) must produce a hard FAIL where it previously produced 7 vacuous oks; a reshaped row must fail; both extractors' outputs unchanged on a healthy tree; the guard's own circularity avoided (candidate predicate strictly looser than the extraction); honest limit stated.`
+  Verification: `done — R1: both captures are now "([^"]+)" — the delimiters ARE the specification, so the capture cannot be too narrow for any value the source can express. Outputs on a healthy tree unchanged (9 categories, 5 adapter ids). R2: total_or_fail compares candidate_steering_rows (loose: an identifier followed by =>) against extract_steering_categories_raw (strict, pre-dedup, since categories legitimately repeat), and candidate_adapter_impls (a count of `fn id` impls) against extract_adapter_ids_raw. FOUR CONTROLS run on the real source, then everything restored to a zero diff: (1) re-narrowing the category charset to the ORIGINAL [a-z]+ alone => SILENT — the guard's stated limit, because every current category still fits, so nothing is skipped; (2) reshaping one knob_ids! row onto two lines (the ARM-SHAPE class, which this guard also now covers) => FAIL "walked 40 item(s) but produced 39 — it SILENTLY SKIPPED 1"; (3) an adapter id `slang.v2`, unreadable under the old charset => 2 correct parity FAILs naming it; (4) THE DECISIVE ONE — the exact historic bug reproduced, narrowed charset AND a case_qualifier category => FAIL "walked 40 item(s) but produced 38 — it SILENTLY SKIPPED 2", where before this tree the identical scenario produced 0 FAILs and 7 vacuous oks. So the class is closed in the form that matters: a member the extractor cannot read is now ALWAYS loud, never silent. check_doctrines.sh green (all 9); no src/ change.`
+  Commit: `PARITY-EXTRACTOR-CHARSET-GAP.2`
+
+## What `.2` does NOT claim (the honest limit)
+
+Control (1) is the limit, and it is stated rather than papered over: **the guard does not detect a
+narrowing at the moment it is introduced** — only at the moment a member outside the narrowed class
+arrives. Re-narrow the category capture today and every existing category still matches, so nothing
+is skipped and nothing fires.
+
+That is acceptable, and it is worth being precise about why: **the moment a member outside the class
+arrives is exactly the moment the defect would do harm.** Before this tree, that moment produced
+seven vacuous `ok`s. After it, that moment produces a hard failure naming the skip. The window in
+which a narrowed regex is *both present and harmless* is a window in which it is, by construction,
+harming nothing.
+
+Detecting the narrowing itself would need the check to know what its sources *could* legally
+contain — a semantic fact no syntactic guard has, and the same reason decision `0033` (c) refuses to
+ship a shadow **detector**. Guessing it would reintroduce cry-wolf, which this file records as the
+failure mode that gets a gate deleted.
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| — | (none — tree complete) | `done` | `.1` landed `2026-08-01`. It was the only leaf: the defect was already measured and the repair is two character classes, so the work that mattered was the **two controls** — a vacuous pass is precisely what was being fixed, and only a failing control distinguishes the repair from the coincidence that was hiding it. |
+| — | (none — tree complete) | `done` | `.1` + `.2` landed `2026-08-01`. `.1` was **wrongly** treated as the only leaf: the defect was already measured and the repair is two character classes, so the work that mattered was the **two controls** — a vacuous pass is precisely what was being fixed, and only a failing control distinguishes the repair from the coincidence that was hiding it. |
 
 ## Decisions
 
@@ -171,6 +210,7 @@ covers it would report the wrong diagnosis even when it fires.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-08-01` | `PARITY-EXTRACTOR-CHARSET-GAP` | `tree registered; defect measured — a case_qualifier steering category reported ok at all 7 fenced sites; the adapter extractor's second site confirmed latent-not-live against the 5 current Adapter::id() values` | `registered` |
+| `2026-08-01` | `PARITY-EXTRACTOR-CHARSET-GAP.2` | `R1 — both captures become "([^"]+)": the delimiters are the specification, so no guessed charset remains. R2 — total_or_fail added: an extractor must account for every item it walks (loose candidate predicate vs strict extraction, pre-dedup), so a silently skipped item is a hard failure. FOUR controls on the real source, all restored to a zero diff: (1) re-narrowing the charset alone is SILENT (the stated limit — nothing is skipped while every member still fits); (2) a reshaped knob_ids! row => "walked 40 but produced 39 — SILENTLY SKIPPED 1"; (3) an adapter id slang.v2 => 2 correct parity FAILs; (4) DECISIVE — the exact historic bug (narrow charset + case_qualifier) => "walked 40 but produced 38 — SILENTLY SKIPPED 2", vs 0 FAILs / 7 vacuous oks before this tree` | `done` (class closed by a STANDING guard; no src/ change) |
 | `2026-08-01` | `PARITY-EXTRACTOR-CHARSET-GAP.1` | `both extractors widened; CONTROL A (category with an underscore) 0 FAILs before -> 7 after, each naming case_qualifier; CONTROL B (adapter id with a hyphen) 1 WRONG failure before (the count floor reporting "produced 4 entries (floor 5)", pointing at the extractor rather than the missing doc entry) -> 2 correct parity FAILs after, each naming iverilog-compile; both sources restored to a zero diff; extractors still read the full sets (9 categories, 5 adapter ids) so both floors hold; check_doctrines.sh green (all 9)` | `done` (repair + both controls; no src/ change) |
 
 ## Commit Log
@@ -184,6 +224,19 @@ covers it would report the wrong diagnosis even when it fires.
 - `2026-08-01`: Created, from a defect measured at
   `CAPABILITY-BREADTH-EXPANSION.4b.1` when a new steering category containing an
   underscore passed all seven doc-parity sites vacuously.
+- `2026-08-01`: **`.2` done — and the tree should not have been closed at `.1`.** `.1` corrected
+  two charsets and wrote prose; nothing standing would have caught the next narrowing, so the
+  repair sat at the **bottom** of the repair ladder (*derive → compile error → derived test →
+  registered doctrine*) while this tree's own Goal says *"close it at the class level, not the
+  instance"*. `.2` takes the two rungs `.1` skipped: **(R1)** stop guessing a charset — the quotes
+  already delimit the value, so both captures become `"([^"]+)"`, since a *widened* guess is still
+  a guess; **(R2)** `total_or_fail`, which requires an extractor to **account for every item it
+  walks**, turning a silent skip into a hard failure. The decisive control: the exact historic
+  scenario now reports *"walked 40 item(s) but produced 38 — it SILENTLY SKIPPED 2"* where it
+  previously produced **7 vacuous `ok`s**. The guard also subsumes the older
+  `PARITY-EXTRACTOR-ARM-SHAPE-GAP` class (a reshaped row is a skip). Limit stated, not hidden: it
+  fires when a member outside the class *arrives*, not when the narrowing is *introduced* — which
+  is the moment the defect would otherwise do harm. **Tree CLOSED, properly this time.**
 - `2026-08-01`: `.1` done — both extractors widened to the charset their sources
   permit, each held by a control measured fail-before / pass-after on the real
   source. The adapter site gained **diagnosis** rather than coverage: its floor

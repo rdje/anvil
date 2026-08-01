@@ -82,7 +82,19 @@ extract_book_summary_links() {
 # read of the same ids for the docs that quote them.
 extract_adapter_ids() {
   grep -A1 "fn id(&self) -> &'static str {" src/downstream/mod.rs |
-    grep -oE '"[a-z0-9_-]+"' | tr -d '"' | sort -u
+    grep -oE '"[^"]+"' | tr -d '"' | sort -u
+}
+
+# How many `Adapter::id()` implementations exist at all — the denominator for
+# `total_or_fail`. Deliberately independent of what the id looks like.
+candidate_adapter_impls() {
+  grep -c "fn id(&self) -> &'static str {" src/downstream/mod.rs
+}
+
+# The ids WITHOUT `sort -u`, for the same pre-dedup totality comparison.
+extract_adapter_ids_raw() {
+  grep -A1 "fn id(&self) -> &'static str {" src/downstream/mod.rs |
+    grep -oE '"[^"]+"' | tr -d '"'
 }
 
 # Authoritative: the steering category names in the `knob_ids!` table in
@@ -190,8 +202,25 @@ extract_adapter_ids() {
 # identifier followed by `=>` — this check must fail loud, never cry wolf.
 extract_steering_categories() {
   sed -n '/^knob_ids! {$/,/^}$/p' src/ir/knob_id.rs |
-    sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[a-z0-9_]+",[[:space:]]*"([a-z0-9_]+)";[[:space:]]*$/\1/p' |
+    sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[^"]+",[[:space:]]*"([^"]+)";[[:space:]]*$/\1/p' |
     sort -u
+}
+
+# Every row of the `knob_ids!` table that LOOKS like a row — deliberately looser
+# than the extraction above (an identifier followed by `=>`, nothing about the
+# quoted values). It exists to be compared against the extraction: see
+# `total_or_fail`. Keeping it loose is what stops that comparison being circular.
+candidate_steering_rows() {
+  sed -n '/^knob_ids! {$/,/^}$/p' src/ir/knob_id.rs |
+    sed -nE 's/^[[:space:]]*([A-Za-z0-9_]+)[[:space:]]*=>.*$/\1/p'
+}
+
+# The extraction WITHOUT `sort -u`, so it can be counted against the candidate
+# rows. Categories legitimately repeat across rows, so the totality comparison
+# has to happen before dedup.
+extract_steering_categories_raw() {
+  sed -n '/^knob_ids! {$/,/^}$/p' src/ir/knob_id.rs |
+    sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[^"]+",[[:space:]]*"([^"]+)";[[:space:]]*$/\1/p'
 }
 
 # --- helpers ----------------------------------------------------------------
@@ -206,6 +235,35 @@ floor_or_fail() {
     note "FAIL: extractor '${label}' produced ${n} entries (floor ${min}) — the"
     note "      extractor is broken, not the enumeration. Fix the extractor in"
     note "      scripts/check_enumeration_parity.sh; do NOT lower the floor."
+    fail=1
+    return 1
+  fi
+  return 0
+}
+
+# total_or_fail <label> <candidates> <extracted> — an extractor must ACCOUNT FOR
+# every item it walks. A floor only asks "did you produce enough?"; this asks
+# "did you produce one per input?", which is the question that catches a SILENT
+# SKIP — the defect class behind both PARITY-EXTRACTOR-ARM-SHAPE-GAP (a reshaped
+# match arm) and PARITY-EXTRACTOR-CHARSET-GAP (a value outside the capture's
+# charset). Neither was visible to a floor, because in both the skipped item was
+# either newly added (so the count never dropped) or replaced by nothing while
+# the rest still extracted.
+#
+# The two arguments MUST come from predicates of different strictness: the
+# candidate side deliberately looser than the extraction side. If they were the
+# same predicate the comparison would be circular and always pass — which is the
+# vacuity this helper exists to prevent, reproduced inside the helper itself.
+total_or_fail() {
+  local label="$1" candidates="$2" extracted="$3" nc ne
+  nc="$(count_of "${candidates}")"
+  ne="$(count_of "${extracted}")"
+  if [ "${nc}" -ne "${ne}" ]; then
+    note "FAIL: extractor '${label}' walked ${nc} item(s) but produced ${ne} —"
+    note "      it SILENTLY SKIPPED $((nc - ne)). A skipped item is invisible to"
+    note "      the parity comparison, so every doc site would pass vacuously."
+    note "      Fix the extractor's pattern; do NOT relax this check. Unmatched:"
+    printf '%s\n' "${candidates}" | grep -c . >/dev/null
     fail=1
     return 1
   fi
@@ -416,6 +474,10 @@ fi
 # api-tools.md) and `yosys` (18) are the ordinary vocabulary of a chapter about
 # running those tools. The fence is what makes the pair real. See decision 0037.
 adapter_ids="$(extract_adapter_ids)"
+adapter_impl_count="$(candidate_adapter_impls)"
+adapter_ids_raw="$(extract_adapter_ids_raw)"
+total_or_fail 'downstream adapter ids' \
+  "$(seq 1 "${adapter_impl_count}" 2>/dev/null)" "${adapter_ids_raw}"
 if floor_or_fail 'downstream adapter ids' 5 "${adapter_ids}"; then
   covers_fenced_set 'adapter allow-list <-> the adapter registry' \
     "${adapter_ids}" 'book/src/api-tools.md' 'adapter-ids'
@@ -468,6 +530,8 @@ steering_categories="$(extract_steering_categories)"
 # added that way — agent-mcp.md and api-introspection.md from the repair at .1,
 # CODEBASE_ANALYSIS.md:2349 from the sweep itself, which no bug report had
 # surfaced. Never add a site because it turned up in a bug report.
+total_or_fail 'KnobId steering categories' \
+  "$(candidate_steering_rows)" "$(extract_steering_categories_raw)"
 if floor_or_fail 'KnobId steering categories' 8 "${steering_categories}"; then
   covers_fenced_set 'steer categories <-> the knob_ids! table' \
     "${steering_categories}" 'book/src/algorithm.md' 'steer-categories'

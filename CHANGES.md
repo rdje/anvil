@@ -1,9 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — PARITY-EXTRACTOR-CHARSET-GAP.2 — close the class with a standing guard, not two corrected values
+
+**Landed as:** `pending`. Previous: `7cce059`.
+**Doctrine-check only** ⇒ **DUT byte-identical**; no `src/` change.
+
+**Why there is a `.2` at all.** `.1` corrected two character classes, ran two controls by hand, wrote
+the lesson into three places, and closed the tree. Nothing committed re-runs those controls, so a
+future narrowing would have been caught by **nothing** — leaving the repair on the bottom rung of the
+repair ladder (*derive → compile error → derived test → registered doctrine*) and matching
+`DOCTRINE_ENFORCEMENT.md` §11's anti-pattern verbatim: *"a rule nothing checks is a rule nothing
+follows."* The tree's own Goal says *"close it at the class level, not the instance"*, so `.1` was
+closed against its own acceptance criteria. `.2` pays that debt.
+
+**R1 — stop specifying a charset at all.** `.1` went `[a-z]+` → `[a-z0-9_]+`: a *wider guess*, and the
+guess was the defect. The quotes in `"name", "category";` already delimit the value, so both captures
+become **`"([^"]+)"`** — exactly what the source wrote, and impossible to be too narrow for anything
+the source can express. **When a delimiter exists, the delimiter is the specification.** Outputs on a
+healthy tree are unchanged (9 categories, 5 adapter ids).
+
+**R2 — make a silent skip impossible.** New `total_or_fail`: an extractor must **account for every
+item it walks**, comparing a deliberately *looser* candidate predicate against the strict extraction
+(pre-dedup, since categories legitimately repeat). A skipped item is now a hard failure naming the
+shortfall instead of an invisible one. The two predicates must differ in strictness — the same
+pattern on both sides would be circular and always pass, reproducing the vacuity inside the guard.
+
+This generalises beyond charsets: a reshaped row, a moved anchor or a changed macro shape is also a
+*skip*, so the guard **subsumes the older `PARITY-EXTRACTOR-ARM-SHAPE-GAP` class**, which until now
+was held only by a count floor already shown blind to it.
+
+**Four controls, run on the real source, everything restored to a zero diff:**
+
+| control | before `.2` | after `.2` |
+| --- | --- | --- |
+| re-narrow the category charset **alone** | silent | **still silent** — the stated limit |
+| reshape one `knob_ids!` row onto two lines | silent | `walked 40 … produced 39 — SILENTLY SKIPPED 1` |
+| an adapter id `slang.v2` | unreadable ⇒ invisible | 2 correct parity failures naming it |
+| **the exact historic bug** (narrow charset **+** a `case_qualifier` category) | **7 vacuous `ok`s** | `walked 40 … produced 38 — SILENTLY SKIPPED 2` |
+
+**The limit, stated rather than hidden.** Control 1 does not fire: re-narrowing while every current
+member still fits skips nothing. That is acceptable because the moment a member outside the class
+*arrives* is the moment the defect would do harm — and that moment is now loud. Detecting the
+narrowing itself would require knowing what the source *could* legally contain, a semantic fact no
+syntactic guard has (the same reason decision `0033` (c) refuses to ship a shadow **detector**).
+
+**Validation.** `scripts/check_doctrines.sh` green — all 9. Knowledge Map regenerated and in sync;
+the `extractor-charset-narrower-than-source` card now teaches both rungs and its `reverify` was
+rewritten (it still cited the charset `.2` removed — the same rot repaired in `0044` earlier today)
+and **re-run end to end** to confirm it reproduces the failure rather than merely asserting it.
+
+**Files touched.** `scripts/check_enumeration_parity.sh`,
+`docs/tasks/PARITY-EXTRACTOR-CHARSET-GAP.md`, `docs/TASK_TREE.md`,
+`docs/knowledge/extractor-charset-narrower-than-source.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — PARITY-EXTRACTOR-CHARSET-GAP.1 — an extractor must capture the charset its source permits
 
-**Landed as:** `pending`. Previous: `18e75ad`.
+**Landed as:** `7cce059`. Previous: `18e75ad`.
 **Doctrine-check only** ⇒ **DUT byte-identical**; no `src/` change.
 
 **What.** Two `ENUMERATION-PARITY` extractors in

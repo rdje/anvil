@@ -5,6 +5,63 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — Fixing the values is not fixing the class: what `.1` owed and `.2` paid — `PARITY-EXTRACTOR-CHARSET-GAP.2`
+
+`.1` found a real defect, corrected the two offending character classes, ran two controls by hand,
+and wrote it up in three places. Then it closed the tree. **That was premature, and the tree's own
+Goal says why: *"close it at the class level, not the instance."*** What actually shipped was two
+corrected values plus prose — with **nothing standing** that would catch the next narrowing. The
+controls were throwaway probes; no committed artifact re-runs them.
+
+This repo already names that outcome. `DOCTRINE_ENFORCEMENT.md` §11: *"a rule nothing checks is a
+rule nothing follows."* And the repair ladder — *derive → compile error → derived test → registered
+doctrine* — puts "corrected the value and wrote a comment" on the bottom rung.
+
+**The tell, worth recognising directly: an analysis that ends in a document is not a repair.** The
+write-up was thorough, which is exactly what made it feel finished. Thoroughness of *explanation*
+reads like completeness of *work*, and it is the easiest way to stop one rung early.
+
+### The two rungs `.1` skipped
+
+**R1 — stop specifying a charset at all.** `.1` went `[a-z]+` → `[a-z0-9_]+`. That is a *wider
+guess*, and a guess is what was wrong: the next category with a digit-free-but-dotted name, or an
+uppercase one, breaks it again. The quotes in `"name", "category";` **already delimit the value**,
+so `"([^"]+)"` captures exactly what the source wrote and cannot be too narrow for anything the
+source can express. When a delimiter exists, the delimiter is the specification — do not re-describe
+its contents.
+
+**R2 — make a silent skip impossible.** `total_or_fail`: an extractor must **account for every item
+it walks**. It compares a deliberately *looser* candidate predicate (an identifier followed by `=>`)
+against the strict extraction, pre-dedup, and fails naming the shortfall. The two predicates must
+differ in strictness — same pattern on both sides would be circular and always pass, reproducing
+the vacuity inside the guard.
+
+That generalises past charsets. A reshaped row, a moved anchor, a changed macro shape — any of them
+is now a *skip*, so `total_or_fail` also subsumes the older `PARITY-EXTRACTOR-ARM-SHAPE-GAP` class,
+which was previously held only by a floor that had already been shown blind to it.
+
+### Four controls, on the real source, all restored to a zero diff
+
+| control | before `.2` | after `.2` |
+| --- | --- | --- |
+| re-narrow the category charset **alone** | silent | **still silent** — the stated limit |
+| reshape one `knob_ids!` row onto two lines | silent | `walked 40 … produced 39 — SILENTLY SKIPPED 1` |
+| an adapter id `slang.v2` | unreadable ⇒ invisible | 2 correct parity failures naming it |
+| **the exact historic bug** (narrow charset **+** `case_qualifier`) | **7 vacuous `ok`s** | `walked 40 … produced 38 — SILENTLY SKIPPED 2` |
+
+**The limit is stated, not hidden.** Control 1 does not fire, because re-narrowing while every
+current member still fits skips nothing. That is acceptable and worth being exact about: the moment
+a member outside the class *arrives* is the moment the defect would do harm, and that moment is now
+loud. A narrowed regex that is present *and* harmless is harming nothing. Detecting the narrowing
+itself would need the guard to know what the source *could* legally contain — a semantic fact no
+syntactic check has, and the same reason decision `0033` (c) refuses to ship a shadow **detector**.
+
+### The rule to carry
+
+**When you find a defect class, ask what would fail if it recurred tomorrow — and if the answer is
+"a human notices", you are not done.** A corrected value plus an explanation is where the work
+*feels* complete; a standing check that reproduces the original failure loudly is where it *is*.
+
 ## 2026-08-01 — Capture the charset the SOURCE permits, not the one its members happen to use — `PARITY-EXTRACTOR-CHARSET-GAP.1`
 
 Two `ENUMERATION-PARITY` extractors read an id with a character class narrower than the ids their

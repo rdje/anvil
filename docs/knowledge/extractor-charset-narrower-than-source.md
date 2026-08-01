@@ -12,11 +12,14 @@ answers:
   - "shrink-coupled vs growth-coupled guard"
   - "is renaming my id to fit the regex a valid fix"
   - "can an id contain an underscore or a hyphen in check_enumeration_parity"
+  - "how do I stop an extractor from silently skipping an item"
+  - "what is total_or_fail"
+  - "is widening a regex enough to fix a vacuous check"
 date: 2026-08-01
 status: current
 tags: [doctrine, enforcement, enumeration, vacuity, gate-quality, extractor, regex, gotcha]
-reverify: "grep -n 'a-z0-9_-' -n scripts/check_enumeration_parity.sh   # the adapter capture; then grep -n '(\\[a-z0-9_\\]+)' scripts/check_enumeration_parity.sh   # the category capture. To re-earn the claim rather than read it: temporarily give a `knob_ids!` row a category containing `_` and re-run `bash scripts/check_enumeration_parity.sh` — it must go RED naming that category at each fenced site (before PARITY-EXTRACTOR-CHARSET-GAP.1 it printed `ok` at all seven), then restore."
-evidence: docs/tasks/PARITY-EXTRACTOR-CHARSET-GAP.md (the measurement — a `case_qualifier` steering category reported `ok` at all 7 fenced sites, 0 FAILs, and 7 FAILs after the widening); scripts/check_enumeration_parity.sh (`extract_steering_categories`, `extract_adapter_ids`, and the recorded charset lesson beside the arm-shape one); DEVELOPMENT_NOTES.md `2026-08-01` `PARITY-EXTRACTOR-CHARSET-GAP.1`
+reverify: "grep -n 'total_or_fail' scripts/check_enumeration_parity.sh   # the standing guard: an extractor must account for every item it walks. To RE-EARN the claim rather than read it, reproduce the historic bug: narrow the category capture back to \"([a-z]+)\" AND rename a knob_ids! category to contain an underscore, then run bash scripts/check_enumeration_parity.sh — it must FAIL with 'walked N item(s) but produced N-2 — it SILENTLY SKIPPED 2' (before PARITY-EXTRACTOR-CHARSET-GAP it printed ok at all seven sites). Restore both files afterwards; verify with git diff --stat."
+evidence: docs/tasks/PARITY-EXTRACTOR-CHARSET-GAP.md (the measurement — a `case_qualifier` steering category reported `ok` at all 7 fenced sites, 0 FAILs, and 7 FAILs after the widening); scripts/check_enumeration_parity.sh (`extract_steering_categories`, `extract_adapter_ids`, and the recorded charset lesson beside the arm-shape one); DEVELOPMENT_NOTES.md `2026-08-01` `PARITY-EXTRACTOR-CHARSET-GAP.1` and `.2` (the latter records the two rungs `.1` skipped and the four controls)
 ---
 
 A "does every doc name every member of set S" check has **two** halves that can go vacuous, and
@@ -58,8 +61,27 @@ that works only because you picked a value the reader tolerates is not a fix. (I
 to `qualifiers` was independently correct — it matches `selectors` / `terminals` / `motifs` /
 `emission` — and was still not treated as the repair.)
 
-**Hold each extractor with a control, per `DOCTRINE_ENFORCEMENT.md` §9:** give a member a character
-from the widened class and confirm the check goes **red naming it**. Since a vacuous pass is exactly
-what is being repaired, only a failing control distinguishes the fix from the coincidence that was
-hiding the bug. See [[negative-control-must-be-able-to-fail]] for why a control that passes first
-time deserves suspicion.
+**Do not stop at widening — that is still a guess, and it is not enforced.** Two rungs beyond it,
+both live in `scripts/check_enumeration_parity.sh`:
+
+1. **Specify nothing.** The quotes already delimit the value, so capture `"([^"]+)"`. A capture
+   bounded by the real delimiters cannot be too narrow for anything the source can express.
+2. **Make a silent skip impossible** — `total_or_fail`: an extractor must **account for every item
+   it walks**, comparing a deliberately *looser* candidate predicate against the extraction. A
+   skipped item becomes a hard failure (*"walked 40 item(s) but produced 38 — it SILENTLY SKIPPED
+   2"*) instead of an invisible one. This also subsumes the older reshaped-row failure, since a row
+   the pattern cannot parse is just another skip.
+
+The two predicates must differ in strictness. If the candidate side used the same pattern as the
+extraction, the comparison would be circular and always pass — the very vacuity being repaired,
+reproduced inside the guard.
+
+**Honest limit:** the guard fires when a member outside the narrowed class **arrives**, not when the
+narrowing is **introduced**. Re-narrow the capture today and every existing member still matches, so
+nothing is skipped. That is acceptable because the moment a member outside the class arrives is
+exactly the moment the defect would do harm — and that moment is now loud. Detecting the narrowing
+itself would require knowing what the source *could* legally contain, a semantic fact no syntactic
+guard has (the same reason decision `0033` (c) refuses to ship a shadow *detector*).
+
+See [[negative-control-must-be-able-to-fail]] for why a control that passes first time deserves
+suspicion, and [[coverage-check-vacuity]] for the document-side half of this failure.
