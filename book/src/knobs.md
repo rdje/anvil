@@ -1593,7 +1593,7 @@ under-exercised constructs by multiplying a knob's probability *before* its
 single roll — a construction-time prior, never a generate-then-filter, and
 byte-identical when unset. Set a target with `--steer <key>=<weight>` (a knob
 name or a category — <!--enum:steer-categories-->`state` / `selectors` / `datapath` / `terminals` / `motifs` / `emission` /
-`sharing` / `hierarchy`<!--/enum:steer-categories-->) or the `steering` config block. See
+`qualifiers` / `sharing` / `hierarchy`<!--/enum:steer-categories-->) or the `steering` config block. See
 [The Fanin Cone Algorithm](algorithm.md#construction-time-coverage-steering) for
 the mechanism and
 [Driving anvil from an AI Agent](agent-mcp.md#coverage-steered-generation) for

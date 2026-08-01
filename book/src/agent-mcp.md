@@ -1076,7 +1076,7 @@ The steering target is the durable, reproducible artifact a sweep or a CI findin
 pins to: re-running with the same `(seed, knobs, steering-config)` is
 byte-identical forever. The taxonomy a category key uses is the fixed set
 <!--enum:steer-categories-->`state` / `selectors` / `datapath` / `terminals` / `sharing` / `hierarchy` /
-`motifs` / `emission`<!--/enum:steer-categories-->; a key may also be any individual knob name (e.g.
+`motifs` / `emission` / `qualifiers`<!--/enum:steer-categories-->; a key may also be any individual knob name (e.g.
 `flop_prob`). Two of those are worth telling apart before you steer by category:
 `motifs` picks *what kind of module this is* and rolls at most once per module,
 while `emission` picks how an already-built cone is *rendered* and rolls once per

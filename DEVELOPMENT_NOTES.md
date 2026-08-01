@@ -5,6 +5,117 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — Case-qualifier surface — impl-time notes — `CAPABILITY-BREADTH-EXPANSION.4b.1`
+
+Implemented per the `.4a` design with **one correction**, recorded first because it reverses a
+resolution `.4a` published.
+
+### ⛔ Correction to `.4a` resolution 2: the category is `qualifiers`, not `emission`
+
+`.4a` put the two knobs in the **`emission`** `KnobId` category, reasoning from two axes —
+pipeline position (post-construction) and resolution (once per candidate gate). Both are correct,
+and the conclusion was still wrong. A guard in `tests/pipeline.rs` caught it:
+`every_emission_surface_is_individually_measurable_and_steerable` asserts
+`emission.len() == 9`, *"the 9 emit-projection surfaces decision `0035` names"*.
+
+The guard is right and `.4a` was wrong, because there is a **third axis** it under-weighted:
+
+> **A steering category is a family a user up-weights as a unit, so it must be semantically
+> homogeneous — not merely co-located in the pipeline.**
+
+The nine `emission` knobs are **projections** competing for one gate graph under mutual exclusion.
+A qualifier is not one — `.4a`'s own load-bearing argument, the very thing that kept it out of
+decision `0032`'s interaction gate and gave it its own `knob_group`. Worse, the two are
+**anti-correlated**: a qualifier claims only the gates the projections *declined*, so a single
+`--steer emission=2.0` would push `case_mux_if` to claim more gates while pushing the qualifier to
+claim more of a pool that is simultaneously shrinking. The category's aggregate achieved rate would
+be measuring a self-cancelling mixture. That is a measurement defect, not a taste question — and it
+is the same reason decision `0035` split `motifs` off rather than widening `emission`.
+
+So the qualifiers take their **own** `qualifiers` category. `--steer emission` keeps meaning exactly
+what it meant, which is the promise `0035` made about pre-existing categories, and the qualifiers
+become independently steerable — measured: at `unique_case_prob = 0.4`, `--steer qualifiers=2.0`
+moves the achieved rate `0.385 → 0.769` and `0.25` moves it to `0.154`, with the **attempts count
+fixed at 26** throughout (rules-first: the prior scales the probability, it does not add a rejection
+path). Pinned by a new `case_qualifiers_are_their_own_steerable_category` guard.
+
+**The lesson worth keeping:** the `.4a` note argued the category by *where and how often the roll
+happens*. Those are properties of the **mechanism**. A steering category is a property of the
+**user's intent** — "make more of this kind of thing" — and two mechanisms that look identical can
+still belong to different intents. When classifying into a taxonomy a user acts on, argue from what
+the user is asking for, not from where the code sits.
+
+**Consistency check applied afterwards, not before:** `.4a` had *already* concluded the same thing
+for the sibling taxonomy, giving the knobs their own `case_qualifier` **catalog group** rather than
+`structured_emission` — for exactly this argument. Two taxonomies, one distinction, and the design
+split them differently. **When the same distinction shows up twice, resolve it the same way both
+times, or say why not.**
+
+### Five things worth recording beyond the design
+
+**1. Two guards fired during the change, and both were the point of having them.** Adding
+`Overrides::{unique_case_prob, priority_case_prob}` broke `every_override_set()` with `E0063`,
+because that fixture is deliberately exhaustive — decision `0033`'s rung **R2**, where the
+*compiler* maintains the list instead of a human. And `.4a` predicted the `knob_group` fallthrough:
+the two knobs do not end in `_emit_prob`, so they land in `"other"`, which
+`knob_catalog_classifies_every_field` forbids. Neither was a chore; each is a hand-written list
+that no longer exists because a mechanism holds it.
+
+**2. Behaviour preservation is proven structurally, not statistically.** The sibling surfaces prove
+theirs with an ON-vs-OFF Verilator `-Wall` **delta of 0**, which is a statement about a warning
+count. A qualifier admits something stronger, because it adds a token and changes nothing else: run
+the same seed with the knob on and off, strip the qualifier token from the ON corpus with one
+`sed`, and `diff` the two. Over 8 modules / 30 qualified blocks the result is **byte-identical** —
+so the projection cannot have perturbed naming, ordering, arm construction or anything else. Where
+a delta-of-zero says *no new warnings appeared*, this says *there is nothing else to warn about*.
+Worth reaching for whenever a change is supposed to be additive at the token level.
+
+**3. The §9 vacuity probe was run against the property test, on the generator — not on fixtures.**
+`.4`'s acceptance requires the FULL/PARALLEL test to fail on a broken input, and hand-built
+negative controls only prove the *predicate* can fire. So both subjects were deleted in the real
+source and the test re-run:
+
+- suppressing the emitter's unconditional `default:` arm (`emit/sv.rs`) ⇒ `full_violations` reports
+  every generated block, e.g. *"line 64: the block opened at line 60 closes with no `default:`
+  arm"*, 8+ on seed 1 alone;
+- widening `build_casez_patterns`' wildcard mask by one bit (`gen/cone/motifs.rs`) ⇒
+  `parallel_violations` reports real overlaps, e.g. *"node 8: casez arms 0 and 1 overlap"*.
+
+Both files were then restored to a zero diff. This is the check `.3`'s scratch checker **failed**,
+and the reason the acceptance criterion was written that way.
+
+**4. The nesting trap is real in this emitter, and the fix is one character of policy.** The FSM
+emitter writes an inner block on the **arm-label line** — `S0: case (sel)` (`emit/sv.rs:985`,
+`:1025`) — so a `full_violations` that matched openers with `starts_with` would miss every nested
+FSM block and credit the outer `default:` to the inner one. Matching the opener as a **substring**
+fixes it and, for free, keeps working once a qualifier prefix is present (`unique case (` still
+contains `case (`). The nested negative control pins it: the inner block is the one reported.
+
+**5. A new steering category is a user-visible taxonomy change, and `ENUMERATION-PARITY` priced it
+immediately** — seven fenced doc sites had to name `qualifiers` before the commit could land, which
+is the gate doing exactly its job. But getting there surfaced a **pre-existing hole in that gate**,
+recorded here because it is not about this construct: `extract_steering_categories`
+(`scripts/check_enumeration_parity.sh`) captures the category column with `"([a-z]+)"` — **letters
+only, no underscore**. The first name tried was `case_qualifier`, and the check reported
+**`ok` on all seven sites** because the extractor never saw it. Every category that exists today is
+a single lowercase word, so the gap has never been exercised; the count floor does not catch it
+either, since the other eight still extract. `qualifiers` matches the existing taxonomy's naming
+convention anyway (`selectors` / `terminals` / `motifs` / `emission`) and the gate then failed on
+all seven sites as it should — but *a doctrine check that silently ignores a whole class of input
+is exactly the vacuous pass `DOCTRINE_ENFORCEMENT.md` §9 is about*, and it gets its own tree rather
+than a quiet regex widening bundled into this leaf.
+
+**6. The Icarus result reproduced exactly, which is what makes the tool-plan split earned rather
+than defensive.** 30 qualified blocks ⇒ `unique` produces exactly **30** `vvp.tgt sorry:` lines and
+**0** lines matching `warning:`; `priority` is completely silent; both exit `0`. So
+`downstream::first_tool_warning`'s iverilog arm (which matches `warning:`) would indeed have passed
+this on a lexical accident — the thing `0044` refused to let the gate rest on. Yosys's answer is
+the complement: **identical cell counts, 8/8, in both repo modes**, which is the synthesis-side
+statement that an assertion which holds gives the synthesizer no new freedom, so the netlist cannot
+move.
+
+---
+
 ## 2026-08-01 — `unique` / `priority` case qualifiers — impl design-detail — `CAPABILITY-BREADTH-EXPANSION.4a`
 
 Grounds decision [`0044`](docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)

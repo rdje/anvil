@@ -893,6 +893,60 @@ src/
 │                     12 emitting a chain / 108 chains / `coverage_gaps = []` /
 │                     `saw_casez_mux_if_emit` / 12/0 Verilator + both Yosys +
 │                     Icarus).
+├── ir/case_qualifier.rs  CAPABILITY-BREADTH-EXPANSION.4b.1 — the first
+│                     **case-qualifier** surface (decision 0044), and the first
+│                     per-gate emit annotation that is NOT one of the nine
+│                     projections: it *decorates* a rendering rather than
+│                     replacing one. `pub enum CaseQualifier { Unique, Priority }`
+│                     (+ `prefix()` → `"unique "` / `"priority "`) lives here,
+│                     with `Module.case_qualifiers: BTreeMap<NodeId,
+│                     CaseQualifier>` as the carrier — a MAP, so "at most one
+│                     qualifier per gate" is unrepresentable-otherwise rather
+│                     than asserted. Gen-time
+│                     `annotate_case_qualifiers(m, steering, rng, unique_p,
+│                     priority_p)` runs TENTH, after `casez_mux_if`, in both
+│                     `gen/mod.rs` paths; param-env modules skipped.
+│                     `gate_qualifies` takes a `GateOp::CaseMux` (`>= 2`
+│                     operands) or `GateOp::CasezMux` (`>= 4`) whose selector is
+│                     NOT a `Node::Constant` and which is NOT in
+│                     `case_mux_if_gates` / `casez_mux_if_gates` — **the lane's
+│                     first NON-VACUOUS exclusion**, since a chain-projected gate
+│                     emits no `case` keyword to prefix; the remaining sibling
+│                     exclusions are vacuous by target type but kept by
+│                     convention. Per candidate the `unique` knob rolls first and
+│                     the `priority` roll is SKIPPED on a hit, and each roll is
+│                     skipped at probability 0.0 — so `fires(knob)` equals that
+│                     knob's emitted count exactly (`gen_bool` consumes a draw at
+│                     p==0.0, and the steering multiplier cannot lift 0.0).
+│                     Both rolls go through the one `roll_knob_into` primitive
+│                     with new `KnobId::{UniqueCaseProb, PriorityCaseProb}` in
+│                     their OWN `qualifiers` steering category — deliberately
+│                     NOT `emission`, which is the nine PROJECTIONS: a
+│                     qualifier claims only gates those projections declined,
+│                     so pooling the two would average a self-cancelling
+│                     mixture (the reason decision 0035 split `motifs` off).
+│                     The emitter (`emit/sv.rs`) reads
+│                     the map once per structured block and writes the prefix on
+│                     the two UNPROJECTED `case (`/`casez (` branches only; an
+│                     empty map yields `""`, so default emission is
+│                     byte-identical by construction. The `default:` arm is
+│                     deliberately NOT made conditional — it is what makes the
+│                     FULL assertion true. Knobs `unique_case_prob` /
+│                     `priority_case_prob` (+ `--unique-case-prob` /
+│                     `--priority-case-prob`), default 0.0, in their own
+│                     `case_qualifier` `knob_group` — deliberately NOT
+│                     `structured_emission`, whose membership the
+│                     `structured-emission-max` preset drift test turns into
+│                     preset membership. Carries the durable FULL+PARALLEL
+│                     property test (two `#[cfg(test)]` predicates: PARALLEL off
+│                     the IR by pairwise `((v_i^v_j) & c_i & c_j) == 0` plus a
+│                     label-width check; FULL off the emitted text by a
+│                     nesting-aware `default:`-per-block scan whose openers match
+│                     by SUBSTRING because the FSM emitter nests `S0: case (sel)`
+│                     on the arm-label line) over the real `Generator`, with
+│                     firing negative controls — the tracked replacement for the
+│                     `.3` scratch corpus checker. 15 lib proofs; default-off DUT
+│                     byte-identical (snapshots 6/6).
 │                     EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — the
 │                     first gate over the surfaces' INTERACTION rather than any
 │                     one surface: `ScenarioSet::EmitSurfaceInteraction` + the
@@ -2372,7 +2426,7 @@ In code (constructors / generator):
 - `pick_terminal` filters out the excluded `NodeId` from every candidate set (matching-width, dep-bearing, fallback adapter source).
 - `build_cone`, `process_signal_frame`, `grow_pool_one_unit`, `pick_terminal`, and `drain_flop_worklist` route every leaf/cone probability choice through `roll_knob`, populating `m.knob_rolls` for measurability of `flop_prob`, `comb_mux_prob`, `priority_encoder_prob`, `coefficient_prob`, `const_shift_amount_prob`, `const_comparand_prob`, `constant_prob`, `terminal_reuse_prob`, `comb_mux_encoding_prob`, `flop_mux_encoding_prob`, `share_prob`, and `flop_qfeedback_prob`. The hierarchy binding decisions in `gen/hierarchy.rs` roll the hierarchy probability knobs through **the same** primitive, naming their `KnobId` inline at each of their seven decision sites: `hierarchy_sibling_route_prob`, `hierarchy_registered_sibling_route_prob`, `hierarchy_registered_sibling_mixed_support_prob`, `hierarchy_registered_child_input_cone_prob`, `hierarchy_child_input_cone_prob`, `hierarchy_parent_cone_instance_prob`, and `hierarchy_parent_flop_prob`. *(Until `COVERAGE-STEERED-GENERATION.3b` they did **not** — seven local `roll_hierarchy_*` helpers recorded into the same `m.knob_rolls` sink while skipping the steering prior, which is exactly the split this sentence used to describe as ordinary structure. See decision `0034`.)*
 - `COVERAGE-STEERED-GENERATION.3b` (decision `0034`): the roll primitive moved to `src/ir/knob_roll.rs` as `roll_knob_into(&mut KnobRollCounters, &SteeringConfig, &mut impl Rng, KnobId, f64)`, reached crate-wide through the `Generator::roll_knob(&mut self, m, knob, prob)` shim in `gen/mod.rs`; `cone::roll_knob(g, m, knob, prob)` survives only as a free-function alias so its 37 call sites keep their spelling. `KnobRollCounters::record` is **private to `ir::knob_roll`**, so a second roll primitive is a compile error (`error[E0624]`) rather than a review question — the structural close of the two-month window in which `gen/hierarchy.rs`'s seven local helpers left 6 of the 22 `KnobId`s, and the whole documented `hierarchy` steering category, unreachable by the prior. Unsteered emission byte-identical (snapshots 6/6); steered hierarchy emission now changes, proven by `steering_shifts_hierarchy_category_construct_distribution` (both weight directions, per-knob) and negative-controlled by reintroducing the pre-`.3b` shape.
-- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): the roll primitive applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: <!--enum:steer-categories-->`state`/`selectors`/`datapath`/`terminals`/`motifs`/`emission`/`sharing`/`hierarchy`<!--/enum:steer-categories-->) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
+- `COVERAGE-STEERED-GENERATION.2a` (decision `0023`): the roll primitive applies the construction-time steering prior before its single `gen_bool` draw — `effective_prob = g.cfg.steering.effective_prob(knob, prob)` = `clamp01(prob * weight(knob))`, where `weight` resolves per-knob → per-category (`KnobId::category()`: <!--enum:steer-categories-->`state`/`selectors`/`datapath`/`terminals`/`motifs`/`emission`/`qualifiers`/`sharing`/`hierarchy`<!--/enum:steer-categories-->) → neutral `1.0`. Rules-first: exactly one draw per roll, no rejection path ⇒ byte-stable per `(seed, knobs, steering-config)`; an empty `SteeringConfig` short-circuits to today's exact `prob.min(1.0)` ⇒ DUT byte-identical (snapshots 6/6). The SCHEMA-DERIVED achieved-coverage readout (`--introspect`/MCP) + `--steer` CLI shim + outer measure→derive→re-steer helper + book/USER_GUIDE/KM land in `.2b`/`.2c`.
 - `gen::module::generate_leaf_module` reserves port id 0 for `clk` and 1 for `rst_n`. Neither is added to the signal pool, so cones cannot terminate at them.
 - `Config::validate()` still enforces the legacy exact wrapper lane
   (`hierarchy_depth ∈ {0,1}`, `num_leaf_modules >= 1` when exact

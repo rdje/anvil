@@ -280,6 +280,27 @@ impl Generator {
                 p,
             );
         }
+
+        // `CAPABILITY-BREADTH-EXPANSION.4b.1` — mark dynamic-selector
+        // `CaseMux`/`CasezMux` gates with an IEEE 1800-2017 §12.5.3 `unique` /
+        // `priority` **case qualifier** (decision `0044`). Runs LAST, and here
+        // the ordering is load-bearing rather than conventional: this pass
+        // excludes gates the eighth and ninth surfaces already claimed, and a
+        // claimed gate renders as an `if`/`else if` chain with no `case`
+        // keyword to prefix — the lane's first NON-VACUOUS exclusion, so both
+        // chain sets must already be populated. Not a tenth projection: a
+        // qualifier decorates the statement the emitter writes anyway.
+        // Both knobs default `0.0` ⇒ no roll ⇒ byte-identical stream + output.
+        if self.cfg.unique_case_prob > 0.0 || self.cfg.priority_case_prob > 0.0 {
+            let (u, p) = (self.cfg.unique_case_prob, self.cfg.priority_case_prob);
+            crate::ir::case_qualifier::annotate_case_qualifiers(
+                &mut m,
+                &self.cfg.steering,
+                &mut self.rng,
+                u,
+                p,
+            );
+        }
         m
     }
 
@@ -584,6 +605,24 @@ impl Generator {
                     module,
                     &self.cfg.steering,
                     &mut self.rng,
+                    p,
+                );
+            }
+        }
+
+        // `CAPABILITY-BREADTH-EXPANSION.4b.1` — the design-path mirror of the
+        // single-module roll in `generate_module`. Runs LAST so both chain sets
+        // are populated and their gates excluded (this pass's exclusion is the
+        // lane's first non-vacuous one). Both knobs default `0.0` ⇒ no roll ⇒
+        // every module byte-identical.
+        if self.cfg.unique_case_prob > 0.0 || self.cfg.priority_case_prob > 0.0 {
+            let (u, p) = (self.cfg.unique_case_prob, self.cfg.priority_case_prob);
+            for module in &mut design.modules {
+                crate::ir::case_qualifier::annotate_case_qualifiers(
+                    module,
+                    &self.cfg.steering,
+                    &mut self.rng,
+                    u,
                     p,
                 );
             }

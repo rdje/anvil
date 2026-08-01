@@ -641,7 +641,7 @@ generator truth** — it is a pure function of the per-knob roll counters
 depth histograms `Metrics` already records. The one *derived* quantity is the
 empirical **fire rate** (`fires / attempts`, the division an agent would
 otherwise do) plus its per-`KnobId::category` roll-up
-(<!--enum:steer-categories-->`state` / `selectors` / `datapath` / `terminals` / `motifs` / `emission` / `sharing` / `hierarchy`<!--/enum:steer-categories--> —
+(<!--enum:steer-categories-->`state` / `selectors` / `datapath` / `terminals` / `motifs` / `emission` / `qualifiers` / `sharing` / `hierarchy`<!--/enum:steer-categories--> —
 the same coarse taxonomy a `SteeringConfig` targets). `attempts` / `fires` are
 the **exact** integers; `fire_rate` is rounded to parts-per-million via integer
 arithmetic so the field is byte-identical across evaluation contexts (the

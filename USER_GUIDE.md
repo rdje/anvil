@@ -400,7 +400,7 @@ roll's probability by `weight` before its single seeded draw; with no `--steer`
 (or a neutral `=1.0`) the output is byte-identical to today. `key` is either a
 **knob name** (e.g. `flop_prob`, `coefficient_prob`) or one of the eight coarse
 **categories** — <!--enum:steer-categories-->`state` / `selectors` / `datapath` / `terminals` / `sharing` /
-`hierarchy` / `motifs` / `emission`<!--/enum:steer-categories--> — so one entry can emphasise a whole family; `weight` is a
+`hierarchy` / `motifs` / `emission` / `qualifiers`<!--/enum:steer-categories--> — so one entry can emphasise a whole family; `weight` is a
 non-negative multiplier (`>1` emphasises, `<1` de-emphasises, `0` suppresses).
 The flag is repeatable and layers after `--profile` (explicit wins per key); an
 unknown key errors naming the categories, and a negative/non-finite weight is

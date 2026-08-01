@@ -9,6 +9,12 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+/// The emit-time case-qualifier tag carried by [`Module::case_qualifiers`]. It
+/// lives with the pass that owns it (`CAPABILITY-BREADTH-EXPANSION.4a`) rather
+/// than here, following the direction `IR-TYPES-DECOMPOSITION` is moving this
+/// file: a data-model file holds the model, not every annotation vocabulary.
+use crate::ir::case_qualifier::CaseQualifier;
+
 /// `COVERAGE-STEERED-GENERATION.3b` (decision `0034`): the roll counters live
 /// beside the **single** knob-roll primitive in [`crate::ir::knob_roll`], not
 /// here, so that `KnobRollCounters::record` can be private to that module and
@@ -574,6 +580,32 @@ pub struct Module {
     /// var, so this surface needs no output-var/passthrough — only the block
     /// body swaps. Empty (the `Default`) ⇒ byte-identical emission.
     pub casez_mux_if_gates: BTreeSet<NodeId>,
+
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.1` (decision `0044`) — the IEEE
+    /// 1800-2017 §12.5.3 **case qualifier** each marked dynamic-selector
+    /// `CaseMux` / `CasezMux` carries, so the emitter writes `unique case (…)`
+    /// / `priority casez (…)` instead of the bare statement.
+    ///
+    /// Unlike the nine sibling `*_gates` markers this does **not** change how a
+    /// gate renders — it *decorates* a rendering the emitter would produce
+    /// anyway. A qualifier is an **assertion** (FULL for both; PARALLEL also
+    /// for `unique`), emittable only because the generator establishes both:
+    /// the always-written `default:` arm gives FULL, and the sequential arm
+    /// labels — plain indices for `CaseMux`, the single-don't-care-LSB
+    /// care-values of `build_casez_patterns` for `CasezMux` — give PARALLEL.
+    ///
+    /// A **map**, not two sets, so "a gate carries at most one qualifier" is
+    /// unrepresentable-otherwise rather than merely asserted; iterated in
+    /// `NodeId` order, so emission is deterministic. Populated by the
+    /// post-construction `crate::ir::case_qualifier` pass under the opt-in
+    /// `Config::unique_case_prob` / `Config::priority_case_prob` knobs; that
+    /// pass runs **last**, after `case_mux_if` and `casez_mux_if`, and excludes
+    /// their marks — the lane's first **non-vacuous** exclusion, since a gate
+    /// projected to an `if`/`else if` chain has no `case` keyword to prefix.
+    /// Like the sibling markers this is an **emitter-surface annotation only**:
+    /// the flat IR body, validators, CSE keys and `canonical_module_signature`
+    /// are all unaffected. Empty (the `Default`) ⇒ byte-identical emission.
+    pub case_qualifiers: BTreeMap<NodeId, CaseQualifier>,
 }
 
 impl Module {

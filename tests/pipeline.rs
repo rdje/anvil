@@ -8386,6 +8386,95 @@ fn every_emission_surface_is_individually_measurable_and_steerable() {
     );
 }
 
+/// `CAPABILITY-BREADTH-EXPANSION.4b.1`: the case qualifiers are their **own**
+/// steering category, not members of `emission`, and that category is
+/// independently steerable + measurable (decision `0017`'s API-completeness
+/// gate).
+///
+/// The separation is the assertion under test. `emission` is the nine
+/// **projections**, which compete for one gate graph under mutual exclusion; a
+/// qualifier claims only the gates those projections *declined*, so pooling the
+/// two would average a self-cancelling mixture — the same reason decision
+/// `0035` split `motifs` off rather than widening `emission`. Keeping them apart
+/// also preserves what `--steer emission=<w>` meant before this leaf.
+#[test]
+fn case_qualifiers_are_their_own_steerable_category() {
+    let qualifiers: Vec<&'static str> = anvil::ir::KnobId::all()
+        .iter()
+        .filter(|k| k.category() == "qualifiers")
+        .map(|k| k.name())
+        .collect();
+    assert_eq!(
+        qualifiers,
+        vec!["unique_case_prob", "priority_case_prob"],
+        "the `qualifiers` category is exactly the two case-qualifier knobs"
+    );
+    for name in &qualifiers {
+        assert_eq!(
+            anvil::ir::KnobId::category_of_name(name),
+            Some("qualifiers"),
+            "{name} must not drift back into `emission` — a qualifier is not a projection"
+        );
+    }
+
+    // Independently steerable by category name, and the prior actually applies:
+    // the achieved rate tracks `prob * weight` while the ATTEMPTS count stays
+    // fixed (rules-first — one draw per roll, no rejection path).
+    let base = Config {
+        seed: 3,
+        unique_case_prob: 0.4,
+        case_mux_prob: 0.6,
+        comb_mux_prob: 0.0,
+        flop_prob: 0.0,
+        ..Config::default()
+    };
+    let measure = |weight: Option<f64>| -> (u64, u64) {
+        let mut cfg = base.clone();
+        if let Some(w) = weight {
+            let mut steering = anvil::config::SteeringConfig::default();
+            steering
+                .set_weight("qualifiers", w)
+                .expect("`qualifiers` must classify as a per-category --steer key");
+            cfg.steering = steering;
+        }
+        let m = anvil::Generator::new(cfg).generate_module();
+        let metrics = anvil::metrics::compute(&m);
+        (
+            metrics
+                .knob_roll_attempts
+                .get("unique_case_prob")
+                .copied()
+                .unwrap_or(0),
+            metrics
+                .knob_roll_fires
+                .get("unique_case_prob")
+                .copied()
+                .unwrap_or(0),
+        )
+    };
+
+    let (base_attempts, base_fires) = measure(None);
+    assert!(
+        base_attempts > 0,
+        "vacuous: the shape produced no qualifiable case block, so nothing was steered"
+    );
+    let (up_attempts, up_fires) = measure(Some(2.0));
+    let (down_attempts, down_fires) = measure(Some(0.25));
+
+    assert_eq!(
+        (base_attempts, up_attempts, down_attempts),
+        (base_attempts, base_attempts, base_attempts),
+        "steering must not change the DRAW COUNT — it scales the probability, \
+         it does not add a rejection path"
+    );
+    assert!(
+        up_fires > base_fires && down_fires < base_fires,
+        "a 2x weight must raise and a 0.25x weight must lower the achieved \
+         qualifier rate; got base={base_fires} up={up_fires} down={down_fires} \
+         over {base_attempts} attempts"
+    );
+}
+
 /// COVERAGE-STEERED-GENERATION.4b.2: with every emission knob at its `0.0`
 /// default, no emission roll happens — the `> 0.0` call-site guards keep the
 /// RNG stream untouched, which is what makes the default DUT byte-identical.

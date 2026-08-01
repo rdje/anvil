@@ -685,6 +685,17 @@ fn to_sv_with_modules(
         if render_static_structured_gate(*op, operands, *width, m, &names).is_some() {
             continue;
         }
+        // `CAPABILITY-BREADTH-EXPANSION.4b.1` (decision `0044`) — the IEEE
+        // 1800-2017 §12.5.3 qualifier prefix for this gate's `case`/`casez`
+        // statement, or `""`. An empty `case_qualifiers` (the default) yields
+        // `""` at every site, so the emitted bytes are unchanged **by
+        // construction** rather than by test. The annotation pass never marks a
+        // gate the eighth/ninth surfaces claimed, so the prefix is only ever
+        // read on a branch that really writes a `case`/`casez` keyword.
+        let case_qualifier = m
+            .case_qualifiers
+            .get(&(idx as NodeId))
+            .map_or("", |q| q.prefix());
         writeln!(out, "    always_comb begin").unwrap();
         match op {
             GateOp::CaseMux => {
@@ -709,7 +720,7 @@ fn to_sv_with_modules(
                     }
                     writeln!(out, "        else {} = {}'h0;", name, width).unwrap();
                 } else {
-                    writeln!(out, "        case ({sel})").unwrap();
+                    writeln!(out, "        {case_qualifier}case ({sel})").unwrap();
                     for (arm_idx, data_id) in operands[1..].iter().enumerate() {
                         let data = node_ref(*data_id, m, &names);
                         writeln!(
@@ -752,7 +763,7 @@ fn to_sv_with_modules(
                     }
                     writeln!(out, "        else {} = {}'h0;", name, width).unwrap();
                 } else {
-                    writeln!(out, "        casez ({sel})").unwrap();
+                    writeln!(out, "        {case_qualifier}casez ({sel})").unwrap();
                     for arm in operands[1..].chunks_exact(3) {
                         let pattern = render_casez_pattern(arm[0], arm[1], m);
                         let data = node_ref(arm[2], m, &names);

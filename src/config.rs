@@ -127,6 +127,14 @@ fn default_casez_mux_if_emit_prob() -> f64 {
     0.0
 }
 
+fn default_unique_case_prob() -> f64 {
+    0.0
+}
+
+fn default_priority_case_prob() -> f64 {
+    0.0
+}
+
 fn default_memory_prob() -> f64 {
     0.0
 }
@@ -1084,6 +1092,44 @@ pub struct Config {
     #[serde(default = "default_casez_mux_if_emit_prob")]
     pub casez_mux_if_emit_prob: f64,
 
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.1` (decision `0044`). Per qualifying
+    /// dynamic-selector `CaseMux` / `CasezMux` that still renders as a
+    /// `case` / `casez` **statement**, the probability that it is prefixed with
+    /// the IEEE 1800-2017 §12.5.3 `unique` qualifier.
+    ///
+    /// Unlike the nine `*_emit_prob` projections this changes no shape — it
+    /// *decorates* the statement the emitter writes anyway, routing downstream
+    /// tools through full/parallel-case **inference** and violation-check
+    /// instrumentation, which is exactly where lint, synthesis and simulation
+    /// implementations disagree.
+    ///
+    /// A qualifier is an **assertion**, so it is only safe because the
+    /// generator establishes both halves by construction: the always-written
+    /// `default:` arm gives FULL, and the sequential arm labels give PARALLEL
+    /// (proven over generated output by the property test in
+    /// `crate::ir::case_qualifier`). Gates already projected to an `if`/`else
+    /// if` chain by `case_mux_if_emit_prob` / `casez_mux_if_emit_prob` are
+    /// excluded — they emit no `case` keyword to prefix.
+    ///
+    /// Rolled before [`Config::priority_case_prob`]; on a hit that gate's
+    /// `priority` roll is skipped, so a gate carries at most one qualifier.
+    /// `default = 0.0` keeps every existing output byte-identical.
+    #[serde(default = "default_unique_case_prob")]
+    pub unique_case_prob: f64,
+
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.1` (decision `0044`). As
+    /// [`Config::unique_case_prob`], for the IEEE 1800-2017 §12.5.3 `priority`
+    /// qualifier, which asserts FULL only (first-match semantics).
+    ///
+    /// Rolled only for gates the `unique` roll did not claim. Kept a separate
+    /// knob rather than a mode of one, because the two qualifiers assert
+    /// different things and carry **different downstream tool plans**: Icarus
+    /// prints `vvp.tgt sorry: Case unique/unique0 qualities are ignored.` for
+    /// `unique` (exit 0) and is silent for `priority`. `default = 0.0` keeps
+    /// every existing output byte-identical.
+    #[serde(default = "default_priority_case_prob")]
+    pub priority_case_prob: f64,
+
     /// Phase 6 (advanced motifs). Probability that the free-standing
     /// single-module lane builds a rules-first inferrable-memory leaf
     /// (`crate::gen::module::build_memory_leaf`) instead of an
@@ -1333,6 +1379,8 @@ impl Default for Config {
             mux_if_emit_prob: default_mux_if_emit_prob(),
             case_mux_if_emit_prob: default_case_mux_if_emit_prob(),
             casez_mux_if_emit_prob: default_casez_mux_if_emit_prob(),
+            unique_case_prob: default_unique_case_prob(),
+            priority_case_prob: default_priority_case_prob(),
             memory_prob: default_memory_prob(),
             fsm_prob: default_fsm_prob(),
             fsm_mealy_prob: default_fsm_mealy_prob(),
@@ -1718,6 +1766,8 @@ impl Config {
             ("mux_if_emit_prob", self.mux_if_emit_prob),
             ("case_mux_if_emit_prob", self.case_mux_if_emit_prob),
             ("casez_mux_if_emit_prob", self.casez_mux_if_emit_prob),
+            ("unique_case_prob", self.unique_case_prob),
+            ("priority_case_prob", self.priority_case_prob),
             ("memory_prob", self.memory_prob),
             ("fsm_prob", self.fsm_prob),
             ("fsm_mealy_prob", self.fsm_mealy_prob),
@@ -1955,6 +2005,12 @@ impl Config {
         if let Some(v) = o.casez_mux_if_emit_prob {
             self.casez_mux_if_emit_prob = v;
         }
+        if let Some(v) = o.unique_case_prob {
+            self.unique_case_prob = v;
+        }
+        if let Some(v) = o.priority_case_prob {
+            self.priority_case_prob = v;
+        }
         if let Some(v) = o.soft_union_slice_prob {
             self.soft_union_slice_prob = v;
         }
@@ -2080,6 +2136,8 @@ pub struct Overrides {
     pub mux_if_emit_prob: Option<f64>,
     pub case_mux_if_emit_prob: Option<f64>,
     pub casez_mux_if_emit_prob: Option<f64>,
+    pub unique_case_prob: Option<f64>,
+    pub priority_case_prob: Option<f64>,
     pub soft_union_slice_prob: Option<f64>,
     pub width_parameterization_prob: Option<f64>,
     pub aggregate_prob: Option<f64>,
@@ -2322,6 +2380,22 @@ fn knob_group(name: &str) -> &'static str {
         "priority_encoder_prob" | "case_mux_prob" | "casez_mux_prob" | "for_fold_prob" => {
             return "block_motif"
         }
+        // `CAPABILITY-BREADTH-EXPANSION.4b.1` — the IEEE 1800-2017 §12.5.3
+        // case qualifiers get their **own** group, deliberately not
+        // `structured_emission`.
+        //
+        // They roll per candidate gate exactly like the nine emit-projections,
+        // so `*_emit_prob` would have been the natural suffix — and the
+        // `name.ends_with("_emit_prob")` rule below would then have routed them
+        // into `structured_emission`, whose membership
+        // `structured_emission_max_preset_covers_every_non_version_gated_surface`
+        // turns into **membership of the `structured-emission-max` preset**.
+        // That would have enrolled both qualifiers in a shipped preset by
+        // accident, costing it its Icarus column (`unique` draws a `sorry:`
+        // note) for a construct that adds nothing to the surface *diversity*
+        // the preset exists to maximise (decision `0032`). A qualifier
+        // decorates a rendering; it does not replace one.
+        "unique_case_prob" | "priority_case_prob" => return "case_qualifier",
         "coefficient_prob" | "min_coefficient" | "max_coefficient" => return "coefficient_motif",
         "const_shift_amount_prob" | "min_shift_amount" | "max_shift_amount" => {
             return "shift_motif"
@@ -2584,6 +2658,8 @@ mod tests {
             mux_if_emit_prob: Some(0.937),
             case_mux_if_emit_prob: Some(0.937),
             casez_mux_if_emit_prob: Some(0.937),
+            unique_case_prob: Some(0.937),
+            priority_case_prob: Some(0.937),
             soft_union_slice_prob: Some(0.937),
             width_parameterization_prob: Some(0.937),
             aggregate_prob: Some(0.937),

@@ -1,9 +1,166 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.1 — `unique` / `priority` case qualifiers: the live surface
+
+**Landed as:** `pending`. Previous: `c38024b`.
+**Default-off** (`unique_case_prob` = `priority_case_prob` = `0.0`) ⇒ **DUT byte-identical**;
+`tests/snapshots.rs` 6/6 untouched.
+
+**What.** ANVIL's first **case-qualifier** construct is live: a default-off IEEE 1800-2017 §12.5.3
+`unique` / `priority` prefix on the `case` / `casez` statement a dynamic-selector `CaseMux` /
+`CasezMux` already emits.
+
+- new `src/ir/case_qualifier.rs` — `pub enum CaseQualifier { Unique, Priority }`, the
+  `gate_qualifies` predicate, and the `annotate_case_qualifiers` pass;
+- new carrier `Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>`;
+- two default-off knobs `unique_case_prob` / `priority_case_prob` (+ `--unique-case-prob` /
+  `--priority-case-prob`), an explicit `knob_group` → `case_qualifier` arm, and two `KnobId` rows
+  in a **new** `qualifiers` steering category (see below — it is *not* `emission`);
+- a **tenth** guarded roll in both `gen/mod.rs` paths, after `casez_mux_if`;
+- the emitter keyword prefix on the two **unprojected** `case (` / `casez (` branches.
+
+**One `.4a` resolution was corrected mid-leaf, by a guard rather than by review.** `.4a` put the two
+knobs in the **`emission`** `KnobId` category, reasoning from pipeline position and per-gate
+resolution. The first full-suite run failed
+`every_emission_surface_is_individually_measurable_and_steerable` (`tests/pipeline.rs`), which pins
+`emission.len() == 9` — *"the 9 emit-projection surfaces decision `0035` names"*.
+
+The guard is right. A qualifier is **not** a projection — `.4a`'s own load-bearing argument, and
+the very thing that kept it out of decision `0032`'s interaction gate and gave it its own
+`knob_group`. And the two are **anti-correlated**: a qualifier claims only the gates the
+projections *declined*, so one `--steer emission=2.0` would push `case_mux_if` to claim more gates
+while pushing the qualifier at a pool that is simultaneously shrinking, and the category's
+aggregate rate would average a self-cancelling mixture. That is a measurement defect — the same
+reason decision `0035` split `motifs` off rather than widening `emission`.
+
+So the qualifiers take their own **`qualifiers`** category. `--steer emission` keeps meaning exactly
+what it meant (the promise `0035` made about pre-existing categories), and the qualifiers become
+independently steerable — measured at `unique_case_prob = 0.4`: `--steer qualifiers=2.0` moves the
+achieved rate **`0.385 → 0.769`**, `0.25` moves it to **`0.154`**, with **attempts fixed at 26**
+throughout (rules-first — the prior scales the probability, it adds no rejection path). Pinned by a
+new `case_qualifiers_are_their_own_steerable_category` guard. **The guard was heeded, not edited.**
+
+The generalisable lesson: `.4a` argued the category from *where and how often the roll happens*,
+which are properties of the **mechanism**. A steering category is a property of the **user's
+intent** — "make more of this kind of thing" — and two mechanisms that look identical can belong to
+different intents. `.4a` had in fact already reached the right answer for the sibling taxonomy (its
+own `case_qualifier` catalog group, not `structured_emission`) on exactly this argument, and then
+split the two taxonomies differently. **When the same distinction appears twice, resolve it the
+same way both times, or say why not.**
+
+**Why it is not a tenth "surface".** Every one of the nine emit-projections *replaces* how a gate
+renders. A qualifier replaces nothing — it decorates a rendering the emitter produces anyway, and
+what it adds is an **assertion** a simulator checks at runtime and a synthesizer acts on. That is
+also why it is emittable at all: both asserted properties are free from the generator, with no
+analysis pass and no generate-then-filter. The always-written `default:` arm gives **FULL** (so the
+"no case_item matches" violation cannot fire), and the sequential arm labels give **PARALLEL**.
+The `default:` arm is therefore deliberately **not** made conditional on the qualifier — dropping
+it (which §12.5.3 permits) would convert a trivially-true assertion into one that holds only when
+the arm count is a power of two.
+
+**The exclusion that finally bites.** This pass runs last and excludes gates the eighth and ninth
+surfaces claimed, because a gate projected to an `if`/`else if` chain **has no `case` keyword to
+prefix**. Every sibling projection carries an exclusion that is vacuous by target type; this is the
+lane's first real one, so the pass ordering is load-bearing rather than conventional.
+
+**Roll precedence, and the telemetry identity it buys.** Per candidate gate the `unique` knob rolls
+first, and on a hit the `priority` roll is **skipped**. Rolling both and letting `unique` win would
+record a `priority` *fire* that emits no `priority` qualifier — telemetry diverging from emitted
+reality, the exact defect class decision `0034` removed. With the skip,
+`fires(knob) == that knob's emitted count` exactly. Each roll is additionally skipped at
+probability `0.0`, since `gen_bool` consumes a draw even there and the steering multiplier cannot
+lift `0.0` — so a disabled knob neither shifts the other's stream nor reports attempts.
+
+**Validation.** `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`,
+`cargo fmt --all --check` clean; full `cargo test` green; lib **749 → 764** (+15 proofs);
+`tests/snapshots.rs` **6/6 byte-identical**.
+
+*Firing proof* (seed 7, 8 comb-only case/casez-biased modules, 30 `case`/`casez` statements): knobs
+off ⇒ 30 bare / 0 qualified; `--unique-case-prob 1.0` ⇒ **30 unique / 0 bare**;
+`--priority-case-prob 1.0` ⇒ **30 priority / 0 bare**. Every eligible gate, exactly.
+
+*Behaviour preservation, proven structurally rather than statistically.* The sibling surfaces prove
+theirs with an ON-vs-OFF Verilator `-Wall` delta of 0 — a statement about a warning count. A
+qualifier admits something stronger: strip the qualifier token from each ON corpus with one `sed`
+and `diff` against OFF. The result is **byte-identical**, so nothing but the token moved.
+
+*Downstream* (Verilator 5.046 / Yosys 0.64 / Icarus 13.0), all three lanes:
+
+| check | off | unique | priority |
+| --- | --- | --- | --- |
+| `verilator --lint-only` (the repo bar) | 0 exit / 0 `%Warning` / 0 `%Error` | same | same |
+| `yosys synth -noabc; stat; check` | 0 fail, 0 warn | same | same |
+| `yosys synth -noabc; abc -fast; opt -fast; check` | 0 fail, 0 warn | same | same |
+| synthesized cell counts, per module | `0,222,26,44,180,26,230,123` | **identical 8/8** | **identical 8/8** |
+| `iverilog -g2012` | exit 0, silent | exit 0, **30** `sorry:`, **0** `warning:` | exit 0, silent |
+
+Identical cell counts are the synthesis-side confirmation of the by-construction argument: a
+qualifier whose assertion holds gives the synthesizer no new freedom, so the netlist cannot move.
+And the Icarus row reproduces decision `0044`'s measurement exactly — 30 qualified blocks, 30
+`vvp.tgt sorry: Case unique/unique0 qualities are ignored.` lines, and **zero** lines matching
+`warning:`, which is precisely why `downstream::first_tool_warning` would have passed this on a
+lexical accident. `.4b.2` splits the tool plan instead of widening that shared classifier.
+
+**The `.3` corpus measurement now has a durable home that provably looks.** `.4`'s acceptance
+required an in-crate `#[test]` for FULL + PARALLEL, because `.3`'s checker was scratch under
+untracked `.cache/`. It ships as **two** predicates — PARALLEL read off the IR (a pairwise
+`((v_i ^ v_j) & c_i & c_j) == 0` overlap test over the real arm constants, plus a label-width check
+that catches an arm index too large for its selector), FULL read off the emitted text (a
+nesting-aware scan) — driven over the real `Generator` across 8 seeds, with a non-vacuity assertion
+that the corpus actually held blocks of both kinds.
+
+Then, per `DOCTRINE_ENFORCEMENT.md` §9, **both subjects were deleted from the real source and the
+test re-run** — not merely exercised against hand-built fixtures, which only prove the predicate
+*can* fire:
+
+- suppressing the emitter's unconditional `default:` arm ⇒ `full_violations` reports every
+  generated block (8+ on seed 1 alone);
+- widening `build_casez_patterns`' wildcard mask by one bit ⇒ `parallel_violations` reports real
+  overlaps (*"node 8: casez arms 0 and 1 overlap"*).
+
+Both files were restored to a zero diff. This is the check `.3`'s first checker failed.
+
+**One trap avoided in the checker itself.** The FSM emitter nests an inner block on the arm-label
+line (`S0: case (sel)`), so a scan that matched openers with `starts_with` would miss every nested
+FSM block and credit the *outer* `default:` to the inner one — the precise way `.3`'s checker
+reported success about blocks it had never looked at. Openers are matched as a **substring**, which
+also keeps working once a qualifier prefix is present. A nested negative control pins it.
+
+**Deferred by design, not omitted.** The `num_emitted_unique_cases` / `num_emitted_priority_cases`
+metrics + introspection schema `1.27 → 1.28` and the `tool_matrix --case-qualifier-gate` are
+`.4b.2`; the book / `USER_GUIDE` / KM entries are `.4b.3`. That is the established lane cadence
+(the `.15b`/`.17b`/`.19b` precedents), and the tree encodes it.
+
+**A pre-existing hole in a doctrine check, found on the way — and given its own tree, not a quiet
+fix here.** The first category name tried was `case_qualifier`, and
+`scripts/check_enumeration_parity.sh` reported **`ok` on all seven fenced sites**. It should have
+failed on all seven. Cause: `extract_steering_categories` captures the category column with
+`"([a-z]+)"` — **letters only, no underscore** — so the two new rows were invisible to the
+extractor and the check passed **vacuously**. Every category that exists today is a single
+lowercase word, so the gap has never been exercised, and the count floor does not catch it either
+because the other eight still extract. `qualifiers` matches the taxonomy's own naming convention
+(`selectors` / `terminals` / `motifs` / `emission`) and the gate then failed on all seven as it
+should — but a check that silently ignores a whole class of input is precisely the vacuous pass
+`DOCTRINE_ENFORCEMENT.md` §9 exists to name. Per `0041` §(a) a defect is only handled once a tree
+owns it, so the extractor repair is registered as its own tree and lands as its own commit rather
+than being bundled here.
+
+**One ungated shadow repaired by deletion.** `book/src/algorithm.md` said *"one of the **eight**
+coarse categories"* immediately **outside** the `<!--enum:steer-categories-->` fence — a count
+beside a gated list, which nothing checks and which this leaf would have made wrong. Repaired the
+way decision `0033` R1 prescribes: the count is **deleted**, not incremented.
+
+**Files touched.** `src/ir/case_qualifier.rs` (new), `src/ir/types.rs`, `src/ir/mod.rs`,
+`src/ir/knob_id.rs`, `src/config.rs`, `src/main.rs`, `src/gen/mod.rs`, `src/emit/sv.rs`,
+`tests/pipeline.rs`, `book/src/algorithm.md`, `book/src/knobs.md`, `book/src/agent-mcp.md`,
+`book/src/api-introspection.md`, `USER_GUIDE.md`, `docs/AGENT_INTROSPECTION_SCHEMA.md`,
+`CODEBASE_ANALYSIS.md`, `DEVELOPMENT_NOTES.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4a — case-qualifier impl design-detail (decision `0044`'s five Open Questions resolved)
 
-**Landed as:** `pending`. Previous: `eb79534`.
+**Landed as:** `c38024b`. Previous: `eb79534`.
 **Docs only** ⇒ **DUT byte-identical**.
 
 **What.** `DEVELOPMENT_NOTES.md` gains the `.4a` impl design-detail for the `unique` / `priority`

@@ -251,6 +251,33 @@ knob_ids! {
     /// `CasezMux`, the chance its `casez` body becomes a **masked**
     /// `if`/`else if` chain.
     CasezMuxIfEmitProb => "casez_mux_if_emit_prob", "emission";
+
+    // --- `qualifiers` (CAPABILITY-BREADTH-EXPANSION.4b.1, decision 0044) ------
+    // The IEEE 1800-2017 §12.5.3 case qualifiers. They roll once per candidate
+    // gate and at the same pipeline point as `emission`, so sharing that
+    // category was the obvious call — and it is wrong, for the same reason
+    // decision 0035 split `motifs` off in the first place: **a steering
+    // category is a family a user up-weights as a unit, so it must be
+    // semantically homogeneous.**
+    //
+    // The nine `emission` knobs are PROJECTIONS competing for one gate graph
+    // under mutual exclusion. A qualifier is not a projection — it decorates a
+    // rendering rather than replacing one, and it claims only gates the
+    // projections DECLINED. So the two are **anti-correlated**: one
+    // `--steer emission=2.0` would push `case_mux_if` to claim more gates while
+    // pushing the qualifier to claim more of a pool that is simultaneously
+    // shrinking, and the category's aggregate achieved rate would be measuring
+    // a self-cancelling mixture. Their own category keeps `--steer emission`
+    // meaning exactly what it meant before this leaf, and makes the qualifiers
+    // independently steerable (decision 0017's API-completeness gate).
+    /// `Config::unique_case_prob` — per qualifying dynamic-selector `CaseMux` /
+    /// `CasezMux` that still renders as a statement, the chance it is prefixed
+    /// `unique` (asserting FULL and PARALLEL).
+    UniqueCaseProb => "unique_case_prob", "qualifiers";
+    /// `Config::priority_case_prob` — the same, for the `priority` prefix
+    /// (asserting FULL only). Rolled only when the `unique` roll did not fire,
+    /// so a gate carries at most one qualifier.
+    PriorityCaseProb => "priority_case_prob", "qualifiers";
 }
 
 impl KnobId {
