@@ -86,14 +86,14 @@ independent instance of that rule since it was written, arriving from an owner r
   Goal: `Promote the measuring instruments out of gitignored target/tmp/book-blob/ into scripts/, so the census that judges this tree survives the next session.`
   Acceptance: `The promoted census reproduces the validated instrument's numbers EXACTLY (denominator, over-threshold count, and every block's size) — a promotion that changes the measurement is a new instrument, not a promotion. It additionally reports the source anchor and a REPAIRABILITY class per block, because .3 needs to know which blocks a blank line structurally cannot fix. Negative-controlled: a sabotage of the book must move the census. Documented in TOOLBOX.md Part 1. Deliberately NOT a doctrine check — whether anything gates paragraph size is .2's question.`
   Verification: `Exact reproduction: 3,501 prose blocks / 30 chapters / 12 over 1,500 / oversized mass 43,092 and all 12 block sizes identical to target/tmp/book-blob/census2.py; book_list_signature.py reproduces .1's 1,325 <li> across 31 chapters. All 12 source anchors resolve (the throwaway instrument left 4 unresolved). THREE controls, all through scripts/negative_control.sh so every mutation's count is asserted: (1) merge two paragraphs -> census FIRES, 3,501->3,500 blocks, 12->13 over threshold, mass 43,092->44,919; (2) re-wrap a line inside a paragraph -> census SILENT on the measurement fields, proving it measures RENDERED length not source lines; (3) a paragraph break inside a list item with no continuation indent -> list signature FIRES (knobs.html content SHA), word proof reports OK (90,542 -> 90,542) — the complementarity, re-proven with the promoted instruments. Restores cmp-verified; book rebuilt clean.`
-  Commit: `pending`
+  Commit: `d25bbe7`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.1`
   Status: `done`
   Goal: `Split the rendered prose blocks over 1,500 characters at genuine topic boundaries by inserting blank lines only.`
   Acceptance: `The diff adds blank lines and changes no words — ORIGINAL WORDING SUPERSEDED at execution, see Findings: "git diff --ignore-blank-lines shows no content hunks" is too narrow, because a sentence that begins mid-line cannot be split without moving the line break. Replaced by a stronger proof: whitespace-normalized word identity, plus a rendered list-structure proof. The post-repair census is re-run and reported against the pre-repair one. mdbook build green.`
   Verification: `Worst prose block 22,908 -> 8,704 chars (-62.0 %); architecture.html 22,908 -> 7,043 (-69.3 %); oversized mass 54,897 -> 43,092 (-21.5 %). Both proofs pass and both are negative-controlled. 24 paragraph breaks inserted across 5 chapters, zero words changed.`
-  Commit: `d25bbe7`
+  Commit: `df7bc6e`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.3`
   Status: `pending`

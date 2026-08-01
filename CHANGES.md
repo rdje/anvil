@@ -81,6 +81,13 @@ against `HEAD` (no book source was changed by this leaf).
 (map regenerated: **124 → 125** facts, **1,224 → 1,231** question keys) and a
 `DEVELOPMENT_NOTES.md` entry carrying the two gotchas.
 
+**Correction landed after `d25bbe7`.** The hash backfill at `57f5d66` matched on
+`` Commit: `pending` `` and wrote `d25bbe7` into the **wrong leaf** — `.1`'s field, not `.4`'s. It
+matched there because `.1`'s field had been left at `pending` since `df7bc6e`, so the tree carried a
+leaf whose Commit Log row named a hash its leaf block did not. Both are now correct (`.4` →
+`d25bbe7`, `.1` → `df7bc6e`), and the stale field that made the mis-target possible is closed. Noted
+rather than amended away: `0031` forbids rewriting history.
+
 **Files touched.** `scripts/book_prose_census.py` (new), `scripts/book_list_signature.py` (new),
 `scripts/prove_words_unchanged.py` (new),
 `docs/knowledge/matched-mutation-is-not-the-intended-mutation.md` (new), `TOOLBOX.md`,
