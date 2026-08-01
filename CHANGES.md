@@ -1,6 +1,102 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them
+
+**Landed as:** `pending`. Previous: `8ff64cd`, `5e3e9a0`, `614e977`.
+**Docs + mdBook only; no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** The repair form for a book → repo-root reference is decided, recorded as decision
+[`0046`](docs/decisions/0046-book-never-links-outside-book-src.md) **before** any edit, and
+applied to the single site `.1` found. **The rendered book now has zero dead local links.**
+
+**The decision.** A book chapter **names** a repo-root file in backticks, with any section named
+in parentheses as prose, and **never links to one**:
+
+```markdown
+See `USER_GUIDE.md` ("Tracing and debugging") for the level table and emoji legend.
+```
+
+In-book chapter links (`knobs.md#anchor`) are untouched — they are what mdBook's rewrite is *for*.
+
+**It was decided by census, not by taste.** Before choosing, the book was asked what it already
+does. Every occurrence of a repo-root live-doc filename in `book/src/*.md`:
+
+| form | before | after |
+| --- | ---: | ---: |
+| plain backtick prose | **31** | **32** |
+| markdown link (counted twice — the link *text* and the *target* each name the file) | **2** | **0** |
+| **total occurrences** | **33** | **32** |
+
+**31 of 32 distinct references already used the chosen form.** This leaf codified a convention
+that was already unanimous but for one site; it did not impose a new one. `USER-GUIDE-CLI-TABLE-SHADOW.4`
+had independently reached the same form under time pressure — which is corroboration, not
+coincidence.
+
+**The candidates, and why the other three lost.**
+
+- **Absolute GitHub URL** — refuted by the book's **own configuration**. `book/book.toml` sets
+  `git-repository-url = ""` and `edit-url-template = ""`: the project had already decided the book
+  is built host-agnostic, and hard-coding `github.com/rdje/anvil` in prose would contradict a
+  setting it already made. Also breaks on a fork, an org rename, a mirror, or an offline reader,
+  and must pin either `main` (moving) or a SHA (stale on landing).
+- **A book-visible copy of the target** — disqualified by `0033`. It re-creates the exact shadow
+  `USER-GUIDE-CLI-TABLE-SHADOW.4` *deleted*; undoing a completed leaf to repair one line.
+- **mdBook `{{#include ../../USER_GUIDE.md}}`** — not in the original acceptance list, evaluated
+  and recorded anyway because it is the **only** candidate that is both clickable *and*
+  host-agnostic, so its absence would read as an oversight. Rejected on four counts: it injects a
+  163 KB file as one chapter; its headings collide with existing anchors, worst inside
+  `print.html`'s merged namespace (a hazard `.1` documented); it makes the build depend on a file
+  outside `src` that `mdbook serve`'s watch misses; and it restructures the table of contents to
+  fix one line.
+
+**The accepted cost, stated rather than buried.** The chosen form is **not clickable**, and the
+parenthesised section name is itself a small shadow of the target's heading that rots silently on
+a rename. That is real — but it is **no worse than the form it replaces**: an `#anchor` rots on
+exactly the same event and rots *worse*, landing the reader at the top of the page with no signal
+at all. On its weakest axis the chosen form still wins.
+
+**Verification.** After the one-line edit, `mdbook build book` (exit `0`) and **both** derivations
+from `.1` re-run:
+
+| | before `.2` | after `.2` |
+| --- | ---: | ---: |
+| dead file targets (rendered occurrences) | 2 | **0** |
+| dead anchors | 0 | **0** |
+| authored links escaping `book-out` | 1 | **0** |
+
+`0046`'s own reverify one-liner — `grep -rnE '\]\([^)]*\.\./[^)]*\.md' book/src/*.md` — returns
+**no matches**.
+
+**Why the rule outvalues the fix.** `.1` showed the obvious portable check, *"does the link target
+exist?"*, **passes this very defect** — `../../USER_GUIDE.md` does exist; the defect is a rendered
+target that *escapes* `book-out`. The convention converts that into a predicate that needs no
+`mdbook` and no rendered build:
+
+> no markdown link in `book/src/*.md` may have a target that escapes `book/src`
+
+That is greppable, portable, and exact for this class — which dissolves the tooling obstacle `.3`
+was blocked on. Whether it is *registered* as a doctrine is deliberately left to `.3`, which must
+also weigh the classes it does not cover (intra-book dead files and dead anchors, both measured at
+zero by `.1` — an argument about current risk, not permanent immunity).
+
+**No `DEVELOPMENT_NOTES.md` entry.** The rationale and every rejected alternative live in `0046`;
+a second copy here would be the duplication `feedback_full_factorization` forbids.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10**. Docs + book only ⇒ DUT byte-identical;
+`cargo check --all-targets` clean.
+
+**One gate fire, worth recording.** The first staged run came back `KNOWLEDGE-MAP` **FAIL**. Cause:
+`docs/decisions/*.md` carry `answers:` frontmatter and are therefore **fact sources**, so adding
+`0046` desynchronised the derived `KNOWLEDGE_MAP.md` (120 → **121** facts) — a consequence of
+writing a decision record that is easy to forget precisely because the record itself looks like
+prose. Regenerated and green. Noted because the same trap waits for every future decision record.
+
+**Files touched.** `book/src/recipes.md` (one line),
+`docs/decisions/0046-book-never-links-outside-book-src.md` (new), `docs/decisions/INDEX.md`,
+`KNOWLEDGE_MAP.md` (derived), `docs/tasks/BOOK-LINK-INTEGRITY.md`, `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty
 
 **Landed as:** `5e3e9a0`. Previous: `614e977`, `f8b9603`, `ac05f01`.

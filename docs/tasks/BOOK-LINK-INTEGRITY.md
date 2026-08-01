@@ -199,11 +199,11 @@ rather than an assertion inside another.
   Commit: `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty`
 
 - ID: `BOOK-LINK-INTEGRITY.2`
-  Status: `pending`
+  Status: `done`
   Goal: `Decide the repair form for a book -> repo-root reference, record it, then repair every site .1 found to match.`
   Acceptance: `The decision is recorded BEFORE any edit, with each candidate's failure mode stated: plain-backtick prose (works everywhere, not clickable), an absolute GitHub URL (clickable, breaks on a fork or a rename, and pins a host), a book-visible copy of the target (clickable, and a new shadow under decision 0033 — likely disqualifying). Whichever lands, book/src/recipes.md:857 is fixed and the rendered book has zero dead local links.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `MET. Decision 0046 written and committed-to BEFORE the edit, with four candidates' failure modes stated — the three named above plus mdBook {{#include}}, recorded because it is the only candidate that is both clickable and host-agnostic, so its rejection must not read as an oversight. Chosen: plain-backtick prose with the section named in parentheses, matching recipes.md:653 in the same chapter. The choice was decided by CENSUS, not taste: 31 of 32 existing book -> repo-root references already used it. Post-repair the rendered book has ZERO dead local links, confirmed by both derivations, and the convention is unanimous at 32/32.`
+  Commit: `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them`
 
 - ID: `BOOK-LINK-INTEGRITY.3`
   Status: `pending`
@@ -216,12 +216,23 @@ rather than an assertion inside another.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-LINK-INTEGRITY.2` | `pending` | **Next.** `.1` reduced the repair to **one site** — `book/src/recipes.md:857` — so `.2` is now a decision leaf with a one-line payload, exactly as intended. The decision is the deliverable; record it before editing. |
-| 2 | `BOOK-LINK-INTEGRITY.3` | `pending` | The mechanism question, answered against what a check can actually read — and now against `.1`'s sharpened finding that the defect is an **escape**, not a missing file, so the naive source-level check is *vacuous* against it. |
+| 1 | `BOOK-LINK-INTEGRITY.3` | `pending` | **Next, and last.** The mechanism question. `.2` changed its shape for the better: the rule to gate is no longer *"is this link dead?"* (which needs `mdbook`, unvendored) but *"does a `book/src` markdown link escape `book/src`?"* — greppable, portable, no build required. `.3` must still weigh what that predicate does **not** cover and decide honestly, per `DOCTRINE_ENFORCEMENT.md` §9; "no mechanism, and here is why" remains a legitimate outcome. |
 | — | `BOOK-LINK-INTEGRITY.1` | `done` | Both classes measured, offenders named, negative-controlled. **The anchor class is empty** (0 of 71 authored / 1136 rendered). |
+| — | `BOOK-LINK-INTEGRITY.2` | `done` | Decision [`0046`](../decisions/0046-book-never-links-outside-book-src.md) recorded before the edit; the single site repaired. **Rendered book: 0 dead local links.** Convention now unanimous, 32/32. |
 
 ## Decisions
 
+- `2026-08-01` (`.2`): **The book *names* a repo-root file in backticks; it never *links* to
+  one.** Recorded in full as [`0046`](../decisions/0046-book-never-links-outside-book-src.md),
+  written **before** the edit as this leaf's acceptance required. Chosen by **census, not taste**:
+  **31 of 32** existing book → repo-root references already used plain backticks, so the rule was
+  already unanimous but for the one offender. The absolute-GitHub-URL candidate is disqualified by
+  the book's *own* configuration — `book/book.toml` sets `git-repository-url = ""` and
+  `edit-url-template = ""`, i.e. the project already decided the book is built host-agnostic. A
+  fourth candidate not in the original acceptance list, mdBook `{{#include}}`, was evaluated and
+  rejected on four counts and is recorded rather than dropped, because it is the **only** option
+  that is both clickable *and* host-agnostic and its omission would otherwise look like an
+  oversight.
 - `2026-08-01` (registration): **A new tree, not a leaf of `USER-GUIDE-CLI-TABLE-SHADOW`.** That
   tree owns *shadows of clap's flag registry*; this is link integrity. `feedback_full_factorization`
   forbids a second mechanism for one job — and no existing doctrine or tree owns this job, so
@@ -272,6 +283,9 @@ rather than an assertion inside another.
 | `2026-08-01` | `.1` | `negative control: 4 defects + 2 live controls appended to a copy-aside book/src/faq.md, rebuilt, scanned, restored, baseline re-confirmed. Probes: dead intra-book file, dead in-page anchor, dead cross-chapter anchor, repo-root escape.` | `all 4 caught by both derivations; live control knobs.md correctly clean; ir.md#node flagged and CONFIRMED a true negative (ir.html has no id="node"); mdbook build STILL exit 0 with all 4 present; git clean after restore` |
 | `2026-08-01` | `.1` | `earlier 665 reconciled, not waved through: 339 <a> file refs + 326 <link>/<base> chrome = 665 exactly; that denominator excluded all 1101 in-page anchors` | `prior scan reproduced; its blind spot identified` |
 | `2026-08-01` | `.1` | `scripts/check_doctrines.sh; knowledge-map/scripts/check_knowledge_map.sh` | `10/10 doctrines PASS; knowledge map in sync (119 -> 120 facts)`. Docs-only ⇒ DUT byte-identical; no `src/` change, so `cargo` gates are not the discriminator for this leaf (decision `0003`). |
+| `2026-08-01` | `.2` | `convention census before choosing: every repo-root live-doc filename occurrence in book/src/*.md — 33 total = 31 plain-backtick + 2 from the single markdown link (its TEXT and its TARGET both name the file). 31 of 32 distinct references already used the chosen form.` | `the repair form was already the de-facto convention; recorded as 0046 rather than invented` |
+| `2026-08-01` | `.2` | `after the one-line repair: mdbook build book (exit 0), then BOTH derivations re-run` | **`0` dead-file + `0` dead-anchor**, rendered and authored alike (was 2 + 0). Census now **32/32** backticked, **0** markdown links to a repo-root file. `0046`'s reverify one-liner returns **no matches**. |
+| `2026-08-01` | `.2` | `scripts/check_doctrines.sh; knowledge-map/scripts/check_knowledge_map.sh; cargo check --all-targets` | `10/10 doctrines PASS` — **after one true fire**: the first staged run failed `KNOWLEDGE-MAP`, because `docs/decisions/*.md` carry `answers:` frontmatter and so are **fact sources**; adding `0046` desynchronised the derived map (120 → **121** facts). Regenerated, green. `cargo check` clean; docs+book only ⇒ DUT byte-identical. |
 
 ## Commit Log
 
@@ -279,9 +293,21 @@ rather than an assertion inside another.
 | --- | --- | --- |
 | registration | `USER-GUIDE-CLI-TABLE-SHADOW.4 — backfill the landed commit hash` | Tree registered alongside the hash backfill; no leaf executed yet. |
 | `.1` | `5e3e9a0` — `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
+| `.1` | `8ff64cd` — `BOOK-LINK-INTEGRITY.1 — backfill the landed commit hash` | Hash-only follow-up. |
+| `.2` | `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them` | Adds decision `0046`; repairs `book/src/recipes.md:857` (one line). Rendered book reaches **0** dead local links. |
 
 ## Changelog
 
+- `2026-08-01` (`.2`): **The rendered book now has zero dead local links.** Decision
+  [`0046`](../decisions/0046-book-never-links-outside-book-src.md) recorded *before* the edit:
+  a book chapter **names** a repo-root file in backticks, with any section named in parentheses
+  as prose, and never links to one. Decided by **census** — 31 of 32 existing references already
+  did it — rather than by preference, so the leaf codified a convention instead of imposing one.
+  The absolute-URL candidate is refuted by `book/book.toml`'s own empty `git-repository-url`; a
+  fourth candidate (`{{#include}}`) was evaluated and rejected on four counts. Payload: one line
+  in `book/src/recipes.md`. **The rule left behind is more valuable than the fix**: *no markdown
+  link in `book/src` may escape `book/src`* is greppable and needs no `mdbook`, which is exactly
+  the portable predicate `.3` was blocked on.
 - `2026-08-01` (`.1`): **Both classes measured; the anchor class is empty.** Two independent
   derivations — rendered (**1782** hrefs over 33 files) and authored (**229** links) — agree on
   **one** offending site, `book/src/recipes.md:857`, surfacing as **2** rendered occurrences. The

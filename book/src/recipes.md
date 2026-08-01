@@ -854,8 +854,8 @@ INFO anvil: ✅ anvil done
 
 Raise to `medium` or `high` for phase-by-phase and per-decision
 events. `--trace-file path.log` routes output to a file instead
-of stderr. See [USER_GUIDE.md](../../USER_GUIDE.md#tracing-and-debugging)
-for the level table and emoji legend.
+of stderr. See `USER_GUIDE.md` ("Tracing and debugging") for the
+level table and emoji legend.
 
 ## Request a new recipe
 
