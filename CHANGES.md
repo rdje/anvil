@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)
 
-**Landed as:** _pending_. Previous: `83a2a5b`, `4ad09a4`, `da73827`.
+**Landed as:** `46f2af1`. Previous: `83a2a5b`, `4ad09a4`, `da73827`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Decision leaf — nothing built.**
 
 **What.** `.2` decides the carrier for *"a negative control must prove its sabotage landed"* and

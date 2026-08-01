@@ -328,7 +328,7 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.2` | `NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)` | Decision leaf — **nothing built**. Records `0047`: R1 prefer a mutation that cannot no-op, R2 a helper refusing a zero-count substitution, and the doctrine shape rejected on **structure**. `.3`'s contract is pinned in the ADR so it implements rather than re-derives. Docs-only ⇒ DUT byte-identical. |
+| `.2` | `46f2af1` — `NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)` | Decision leaf — **nothing built**. Records `0047`: R1 prefer a mutation that cannot no-op, R2 a helper refusing a zero-count substitution, and the doctrine shape rejected on **structure**. `.3`'s contract is pinned in the ADR so it implements rather than re-derives. Docs-only ⇒ DUT byte-identical. |
 | `.1` | `4ad09a4` — `NEGATIVE-CONTROL-HARNESS.1 — leg 3 is reported in 2 of 39 episodes` | Measurement only; **no mechanism, no KM card, no repair** — each deliberately deferred to `.2` with the reason recorded. Docs-only ⇒ DUT byte-identical. |
 | `.0` (registration) | `3b0d2c2` — `NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention (`RESUME-POINTER-CONTRACT.0`, `EMIT-SURFACE-INTERACTION-GATE.0`), required because `.githooks/commit-msg` rejects a subject that names no leaf. |
 
