@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.7 — gate the `anvil hunt` flags; close the tree
 
-**Landed as:** pending. Previous: `702695d`, `6e95494`, `04ef949`.
+**Landed as:** `4f36cde`. Previous: `702695d`, `6e95494`, `04ef949`.
 **Docs + one enforcement script; no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** `USER_GUIDE.md`'s `anvil hunt` flag table is now `ENUMERATION-PARITY` **pair 7**,
