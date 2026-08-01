@@ -1120,8 +1120,42 @@ What it does:
 - exits non-zero if either validation tool fails on any generated
   artifact.
 
-Useful options:
+### Options
 
+**What this list is.** The bullets below are the **`tool_matrix` option
+reference**, and they are *exhaustive over the options `tool_matrix` declares*:
+every field of the clap `Cli` in `src/bin/tool_matrix.rs` has an entry here, so
+a new option that arrives without a bullet is a defect in this document rather
+than something outside its scope. clap's two built-ins sit deliberately outside
+that set — they are supplied by the framework, not declared by the binary, which
+makes the exclusion **derivable** (a built-in is exactly an option with no `Cli`
+field) instead of a matter of taste. The criterion is stated here and the
+members are not counted, for the reason decision `0033` gives: a number written
+beside a list is one more copy of the list.
+
+**`tool_matrix` is a separate command with a separate namespace** from `anvil`
+and from `anvil hunt`, so a spelling shared across them is a *different* option.
+`tool_matrix --divergence` is this harness's per-unit acceptance-divergence
+column over the tools the matrix already ran; `anvil hunt --divergence` is a
+hunt detection axis, documented in its own section below. `tool_matrix --out` is
+a corpus directory, not `anvil --out`. Measuring one command's documentation
+against another command's registry is what produced two wrong numbers in this
+document's own audit history, so the boundary is stated rather than assumed.
+
+- `--out DIR` to choose the output tree. Each scenario gets its own
+  subdirectory under it and the report is written to
+  `DIR/tool_matrix_report.json`. It is **required** for every run that
+  generates anything — the only invocation that omits it is
+  `--list-scenarios`, which prints the matrix and exits.
+- `--base-seed N` (default `0`) to shift the whole matrix onto a different
+  deterministic seed line. Scenario seeds are consecutive from it in
+  declaration order (`N`, `N+1`, …), so two runs that share a base seed and a
+  binary produce byte-identical corpora and two runs that differ produce
+  disjoint ones — the way to widen coverage without re-generating the same
+  modules.
+- `--resume` to continue an interrupted tree in place, reusing the per-module
+  checkpoints already in `--out`. See the resume semantics at the end of this
+  section for exactly when a saved result is reused.
 - `--list-scenarios` to print the built-in matrix without running it.
 - `--modules-per-scenario N` to trade runtime for more coverage.
 - `--phase1-gate` to auto-enable coverage-gap failure and raise the
@@ -1378,7 +1412,8 @@ Useful options:
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
-- `--iverilog-compile` to add an Icarus Verilog compile/elaboration
+- `--iverilog-compile` (with `--iverilog-bin` to override the binary) to add
+  an Icarus Verilog compile/elaboration
   column. The harness shells `iverilog -g2012` for each emitted module
   or design and records the result under `iverilog_compile` in the
   report. This is warning-clean acceptance evidence only; it does not
@@ -1406,6 +1441,10 @@ Useful options:
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
   validation tool.
+- `--verilator-bin` / `--yosys-bin` to point the two default-on columns at a
+  specific executable instead of the `verilator` / `yosys` found on `PATH` —
+  the way to run the same matrix against two builds of one tool. `sv2v`,
+  `slang` and Icarus have the same override beside their own bullets.
 - `--diff-sim` to add an opt-in **cross-simulator semantic-agreement**
   column (`DIFFERENTIAL-SIMULATION`,
   `docs/tasks/DIFFERENTIAL-SIMULATION.md`). The matrix's existing
@@ -1435,6 +1474,19 @@ Useful options:
   the full matrix is computationally infeasible to gate
   mandatorily; the per-axis subset gives signoff-quality coverage
   without 2h+ CI runtime.
+- `--divergence` to add the opt-in **acceptance-divergence** column
+  (`ACCEPTANCE-DIVERGENCE-HUNTING.2c.2`, decision `0019`) over the same
+  per-axis subset. Unlike `--diff-sim` it spawns **no** extra tool: it is a
+  pure projection of the per-unit invocations the matrix already ran, mapping
+  each to an accept/warn/reject verdict and classifying any disagreement
+  (`accept_reject` / `accept_warn` / `warn_reject`) under `divergence` in the
+  report. Because it adds no invocation it also does **not** require the tools
+  to be clean first — a divergence is most interesting exactly when one tool
+  rejects what another accepts. It lights the **opportunistic**
+  `saw_acceptance_divergence` fact and is never a required coverage gate, since
+  all-agree is the valid-by-construction steady state. Distinct from the
+  identically-spelled `anvil hunt --divergence` documented below, which is a
+  hunt detection axis on a different command.
 
 ### Gate invocations
 

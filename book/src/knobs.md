@@ -1271,41 +1271,30 @@ is now checked.
 
 ### `tool_matrix` auxiliary binary
 
-> **Measured incomplete, `2026-08-01`.** The block below names 22 of
-> `tool_matrix`'s 37 options. It is a shadow of a *different* clap registry
-> (`src/bin/tool_matrix.rs`, not `src/main.rs`), so it needs its own extractor
-> and is tracked separately as `USER-GUIDE-CLI-TABLE-SHADOW.5` rather than
-> repaired here. Until then, `tool_matrix --help` is authoritative and this is
-> a partial view.
+`tool_matrix` is not the generator itself; it is the repo-owned corpus and
+downstream-tool harness. Its options select scenarios, control
+resume/checkpoint behaviour, and choose which external tools are invoked.
+**None of them sets a knob** — which is the deeper reason they do not belong in
+this chapter, and the reason the taxonomy above has nothing to say about them.
 
-```text
---out
---base-seed
---modules-per-scenario
---list-scenarios
---fail-on-coverage-gap
---resume
---phase1-gate
---phase2-share-gate
---phase3-structured-gate
---phase4-hierarchy-gate
---signoff-knob-sweep-gate
---sv-version-gate
---skip-verilator, --skip-yosys
---verilator-bin, --yosys-bin
---yosys-mode <without-abc|with-abc|both>
---iverilog-compile
---iverilog-bin
---help, --version
-```
+**The option reference is `USER_GUIDE.md` §*Tool matrix sweeps* → *Options*.**
+(A repo-root file: read it beside this book, not through it — mdBook rewrites
+`.md` links to `.html`, so a link from here would render dead.) That list
+carries a recorded contract — *exhaustive over the options `tool_matrix`
+declares*, meaning every field of the clap `Cli` in `src/bin/tool_matrix.rs`,
+with clap's two built-ins outside the set because the framework supplies them
+rather than the binary declaring them. The same section documents each
+repo-owned gate in depth and gives every one as a runnable command.
 
-`tool_matrix` is not the generator itself; it is the repo-owned corpus
-and downstream-tool harness. Its flags control scenario selection,
-resume/checkpoint behavior, and which external tools are invoked.
-`--iverilog-compile` is an optional Icarus Verilog acceptance column:
-it shells `iverilog -g2012` for each emitted artifact and treats
-warnings as failures. It does not run a testbench; use `--diff-sim`
-for cross-simulator trace agreement.
+This chapter carried a **hand-maintained snapshot** of those options until
+`2026-08-01`, deleted the same day as the `anvil` snapshot above it and for the
+same reason (decision `0033` rung R1: a refreshed copy drifts again, and a
+*gated* copy freezes in place). The snapshot named 21 of the 37 options
+`tool_matrix --help` prints — 19 of the 35 it declares, plus both built-ins.
+Deletion was made lossless first, not asserted afterwards: seven
+options gained an entry in the reference before the cut, and four of them —
+`--base-seed`, `--verilator-bin`, `--yosys-bin`, `--iverilog-bin` — had no
+documented home anywhere in the live docs outside this snapshot.
 
 ### Opt-in capability knobs (default-off; CLI **and** `--config` settable)
 

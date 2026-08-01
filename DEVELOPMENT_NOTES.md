@@ -5,6 +5,83 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A criterion that returns *"neither"* is still an answer, and delete-and-point is not automatically lossless — `USER-GUIDE-CLI-TABLE-SHADOW.5`
+
+`.5` inherited a leaf framed as a three-way choice: make `book/src/knobs.md`'s
+`tool_matrix` option snapshot exhaustive over that binary's flags, exhaustive over its
+*gate* flags only, or delete it in favour of `USER_GUIDE.md` (decision `0033` rung R1).
+The useful move was not to pick one. It was to ask the question `.2` had already
+answered for `anvil` — **which half of the knob/mode partition are these?** — and let
+the answer fall out.
+
+**It returned zero.** `tool_matrix` has no `Overrides` projection and no knobs: not one
+of its 37 options sets a `Config` field. Under `.2`'s partition every one of them is a
+*mode* flag, and mode flags belong to their own prose sections rather than to a knob
+enumeration. So a chapter about knobs owes this binary **no rows at all** — the block
+was not a stale copy, it was a flag list for a binary with no knobs, sitting in the knob
+chapter, one screen below the `anvil` snapshot `.4` had deleted the same day.
+
+That is worth recording as a shape, not just an outcome: **a classification criterion
+that returns an empty set for some input has not failed — it has told you the input is
+in the wrong place.** The temptation is to treat "the criterion doesn't apply here" as
+permission to hand-pick a new one, which is exactly the taste-based contract `.2`
+rejected.
+
+### Rejected alternatives
+
+- **Refresh the snapshot in place.** Rejected on `.4`'s recorded measurement: a
+  refreshed copy returns to *behind* — this one already had, twice, under a heading
+  that had promised accuracy.
+- **Gate the copy where it stood.** Rejected on `.3`'s recorded reason: gating a copy
+  *freezes* it in place, which is the outcome R1 exists to avoid. Note the asymmetry
+  that makes `.6` a live question anyway — gating the **canonical home** is not the same
+  act, and is precisely what `.3` did for the `anvil` table.
+- **Exhaustive over its *gate* flags only.** The most interesting rejection, because it
+  is genuinely *derivable* — the `*_gate: bool` fields are a syntactic class. It fails on
+  a different axis: it would make the contract's scope smaller than the reader's need,
+  formally excluding `--out`, the one option without which the harness does not run. A
+  derivable criterion is necessary but not sufficient; it also has to carve the set the
+  document exists to serve.
+
+### The gotcha: `delete-and-point` is not automatically lossless
+
+`.4` deleted its copy after proving **0 of 107** flags lost a documented home, and that
+success makes the rung look safe by default. It is not. Measured here **before** writing
+anything: four declared options — `--base-seed`, `--verilator-bin`, `--yosys-bin`,
+`--iverilog-bin` — were documented **nowhere in the live docs except the snapshot about
+to be deleted**. Applying `.4`'s precedent mechanically would have destroyed the only
+documentation of four options *inside a commit whose subject is repairing a
+documentation defect*.
+
+**The rule: R1 is `complete the destination → prove losslessness → cut`, in that order.**
+The proof is cheap (`comm` the derived set against every live doc) and it is the only
+thing standing between "delete the copy" and "delete the content". Re-run it after the
+cut too — the pre-cut proof is about a tree that no longer exists.
+
+A second-order trap sits inside that proof and only a **command-scoped** instrument sees
+it. `--divergence` looked documented: it is in `USER_GUIDE.md`. It is there as an
+`anvil hunt` axis — a *different command's* option that happens to share a spelling —
+while the `tool_matrix` column it names had no entry in the reference at all. A
+file-scoped grep reports "documented" and is wrong. This is `.1`'s original error read
+backwards: `.1` measured two commands against one registry; this is one flag name read
+across two.
+
+### And state the denominator, not just the region
+
+`.4` recorded that an enumeration audit must name the region it measured. `.5` adds the
+other half, having tripped on it: once the contract excluded clap's built-ins there were
+**two** live totals — 37 options the binary prints, 35 it declares — and the first draft
+of the book prose wrote *"named 21 of the 35 declared options"*, a 37-scope numerator
+over a 35-scope denominator, in the leaf whose entire subject is scope. Both numbers are
+individually correct, so nothing downstream disagrees and no gate can catch it. Only
+re-deriving the numerator on the denominator's scope before publishing catches it.
+
+The same discipline caught a plainer error in the same pass: a new `--out` bullet
+asserted a temp-directory fallback that does not exist (`src/bin/tool_matrix.rs:1462`
+makes `--out` required unless `--list-scenarios`). Documentation prose is not checked by
+anything; the only defence is reading the source for every sentence that claims a
+behaviour.
+
 ## 2026-08-01 — A shadow list's *exemption* half fails in the dangerous direction — `USER-GUIDE-CLI-TABLE-SHADOW.4`
 
 Every shadow-enumeration leaf in this repo so far has measured the same thing: **how far behind

@@ -1,6 +1,113 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.5 — give `tool_matrix`'s options one home
+
+**Landed as:** pending. Previous: `176c868`, `ccfbc23`, `5ce2dd3`.
+**Docs-only (`book/src/knobs.md`, `USER_GUIDE.md`); no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** `book/src/knobs.md` §*`tool_matrix` auxiliary binary* carried a hand-maintained
+snapshot of a **second binary's** CLI — `src/bin/tool_matrix.rs`'s clap registry, not
+`src/main.rs`'s — one screen below the `anvil` snapshot `.4` deleted the same day. It is
+**deleted** by decision `0033` rung **R1**, and `USER_GUIDE.md` §*Tool matrix sweeps* now
+carries a `### Options` list under a recorded contract.
+
+**Why the contract decision is the transferable part: `.2`'s criterion settled this leaf by
+failing.** `.2` partitioned `anvil`'s flags into **knob** (its value is a `Config` field —
+equivalently, settable in `--config knobs.json`) and **mode** (documented by its own section,
+deliberately not tabled). Applied here, `tool_matrix` **has no `Overrides` projection and no
+knobs**: not one of its 37 options sets a `Config` field. So under `.2`'s own partition every
+option is a *mode* flag and a chapter about knobs owes **zero** rows. The block was not merely a
+stale copy — it was a flag list, for a binary with no knobs, inside the knob chapter. That is a
+derivation, not a preference, and it is why the answer is R1 rather than a refreshed list.
+
+**The authoritative set was derived twice and the two agree exactly**, which is the control the
+repo's own rule demands after six instrument errors:
+
+- **(a) source** — the `Cli` struct in `src/bin/tool_matrix.rs`: **35** `#[arg(long)]` fields,
+  read whitespace-stripped so no `rustfmt` wrap can hide one (the
+  `PARITY-EXTRACTOR-ARM-SHAPE-GAP` hazard), plus clap's `--help`/`--version`, which exist
+  because the binary sets `#[command(version)]`.
+- **(b) binary** — the `Options:` block of `tool_matrix --help`, read **command-scoped** so the
+  harness's own prose cannot contribute.
+
+`diff` = empty. **37** both ways.
+
+**The registered "22 of 37" is scope-dependent, and the snapshot itself named 21.** The
+` ```text ` fence named **21**; the whole subsection named **22**. The extra is `--diff-sim`,
+which the closing prose mentions as a *cross-reference* — "It does not run a testbench; use
+`--diff-sim` for cross-simulator trace agreement" — never as an entry in the list. So 22
+reproduces only if a cross-reference counts as a list member. This is the **seventh** instrument
+note in this repo's recent history and it is recorded rather than waved through, but unlike
+`.2` → `.4`'s 11-vs-14 it is **not a correction**: neither number is wrong, they measure
+different regions. The rule it repeats is this tree's oldest — *an enumeration audit must state
+the region it measured, because "the block" is not a scope.*
+
+**R1 was not lossless as found, and measuring that before writing anything changed the order of
+the repair.** `.4` could cut immediately because **0 of 107** flags lost a home. Here **four**
+declared options — `--base-seed`, `--verilator-bin`, `--yosys-bin`, `--iverilog-bin` — were
+documented **nowhere in the live docs except this snapshot**, so the same rung applied the same
+way would have destroyed the only documentation of four options while claiming to repair a
+documentation defect. The repair is therefore ordered: complete the destination, prove
+losslessness, then cut.
+
+**The destination got the contract, and the contract is derived.** `USER_GUIDE.md` §*Tool matrix
+sweeps* gains a `### Options` heading and a paragraph recording that the list is **exhaustive
+over the options `tool_matrix` declares** — every field of the clap `Cli`. clap's two built-ins
+sit outside the set because the framework supplies them rather than the binary declaring them,
+and that exclusion is **mechanical** (a built-in is exactly an option with no `Cli` field), not
+the "honest caveat" `.1` had to publish for `--version`. The partition is total and disjoint:
+**35 declared + 2 built-in = 37 = `|tool_matrix --help|`**. Deliberately **no count and no member
+list** in the paragraph — `.2`'s rule unchanged: a number beside a list is one more copy of it.
+
+**Repair.** The options region went **32 → 35** declared options named, **+7** entries — `--out`,
+`--base-seed`, `--resume`, `--verilator-bin`, `--yosys-bin`, `--iverilog-bin`, `--divergence` —
+each placed beside its topical neighbour rather than appended. Re-measured after the edit: **0**
+declared options missing.
+
+**`--divergence` is `.1`'s trap read backwards, and it is why the namespace boundary is now
+written down.** `.1` measured *two commands against one registry*. This is one **spelling** living
+in **two registries**: `--divergence` is documented in `USER_GUIDE.md` under `anvil hunt`, so a
+document-wide grep reports it documented while the matrix's own column has no entry in the
+reference. Only a command-scoped instrument can see that. The contract paragraph now states the
+boundary explicitly for `--divergence` and `--out`, so the next author cannot repeat either
+direction.
+
+**Validation.**
+
+- **Losslessness proven before the cut and re-proven after** — all **35** declared options are
+  named across `USER_GUIDE.md` + `book/src/*.md` + `TOOLBOX.md` (`comm` against the derived set:
+  **0** without a home, both pre- and post-cut). The two built-ins are excluded on principle and
+  said out loud rather than dropped silently.
+- `scripts/check_doctrines.sh` — **all 10** registered doctrines hold. `ENUMERATION-PARITY`
+  green across all five pairs; `TABLE-RENDER-FIDELITY` ok at **2,526** data rows / **442** tables
+  / **259** tracked `*.md`; `README-GROWTH` ok at 161 lines / 10,653 B.
+- `mdbook build` exit **0**.
+- `cargo check --all-targets` / `cargo clippy --all-targets -- -D warnings` /
+  `cargo fmt --all --check` all exit **0**.
+- `cargo test` under `scripts/ram_guard.sh --threshold 90`: exit **0**, **1,087 passed / 0
+  failed / 19 ignored** across **17** targets including `tests/snapshots.rs`. Run **unpiped**
+  (`cargo test | tail` reports *tail's* status — the repo's own recorded gotcha).
+- Docs-only ⇒ DUT byte-identical; `tests/snapshots.rs` untouched.
+
+**Two findings handed to `.6`, both measured rather than assumed.** (i) The options region also
+names `--ast-json`, `--binary` and `--language` — `slang`'s and `verilator`'s flags quoted in
+prose — so a pair over this region must be **one-directional coverage**, never exact parity;
+exact parity would cry wolf on three tokens that are correct prose, and
+`DOCTRINE_ENFORCEMENT.md` §9 records that a gate which cries wolf gets deleted, taking its real
+coverage with it. (ii) The set is **not substring-free**: `--slang` is a proper substring of
+`--slang-bin` and `--sv2v` of `--sv2v-bin`. `.3` was able to prove its set free of that hazard;
+this one is not, so a naive `covers_` grep here can pass a **deleted** entry on another entry's
+text — the exact vacuity decision `0037` found at 3 of 10 sites.
+
+**Impact.** One authoritative home for `tool_matrix`'s options, with a contract a check can hold.
+Four options that were one deletion away from being undocumented now live in the CLI reference.
+The knob chapter no longer documents a binary that has no knobs. No behaviour change.
+
+**Files touched.** `book/src/knobs.md`, `USER_GUIDE.md`, `docs/tasks/USER-GUIDE-CLI-TABLE-SHADOW.md`,
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `docs/knowledge/cli-flag-audit-must-be-command-scoped.md`,
+`KNOWLEDGE_MAP.md` (derived), `CHANGES.md`, `MEMORY.md`. No `src/` change.
+
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy; 9 of its 12 exemptions were false
 
 **Landed as:** `ccfbc23`. Previous: `5ce2dd3`, `9a7772b`, `c793cf3`.
