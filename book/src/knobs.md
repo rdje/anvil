@@ -1244,137 +1244,40 @@ Config {
 ## CLI coverage
 
 Every motif knob that affects the generator output has a dedicated
-CLI flag, so all combinations are reachable without writing a config
-file. The canonical list comes from `anvil --help`; the snapshot below
-is accurate as of this commit.
+CLI flag, so all combinations are reachable without writing a config file.
 
-### Run control
-```text
---seed, --count, --out, --config, --dump-config
---trace <none|low|medium|high|debug>, --trace-file <path>
---metrics
---help, --version
-```
+**The flag reference is `USER_GUIDE.md` §*Knobs*, not this chapter.** (A
+repo-root file: read it beside this book, not through it — mdBook rewrites
+`.md` links to `.html`, so a link from here would render dead.) Its table is
+*exhaustive over the knobs* by a recorded contract — a
+flag belongs iff its value is a `Config` field, equivalently iff it is settable
+in `--config knobs.json` — and that completeness is **mechanically gated**
+(`ENUMERATION-PARITY` pair 5) against the `cli_overrides` projection in
+`src/main.rs`. A knob added without a row fails a check rather than going
+quietly undocumented. Flags that select a *mode* rather than a knob *value* —
+run size and destination, artifact lane, tracing, the introspection dumps —
+have their own sections in the same document.
 
-### Structure
-```text
---min-inputs, --max-inputs
---min-outputs, --max-outputs
---min-width, --max-width
---max-depth
-```
-
-### Memory governor (process-safety; default off)
-```text
---max-rss-mb <MiB>        # abort an --out run above this process RSS
---ram-abort-pct <1..=100> # abort an --out run above this host used-RAM%
-```
-
-### Sequential
-```text
---flop-prob, --max-flops-per-module
---min-mux-arms, --max-mux-arms
---flop-qfeedback-prob, --flop-mux-encoding-prob
-```
-
-### Sharing
-```text
---share-prob
---terminal-reuse-prob
-```
-
-### Operator arity (N-ary for And/Or/Xor/Add/Mul)
-```text
---min-gate-arity, --max-gate-arity
-```
-
-### Coefficient motif (linear combinations)
-```text
---coefficient-prob
---min-coefficient, --max-coefficient
-```
-
-### Shift motif
-```text
---const-shift-amount-prob
---min-shift-amount, --max-shift-amount
---gate-shift-weight
-```
-
-### Comparand motif
-```text
---const-comparand-prob
---min-comparand, --max-comparand
-```
-
-### Gate mix and leaf termination
-```text
---constant-prob
---gate-bitwise-weight
---gate-arith-weight
---gate-struct-weight
---gate-compare-weight
---gate-reduce-weight
-```
-
-### Blocks
-```text
---priority-encoder-prob
---case-mux-prob, --casez-mux-prob
---for-fold-prob
---comb-mux-prob, --comb-mux-encoding-prob
-```
-
-### Construction strategy
-```text
---construction-strategy <sequential|shuffled|interleaved|graph-first>
---graph-first-pool-size
-```
-
-### Identity / factorization
-```text
---identity-mode <node-id|relaxed>
---factorization-level <none|cse|operand-unique|commutative|associative|constant-fold|peephole|e-graph>
---full-factorization
---no-full-factorization
---max-ast-instances
---mux-arm-duplication-rate
---operand-duplication-rate
---hierarchy-module-dedup            (on-only toggle)
---hierarchy-semantic-module-dedup   (on-only toggle)
---hierarchy-sequential-module-dedup (on-only toggle)
---bisimulation-flop-merge           (on-only toggle)
-```
-
-### Presets and capability knobs (KNOB-ERGONOMICS-AND-PRESETS.2b.1)
-```text
---profile <arithmetic-heavy|deep-hierarchy|structured-emission-max|sv2023-upopts>
---function-emit-prob, --generate-loop-emit-prob, --task-emit-prob
---cone-function-emit-prob, --soft-union-slice-prob
---width-parameterization-prob, --aggregate-prob, --aggregate-array-prob
---memory-prob, --fsm-prob
---multi-clock-prob, --cdc-synchronizer-stages
-```
-
-### Hierarchy
-```text
---hierarchy-depth
---num-leaf-modules
---num-child-instances
---hierarchy-child-source-mode <library|on-demand>
---hierarchy-sibling-route-prob
---hierarchy-registered-sibling-route-prob
---hierarchy-registered-child-input-cone-prob
---hierarchy-child-input-cone-prob
---hierarchy-parent-cone-instance-prob
---max-parent-cone-instances-per-module
---hierarchy-parent-flop-prob
---min-hierarchy-depth, --max-hierarchy-depth
---min-child-instances-per-module, --max-child-instances-per-module
---child-instances-per-depth DEPTH=MIN:MAX
-```
+This chapter carried a **second, hand-maintained copy** of that list until
+`2026-08-01`, under a sentence promising it was "accurate as of this commit".
+Nothing kept the promise: on the day it was removed it named 93 of the 107
+top-level flags, and its companion *"not yet exposed via CLI"* list was wrong
+about 9 of the 12 knobs it named. It was deleted rather than refreshed — a
+refreshed copy drifts again, and *gating* a copy would freeze it in place
+(decision `0033`, rung R1: derive, or delete and point at the reference). What
+each knob **means** is what this chapter is for, and that is the taxonomy
+above; how each knob is **spelled** belongs to one document, and that document
+is now checked.
 
 ### `tool_matrix` auxiliary binary
+
+> **Measured incomplete, `2026-08-01`.** The block below names 22 of
+> `tool_matrix`'s 37 options. It is a shadow of a *different* clap registry
+> (`src/bin/tool_matrix.rs`, not `src/main.rs`), so it needs its own extractor
+> and is tracked separately as `USER-GUIDE-CLI-TABLE-SHADOW.5` rather than
+> repaired here. Until then, `tool_matrix --help` is authoritative and this is
+> a partial view.
+
 ```text
 --out
 --base-seed
@@ -1404,12 +1307,19 @@ it shells `iverilog -g2012` for each emitted artifact and treats
 warnings as failures. It does not run a testbench; use `--diff-sim`
 for cross-simulator trace agreement.
 
-### Not yet exposed via CLI (reachable via `--config FILE`)
-- `use_async_reset` — unused (flops are always async-reset by discipline).
-- Hierarchy field `library_prob` — future probabilistic mixed-sourcing dial for later Phase 4+ work.
-- `max_nodes_per_module` — per-module node budget (default `0` =
-  unlimited). Set it to a positive cap to bound peak per-module memory on
-  huge or pathological workloads; see the structural-knobs entry above.
+### Opt-in capability knobs (default-off; CLI **and** `--config` settable)
+
+Every knob below is off — or neutral — by default, so leaving it alone keeps
+output byte-identical, and every one is settable **both** ways: as a CLI flag
+(the kebab-case of the field name) and as a `--config knobs.json` key.
+
+They were listed here as *"not yet exposed via CLI"* until `2026-08-01`. That
+was false for nine of them, and the same section had listed eight of those nine
+as CLI flags a few paragraphs earlier. The three knobs that genuinely have no
+CLI flag are named once, in *"Knob presets (`--profile`) and CLI-flag
+promotion"* above, and are deliberately not repeated here — a second copy of
+that set is exactly the drift this section just paid for.
+
 - `width_parameterization_prob` (Phase 5, default `0.0`) — per-module
   probability that a finalized width-homogeneous leaf is emitted with
   a width `parameter` and instantiated with per-instance `#(.W(v))`

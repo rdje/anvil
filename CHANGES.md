@@ -1,6 +1,114 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy; 9 of its 12 exemptions were false
+
+**Landed as:** *(backfilled next slice)*. Previous: `5ce2dd3`, `9a7772b`, `c793cf3`.
+**Book-only (`knobs.md`, `architecture.md`); no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** `book/src/knobs.md` §*CLI coverage* carried a second, hand-maintained copy of the
+CLI flag list that `.2` gave a contract and `.3` gated in `USER_GUIDE.md`. It is **deleted**, by
+decision `0033` rung **R1** — *derive, or delete and point at the reference*. The section is now
+prose: what the split between knob flags and mode flags is, where the gated table lives, and why
+the copy is gone. Net **−92 lines**.
+
+**Two corrections to the registered picture, both from measuring rather than reading.**
+
+**(i) The count was 14, not the registered 11.** `S` was derived **twice** and the two agree
+exactly — the `Cli` struct in `src/main.rs` (105 declared fields, minus `command`, plus clap's
+`--help`/`--version`) and the `Options:` block of `anvil --help` read **command-scoped** so the
+`Commands:` prose cannot contribute. Empty diff, **107** both ways. The 14 absent, **named**
+rather than counted:
+
+`--artifact`, `--case-mux-if-emit-prob`, `--casez-mux-if-emit-prob`, `--fsm-mealy-prob`,
+`--hierarchy-registered-sibling-mixed-support-prob`, `--introspect`, `--lane-n-children`,
+`--lane-n-params`, `--multi-output-task-emit-prob`, `--mux-if-emit-prob`, `--priority-case-prob`,
+`--steer`, `--sv-version`, `--unique-case-prob`.
+
+The registered 11 was **reproduced rather than waved away**: it comes out only at *whole-section*
+scope — counting the "not yet exposed" prose and the `tool_matrix` block, neither of which is the
+snapshot — against a 105-flag `S` that drops `--lane-n-children`/`--lane-n-params`.
+`book/src/knobs.md` is **byte-identical** between `f2d282e` and `5ce2dd3`, so the file never
+moved; the instrument did. That is the **sixth** instrument note in this repo's recent history
+and the second in this tree.
+
+**(ii) The copy was not merely behind — it had gone false, and that is what settled R1.** The
+section's `### Not yet exposed via CLI (reachable via --config FILE)` list named **12** knobs, of
+which **9 have CLI flags**:
+
+| claim | reality |
+| --- | --- |
+| `width_parameterization_prob`, `aggregate_prob`, `aggregate_array_prob`, `soft_union_slice_prob`, `memory_prob`, `fsm_prob`, `fsm_mealy_prob`, `multi_clock_prob`, `cdc_synchronizer_stages` — "not yet exposed via CLI" | all **9 have flags**; **8** were listed as CLI flags ~60 lines earlier **in the same section**, and all 9 are contradicted by line 1128 of the same chapter |
+| the genuinely config-file-only set | exactly **3** — `library_prob`, `use_async_reset`, `max_nodes_per_module` |
+
+The truth was **derived, not trusted**: `--dump-config`'s serde projection of `Config::default()`
+walked **totally** — 93 keys at every level, the one dict-valued key
+(`child_instances_per_module_by_depth`) being CLI-settable under the renamed
+`--child-instances-per-depth` — leaves exactly those three, matching the independently-authored
+sentence at line 1128 member for member.
+
+This is the failure mode `.1` called *worse than an omission*: a reader who believes it reaches
+for `--config` to set something a flag already sets. It is also what decides the rung.
+**Refreshing** a copy returns it to *behind*; **gating** a copy *freezes* it (`.3`'s stated
+reason for leaving it alone); only **deleting** it removes the mode.
+
+**Lossless was proven before the cut, not asserted after.** All **107** flags still have a home
+across `USER_GUIDE.md` + `book/src/*.md` (`comm` against the derived set: **0** undocumented).
+The 3 truthful bullets were strict **subsets** of richer entries already in the same chapter —
+`knobs.md:120` (`max_nodes_per_module`), `:198` (`use_async_reset`), `:1109` (`library_prob`).
+And the **9 long capability-knob paragraphs were retained, not deleted**: they fail `0033`
+test (2) — a new capability knob does not *require* a bullet for the chapter to be correct — so
+they are prose, not a shadow. Only their heading was false, and only the heading changed. The
+repair is scoped to the shadow and the false claim; it does not use the occasion to prune.
+
+**The three config-file-only knobs are named once and not re-listed.** That set *is* derivable
+(`Config` fields minus `cli_overrides`) and growth-coupled, so writing it again under the new
+heading would have created a fresh shadow **inside the repair** — the mistake `.2` avoided by
+refusing to enumerate the 14 mode flags.
+
+**A total sweep for other sites, count recorded per decision `0039`.** All **30** `book/src/*.md`
+walked, distinct top-level flags named per file: `knobs.md` **101** is the lone outlier;
+`recipes.md` 44, `structured-emission.md` 19 and `tutorial.md` 17 are usage commands, not
+enumerations. **One site, confirmed** rather than assumed.
+
+**A third shadow was measured and deliberately not repaired here.** The §*`tool_matrix` auxiliary
+binary* block names **22** of `tool_matrix --help`'s **37** options. It shadows a **different**
+clap registry (`src/bin/tool_matrix.rs`, not `src/main.rs`), so the one-line extractor does not
+transfer and the contract question is its own. Registered as **`.5`**; the block carries a dated
+*measured-incomplete* note in the meantime rather than silence.
+
+**A dead-link class found while checking the pointer — the repair nearly shipped one.** The
+natural way to point at `USER_GUIDE.md` from the book is
+`[USER_GUIDE.md](../../USER_GUIDE.md#knobs)`, and `book/src/recipes.md:857` already does exactly
+that. **mdBook rewrites every `.md` link to `.html`**, so it renders as
+`../../USER_GUIDE.html` — a file that does not exist. The link works when reading the Markdown
+source on GitHub and is **dead in the rendered book**, which is the surface the owner reviews.
+Caught by link-checking the rendered HTML rather than by trusting `mdbook build`, which exits **0**
+on it. Both new pointers were switched to the plain-backtick form the other two in-book references
+already use, taking the book from **6 dead local links to 2**. The remaining 2 are the pre-existing
+`recipes.md` link and its `print.html` copy — **not** fixed here, because `.4` does not own that
+file and no tree owns book-link integrity; registered separately (see below).
+
+**Validation.** `scripts/check_doctrines.sh` — **all 10** registered doctrines hold
+(`ENUMERATION-PARITY` including the `SUMMARY.md` ↔ chapters pair, unaffected by the deletion;
+`TABLE-RENDER-FIDELITY` 2,510 rows / 435 tables / 257 files). `mdbook build` exit **0**, and the
+rendered HTML was **link-checked**: 665 local hrefs, 2 dead, both pre-existing. `cargo test`
+**1,087 passed / 0 failed / 19 ignored across 17 targets**, run **unpiped** (`cargo test | tail`
+reports *tail's* status), `tests/book_examples.rs` among them at 4/4. The inbound reference at
+`book/src/architecture.md:917` promised *"the full categorised list lives in"* the deleted section
+and now points at `USER_GUIDE.md`; the `#cli-coverage` anchor is preserved, so that link does not
+break. Docs-only ⇒ DUT byte-identical, `tests/snapshots.rs` untouched.
+
+**Surfaced, not silently absorbed.** No doctrine or tree owns **book link integrity**, and
+`mdbook build` is not a link checker — the 669-href scan that found this was written for this
+slice and is not committed anywhere. A `BOOK-LINK-INTEGRITY` tree is registered in the following
+commit rather than folded in here (one leaf per commit; and the repo must be handoff-ready before
+a pivot).
+
+**Files touched.** `book/src/knobs.md`, `book/src/architecture.md`,
+`docs/tasks/USER-GUIDE-CLI-TABLE-SHADOW.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`,
+`DEVELOPMENT_NOTES.md`.
+
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5
 
 **Landed as:** `9a7772b`. Previous: `c793cf3`, `cd7f24b`, `f2d282e`.

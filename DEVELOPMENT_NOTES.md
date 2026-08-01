@@ -5,6 +5,53 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A shadow list's *exemption* half fails in the dangerous direction — `USER-GUIDE-CLI-TABLE-SHADOW.4`
+
+Every shadow-enumeration leaf in this repo so far has measured the same thing: **how far behind
+the copy is**. `.1` counted absent flags, `.2` counted absent rows, `.3` gated against absence.
+`.4` went looking for the book's absent flags — 14 of them — and found something worse sitting
+directly underneath, which no prior leaf had thought to measure.
+
+Sections that carry a hand-maintained list usually carry a second, smaller list beside it: the
+**exemptions**. *"Not yet exposed via CLI."* *"Not covered by this gate."* *"Reachable only via
+`--config`."* In `book/src/knobs.md` that list named 12 knobs, and **9 of them had CLI flags** —
+8 of those 9 named as CLI flags ~60 lines earlier **in the same section**, and all 9 contradicted
+by a correct sentence 280 lines above in the same chapter.
+
+**The two halves fail asymmetrically, and only one of them is safe:**
+
+| half | what an omission does | what a reader does with it |
+| --- | --- | --- |
+| the **positive** list ("here are the flags") | under-reports — a real flag goes unmentioned | reaches for `--help`, finds it, mildly annoyed |
+| the **exemption** list ("these have no flag") | **asserts an absence that is false** | believes the capability is missing, writes a config file to reach what a flag already sets, or concludes the feature is not delivered |
+
+An omission is a gap. A false exemption is a **claim**. This is the same asymmetry decision
+`0033` §3 measured inside `merge_coverage` — monotone merges can only under-report, so the site
+was re-scoped from S3 down to S1 — read from the other end: a list that can only under-report is
+fail-safe, and a list that *asserts absence* is not. The lesson generalises past docs, because
+an exemption list is derivable in exactly the way its positive twin is: here it was `Config`
+serde fields minus `cli_overrides`, three lines of shell, and it yields **3**, not 12.
+
+**Two operational rules earned:**
+
+1. **Audit the exemption half of any shadow you audit.** It is smaller, it looks like boilerplate,
+   nobody re-reads it, and it fails in the direction that costs the reader something. Prefer
+   deriving it — the complement of a derivable set is derivable.
+2. **A section that contradicts itself is past repair.** Eight of the nine false claims were
+   refuted by the same section that made them. When the copy has drifted far enough to disagree
+   with itself, refreshing returns it to *behind* and gating **freezes** it; only decision
+   `0033`'s rung **R1** removes the failure mode. That is what turned `.4` from "add 14 rows"
+   into "delete the section".
+
+**And a third, about instruments rather than lists.** The tree had `11` registered; `.4` measured
+`14`. The temptation is to publish the new number and move on. Reproducing the old one first is
+cheap and is what tells you *which thing moved*: `book/src/knobs.md` is byte-identical between
+`f2d282e` and `5ce2dd3`, so the file never changed — 11 falls out only at a scope that counts the
+exemption prose and a *different binary's* flag block as coverage, against a 105-flag `S`. Sixth
+instrument note in this repo's recent history, and the second in this one tree. The countermeasure
+is the one `.4` used throughout: **derive `S` twice by independent routes and diff them** (the
+`Cli` struct; `anvil --help`'s `Options:` block — 107, empty diff) before comparing anything to it.
+
 ## 2026-08-01 — The gate found its own recorded defect, live, in the function it was reading — `USER-GUIDE-CLI-TABLE-SHADOW.3`
 
 Writing `ENUMERATION-PARITY` pair 5 meant extracting the knob-flag set from `cli_overrides` in

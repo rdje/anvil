@@ -652,11 +652,12 @@ fi
 # ── ONE SITE, NOT SEVERAL, AND THE MODE FLAGS ARE NOT CHECKED ────────────────
 # `README.md` no longer enumerates any knob taxonomy (decision 0036), and
 # `book/src/knobs.md` is a teaching chapter documenting knobs by their `Config`
-# field name, not a flag reference — its `## CLI coverage` section IS a second
-# copy of this set and is a *separate* registered defect (`.4`), to be repaired
-# by decision 0033's preferred rung R1 (delete the copy, point at the reference)
-# rather than declared as a second site here. Gating it first would freeze the
-# copy in place, which is the outcome R1 exists to avoid.
+# field name, not a flag reference. Its `## CLI coverage` section WAS a second
+# copy of this set; `USER-GUIDE-CLI-TABLE-SHADOW.4` DELETED it (2026-08-01) by
+# decision 0033's preferred rung R1 — delete the copy, point at the reference —
+# rather than declaring it a second site here, because gating a copy freezes it
+# in place, which is the outcome R1 exists to avoid. So this pair still has ONE
+# site by design, and now by fact: there is no second copy left to fall behind.
 #
 # The MODE half of the partition is deliberately ungated. It is authoritative
 # under test (2), not a shadow: those flags are documented in dedicated prose

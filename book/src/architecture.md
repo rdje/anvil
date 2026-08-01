@@ -913,9 +913,10 @@ comparand / blocks / construction-strategy / identity/factorization,
 plus the run-control flags `--seed`, `--count`, `--out`, `--config`,
 `--dump-config`, `--trace`, `--trace-file`, `--metrics`.
 
-The full categorised list lives in
-[Knobs and Reproducibility — CLI coverage](knobs.md#cli-coverage);
-`anvil --help` is the canonical source of truth.
+The full flag reference is `USER_GUIDE.md` §*Knobs* (a repo-root file),
+whose table is mechanically gated against `cli_overrides` in `src/main.rs`;
+[Knobs and Reproducibility — CLI coverage](knobs.md#cli-coverage) explains the
+split between knob flags and mode flags, and what each knob means.
 
 Piping stdout is valid for `count = 1` (no directory required). For
 `count > 1`, `--out` is required so that per-module files and the
