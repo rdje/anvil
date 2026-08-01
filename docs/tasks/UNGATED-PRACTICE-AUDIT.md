@@ -331,7 +331,7 @@ record. It is not a `COMMIT.md` checklist item, so it is reported outside the de
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `.0` (registration) | `ef6413c` — `UNGATED-PRACTICE-AUDIT.0 — register the generalisation from NEGATIVE-CONTROL-HARNESS.1` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
-| `.1` | `UNGATED-PRACTICE-AUDIT.1 — 20 obligations classified; the rule holds only refined` | Docs-only ⇒ DUT byte-identical. |
+| `.1` | `0e4654f` — `UNGATED-PRACTICE-AUDIT.1 — 20 obligations classified; the rule holds only refined` | Docs-only ⇒ DUT byte-identical. |
 
 ## Changelog
 

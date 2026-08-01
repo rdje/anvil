@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — UNGATED-PRACTICE-AUDIT.1 — 20 obligations classified; the rule holds only refined
 
-**Landed as:** `pending`. Previous: `1dedbd8`, `ef6413c`, `b536139`.
+**Landed as:** `0e4654f`. Previous: `1dedbd8`, `ef6413c`, `b536139`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** The prediction registered at `.0` was tested and **it does not hold as stated**. A
