@@ -223,6 +223,81 @@ extract_steering_categories_raw() {
     sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[^"]+",[[:space:]]*"([^"]+)";[[:space:]]*$/\1/p'
 }
 
+# Authoritative: the CLI flags that set a KNOB — every `cli.<field>` referenced by
+# `cli_overrides` in src/main.rs, the one function projecting the clap `Cli` onto
+# `config::Overrides`. clap derives a flag's spelling from its field name
+# (snake -> kebab), so that projection IS the mapping and no second list is needed.
+#
+# ── WHY THIS FUNCTION AND NOT `anvil --help` (USER-GUIDE-CLI-TABLE-SHADOW.3) ───
+# Two reasons, and the first is decisive. (1) A doctrine check reads the
+# REPOSITORY (DOCTRINE_ENFORCEMENT.md §4(4)); `--help` needs a built binary, which
+# a fresh clone and a pre-build CI step do not have, so the gate would be skipped
+# exactly where it is the backstop. (2) `--help` output is PROSE THAT CONTAINS
+# FLAGS, not a flag list: ANVIL's own `Commands:` block quotes `--diff-sim` inside
+# the `hunt` subcommand's description, and an audit that scraped it counted 108
+# top-level flags where 107 exist (USER-GUIDE-CLI-TABLE-SHADOW.2's Correction).
+#
+# ── WHY `Overrides` AND NOT "every flag" ──────────────────────────────────────
+# The table's contract, recorded at `.2`, is *exhaustive over the KNOBS*: a flag
+# belongs iff it sets a `Config` field — equivalently, iff its value is settable
+# in `--config knobs.json`. Flags that select a MODE (`--seed`, `--out`,
+# `--count`, `--artifact`, `--trace`, `--introspect`, `--help`, `--version`, …)
+# are documented by their own sections and must NOT be tabled. `cli_overrides` is
+# precisely the knob half of that partition, so the extractor cannot drift from
+# the contract: they are the same statement.
+#
+# ── WHY THE WHITESPACE STRIP IS LOAD-BEARING, AND IT WAS MEASURED ─────────────
+# `PARITY-EXTRACTOR-ARM-SHAPE-GAP` records the rule that an extractor must never
+# encode a source FORMATTING assumption, because `rustfmt` owns the layout and
+# re-wraps whatever gets long. That defect is ALREADY LIVE in this function:
+#
+#     hierarchy_registered_sibling_mixed_support_prob: cli
+#         .hierarchy_registered_sibling_mixed_support_prob,
+#
+# — 95 characters of field name, so `rustfmt` split `cli` from `.field`. Measured
+# at `USER-GUIDE-CLI-TABLE-SHADOW.3`: the naive line-wise scan reads **91 of 92**
+# and the missing one is invisible, not wrong — a silent exemption, the failure
+# mode the floor below cannot see because the other 91 still satisfy it. Stripping
+# ALL whitespace first removes the hazard at its root rather than widening a regex
+# to accommodate one wrap: after the strip the text has no lines to depend on.
+# The control is the two numbers — delete the `tr -d` and this extractor drops to
+# 91, and the fenced site then passes without ever verifying that flag.
+#
+# ── WHAT IS DELIBERATELY OUTSIDE THE SET ──────────────────────────────────────
+# `--profile` is a table row and is NOT derived here: it applies a curated preset
+# in `resolve_config` rather than setting one `Overrides` field. That is fine and
+# is why `covers_fenced_set` is coverage, not exact parity — the table may carry
+# documented extras; what it may not do is fall BEHIND. Stated rather than
+# silently absorbed: the honest limit is that a future convenience flag added
+# outside `cli_overrides` would not be required by this pair.
+extract_cli_knob_flags() {
+  cli_overrides_body |
+    grep -oE 'cli\.[a-z0-9_]+' | sed 's/^cli\.//; s/_/-/g; s/^/--/' | sort -u
+}
+
+# The body of `cli_overrides`, whitespace-stripped. Shared by the extraction and
+# by its looser candidate scan so the two differ ONLY in strictness, never in
+# what text they read.
+cli_overrides_body() {
+  sed -n '/^fn cli_overrides/,/^}$/p' src/main.rs | tr -d '[:space:]'
+}
+
+# Every `cli.` occurrence, said as loosely as it can be said — no charset, no
+# field name, just the receiver. Compared against the extraction by
+# `total_or_fail`, this catches a field whose spelling falls outside
+# `[a-z0-9_]+` (the PARITY-EXTRACTOR-CHARSET-GAP class) rather than assuming the
+# current members' spelling is a rule. Deliberately not `sort -u`: a field
+# referenced twice (`factorization_level` is read from three branches) must count
+# twice on both sides or the comparison is not about totality at all.
+candidate_cli_overrides_refs() {
+  cli_overrides_body | grep -o 'cli\.'
+}
+
+# The extraction WITHOUT `sort -u` or the kebab rewrite, for that comparison.
+extract_cli_knob_flags_raw() {
+  cli_overrides_body | grep -oE 'cli\.[a-z0-9_]+'
+}
+
 # --- helpers ----------------------------------------------------------------
 
 count_of() { printf '%s\n' "$1" | grep -c . ; }
@@ -547,6 +622,56 @@ if floor_or_fail 'KnobId steering categories' 8 "${steering_categories}"; then
     "${steering_categories}" 'book/src/api-introspection.md' 'steer-categories'
   covers_fenced_set 'steer categories <-> the knob_ids! table' \
     "${steering_categories}" 'CODEBASE_ANALYSIS.md' 'steer-categories'
+fi
+
+# Pair 5 — USER_GUIDE.md's CLI flag table (shadow) mirrors the knob flags that
+# `cli_overrides` projects onto `config::Overrides` (authoritative). Added by
+# USER-GUIDE-CLI-TABLE-SHADOW.3.
+#
+# ── WHY IT IS A SHADOW, TEST BY TEST (decision 0033 rule (a)) ─────────────────
+# (1) derivable — `cli_overrides` in src/main.rs enumerates exactly the flags that
+#     set a knob, and clap derives each flag's spelling from its field name;
+# (2) growth-coupled — the table's contract, recorded above it at `.2`, is
+#     *exhaustive over the knobs*, so every new knob flag REQUIRES a row;
+# (3) silent — measured at `1df0071`: **13** flags were absent from the whole
+#     document and every gate in the repo was green.
+#
+# ── WHY A PAIR HERE AND NOT AN ELEVENTH DOCTRINE ──────────────────────────────
+# `feedback_full_factorization` — one mechanism, never two. ENUMERATION-PARITY
+# already owns "a hand-maintained docs list mirroring an authoritative set", and
+# this is one. The `feedback_full_factorization` test was applied rather than
+# waved through, exactly as TABLE-RENDER-FIDELITY applied it and reached the
+# opposite answer: that doctrine registered separately because NO existing
+# doctrine owned markdown well-formedness. This subject is already owned.
+#
+# ── WHY THE SET IS NOT `anvil --help` ─────────────────────────────────────────
+# See the extractor's own note: a doctrine check must read the repository, not a
+# built binary, and `--help` is prose that quotes other commands' flags. The two
+# wrong numbers in `.1`'s audit both came from scraping it.
+#
+# ── ONE SITE, NOT SEVERAL, AND THE MODE FLAGS ARE NOT CHECKED ────────────────
+# `README.md` no longer enumerates any knob taxonomy (decision 0036), and
+# `book/src/knobs.md` is a teaching chapter documenting knobs by their `Config`
+# field name, not a flag reference — its `## CLI coverage` section IS a second
+# copy of this set and is a *separate* registered defect (`.4`), to be repaired
+# by decision 0033's preferred rung R1 (delete the copy, point at the reference)
+# rather than declared as a second site here. Gating it first would freeze the
+# copy in place, which is the outcome R1 exists to avoid.
+#
+# The MODE half of the partition is deliberately ungated. It is authoritative
+# under test (2), not a shadow: those flags are documented in dedicated prose
+# sections, and no list of them exists anywhere — writing one so a gate could
+# check it would create the shadow this doctrine removes.
+cli_knob_flags="$(extract_cli_knob_flags)"
+total_or_fail 'CLI knob flags' \
+  "$(candidate_cli_overrides_refs)" "$(extract_cli_knob_flags_raw)"
+# Floor at the count measured at `USER-GUIDE-CLI-TABLE-SHADOW.3` (92). Tight on
+# purpose and NOT a shadow, by the same asymmetry the pair-4 floor records: a
+# floor is shrink-coupled, so a 93rd knob never requires touching this number.
+# Only *losing* knobs would — and that is the event worth stopping to look at.
+if floor_or_fail 'CLI knob flags' 92 "${cli_knob_flags}"; then
+  covers_fenced_set 'USER_GUIDE.md CLI flag table <-> cli_overrides' \
+    "${cli_knob_flags}" 'USER_GUIDE.md' 'knob-flags'
 fi
 
 # --- verdict ----------------------------------------------------------------

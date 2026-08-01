@@ -91,3 +91,11 @@ gives **no** count, because a hand-kept list of "the mode flags" would be deriva
 growth-coupled and silent — decision `0033`'s three tests, all passing — i.e. the same shadow,
 recreated inside the sentence that removes it. See [[coverage-check-vacuity]] for the same
 vacuity at gate scale, and [[defect-class-audit-rules]] for the sweep discipline this audit follows.
+
+**The rule is now mechanical, and the mechanism obeys it.** `USER-GUIDE-CLI-TABLE-SHADOW.3` gated
+the table as `ENUMERATION-PARITY` **pair 5** — and the check derives its set from **`cli_overrides`
+in `src/main.rs`, never from `anvil --help`**, for the reason this card exists plus a second one: a
+doctrine check reads the repository (`DOCTRINE_ENFORCEMENT.md` §4(4)), and `--help` needs a built
+binary that a fresh clone and a pre-build CI step do not have. Reading source instead of a
+formatter's output answers both objections at once — which is the general shape of the fix, not a
+coincidence.

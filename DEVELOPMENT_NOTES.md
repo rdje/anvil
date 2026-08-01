@@ -5,6 +5,63 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — The gate found its own recorded defect, live, in the function it was reading — `USER-GUIDE-CLI-TABLE-SHADOW.3`
+
+Writing `ENUMERATION-PARITY` pair 5 meant extracting the knob-flag set from `cli_overrides` in
+`src/main.rs`. The obvious extractor is one line:
+
+```sh
+sed -n '/^fn cli_overrides/,/^}$/p' src/main.rs | grep -oE 'cli\.[a-z0-9_]+'
+```
+
+It reads **91 of 92**. `rustfmt` had already split one reference across two lines, because the
+field name is 95 characters:
+
+```rust
+hierarchy_registered_sibling_mixed_support_prob: cli
+    .hierarchy_registered_sibling_mixed_support_prob,
+```
+
+This is `PARITY-EXTRACTOR-ARM-SHAPE-GAP` **exactly** — the same cause (`rustfmt` re-wrapping what
+gets long), the same shape (a regex encoding a source *formatting* assumption rather than a source
+*fact*), the same consequence (a silent exemption invisible to a count floor when the hidden member
+is newly added). The repo had already paid for this lesson, written it down twice, and the very
+next extractor written after that walked into it.
+
+**Two things worth keeping from that.**
+
+**(a) The fix is not a wider regex — it is removing the dependence.** Stripping *all* whitespace
+before matching means the text has no lines to depend on, so no future re-wrap can hide anything.
+Widening the pattern to tolerate `cli\s*\.\s*` would have handled this wrap and left the next
+formatting change to find. *Anchor an extraction to a shape that cannot silently widen* is the
+rule the file already states; a whitespace-insensitive read is its strongest form.
+
+**(b) A recorded lesson does not transfer itself.** Both prior extractor defects were documented in
+`DEVELOPMENT_NOTES.md`, in fact cards, and in comments inside this very script — and the defect
+still recurred immediately, in a *new* extractor, written by someone who had just read all three.
+What caught it was not the reading; it was **running a negative control**. That is the whole
+argument of `DOCTRINE_ENFORCEMENT.md` §6.1 in miniature: knowledge is a claim, an oracle re-run is
+proof. Controls are not paperwork at the end of the work; on this leaf the control *was* the work.
+
+**Why the floor sits at the exact measured count.** Neutering the whitespace strip drops the
+extractor to 91, and a floor of 92 catches it with a message naming the *extractor* rather than the
+docs — the right diagnosis, which is not automatic (`PARITY-EXTRACTOR-ARM-SHAPE-GAP.1` records a
+floor firing with a message that sent the reader to the wrong file). A tight floor is still not a
+shadow: it is **shrink-coupled**, so a 93rd knob never requires touching it. Only losing knobs
+would, and that is the event worth stopping for.
+
+**The honest limit, stated because it is easy to overclaim here.** That control exercised the
+*shrink* case. Had the wrap-hidden flag been *newly added*, the other 92 would still extract, the
+floor would be satisfied, and nothing would fire. The strip is what makes that case impossible;
+the floor is not.
+
+**And one decision that looks like caution but is the opposite.** `book/src/knobs.md`'s
+`## CLI coverage` section is a second copy of the same set, and declaring it as a second gated site
+would have been the natural-feeling move. It was deliberately not done: **gating a copy freezes it
+in place.** Decision `0033`'s preferred rung is R1 — delete the copy, point at the reference — and
+a gate makes that repair harder to reach, because the copy now has a check depending on it. Adding
+enforcement to something that should not exist is a way of deciding it should.
+
 ## 2026-08-01 — "Exhaustive or curated?" was the wrong question; the answer was a derived set — `USER-GUIDE-CLI-TABLE-SHADOW.2`
 
 `.1` left `.2` a clean binary: is `USER_GUIDE.md`'s CLI flag table the **exhaustive** flag

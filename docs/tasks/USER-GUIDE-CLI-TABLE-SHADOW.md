@@ -6,8 +6,8 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.2` **done** — contract recorded, table repaired 75 → 93, `.1`'s
-  measurement corrected, `.4` registered; frontier `.3`)
+- Last updated: `2026-08-01` (`.3` **done** — the table is gated as `ENUMERATION-PARITY` pair 5,
+  four negative controls fired; frontier `.4`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -143,11 +143,11 @@ error from a document that told them it exists.
   Commit: `USER-GUIDE-CLI-TABLE-SHADOW.2`
 
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Decide whether the gap warrants a mechanism. The set is derivable from clap, so a derived check is CHEAP here in a way it was not for CHANGES-ENTRY-PLACEMENT — but it is only meaningful if .2 rules the table exhaustive; a curated table is authoritative under 0033 test (2) and must NOT be gated.`
   Acceptance: `The decision follows .2's contract, not the other way round. If a check is written it obeys DOCTRINE_ENFORCEMENT.md section 4, is negative-controlled both ways (delete a row => fails; add a flag without a row => fails), and states its extractor precisely enough to re-run — the matcher correction recorded in .1 is exactly the trap it must avoid.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — A MECHANISM IS WARRANTED, AND IT IS PAIR 5 OF check_enumeration_parity.sh, NOT AN ELEVENTH DOCTRINE. The feedback_full_factorization test was applied rather than waved through, and it points the opposite way from TABLE-RENDER-FIDELITY's: that one registered separately because NO doctrine owned markdown well-formedness, whereas ENUMERATION-PARITY already owns "a hand-maintained docs list mirroring an authoritative set" and this is one. 0033 rule (a), test by test: derivable (cli_overrides in src/main.rs enumerates the flags that set a knob, and clap derives each flag spelling from its field name); growth-coupled (.2's recorded contract makes the table exhaustive over the knobs, so every new knob REQUIRES a row); silent (13 flags were absent at 1df0071 with every gate green). THE AUTHORITATIVE SET COMES FROM SOURCE, NEVER FROM anvil --help, for two reasons and the first is decisive: a doctrine check reads the REPOSITORY (DOCTRINE_ENFORCEMENT.md section 4(4)) and --help needs a built binary, which a fresh clone and a pre-build CI step do not have — the gate would be skipped exactly where it is the backstop; and --help is prose that quotes OTHER commands flags, which is what made .1 count 108 where 107 exist. THE WHITESPACE STRIP IS LOAD-BEARING AND IT WAS MEASURED, NOT ASSUMED: PARITY-EXTRACTOR-ARM-SHAPE-GAP is ALREADY LIVE inside cli_overrides — rustfmt split `cli` from `.hierarchy_registered_sibling_mixed_support_prob` across two lines (95 chars of field name), so a naive line-wise scan reads 91 of 92 and the 92nd is INVISIBLE rather than wrong. Stripping all whitespace first removes the hazard at its root instead of widening a regex around one wrap. FOUR NEGATIVE CONTROLS, ALL FIRED, each restored from an ON-VOLUME backup and each verified against git afterwards: (1) delete the --operand-duplication-rate row => FAIL naming exactly that flag; (2) add a knob flag with no row (cli.probe_control_knob into the Overrides literal) => FAIL naming --probe-control-knob, i.e. the growth direction, which is the one that actually happens; (3) remove the fence => hard FAIL, not a silent skip, so the repair cannot degrade back to whole-file matching; (4) neuter the tr -d [:space:] => the extractor drops 92 -> 91 and the TIGHT FLOOR CATCHES IT with a message pointing at the extractor rather than at the docs — which is the evidence for setting the floor at the exact measured count. HONEST LIMIT STATED, NOT PAPERED OVER: control (4) is the SHRINK case; had the wrap-hidden flag been newly added the floor would be satisfied and nothing would fire, exactly as the file already records about floors being shrink-coupled. SUBSTRING VACUITY MEASURED AND ABSENT: no derived flag is a proper substring of another, so covers_fenced_set grep cannot pass a deleted row on another row content — checked rather than assumed, since that is precisely how decision 0037 found 3 of 10 sites vacuous. ONE SITE, DELIBERATELY: book/src/knobs.md CLI coverage is a second copy of this set and is .4 work, to be repaired by 0033 rung R1 (delete the copy, point at the reference) — gating it first would FREEZE the copy in place, the outcome R1 exists to avoid. THE MODE HALF IS DELIBERATELY UNGATED: those flags are authoritative under test (2), and writing a list of them so a gate could check it would create the shadow this doctrine removes. Checks: scripts/check_doctrines.sh all 10 hold; cargo check/clippy/fmt/test green; src/main.rs byte-identical to HEAD after the controls; docs+script only => DUT byte-identical.`
+  Commit: `USER-GUIDE-CLI-TABLE-SHADOW.3`
 
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW.4`
   Status: `pending`
@@ -162,8 +162,8 @@ error from a document that told them it exists.
 | --- | --- | --- | --- |
 | 1 | `USER-GUIDE-CLI-TABLE-SHADOW.1` | `done` | Audited and registered. The measurement is the work product: **108** clap flags vs **75** table rows, **13** absent entirely, **2** rows naming flags that no longer exist. Passes all three of decision `0033`'s tests ⇒ a genuine silent shadow. |
 | 2 | `USER-GUIDE-CLI-TABLE-SHADOW.2` | `done` | Contract decided and written **first**, and it is neither option the leaf offered: **exhaustive over a derived set** — every flag that sets a *knob* (a `Config` field, or a convenience flag setting several), with *mode* flags owned by their own sections. The partition is **total and disjoint**: 93 + 14 = 107 = `anvil --help`. Table repaired 75 → **93** rows. The "2 stale rows" were **not stale** — see the Correction block. |
-| 3 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `pending` | **Next.** The mechanism question, and `.2` has now answered its precondition *and* handed it the trap to avoid: the table is exhaustive over a **derivable** set (`config.rs::Overrides` + 3 aliases), so a check is cheap and meaningful — and it must be **command-scoped**, because `.1`'s two wrong numbers both came from measuring a two-command document against one command's `--help`. |
-| 4 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `pending` | The second site, found by `.2`'s measurement: `book/src/knobs.md` §*CLI coverage* is the same shadow of the same set, **missing 11 of 107**, under a sentence promising it is "accurate as of this commit". Ordered after `.3` because if `.3` writes a check, `.4`'s repair should be the shape that check can hold. |
+| 3 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `done` | A mechanism **is** warranted, and it is **pair 5 of `check_enumeration_parity.sh`** — not an eleventh doctrine, because `ENUMERATION-PARITY` already owns this subject (`feedback_full_factorization`). The set is derived from `cli_overrides` in **source**, never from `anvil --help`. **Four negative controls fired**, including one that caught the `rustfmt`-wrap defect **live** in `cli_overrides` before it shipped. |
+| 4 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `pending` | **Next.** The second site, found by `.2`'s measurement: `book/src/knobs.md` §*CLI coverage* is the same shadow of the same set, **missing 11 of 107**, under a sentence promising it is "accurate as of this commit". `.3` deliberately did **not** declare it as a second gated site — gating a copy freezes it, and decision `0033`'s preferred rung R1 is to delete the copy and point at the reference. |
 
 ## Decisions
 
@@ -199,6 +199,24 @@ error from a document that told them it exists.
   tree owning "shadows of clap's flag registry" is `feedback_full_factorization` — one mechanism,
   never two; two trees over one set would each hold half a picture of the same drift.
 
+- `2026-08-01` (`.3`): **A pair, not a doctrine.** `feedback_full_factorization` forbids a second
+  mechanism for a job that already has one. `ENUMERATION-PARITY` owns "a hand-maintained docs list
+  mirroring an authoritative set"; this is one. The test was *applied*, not waved through — and it
+  points the opposite way from `TABLE-RENDER-FIDELITY`'s, which registered separately precisely
+  because no doctrine owned markdown well-formedness.
+- `2026-08-01` (`.3`): **The set is read from source, not from `anvil --help`.** A doctrine check
+  reads the repository (`DOCTRINE_ENFORCEMENT.md` §4(4)); `--help` needs a built binary a fresh
+  clone and a pre-build CI step do not have, so the gate would be absent exactly where it is the
+  backstop. And `--help` is prose that quotes other commands' flags — the thing that produced
+  `.1`'s two wrong numbers.
+- `2026-08-01` (`.3`): **`book/src/knobs.md` §*CLI coverage* was deliberately NOT declared as a
+  second gated site.** Gating a copy freezes it in place; decision `0033`'s preferred rung is R1 —
+  delete the copy, point at the reference. That is `.4`'s decision to make, and pre-gating it
+  would have made it for them.
+- `2026-08-01` (`.3`): **The mode half of the partition stays ungated.** Those flags are
+  authoritative under `0033` test (2): no list of them exists, and writing one so a gate could
+  check it would create the shadow this doctrine removes.
+
 ## Open Questions
 
 - ~~Is the CLI flag table meant to be exhaustive, or a curated core?~~ **Answered by `.2`:**
@@ -206,9 +224,11 @@ error from a document that told them it exists.
 - ~~Were `--divergence` / `--no-minimize` renamed or removed?~~ **Answered by `.2`: neither —
   they were never gone.** They are live `anvil hunt` options, correctly tabled in the `anvil
   hunt` table. `.1` measured them against the wrong command's registry. See the Correction block.
-- Should `.3`'s check, if written, also hold the **`anvil hunt`** table? It is 10/10 today and
-  the same one-line extractor would cover it — but a check over two tables must not repeat `.1`'s
-  error of pooling them, so each table needs its own command-scoped authority. **`.3`'s call.**
+- Should `.3`'s check also hold the **`anvil hunt`** table? **`.3` says not yet, and states why:**
+  `HuntCommand` has no `Overrides` projection to derive from — its flags map to a `HuntRequest`
+  built by `build_hunt_request`, which mixes CLI fields with defaults and derived values, so the
+  same one-line extractor does not transfer. The table is 10/10 today and the namespace is small
+  and stable. Left open rather than closed: the honest state is *unmechanized*, not *fine*.
 
 ## Blockers
 
@@ -221,12 +241,15 @@ error from a document that told them it exists.
 | `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.1` | `measured at 1df0071 against ./target/release/anvil --help: 108 flags / 75 table rows / 20 mentioned-not-tabled / 13 absent / 2 stale rows; 0033 three-part test applied and all three hold; matcher corrected mid-audit (backtick-anchored reported 22 absent because \`--artifact dut\` is one code span; word-boundary gives 13); tree registered; no USER_GUIDE.md edit` | `registered` (docs-only; DUT byte-identical) |
 | `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.2` | `re-measured at f2d282e, command-scoped: anvil --help = 107 OPTIONS (not 108 — --diff-sim is prose inside the hunt subcommand's Commands: description, not an option of anvil); knob set derived from config.rs::Overrides (90 fields) + 3 convenience flags = 93; mode set = 14; 93+14=107 with zero residue and zero overlap (total_or_fail, checked both directions). anvil hunt --help = 11 options; the anvil hunt table = 10/10 (only --help untabled) => the 2 "stale rows" are live flags, correctly placed. Contract paragraph written BEFORE any row. Table repaired 75 -> 93; re-measured after the edit: 0 knob flags missing, 0 non-knob rows. scripts/check_markdown_tables.sh ok (2490 rows / 431 tables / 256 files); scripts/check_doctrines.sh green; cargo test green` | `done` (docs-only; DUT byte-identical) |
 
+| `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `pair 5 added to scripts/check_enumeration_parity.sh: extract_cli_knob_flags reads the cli.<field> references in cli_overrides (src/main.rs), whitespace-stripped, kebab-cased => 92 knob flags; total_or_fail (95 loose cli. occurrences vs 95 extracted); floor 92; covers_fenced_set over USER_GUIDE.md's new <!--enum:knob-flags--> fence. FOUR NEGATIVE CONTROLS, all fired: delete a row => FAIL naming --operand-duplication-rate; add cli.probe_control_knob => FAIL naming --probe-control-knob; remove the fence => hard FAIL; neuter the whitespace strip => extractor 92 -> 91, floor catches it and blames the extractor not the docs. Substring-vacuity probe: no derived flag is a proper substring of another. src/main.rs verified byte-identical to HEAD after the controls; scripts/check_doctrines.sh 10/10; cargo check/clippy/fmt/test green` | `done` (docs + enforcement script; DUT byte-identical) |
+
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | `USER-GUIDE-CLI-TABLE-SHADOW.1` | `USER-GUIDE-CLI-TABLE-SHADOW.1 — audit + register the CLI-table shadow` | Docs-only; no `USER_GUIDE.md` edit. |
-| `USER-GUIDE-CLI-TABLE-SHADOW.2` | `USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing` | Docs-only. Also corrects two of `.1`'s five numbers and registers `.4` (the book's second copy of the same shadow). |
+| `USER-GUIDE-CLI-TABLE-SHADOW.2` | `USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing` | Docs-only. Also corrects two of `.1`'s five numbers and registers `.4` (the book's second copy of the same shadow). Landed `cd7f24b` + `c793cf3` (hash backfill). |
+| `USER-GUIDE-CLI-TABLE-SHADOW.3` | `USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5` | Docs + one enforcement script. No `src/` change (the control's edit to `src/main.rs` was reverted and verified byte-identical to HEAD). |
 
 ## Changelog
 
@@ -249,3 +272,10 @@ error from a document that told them it exists.
   error in this repo's recent history and the second in this tree, so it is filed as the fact
   card [[cli-flag-audit-must-be-command-scoped]] rather than only as prose. `.4` registered: the
   book's `## CLI coverage` section is the same shadow of the same set, missing **11** of 107.
+- `2026-08-01` (`.3`): The table is now **mechanically gated** — `ENUMERATION-PARITY` **pair 5**,
+  derived from `cli_overrides` in source rather than from `anvil --help`, over a new
+  `<!--enum:knob-flags-->` fence in `USER_GUIDE.md`. Four negative controls fired, and one of them
+  found the `PARITY-EXTRACTOR-ARM-SHAPE-GAP` defect **live** in `cli_overrides`: `rustfmt` had
+  split `cli` from `.hierarchy_registered_sibling_mixed_support_prob`, so a line-wise extractor
+  reads **91 of 92** and the 92nd is invisible. The whitespace strip removes the hazard at its
+  root; the control is the two numbers.

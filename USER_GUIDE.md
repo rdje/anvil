@@ -281,7 +281,7 @@ by their own sections and are deliberately not tabled. The two sets partition
 `anvil --help` with nothing left over, so a **knob** without a row here is a defect
 and a **mode** flag without one is not. (`anvil hunt` is a separate command with a
 separate flag namespace; its flags are tabled under
-[`anvil hunt`](#anvil-hunt-turnkey-cli-bug-hunt), not here.)
+[`anvil hunt`](#anvil-hunt-turnkey-cli-bug-hunt), not here.)<!--enum:knob-flags-->
 
 | Flag                    | Default  | Meaning                                         |
 |-------------------------|----------|-------------------------------------------------|
@@ -378,6 +378,11 @@ separate flag namespace; its flags are tabled under
 | `--bisimulation-flop-merge` | off  | Enable the opt-in bounded bisimulation flop-merge pass (on-only flag) |
 | `--max-rss-mb`          | 0        | Memory governor: abort an `--out` run once this process's resident set reaches this many MiB (`0` = off ⇒ byte-identical). Clean exit `99` naming the seed + effective knobs. See "Resource-safe runs" |
 | `--ram-abort-pct`       | 0        | Memory governor: abort an `--out` run once host used RAM reaches this percentage (`1..=100`; `0` = off). Mirrors `scripts/ram_guard.sh` from the inside. See "Resource-safe runs" |
+
+Each row's flag is also its `--config knobs.json` key: drop the leading `--` and
+write `_` for `-`. The completeness of this table against the generator's knobs
+is mechanically gated — see `ENUMERATION-PARITY` in
+[`DOCTRINE_ENFORCEMENT.md`](DOCTRINE_ENFORCEMENT.md).<!--/enum:knob-flags-->
 
 ### Presets (`--profile`)
 
