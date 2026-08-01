@@ -409,6 +409,45 @@ pub struct Metrics {
     /// additive (schema `1.17`).
     #[serde(default)]
     pub num_emitted_casez_mux_if_chains: usize,
+
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2a` — the number of emitted
+    /// `case` / `casez` statements carrying the IEEE 1800-2017 §12.5.3
+    /// **`unique`** qualifier (decision `0044`; the `Unique` half of
+    /// `m.case_qualifiers`). Zero unless `unique_case_prob > 0.0` claimed a
+    /// qualifying gate.
+    ///
+    /// Unlike its nine `num_emitted_*` neighbours this counts a **decoration**,
+    /// not a projection: the statement renders exactly as it would have, plus a
+    /// keyword. Exact for the same reason as the chain metrics and one more —
+    /// the annotation pass excludes constant-selector gates (statically
+    /// collapsed to a continuous `assign`) *and* gates already claimed by the
+    /// eighth/ninth surfaces (rendered as an `if`/`else if` chain, with no
+    /// `case` keyword to prefix), so every counted gate emits exactly one
+    /// qualified block.
+    ///
+    /// Because the pass rolls `unique` first and **skips** the `priority` roll
+    /// on a hit, this equals `knob_roll_fires["unique_case_prob"]` exactly, and
+    /// `num_emitted_unique_cases + num_emitted_priority_cases ==
+    /// m.case_qualifiers.len()`. A post-hoc structural count of an
+    /// emitter-surface annotation — adding it changes no emitted RTL
+    /// (default-off byte-identical). `#[serde(default)]` keeps the
+    /// introspection projection additive (schema `1.28`).
+    #[serde(default)]
+    pub num_emitted_unique_cases: usize,
+
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2a` — the number of emitted
+    /// `case` / `casez` statements carrying the IEEE 1800-2017 §12.5.3
+    /// **`priority`** qualifier (decision `0044`; the `Priority` half of
+    /// `m.case_qualifiers`). Zero unless `priority_case_prob > 0.0` claimed a
+    /// qualifying gate.
+    ///
+    /// The weaker of the two assertions — FULL only, first-match semantics —
+    /// and therefore the one every installed downstream tool accepts in
+    /// silence. Exact and knob-aligned on the same argument as
+    /// [`Metrics::num_emitted_unique_cases`]. `#[serde(default)]` keeps the
+    /// introspection projection additive (schema `1.28`).
+    #[serde(default)]
+    pub num_emitted_priority_cases: usize,
 }
 
 /// Structural summary of a generated multi-module `Design`.
@@ -1029,6 +1068,23 @@ pub fn compute(m: &Module) -> Metrics {
     // post-hoc, RTL-invisible; exact because static-selector CasezMux are
     // excluded from the candidate set).
     out.num_emitted_casez_mux_if_chains = m.casez_mux_if_gates.len();
+    // `CAPABILITY-BREADTH-EXPANSION.4b.2a` — the two case-qualifier counts
+    // (decision `0044`), split by qualifier because `unique` and `priority` are
+    // different assertions with different downstream tool plans. One filter per
+    // qualifier over the single `case_qualifiers` carrier; exact because the
+    // annotation pass excludes both statically-collapsed and chain-projected
+    // gates, so every counted gate emits exactly one qualified statement.
+    // Structural, post-hoc, RTL-invisible — a decoration, not a projection.
+    out.num_emitted_unique_cases = m
+        .case_qualifiers
+        .values()
+        .filter(|q| **q == crate::ir::case_qualifier::CaseQualifier::Unique)
+        .count();
+    out.num_emitted_priority_cases = m
+        .case_qualifiers
+        .values()
+        .filter(|q| **q == crate::ir::case_qualifier::CaseQualifier::Priority)
+        .count();
 
     // ConstantFold factorization layer: counter sourced live from
     // `intern_gate`. Zero at levels below `ConstantFold`.
@@ -3551,6 +3607,60 @@ mod tests {
         // Marked ⇒ counted (one procedural masked `if`/`else if` priority chain).
         m.casez_mux_if_gates.insert(g);
         assert_eq!(compute(&m).num_emitted_casez_mux_if_chains, 1);
+    }
+
+    #[test]
+    fn metrics_count_emitted_case_qualifiers_per_qualifier() {
+        // `CAPABILITY-BREADTH-EXPANSION.4b.2a` — the two metrics are the two
+        // halves of `m.case_qualifiers` (decision `0044`). Split by qualifier
+        // because `unique` and `priority` are different assertions with
+        // different downstream tool plans, so one combined count would be
+        // unusable for the gate that has to tell them apart.
+        use crate::ir::case_qualifier::CaseQualifier;
+        let mut m = Module {
+            name: "cq".into(),
+            ..Module::default()
+        };
+        for (id, name, width) in [(0u32, "sel", 2u32), (1, "a", 4), (2, "b", 4), (3, "c", 4)] {
+            m.inputs.push(Port {
+                id,
+                name: name.into(),
+                width,
+                dir: Direction::In,
+            });
+        }
+        m.nodes.push(Node::PrimaryInput { port: 0, width: 2 }); // id 0 (sel)
+        m.nodes.push(Node::PrimaryInput { port: 1, width: 4 }); // id 1 (a)
+        m.nodes.push(Node::PrimaryInput { port: 2, width: 4 }); // id 2 (b)
+        m.nodes.push(Node::PrimaryInput { port: 3, width: 4 }); // id 3 (c)
+        let (g, _) = m.intern_gate(GateOp::CaseMux, vec![0, 1, 2, 3], 4, DepSet::from_port(0));
+        let (gz, _) = m.intern_gate(
+            GateOp::CasezMux,
+            vec![0, 1, 2, 3, 1, 2, 3],
+            4,
+            DepSet::from_port(0),
+        );
+
+        // Unqualified ⇒ both zero.
+        let m0 = compute(&m);
+        assert_eq!(m0.num_emitted_unique_cases, 0);
+        assert_eq!(m0.num_emitted_priority_cases, 0);
+
+        // One of each ⇒ one each, and neither leaks into the other's count.
+        m.case_qualifiers.insert(g, CaseQualifier::Unique);
+        m.case_qualifiers.insert(gz, CaseQualifier::Priority);
+        let m1 = compute(&m);
+        assert_eq!(m1.num_emitted_unique_cases, 1);
+        assert_eq!(m1.num_emitted_priority_cases, 1);
+
+        // The `.4a` telemetry identity: the two metrics partition the carrier,
+        // so together they account for every qualified statement — this is what
+        // makes "how many qualified blocks did this run emit?" answerable from
+        // the introspection document alone.
+        assert_eq!(
+            m1.num_emitted_unique_cases + m1.num_emitted_priority_cases,
+            m.case_qualifiers.len()
+        );
     }
 
     #[test]

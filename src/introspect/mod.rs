@@ -51,23 +51,21 @@ use crate::metrics::{compute, compute_design, DesignMetrics, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// The schema version this surface emits. Bumped per the policy in
-/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.27` is the
-/// additive (backward-compatible) MINOR bump that adds the **fourteenth** derived
-/// `analyze` query kind `reach_path` — the **forward-transitive witness**: for a start node
-/// addressed `"node:<id>"`, one representative LONGEST combinational fan-OUT path (the ordered
-/// interior-`Gate` chain to a boundary sink — an output port / `"flop:<id>"`), carried by a
-/// fourteenth `DerivedAnalysis.reach_path` parallel vec (`SEMANTIC-INTROSPECTION-EXPANSION.15b`;
-/// the tenth query beyond decision `0011`'s four named kinds — the **forward complement to
-/// `longest_path`** and the **path-witness for `node_reach`** — `node_reach` reports *which* sinks,
-/// `reach_path` the longest gate-chain *to* one). It is a SCHEMA-DERIVED projection over the
-/// already-emitted IR (a pure greedy forward descent over a sink-aware gate-height memo — not new
-/// computed truth); the `reach_path` key is `skip_serializing_if`-omitted on every other query
-/// document, so the thirteen prior `analyze` documents and the default-`dut` **artifact**
-/// (`.sv`) stay byte-identical. The prior `1.26` added the thirteenth `analyze` query kind
-/// `node_reach` (`SEMANTIC-INTROSPECTION-EXPANSION.14b`); a `1.26` consumer simply ignores
-/// the new query kind. MINOR is an integer, so `1.26 → 1.27` (twenty-seven), not a decimal
-/// fraction. See the schema-doc §7 changelog for the full `1.0 → … → 1.26 → 1.27` history.
-pub const SCHEMA_VERSION: &str = "1.27";
+/// `docs/AGENT_INTROSPECTION_SCHEMA.md` §7 (`MAJOR.MINOR`). `1.28` is the
+/// additive (backward-compatible) MINOR bump that adds the two **case-qualifier**
+/// metrics `num_emitted_unique_cases` / `num_emitted_priority_cases` — the count of emitted
+/// `case` / `casez` statements carrying an IEEE 1800-2017 §12.5.3 `unique` / `priority`
+/// qualifier (`CAPABILITY-BREADTH-EXPANSION.4b.2a`, decision `0044`). Both are
+/// `#[serde(default)]` `usize` fields on `Metrics`, so a `1.27` consumer that omits them
+/// still deserialises; both read `0` unless `unique_case_prob` / `priority_case_prob` is
+/// raised above its `0.0` default, in which case the **artifact** (`.sv`) gains the keyword
+/// prefix that the knob asked for and nothing else. The prior `1.27` added the fourteenth
+/// derived `analyze` query kind `reach_path` (`SEMANTIC-INTROSPECTION-EXPANSION.15b`) —
+/// the forward-transitive witness complementing `longest_path` and `node_reach`; a `1.27`
+/// consumer simply ignores the two new metric keys. MINOR is an integer, so `1.27 → 1.28`
+/// (twenty-eight), not a decimal fraction. See the schema-doc §7 changelog for the full
+/// `1.0 → … → 1.27 → 1.28` history.
+pub const SCHEMA_VERSION: &str = "1.28";
 
 /// The lane string for the DUT artifact lane.
 pub const LANE_DUT: &str = "dut";
@@ -510,7 +508,7 @@ mod tests {
         let m = gen.generate_module();
         let doc = module_document(7, &cfg, &m);
 
-        assert_eq!(doc.schema_version, "1.27");
+        assert_eq!(doc.schema_version, "1.28");
         assert_eq!(doc.anvil_version, env!("CARGO_PKG_VERSION"));
         assert_eq!(doc.lane, "dut");
         assert_eq!(doc.request.seed, 7);
@@ -651,7 +649,7 @@ mod tests {
         let analysis = analyze::module_support_cones(&m, None);
         let doc = derived_analysis_document(&base, analysis.clone());
 
-        assert_eq!(doc.schema_version, "1.27");
+        assert_eq!(doc.schema_version, "1.28");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
         assert_eq!(doc.analysis.query, "output_support");
@@ -694,7 +692,7 @@ mod tests {
         let readout = coverage::module_coverage(&compute(&m));
         let doc = coverage_document(&base, readout.clone());
 
-        assert_eq!(doc.schema_version, "1.27");
+        assert_eq!(doc.schema_version, "1.28");
         assert_eq!(doc.lane, base.lane);
         assert_eq!(doc.request.run_id, base.request.run_id); // same content address
                                                              // The payload IS the embedded readout, byte-for-byte.

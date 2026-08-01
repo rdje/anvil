@@ -1,9 +1,90 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.2a — case-qualifier metrics + introspection schema 1.28
+
+**Landed as:** `pending`. Previous: `34b8d14`.
+**Default-off** ⇒ **DUT byte-identical** (a post-hoc `Metrics` field changes no emitted RTL);
+`tests/snapshots.rs` untouched.
+
+**What.** The two case-qualifier metrics, and the additive schema bump that publishes them.
+
+- `Metrics::num_emitted_unique_cases` / `Metrics::num_emitted_priority_cases` — the counts of
+  emitted `case` / `casez` statements carrying an IEEE 1800-2017 §12.5.3 `unique` / `priority`
+  qualifier. Each is one filter over `Module::case_qualifiers` (the map `.4b.1` added), both
+  `#[serde(default)]`, set in `metrics::compute` beside `num_emitted_casez_mux_if_chains`.
+- Introspection `SCHEMA_VERSION` **`1.27` → `1.28`**: the const + its doc-comment history, the
+  3 `introspect/mod.rs` assertions, the 18 `mcp/mod.rs` assertions, the
+  `docs/AGENT_INTROSPECTION_SCHEMA.md` contract (the three current-version statements + a
+  `1.27 → 1.28` changelog entry), the `TOOLBOX.md` / `USER_GUIDE.md` envelope references, and
+  the book's 19 example-JSON version strings + its three "currently `1.27`" statements.
+
+**Why two metrics and not one.** `unique` asserts FULL **and** PARALLEL; `priority` asserts FULL
+only. They are different claims with different downstream tool plans — `.4b.1` measured Icarus
+printing `vvp.tgt sorry: Case unique/unique0 qualities are ignored.` for every `unique` block and
+staying completely silent for `priority` — so `.4b.2b`'s gate has to tell them apart to pick a
+tool plan. A single `num_emitted_case_qualifiers` would have forced the gate to re-derive the
+split from the config, which is the shadow the metric exists to remove.
+
+**Why the counts are exact.** The `.4b.1` annotation pass excludes two classes that would break
+the correspondence: a **constant-selector** gate (the emitter statically collapses it to a
+continuous `assign` via `render_static_structured_gate` — no `case` statement exists to qualify)
+and a gate already claimed by the **eighth/ninth surfaces** (it renders as an `if`/`else if`
+chain — no `case` keyword to prefix). Every gate that remains emits exactly one qualified
+statement, so metric == emitted reality rather than == intent. This is the same argument the two
+chain metrics carry, plus the chain-exclusion clause they do not need.
+
+**The telemetry identity, now pinned by a test.** Because the pass rolls `unique` first and
+**skips** the `priority` roll on a hit (decision `0034`, resolved at `.4a`), each metric equals
+its knob's `knob_roll_fires` entry exactly, and the two sum to `case_qualifiers.len()`. The new
+proof asserts the sum directly: the two metrics *partition* the carrier, which is what makes
+"how many qualified blocks did this run emit?" answerable from the introspection document alone.
+
+**Which `1.27` references moved, and which deliberately did not.** Current-value references were
+bumped; **history was not**. A per-feature attribution (`reach_path` *landed at* `1.27`), a prior
+changelog entry (`1.26 → 1.27`), a `CODEBASE_ANALYSIS.md` timeline row, and the
+`docs/knowledge/api-reference.md` anecdote about a card that once said `1.11` against a live
+`1.27` are all statements about the past and stay as written. One knowledge-card **evidence
+pointer** was reworded rather than bumped — it cited `src/introspect/mod.rs (SCHEMA_VERSION =
+1.27)` as if the number were the fact, when the fact is the const; it now says to read the const.
+
+**Validation.** `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings`,
+`cargo fmt --all --check` clean; full `cargo test` green; `tests/snapshots.rs` 6/6
+byte-identical; no current-value `1.27` left in `src/` or the live docs; live `--introspect`
+reports `schema_version 1.28` with both metrics `0` by default and non-zero under
+`--unique-case-prob` / `--priority-case-prob`.
+
+**Impact.** Both qualifiers are now queryable per decision `0017`, which is the precondition for
+`.4b.2b`: its detection is **metric-keyed** (decision `0028`), never a text scan over emitted SV.
+No RTL, no knob, no CLI surface changed.
+
+**Two findings recorded beyond the slice, neither repaired here.**
+
+1. A **new Knowledge Map card**, `docs/knowledge/introspection-schema-bump-classification.md`,
+   holds the three-class rule above plus its corollary — *an evidence pointer names a symbol,
+   never its value* — so the next bump does not re-derive it. It exists because the sibling
+   lesson was already written down in `docs/knowledge/api-reference.md` and a card three files
+   away was still citing a version number four leaves later.
+2. `docs/AGENT_INTROSPECTION_SCHEMA.md` §7's changelog has **27 entries in three different
+   orderings** (ascending `1.0 → 1.15`, an out-of-place `1.20`/`1.21` pair, descending
+   `1.27 → 1.23`, descending `1.20 → 1.16`), so there is no convention a new entry can follow
+   correctly. This entry was placed immediately above `1.26 → 1.27`, continuing the newest-first
+   block that entry started. Recorded as an **adjacent instance** on
+   `CHANGES-ENTRY-PLACEMENT.4` — the leaf that owns the "does entry placement warrant a
+   mechanism?" question — with the disanalogy stated: unlike `CHANGES.md`, this file declares no
+   ordering at all, so the first rung here is to *state* one, not to gate anything.
+
+**Files touched.** `src/metrics.rs`, `src/introspect/mod.rs`, `src/mcp/mod.rs`,
+`docs/AGENT_INTROSPECTION_SCHEMA.md`, `TOOLBOX.md`, `USER_GUIDE.md`,
+`docs/knowledge/{introspection-schema-bump-classification (new),
+semantic-introspection-reach-path}.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`book/src/{agent-mcp,api-tools,api-introspection,api-reference}.md`,
+`docs/tasks/{CAPABILITY-BREADTH-EXPANSION,CHANGES-ENTRY-PLACEMENT}.md`, `docs/TASK_TREE.md`,
+`MEMORY.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`, `ROADMAP.md`.
+
 ## 2026-08-01 — PARITY-EXTRACTOR-CHARSET-GAP.2 — close the class with a standing guard, not two corrected values
 
-**Landed as:** `pending`. Previous: `7cce059`.
+**Landed as:** `34b8d14`. Previous: `7cce059`.
 **Doctrine-check only** ⇒ **DUT byte-identical**; no `src/` change.
 
 **Why there is a `.2` at all.** `.1` corrected two character classes, ran two controls by hand, wrote

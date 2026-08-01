@@ -676,7 +676,7 @@ behaviour the source structs already use.
 - **Lockstep with `anvil_version`.** `anvil_version` (crate version) is always
   present so an agent can distinguish "same schema, newer generator" (facts may
   differ in value) from "newer schema" (shape may differ). Today both are
-  early: `schema_version = "1.27"`, `anvil_version = "0.1.0"`.
+  early: `schema_version = "1.28"`, `anvil_version = "0.1.0"`.
 - **Negotiation.** The `.4` MCP server / `.3` CLI surface advertise the
   `schema_version`(s) they emit. A consumer pins or range-matches on
   `schema_version`; an emitter asked for an unsupported version MUST refuse
@@ -686,7 +686,7 @@ behaviour the source structs already use.
   stay pure functions of `(schema_version, anvil_version, lane, seed, knobs)`
   (§3).
 
-This document defines **`schema_version = "1.27"`**.
+This document defines **`schema_version = "1.28"`**.
 
 - **`1.0` → `1.1` (`IDENTITY-DEEPENING.2b`).** Additive MINOR bump:
   surfaced the new `Metrics::bisimulation_flops_merged` field (the opt-in
@@ -898,6 +898,29 @@ This document defines **`schema_version = "1.27"`**.
   documents and the default-`dut` **artifact** (`.sv`) stay byte-identical; a `1.21`
   consumer ignores the new query kind. MINOR is an integer, so this is `1.21 → 1.22`
   (twenty-two), not a decimal.
+- **`1.27` → `1.28` (`CAPABILITY-BREADTH-EXPANSION.4b.2a`).** Additive MINOR bump:
+  surfaced two new `Metrics` fields — `num_emitted_unique_cases` and
+  `num_emitted_priority_cases`, the counts of emitted `case` / `casez` statements carrying
+  the IEEE 1800-2017 §12.5.3 **`unique`** / **`priority`** qualifier (decision `0044`, the
+  lane's first **case-qualifier** construct). Two keys rather than one because the two are
+  different assertions — `unique` claims FULL **and** PARALLEL, `priority` claims FULL only —
+  with different downstream tool plans, so a combined count could not answer the question
+  either the gate or an agent actually asks. SCHEMA-DERIVED (the two halves of
+  `Module::case_qualifiers`, an emitter-surface annotation — the `1.7 → 1.8`
+  `num_emitted_combinational_functions` additive-growth precedent), and **exact**: the
+  annotation pass excludes constant-selector gates (statically collapsed to a continuous
+  `assign`) and gates already projected to an `if`/`else if` chain by the eighth/ninth
+  surfaces (no `case` keyword to prefix), so every counted gate emits exactly one qualified
+  statement. Because the pass rolls `unique` first and skips the `priority` roll on a hit,
+  each metric equals its knob's `knob_roll_fires` entry exactly, and the two sum to
+  `case_qualifiers.len()`. Both read `0` for every default-off module (`unique_case_prob ==
+  priority_case_prob == 0.0`). Backward compatible — a `1.27` consumer ignores the two new
+  integer keys; no field was removed/renamed/retyped; the default-`dut` **artifact** (`.sv`)
+  stays byte-identical and determinism is preserved. Note this is the first metric bump for a
+  construct that **decorates** a rendering instead of replacing one: unlike the nine
+  `num_emitted_*` projection counts, a non-zero value here does not mean a gate rendered
+  differently — it means a gate rendered identically plus a keyword. MINOR is an integer, so
+  this is `1.27 → 1.28` (twenty-eight), not a decimal.
 - **`1.26` → `1.27` (`SEMANTIC-INTROSPECTION-EXPANSION.15b.2`).** Additive MINOR bump:
   added the **fourteenth** derived `analyze` query kind `reach_path` — the **forward-transitive
   witness**: for a start node addressed `"node:<id>"`, one representative longest combinational
@@ -1095,5 +1118,5 @@ shape, not the data contract) and are tracked in the
 - ✅ Every envelope field listed with its type (§4); every embedded section
   mapped to its source struct / file / producer / serde guarantee (§6).
 - ✅ Confirms **zero new computed truth** (invariant SCHEMA-DERIVED, §2).
-- ✅ Versioning policy stated (§7), with `schema_version = "1.27"`.
+- ✅ Versioning policy stated (§7), with `schema_version = "1.28"`.
 - ✅ Docs-only; no code; DUT byte-identical contract untouched.

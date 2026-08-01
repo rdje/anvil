@@ -181,7 +181,7 @@ Two independent version numbers govern compatibility:
   Reported by `initialize`.
 - **`schema_version`** — the version of the **introspection / analysis
   documents** (`--introspect`, the `introspect`, `analyze`, and `coverage`
-  tools), currently **`1.27`**. It follows a MINOR/MAJOR policy:
+  tools), currently **`1.28`**. It follows a MINOR/MAJOR policy:
   - a **MINOR** bump (e.g. `1.26 → 1.27`) is **additive** — a new optional field or a
     new payload section, with prior replies left byte-identical (new sections use
     `skip_serializing_if`, so a query that doesn't use them is unchanged). `1.12`

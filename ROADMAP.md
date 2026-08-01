@@ -2872,8 +2872,11 @@ other five remain `active` with a design-first `.1` ADR frontier:
    **50,761** emitted `case`/`casez` blocks (100 % both, 0 violations) and runtime-proven
    by `verilator --assert` (zero violations; the negative control fires). `.3` design done;
    **`.4` in progress** — `.4a` (impl design-detail, `2026-08-01`) resolved `0044`'s five Open
-   Questions and pinned every impl point, and `.4b` (the live surface + metric/gate + docs) is the
-   frontier. Each default-off / proven /
+   Questions and pinned every impl point; `.4b.1` (`2026-08-01`) shipped **the live surface**
+   (the annotation pass + the two default-off knobs + the emitter prefix, in a new `qualifiers`
+   steering category), and `.4b.2a` (`2026-08-01`) made it **queryable** —
+   `num_emitted_{unique,priority}_cases` at introspection schema `1.27 → 1.28`. Frontier
+   `.4b.2b` (the `--case-qualifier-gate`), then `.4b.3` (user docs). Each default-off / proven /
    API-selectable; the lane stays `active`. Default-off / DUT byte-identical.
 
 Nothing is retired; the default `anvil` build and `--artifact dut` stay

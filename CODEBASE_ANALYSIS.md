@@ -947,6 +947,20 @@ src/
 │                     firing negative controls — the tracked replacement for the
 │                     `.3` scratch corpus checker. 15 lib proofs; default-off DUT
 │                     byte-identical (snapshots 6/6).
+│                     `.4b.2a` (done) adds the two metrics
+│                     `Metrics::num_emitted_{unique,priority}_cases` — one filter
+│                     per qualifier over `case_qualifiers`, `#[serde(default)]`,
+│                     at introspection schema 1.27→1.28. TWO metrics, not one:
+│                     the gate has to pick a per-qualifier tool plan (Icarus
+│                     prints `sorry:` for `unique`, is silent for `priority`), so
+│                     a combined count would force it to re-derive the split from
+│                     the config. Exact — the pass excludes both
+│                     statically-collapsed and chain-projected gates — and
+│                     knob-aligned: each metric == that knob's `fires`, and the
+│                     two sum to `case_qualifiers.len()` (pinned by
+│                     `metrics_count_emitted_case_qualifiers_per_qualifier`).
+│                     `.4b.2b` (the `--case-qualifier-gate`) and `.4b.3` (user
+│                     docs) pending.
 │                     EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — the
 │                     first gate over the surfaces' INTERACTION rather than any
 │                     one surface: `ScenarioSet::EmitSurfaceInteraction` + the
@@ -1380,7 +1394,12 @@ src/
 │                     kind — a node's longest combinational fan-OUT path
 │                     to a boundary sink (the forward complement to
 │                     `longest_path`, the path-witness for `node_reach`)
-│                     (`SEMANTIC-INTROSPECTION-EXPANSION.15b.2`);
+│                     (`SEMANTIC-INTROSPECTION-EXPANSION.15b.2`), and
+│                     1.27→1.28 the two `Metrics::num_emitted_unique_cases` /
+│                     `num_emitted_priority_cases` case-qualifier counts —
+│                     the first metric bump for a construct that DECORATES a
+│                     rendering instead of replacing one
+│                     (`CAPABILITY-BREADTH-EXPANSION.4b.2a`);
 │                     the default introspection-document shape now carries
 │                     `coverage_readout` on DUT module/design documents.
 │                     The sibling `DerivedAnalysisDocument` +

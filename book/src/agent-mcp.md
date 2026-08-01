@@ -47,7 +47,7 @@ cargo run --release -- --seed 42 --introspect
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -275,7 +275,7 @@ A reply (a `DerivedAnalysisDocument` — the same envelope as `introspect`, with
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -323,7 +323,7 @@ source):
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -366,7 +366,7 @@ for every flop):
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "analysis": {
@@ -416,7 +416,7 @@ shown are what make the artifact a design:
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 42, "run_id": "…" },
   "artifact": { "kind": "design", "top": "top" },
@@ -466,7 +466,7 @@ registers to relate:
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -512,7 +512,7 @@ built by the same machinery `output_support` uses. The `target` is `"mem:<id>"`
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -569,7 +569,7 @@ Pair it with `fsm_prob` high so there is an FSM:
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -628,7 +628,7 @@ every node; a leaf node is a known-but-empty entry, not an error):
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -684,7 +684,7 @@ every node; a node no gate reads is a known-but-empty entry, not an error):
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "lane": "dut",
   "request": { "seed": 7, "run_id": "…" },
   "artifact": { "kind": "module", "top": "…" },
@@ -741,7 +741,7 @@ is a child instance **name** (omit for every instance).
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "artifact": { "kind": "design", "top": "mod_42_0002" },
   "analysis": {
     "query": "instance_provenance",
@@ -794,7 +794,7 @@ instance).
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "artifact": { "kind": "design", "top": "mod_42_0002" },
   "analysis": {
     "query": "instance_input_bindings",
@@ -847,7 +847,7 @@ model). `target` is an output port name or `"flop:<id>"` — the same namespace 
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "artifact": { "kind": "module", "top": "mod_7_0000" },
   "analysis": {
     "query": "longest_path",
@@ -902,7 +902,7 @@ records a reached flop `D` and stops — it never crosses into that flop's `Q` d
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "artifact": { "kind": "module", "top": "mod_7_0000" },
   "analysis": {
     "query": "node_reach",
@@ -951,7 +951,7 @@ target namespace (an output port name, or `"flop:<id>"`), so it chains straight 
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "artifact": { "kind": "module", "top": "mod_7_0000" },
   "analysis": {
     "query": "reach_path",

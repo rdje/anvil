@@ -31,7 +31,7 @@ Every document is a thin, versioned envelope:
 
 ```json
 {
-  "schema_version": "1.27",
+  "schema_version": "1.28",
   "anvil_version": "0.1.0",
   "lane": "dut",
   "request": {
@@ -58,7 +58,7 @@ Every document is a thin, versioned envelope:
 
 | Field | Meaning |
 | --- | --- |
-| `schema_version` | the document schema version (currently `1.27`) — see [stability](#schema_version-stability-contract) |
+| `schema_version` | the document schema version (currently `1.28`) — see [stability](#schema_version-stability-contract) |
 | `anvil_version` | the generating `anvil` crate version |
 | `lane` | `dut` / `microdesign` / `frontend` |
 | `request` | the echoed `seed` / `lane` / `knobs` plus the content-addressed `run_id` |
@@ -216,7 +216,7 @@ A dead (unreachable) module is reported `reachable: false` with no `depth`.
 
 ## `schema_version` stability contract
 
-The document schema is **`1.27`** and evolves under a strict MINOR/MAJOR policy
+The document schema is **`1.28`** and evolves under a strict MINOR/MAJOR policy
 (the full per-version changelog is the canonical §7 of
 `docs/AGENT_INTROSPECTION_SCHEMA.md`):
 

@@ -5,6 +5,61 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A version bump is a classification job, not a find-and-replace — `CAPABILITY-BREADTH-EXPANSION.4b.2a`
+
+The two case-qualifier metrics were the small half of this leaf. The interesting half was the
+schema bump, and it is worth writing down because **every future additive bump faces the same
+question and a `sed` gets it wrong**.
+
+### `1.27` appears 60+ times across the repo, and only some of them are the version
+
+The occurrences fall into three classes, and the third is the one that punishes a bulk replace:
+
+| class | example | action |
+| --- | --- | --- |
+| **current value** | `pub const SCHEMA_VERSION: &str = "1.27"`; *"This document defines `1.27`"*; the book's `"schema_version": "1.27"` example outputs | **bump** |
+| **history** | *"`1.26` → `1.27` (`SEMANTIC-INTROSPECTION-EXPANSION.15b.2`)"*; *"`reach_path` (`1.27`)"*; a `CODEBASE_ANALYSIS.md` timeline row | **never touch** — rewriting it would falsify when a feature landed |
+| **anecdote** | `docs/knowledge/api-reference.md`: *"this line came to say `1.11` against a live `1.27`"* | **never touch** — the number is the *evidence* for the lesson |
+
+The classification is not a nicety. A history entry rewritten to `1.28` claims `reach_path`
+shipped in this leaf, and the changelog — the only place a consumer can learn *when* a key
+appeared — becomes unusable for exactly the pinning question it exists to answer.
+
+### The card that cited a version where it meant a symbol
+
+`docs/knowledge/semantic-introspection-reach-path.md` listed its evidence as
+`src/introspect/mod.rs (SCHEMA_VERSION = 1.27)`. That is neither of the three classes cleanly: it
+reads as a claim about current source, and it goes stale on **every** future bump for a card
+whose subject has nothing to do with this one. Reworded to name the const and say *read it there*
+— which is precisely the lesson `docs/knowledge/api-reference.md` had **already** learned and
+written down, after its own copied number rotted to `1.11` against a live `1.27`.
+
+**The rule: an evidence pointer names a symbol, never a symbol's current value.** A card citing
+`SCHEMA_VERSION` stays true forever; a card citing `SCHEMA_VERSION = 1.27` is a countdown. And
+when one card in the repo has already paid for a lesson, sweep for the siblings that have not —
+the second instance was sitting three files away for four leaves.
+
+### Two metrics, not one — and the reason is downstream, not aesthetic
+
+`unique` and `priority` could share one `num_emitted_case_qualifiers`. They must not, because
+`.4b.1` measured the two producing **different tool behaviour**: Icarus prints
+`vvp.tgt sorry: Case unique/unique0 qualities are ignored.` once per `unique` block and is
+completely silent for `priority`. `.4b.2b`'s gate picks a tool plan per scenario from that
+difference. With one combined metric the gate would have to re-derive the split from the config —
+a second source of truth for a fact the metric already holds, which is the shadow (decision
+`0033`) the metric exists to prevent.
+
+### A count of decorations reads differently from a count of projections
+
+The nine `num_emitted_*` neighbours all answer *"how many gates rendered differently?"*. These two
+answer *"how many gates rendered identically, plus a keyword?"* — the distinction `.4a` used to
+keep the qualifiers out of decision `0032`'s `distinct_emit_surfaces` count and `.4b.1` used to
+give them their own steering category. It is now stated in the field docs and in the schema
+changelog, because a consumer that reads `num_emitted_unique_cases: 12` and concludes twelve gates
+took a different rendering path has drawn a false conclusion from a true number.
+
+---
+
 ## 2026-08-01 — Fixing the values is not fixing the class: what `.1` owed and `.2` paid — `PARITY-EXTRACTOR-CHARSET-GAP.2`
 
 `.1` found a real defect, corrected the two offending character classes, ran two controls by hand,
