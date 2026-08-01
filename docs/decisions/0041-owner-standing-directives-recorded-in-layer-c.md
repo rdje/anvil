@@ -18,6 +18,11 @@ answers:
   - "how many unpushed commits are acceptable"
   - "should I push after every commit or after a batch"
   - "is the push cadence mechanically enforced"
+  - "how do I surface a decision I have already made"
+  - "should I offer to reverse a decision I already decided"
+  - "is your call a valid callout label"
+  - "does DECIDE DONT ASK apply to how I report as well as what I choose"
+  - "am I qualified to make this scope call"
 date: 2026-07-31
 status: accepted
 tags: [owner-directive, workflow, task-tree, memory-architecture, provenance, autonomy, audit, north-star]
@@ -33,6 +38,8 @@ evidence: MEMORY.md (the pre-move text, verbatim below; measured 2,696 B across 
 - Provenance: **owner directives, dated below.** Cited by **owner + date**, never by a harness
   bootstrap file — a rule that binds every author must not appear to rest on what one harness was
   told (`README-POLICY-PROVENANCE.1`).
+- **Amended `2026-08-01`** — see §(e): two new dated owner statements extending §(b)
+  from decision time to **disclosure** time. The originals below are untouched.
 - Relocation authorised by the owner on `2026-07-31` (*"OK then to relocate"*), in response to the
   measurement in [`0040`](0040-overflow-destination-classification-and-the-unmeasured-axis.md) §4.
 
@@ -146,6 +153,64 @@ the factorization test explicitly rather than waving it through); this does not 
 today. **If the count is ever missed in practice, that is the evidence that changes the answer** —
 and the check is one line when it is wanted.
 
+### (e) Amendment `2026-08-01` — §(b) binds at DISCLOSURE time, not only at decision time
+
+**New owner statements, `2026-08-01`, recorded verbatim** (this is the mechanism *What this
+decision does NOT license* item 1 explicitly permits — *"a dated Amendment recording a **new**
+owner statement"*, added beside the originals, never an edit to them):
+
+> *"It is you to decide … why? because you are the elite, expert coder, programmer and you know
+> the roadmap and objectives of ANVIL, so you have everything you need to answer your own
+> question."*
+
+> *"All your decision shall be SOTA, SIGNOFF and highly professional!"*
+
+**What this adds beyond §(b), which is why it is recorded rather than treated as a repeat.**
+§(b) removes the question at *decision time* — pick the work, choose the mechanism, don't ask.
+It is silent on the **disclosure**, and that is the gap an agent falls into: having decided
+correctly and recorded the reasoning, it then surfaces the decision under a *question* label and
+offers to reverse it. That re-opens, at disclosure time, exactly the question §(b) closed at
+decision time. It reads as humility and functions as delegation.
+
+**The rule, stated so it is applicable rather than admired:** a decision that is *already made
+and already recorded* is surfaced as a **disclosure of what was decided and why** — never as an
+open question, never with a standing offer to reverse it. Both halves of §(b) still hold: the
+disclosure remains **mandatory** (non-license 4), and escalation remains correct where proceeding
+under any assumption would be unsafe or would make the work useless if wrong. What is removed is
+the *third* option an agent invents — deciding, then handing the decision back.
+
+**Why this recurs, and where the pressure actually comes from.** The failure is not forgetfulness.
+The agent-facing surfacing template offers *"💡 Suggestion — your call"* as a worked example of a
+callout label. An agent that has genuinely decided, and then reaches for the nearest template
+label, imports the question back into a disclosure that did not have one. **The repair is the
+label, not the disclosure** — *"Decision taken, and why"* carries the same information and leaves
+the decision where §(b) puts it. A directive and a template that disagree will be resolved in
+favour of the template, because the template is the thing being copied at the moment of writing.
+
+**The measured instance.** At `CAPABILITY-BREADTH-EXPANSION.3` the scope call — open a third
+strand rather than reframe `.1` — was decided under §(b), reasoned in decision
+[`0044`](0044-capability-breadth-unique-priority-case-qualifiers.md), and then surfaced as
+*"💡 Suggestion — your call"* with an offer to reverse. The decision was right and the owner let
+it stand; the **framing** was the defect. Recorded here rather than in the leaf because the
+lesson is not about case qualifiers.
+
+**No task tree is opened, and that is a measured call, not an omission.** §(a) requires a tree for
+a defect that has residual work. A sweep for the pattern across every tracked `*.md`
+(`owner has not ruled` / `your call` / `awaiting owner` / `pending owner` / `ask the owner` /
+`owner scope call`) returned **two** non-index hits, and **both are correct where they stand**:
+one sits inside `CAPABILITY-BREADTH-EXPANSION`'s explicitly-superseded verbatim findings block
+(`MEMORY_ARCHITECTURE.md` §10 — supersede, don't mutate; the block is labelled as *what was
+believed at the time*), the other in `CHANGES.md`, which `0031` forbids retro-editing. **Zero
+residual repair work ⇒ recording is the whole of the action**, and a tree whose only leaf is
+"write this record" would be the commit itself.
+
+**The quality bar, restated as the owner set it.** The second statement above raises no new
+mechanism — `CLAUDE.md` §3 and §(b)'s own *"take SOTA and signoff-level decisions whenever you
+can"* already bind — but it is recorded because it is **dated owner reaffirmation**, and because
+it settles the tie-break this amendment is about: when an agent is unsure whether it is qualified
+to decide, the owner's answer is that it is, and that hedging is the lower-quality outcome, not
+the safer one.
+
 ## Decisive test applied
 
 *"If `MEMORY.md` were overwritten tonight, would anything be lost?"*
@@ -167,7 +232,10 @@ are appended to and superseded, never overwritten.
 3. **It does not license restating `0031`'s four directives here.** They are recorded there; a
    second copy is a `0033` shadow, and this record would be the one that rots.
 4. **It does not license treating "DECIDE, DON'T ASK" as licence to skip disclosure.** §(b) — the
-   directive removes the question, never the surfacing.
+   directive removes the question, never the surfacing. **Nor its converse** (§(e),
+   `2026-08-01`): disclosing a decision already taken as though it were still open — a
+   *"your call"* label, or a standing offer to reverse — hands back at disclosure time the
+   decision §(b) placed with the agent at decision time.
 5. **It does not license auditing, cleaning, or migrating `~/Documents/github`** under any tree.
 
 ## Rejected alternatives

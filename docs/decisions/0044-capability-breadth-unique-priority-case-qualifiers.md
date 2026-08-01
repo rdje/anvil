@@ -323,6 +323,12 @@ subset of `unique` (parallel + full) and adds nothing today; deferred, not retir
   proceeding is neither unsafe nor useless-if-wrong — `.1` is untouched, `.3` is additive, and
   a reversal costs one tree edit. The disclosure obligation is met by this record, which
   `0041` §(b) is explicit is independent of the question.
+  **Confirmed by the owner `2026-08-01`** (*"It is you to decide … you have everything you need
+  to answer your own question"*): the scope call **stands unchanged**. The owner's ruling was
+  about the *framing*, not the decision — this record's reasoning had been surfaced under a
+  *"your call"* label with an offer to reverse, which re-opens at disclosure time the question
+  §(b) closes at decision time. Recorded as [`0041`](0041-owner-standing-directives-recorded-in-layer-c.md)
+  §(e); nothing in this record changed as a result.
 - **`priority`-only, to dodge the Icarus diagnostic.** Rejected: `priority` is the *weaker*
   construct here. With a `default:` always present, `priority case` and plain `case` are
   semantically identical in both simulation and synthesis — first-match either way, and the

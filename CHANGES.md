@@ -1,9 +1,65 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.3 — record the owner's `2026-08-01` ruling: §(b) binds at disclosure time too
+
+**Landed as:** `pending`. Previous: `b9b26b4`.
+**Docs only** ⇒ **DUT byte-identical**.
+
+**What.** Decision [`0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md)
+gains a dated **§(e) Amendment** carrying two new owner statements verbatim. The originals are
+untouched — this is the amendment mechanism `0041`'s own non-license 1 explicitly permits
+(*"a dated Amendment recording a **new** owner statement"*).
+
+**The ruling.** Asked to adjudicate the `.3` scope call, the owner declined to adjudicate:
+*"It is you to decide … because you are the elite, expert coder, programmer and you know the
+roadmap and objectives of ANVIL, so you have everything you need to answer your own question."*
+And, separately: *"All your decision shall be SOTA, SIGNOFF and highly professional!"*
+
+**The decision itself stands, unchanged.** `.3` opened a third strand rather than reframing `.1`;
+nothing in decision `0044`, the tree, or the frontier moved. `0044`'s rejected-alternatives entry
+gains one paragraph recording the confirmation.
+
+**What was actually wrong, and why it needed a record rather than a note.** `0041` §(b) removes
+the question at **decision time**. It is silent on the **disclosure**, and that is the gap: having
+decided correctly and recorded the reasoning, the agent surfaced the decision under a
+*"💡 Suggestion — your call"* label with a standing offer to reverse — re-opening at disclosure
+time the question §(b) closed at decision time. It reads as humility and functions as delegation.
+§(e) states the rule so it is applicable: **a decision already made and already recorded is
+disclosed as a decision, never re-opened as a question.** Both halves of §(b) survive — the
+disclosure stays mandatory, and genuine escalation (unsafe, or useless-if-wrong) stays correct.
+What is removed is the third option an agent invents: deciding, then handing the decision back.
+
+**Why it will recur unless the label changes.** The failure is not forgetfulness. The agent-facing
+surfacing template offers *"💡 Suggestion — your call"* as a worked example label, so an agent that
+has genuinely decided and reaches for the nearest template imports the question back. **The repair
+is the label, not the disclosure** — *"Decision taken, and why"* carries the same information and
+leaves the decision where §(b) puts it. A directive and a template that disagree resolve in favour
+of the template, because the template is what is being copied at the moment of writing.
+
+**No task tree opened — measured, not assumed.** `0041` §(a) requires a tree for a defect with
+residual work. A sweep of every tracked `*.md` for the pattern (`owner has not ruled` /
+`your call` / `awaiting owner` / `pending owner` / `ask the owner` / `owner scope call`) returned
+**two** non-index hits and **both are correct where they stand**: one inside
+`CAPABILITY-BREADTH-EXPANSION`'s explicitly-superseded verbatim findings block
+(`MEMORY_ARCHITECTURE.md` §10 — supersede, don't mutate), one in `CHANGES.md`, which `0031`
+forbids retro-editing. **Zero residual repair work ⇒ recording is the whole of the action**, and a
+tree whose only leaf is "write this record" would be the commit itself.
+
+**Validation.** All 9 doctrines pass (`scripts/check_doctrines.sh`); Knowledge Map regenerated and
+in sync — `0041` gains 5 retrieval keys (*"how do I surface a decision I have already made"*,
+*"should I offer to reverse a decision I already decided"*, *"is your call a valid callout
+label"*, *"does DECIDE DONT ASK apply to how I report as well as what I choose"*, *"am I qualified
+to make this scope call"*), so the next session retrieves the rule by the question it will
+actually have. No `src/` change.
+
+**Files touched.** `docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md`,
+`docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md`, `KNOWLEDGE_MAP.md`
+(regenerated), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.3 (repair) — a `reverify` may not depend on an untracked file
 
-**Landed as:** `pending`. Previous: `832a482`.
+**Landed as:** `b9b26b4`. Previous: `832a482`.
 **Docs only** ⇒ **DUT byte-identical**.
 
 **What.** Decision `0044` shipped with a `reverify:` command pointing at
