@@ -1,6 +1,40 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.1 (groundwork; leaf remains `pending`) — record the pre-`.1` probe findings
+
+**Landed as:** `pending`. Previous: `8a6dcf3`.
+**Docs only** ⇒ **DUT byte-identical**.
+
+**What.** Measured findings recorded on the tree *before* `.1` opens, so the next session inherits
+evidence instead of re-deriving it.
+
+**1. `.1`'s premise is contested.** It asks for the *"next version-distinctive up-opt"* while listing
+SV-2012-legal constructs (`enum`/`typedef`, packed multi-dim arrays) as candidates. Post-2012 SV
+additions are overwhelmingly verification features a synthesizable generator cannot emit, so that
+seam is close to exhausted after `union soft`. Measured: **zero** emitter literals for `enum`,
+`unique`, `priority`, `always_latch`, `casex`, `interface`, `modport`, `inside` — a large
+**2012-legal** gap. Recommended reframing: *version-distinctive up-opt* → **synthesizable breadth**.
+**The leaf's goal was NOT rewritten** — that is an owner scope call.
+
+**2. `unique`/`priority` are provably valid-by-construction on `CaseMux`.** Generated a real module
+(`--seed 3`, `case_mux_prob = 1.0`) and read the RTL rather than reasoning about it: the emitter
+always writes a `default:` arm (`src/emit/sv.rs:805`) ⇒ **full**; arm labels are the sequential
+integers `0..N-1` ⇒ **distinct** ⇒ **parallel**. `priority` needs full; `unique` needs full **and**
+parallel; `CaseMux` gives both **with no analysis pass**.
+
+**3. The trap, found before it was stepped in.** `CasezMux` arms are `(pattern, wildcard_mask, data)`
+triples and **can overlap**, so `unique` there would be a *false* assertion. The qualifiers must be
+gated **per gate kind**, not by one shared knob — `priority` is the safe one for `casez`.
+
+**Why it matters.** `CaseMux`/`CasezMux` already exist in `GateOp`, so this is **emission-level
+only** — no IR change — and full/parallel-case inference is exactly where lint, synthesis and
+simulation disagree, which is the project's stated purpose.
+
+**Still open for `.1`:** the downstream tool probe on a qualifier-bearing module, and the ADR.
+
+**Files touched.** `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — LOCAL-REFERENCE-CACHE.3 — the LRM cache stays untracked, and why
 
 **Landed as:** `pending`. Previous: `1b1793e`.

@@ -146,6 +146,59 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   down-gating teeth), re-confirming decision `0010`; Mealy is genuinely-new,
   all-tool-clean, high-certainty breadth. `.1` stays `pending`, nothing retired.
 
+## Pre-`.1` findings (`2026-08-01`, measured — read before opening `.1`)
+
+**1. `.1`'s premise is contested by measurement, and the owner has not ruled.** The leaf asks for
+the *"next version-distinctive up-opt"*, but its own candidates (`enum`/`typedef`, packed
+multi-dimensional arrays) are **SV-2012-legal** — breadth, not up-opts. Post-2012 SystemVerilog
+additions are overwhelmingly **verification** features (assertions, classes, coverage,
+randomization) that a *synthesizable* generator cannot emit, so the version-distinctive seam is
+close to exhausted after `union soft`. Measured `2026-08-01`: **zero** emitter string literals for
+`enum`, `unique`, `priority`, `always_latch`, `casex`, `interface`, `modport`, `inside` — a large
+**2012-legal** breadth gap, all eight synthesizable and well-supported by Verilator/Yosys/Icarus.
+Recommended reframing: *next version-distinctive up-opt* → **next synthesizable breadth construct**.
+
+**2. Recommended first pick: `unique` / `priority` case qualifiers — and it is provably
+valid-by-construction, which is the part that had to be checked rather than assumed.** Generated a
+real module (`--seed 3`, `case_mux_prob = 1.0`, 3 arms, 2-bit selector) and read the RTL:
+
+```systemverilog
+always_comb begin
+    case (slice_0)
+        2'd0: case_mux_0 = i_2;
+        2'd1: case_mux_0 = i_2;
+        2'd2: case_mux_0 = 4'hc;
+        default: case_mux_0 = 4'h0;
+    endcase
+end
+```
+
+Two properties fall out **by construction**, not by analysis:
+
+- **FULL** — the emitter always writes a `default:` arm (`src/emit/sv.rs:805`), so every selector
+  value is covered even when `arms < 2**sel_width` (here 3 arms over a 2-bit selector).
+- **PARALLEL** — arm labels are the **sequential integers** `0..N-1` (`sel_width'd{arm_idx}`), so
+  they are distinct by construction and no two arms can match the same selector value.
+
+`priority` asserts full; `unique` asserts full **and** parallel. `CaseMux` satisfies **both**, so
+either qualifier is legal on every emitted `CaseMux` with **no** analysis pass and no
+generate-then-filter — the generator already knows the answer.
+
+**3. `CasezMux` is NOT in scope for `unique`, and this is the trap to avoid.** Its arms carry
+`(pattern, wildcard_mask, data)` triples, so two arms **can** overlap for a given selector value.
+`unique` on an overlapping `casez` is a false assertion — the exact class of bug that makes tools
+disagree, which is worth *generating* deliberately but never worth emitting *accidentally*.
+`priority` (full only, first-match wins — `casez` semantics already) is the safe qualifier there.
+So the design must gate the two qualifiers **per gate kind**, not with one shared knob.
+
+**4. Why this is high value-per-effort.** `CaseMux`/`CasezMux` already exist in `GateOp`, so the
+change is **emission-level only** — no IR change, no new node kind. And the qualifiers are precisely
+the construct that makes lint/synthesis/simulation disagree on full/parallel-case inference, which
+is the project's stated purpose (*"stress such tools and expose real bugs"*).
+
+**Not yet done:** the downstream probe (Verilator `--lint-only`, Yosys both modes, Icarus) on a
+qualifier-bearing module, and the ADR itself. That is `.1`'s remaining work.
+
 ## Open Questions
 
 - Which up-opt first (`enum`/`typedef` vs packed multidim arrays vs another 2023
