@@ -80,6 +80,30 @@ cannot occur. Use the instrument when the subject genuinely **is** file text. It
 **not** a registered doctrine: a control's mutation is reverted before the commit by construction,
 so there is nothing for a gate to read.
 
+### 7. Book readability — *"is the rendered book readable, and did my book edit change only what I meant?"*
+
+The owner reviews the **book**, not the code (`COMMIT.md` §9), so a defect in the rendered HTML is a
+defect in the only surface they see. These instruments measure that surface. All three read the
+**rendered** book, so `mdbook build book` runs first.
+
+| Instrument | Pinpoints | Invocation | Output |
+|---|---|---|---|
+| `scripts/book_prose_census.py` | wall-of-text blocks: every rendered prose block over a threshold, with its source anchor and **what could actually repair it** (`SPLITTABLE` / `RUN-ON` / `LIST-ITEM` / `TABLE-CELL`). Code (`<pre>`) is excluded and `<li>`/`<td>`/`<blockquote>` are counted, because a `<p>`-only regex census was blind to 5 of 11 oversized blocks | `scripts/book_prose_census.py --threshold 1500` · `--json` | per-block table + denominator, over-threshold count, worst block, oversized mass |
+| `scripts/book_list_signature.py` | a book edit that silently **changed list structure** — dropping a list item's continuation indent promotes the continuation out of its `<li>` and ends the list, with `mdbook build` exiting `0` | `--save F` before the edit, `--compare F` after | per-chapter `<li>` count + content SHA; exit `1` on any change |
+| `scripts/prove_words_unchanged.py` | that an edit was **whitespace-only** — collapses all whitespace and requires byte-identity against a git ref. Strictly stronger than `git diff --ignore-blank-lines`, which cannot permit a break at a sentence that begins mid-line | `scripts/prove_words_unchanged.py --ref HEAD book/src/*.md` | per-file `OK`/`DIFF` + the located divergence |
+
+**Use the last two together — each is blind exactly where the other fires.** Measured on one carrier
+(a paragraph break inside a list item, given no continuation indent): the word proof reports `OK`
+(90,542 → 90,542 normalized chars — it collapses the very whitespace that carries list nesting) while
+the list signature **FIRES** on the changed content SHA. That blindness is by construction, not a bug;
+`BOOK-PARAGRAPH-BLOBS.1` shipped exactly this regression with only the word proof in hand.
+
+**The census is deliberately not a gate**, and is absent from `scripts/check_doctrines.sh`. Its
+1,500-character default was read off a distribution — a reporting convenience, not a derived limit.
+Whether anything should *watch* paragraph size is `BOOK-PARAGRAPH-BLOBS.2`'s question, and decision
+[`0047`](docs/decisions/0047-negative-control-carrier-is-the-mutation.md) prefers removing the need
+over watching harder.
+
 ---
 
 ## Part 2 — The acceptance checklist a code change must satisfy

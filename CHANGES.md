@@ -1,6 +1,92 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.4 — the instruments that judge this tree become durable
+
+**Landed as:** `pending`. Previous: `5e52117`, `30a0346`, `a5645c1`.
+**Docs + `scripts/` only; no `src/`, no `tests/`, no `book/src/` change** ⇒ **DUT byte-identical**,
+`tests/snapshots.rs` untouched.
+
+**What.** The census that measures this tree, and both proofs that guard a book edit, lived in
+**gitignored `target/tmp/book-blob/`**. They are now `scripts/book_prose_census.py`,
+`scripts/book_list_signature.py` and `scripts/prove_words_unchanged.py`, documented in `TOOLBOX.md`
+**§7**.
+
+**Why this had to come before `.3`.** `.1` claimed a **−62 %** repair and `.2` must *derive* a
+threshold rather than fit one. Both claims rest on a measurement, and a measurement nobody can re-run
+is an assertion. One `cargo clean` and the entire apparatus behind this tree's numbers was gone.
+
+**Deliberately not a doctrine check.** The census exits `0` whatever it finds and is absent from
+`scripts/check_doctrines.sh`. Its 1,500-character default was **read off a distribution** — a
+reporting convenience, not a derived limit. Whether anything should *watch* paragraph size is `.2`'s
+question, and [`0047`](docs/decisions/0047-negative-control-carrier-is-the-mutation.md) prefers
+removing the need over watching harder. Promoting an instrument is not the same act as registering a
+gate, and conflating them would have decided `.2` by accident.
+
+**What the census gained, because `.3` needs it.** Each oversized block now reports its **source
+anchor** and a **repairability class** — `SPLITTABLE` (a blank line is the whole repair),
+`RUN-ON` (one sentence; whitespace cannot split it), `LIST-ITEM` (a break must preserve the
+continuation indent), `TABLE-CELL` (no blank line can split a cell; `TABLE-RENDER-FIDELITY` owns
+tables). All 12 anchors resolve; the throwaway instrument left 4 unresolved.
+
+**Validation — a promotion is only a promotion if the numbers are identical.**
+
+| | validated (`target/tmp`) | promoted (`scripts/`) |
+| --- | --- | --- |
+| prose blocks / chapters | 3,501 / 30 | **3,501 / 30** |
+| over 1,500 chars | 12 | **12** |
+| oversized mass | 43,092 | **43,092** |
+| every one of the 12 block sizes | — | **identical** |
+
+`book_list_signature.py` likewise reproduces `.1`'s **1,325 `<li>` across 31 chapters**.
+
+**The first draft passed the headline check and was wrong underneath.** It joined a block's text
+chunks with `" "` instead of `""`. Denominator and over-threshold count matched exactly; **9 of 12
+block sizes did not** — every block holding an inline `<code>` was inflated one character per inline
+element (5,391 → 5,468). A browser renders `<code>x</code>,` with no space. `.4`'s acceptance
+criterion demanded *every block's size* precisely so this could not pass, and that is the only reason
+it was caught.
+
+**Three controls, every substitution count asserted through `scripts/negative_control.sh`.**
+
+| Carrier | expectation | observed |
+| --- | --- | --- |
+| merge two paragraphs (`knobs.md`) | census fires | **FIRES** — 3,501 → 3,500 blocks, 12 → 13 over threshold, mass 43,092 → 44,919 |
+| re-wrap a line inside a paragraph | census silent | **SILENT** on the measurement fields — it measures *rendered* length, not source lines |
+| break inside `<li>` with no continuation indent | list proof fires, word proof blind | **FIRES** (`knobs.html` content SHA) / **OK** (90,542 → 90,542) |
+
+**A control failed first, and the instrument was innocent.** The list-structure control reported
+`applied` — the substitution count was asserted — and the proof stayed **silent**, which reads exactly
+like a blind instrument. Root-caused: the regex captured `(\n)` before the indented line and so
+deleted the **blank line** as well as the indent; mdBook then treated the text as a *lazy
+continuation* of the preceding paragraph, still inside the same `<li>`. **List structure genuinely did
+not change.** This refines `0047` rather than contradicting it: its guard catches *"the substitution
+matched nothing"*, and cannot catch *"the substitution matched, and mutated something other than what
+you meant"* — the count is 1 either way. The quieter failure produces a verdict that looks like a
+finding about the check. Corrected carrier → fires, as `.1` recorded.
+
+**`.1`'s complementarity claim is carrier-sensitive, and the carrier is now on the record.** Re-proving
+*"the word proof is blind to a list escape"* failed on the first carrier, because the dedent also
+removed the space between `construct.` and `**Default`, which the word proof correctly **fired** on
+(90,542 → 90,541). The blindness needs the carrier `.1` actually used — a paragraph break inserted
+inside a list item with **no** continuation indent, where a blank line and a single newline both
+normalize to one space. Both verdicts are now recorded with the mutation that produces them.
+
+**Validation.** `mdbook build` exit `0`; `scripts/check_doctrines.sh` **11/11**; every
+`negative_control.sh restore` `cmp`-verified; `scripts/prove_words_unchanged.py book/src/*.md` clean
+against `HEAD` (no book source was changed by this leaf).
+
+**The lesson is routed, not left in this entry.** New Knowledge Map card
+[`matched-mutation-is-not-the-intended-mutation`](docs/knowledge/matched-mutation-is-not-the-intended-mutation.md)
+(map regenerated: **124 → 125** facts, **1,224 → 1,231** question keys) and a
+`DEVELOPMENT_NOTES.md` entry carrying the two gotchas.
+
+**Files touched.** `scripts/book_prose_census.py` (new), `scripts/book_list_signature.py` (new),
+`scripts/prove_words_unchanged.py` (new),
+`docs/knowledge/matched-mutation-is-not-the-intended-mutation.md` (new), `TOOLBOX.md`,
+`DEVELOPMENT_NOTES.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`docs/tasks/BOOK-PARAGRAPH-BLOBS.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3 — decision 0048: the book links to the file it stopped duplicating
 
 **Landed as:** `30a0346`. Previous: `a5645c1`, `9b4aad5`, `edc9ad7`.

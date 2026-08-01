@@ -5,6 +5,57 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-02 — Two gotchas from promoting an instrument, and why the promotion needed an exactness criterion — `BOOK-PARAGRAPH-BLOBS.4`
+
+**A promotion is only a promotion if the numbers are identical, and the headline numbers are the
+ones that agree by accident.** Moving the rendered-prose census out of gitignored `target/tmp/` into
+`scripts/book_prose_census.py` was meant to be a transcription. The first draft joined a block's text
+chunks with `" "` instead of `""`. Its denominator (**3,501** prose blocks) and its over-threshold
+count (**12**) matched the validated instrument exactly — and **9 of 12 individual block sizes did
+not**, every block holding an inline `<code>` inflated by one character per inline element
+(5,391 → 5,468). A browser renders `<code>x</code>,` with no space, so the joined-with-`""` reading
+is the true one.
+
+The generalizable part is not the bug, it is **which numbers agreed**. A reader sanity-checking a
+promotion looks at the count and the denominator, and both were right. `.4`'s acceptance criterion
+demanded *every block's size* — written that way on the suspicion that a rewrite can preserve
+aggregates while corrupting elements — and that is the only reason it was caught. **When you re-house
+an instrument, pin the element-level output, not the summary.**
+
+**An asserted substitution count proves the experiment ran, not that it ran the intended
+experiment.** Decision `0047` closed the loud failure mode: `sed -i` / `perl -pi -e` exit `0` whether
+or not the pattern matched, so `scripts/negative_control.sh apply` refuses a zero-count substitution.
+The quieter failure survives that guard. A control meant to strip a markdown list item's continuation
+indent captured `(\n)` rather than `(\n\n)` and so deleted the **blank line** as well; mdBook then
+read the dedented text as a **lazy continuation** of the preceding paragraph, still inside the same
+`<li>`. The substitution count was `1`, the tool printed `applied`, and the structure proof correctly
+stayed silent — which reads exactly like a blind instrument. Time was spent suspecting the
+instrument; the instrument was innocent and the carrier was wrong.
+
+**The rule that follows:** check a control's carrier against the **rendered artifact**, never against
+your intent for the regex. `applied` means the file changed; it never means the intended thing
+changed. Recorded as [[matched-mutation-is-not-the-intended-mutation]], alongside
+[[negative-control-must-be-able-to-fail]] (is the check capable?) and [[coverage-check-vacuity]]
+(does it fire on the right input?) — those two interrogate the check, this one interrogates the
+carrier, and it is the leg checked least because the tooling reports success.
+
+**A corollary about comparing instrument runs.** `book_prose_census.py --json` carries a
+*measurement* (sizes, counts, mass) and a *source locator* (`chapter.md:line`). Re-wrapping a source
+line cannot change the rendered book but does move line numbers, so a control diffed against the
+whole document fires for a reason that is not the reason under test. Compare the measurement fields.
+Diffed that way the same mutation is correctly silent, while a genuine paragraph merge still fires —
+which is discrimination, not merely the ability to fire.
+
+**Why `.1`'s "the two proofs are complementary" claim needed its carrier recorded.** The claim is
+true only for the specific mutation `.1` used: a paragraph break inserted inside a list item with
+**no** continuation indent, where a blank line and a single newline both normalize to one space, so
+the word-identity proof is untouched (90,542 → 90,542) while the list signature fires. A dedent that
+also swallows an inter-word space makes the word proof fire (90,542 → 90,541) — correct behaviour,
+different experiment. **A reproducible claim about a control needs the mutation, not just the
+verdict.**
+
+---
+
 ## 2026-08-02 — The rule from `NEGATIVE-CONTROL-HARNESS.1` was tested and did not hold; what replaces it — `UNGATED-PRACTICE-AUDIT.1`
 
 **The entry below records the rule; this one records that it failed its own test.** *"A practice

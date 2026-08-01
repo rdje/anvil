@@ -79,7 +79,14 @@ independent instance of that rule since it was written, arriving from an owner r
 - ID: `BOOK-PARAGRAPH-BLOBS`
   Status: `active`
   Goal: `The rendered book has no wall-of-text paragraphs, and the repair is whitespace-only.`
-  Children: `.1` (repair the splittable blobs, **done**), `.3` (the run-on enumerations `.1` cannot fix), `.2` (decide whether anything watches this)
+  Children: `.1` (repair the splittable blobs, **done**), `.4` (make the instruments durable), `.3` (the run-on enumerations `.1` cannot fix), `.2` (decide whether anything watches this)
+
+- ID: `BOOK-PARAGRAPH-BLOBS.4`
+  Status: `done`
+  Goal: `Promote the measuring instruments out of gitignored target/tmp/book-blob/ into scripts/, so the census that judges this tree survives the next session.`
+  Acceptance: `The promoted census reproduces the validated instrument's numbers EXACTLY (denominator, over-threshold count, and every block's size) — a promotion that changes the measurement is a new instrument, not a promotion. It additionally reports the source anchor and a REPAIRABILITY class per block, because .3 needs to know which blocks a blank line structurally cannot fix. Negative-controlled: a sabotage of the book must move the census. Documented in TOOLBOX.md Part 1. Deliberately NOT a doctrine check — whether anything gates paragraph size is .2's question.`
+  Verification: `Exact reproduction: 3,501 prose blocks / 30 chapters / 12 over 1,500 / oversized mass 43,092 and all 12 block sizes identical to target/tmp/book-blob/census2.py; book_list_signature.py reproduces .1's 1,325 <li> across 31 chapters. All 12 source anchors resolve (the throwaway instrument left 4 unresolved). THREE controls, all through scripts/negative_control.sh so every mutation's count is asserted: (1) merge two paragraphs -> census FIRES, 3,501->3,500 blocks, 12->13 over threshold, mass 43,092->44,919; (2) re-wrap a line inside a paragraph -> census SILENT on the measurement fields, proving it measures RENDERED length not source lines; (3) a paragraph break inside a list item with no continuation indent -> list signature FIRES (knobs.html content SHA), word proof reports OK (90,542 -> 90,542) — the complementarity, re-proven with the promoted instruments. Restores cmp-verified; book rebuilt clean.`
+  Commit: `pending`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.1`
   Status: `done`
@@ -188,12 +195,75 @@ that asserts its substitution count. Retargeted at a genuinely indented cut, the
 
 Restored with `cmp`-verified identity and rebuilt clean.
 
+## Findings (`.4`, measured `2026-08-02`)
+
+### The promotion had to be checked as a promotion, not accepted as a rewrite
+
+The first draft of `scripts/book_prose_census.py` joined a block's text chunks with `" "` instead of
+`""`. The denominator (**3,501**) and the over-threshold count (**12**) matched the validated
+instrument exactly, and **nine of twelve block sizes did not** — every block containing an inline
+`<code>` was inflated by one character per inline element (5,391 → 5,468; 3,071 → 3,123). A browser
+renders `<code>x</code>,` with no space, so the joined-with-`""` reading is the true one.
+
+**The count matching is what makes this dangerous.** The two numbers a reader checks first agreed, and
+the measurement underneath was wrong. `.4`'s acceptance criterion demanded *every block's size*
+precisely so this could not pass, and it is the only reason the defect was caught.
+
+### A negative control's count assertion proves the experiment RAN — not that it ran the INTENDED experiment
+
+The first list-structure control dedented a list-item continuation and expected the text to escape its
+`<li>`. `scripts/negative_control.sh` asserted the substitution count, reported `applied`, and the
+proof stayed **silent** — which reads exactly like a blind instrument.
+
+Root-caused rather than classified: the regex captured `(\n)` before the indented line, so it deleted
+the **blank line** as well as the indent. mdBook then treated the dedented text as a *lazy
+continuation* of the preceding paragraph — still inside the same `<li>`. **List structure genuinely
+did not change, so the instrument was right and the carrier was wrong.**
+
+This refines decision [`0047`](../decisions/0047-negative-control-carrier-is-the-mutation.md) rather
+than contradicting it. `0047`'s guard catches *"the substitution matched nothing"*. It cannot catch
+*"the substitution matched, and mutated something other than what you meant"* — the count is 1 either
+way. The second failure mode is quieter, because it produces a verdict that looks like a finding
+about the check. **A control's expectation must be checked against the rendered artifact, not against
+the author's intent for the regex.** Corrected carrier (preserve the blank line, strip only the
+indent) → **FIRES**, as `.1` recorded.
+
+### `.1`'s complementarity claim is carrier-sensitive, and the carrier is now recorded
+
+Re-proving *"the word proof is blind to a list escape"* with the promoted instruments failed on the
+first carrier: the dedent also removed the single space between `construct.` and `**Default`, and the
+word proof **fired** (90,542 → 90,541 normalized chars). That is correct behaviour — a changed
+inter-word space *is* a change it should see.
+
+The blindness needs the carrier `.1` actually used: a **paragraph break inserted inside a list item
+with no continuation indent**. Both a blank line and a single newline normalize to one space, so the
+word count is untouched:
+
+| Carrier | word-identity proof | list-structure proof |
+| --- | --- | --- |
+| dedent an existing continuation (also eats an inter-word space) | **FIRES** (90,542 → 90,541) | silent (lazy continuation — nothing escaped) |
+| **break inside `<li>`, no continuation indent** (`.1`'s regression) | **OK** (90,542 → 90,542) | **FIRES** (`knobs.html` content SHA) |
+
+The claim *"these two proofs are complementary"* is only true of the second row. Recorded here with
+its carrier, because a reproducible claim needs the mutation, not just the verdict.
+
+### The census reports two different kinds of fact, and only one is invariant
+
+A control that re-wrapped a source line inside a paragraph — which cannot change the rendered book —
+**fired** against the full census JSON. Not a defect: the JSON carries a *measurement* (sizes, counts,
+mass) and a *source locator* (`chapter.md:line`), and re-wrapping legitimately moves line numbers.
+Compared on the measurement fields alone, the same mutation is correctly **silent** while the
+paragraph-merge mutation still **fires** — so the instrument discriminates rather than merely being
+able to fire (`DOCTRINE_ENFORCEMENT.md` §9). Anyone diffing two census runs must compare the
+measurement, not the whole document.
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-PARAGRAPH-BLOBS.3` | `pending` | **Next.** The residue is one coherent defect class — four run-on enumerations that whitespace cannot touch — and it is now the whole of the remaining oversized mass. |
+| 1 | `BOOK-PARAGRAPH-BLOBS.3` | `pending` | **Next.** The residue is one coherent defect class — run-on enumerations that whitespace cannot touch — and it is now the whole of the remaining oversized mass. |
 | 2 | `BOOK-PARAGRAPH-BLOBS.2` | `pending` | Decide what watches this, against a repaired baseline. Deliberately after `.3`: choosing a threshold while 43,092 characters of known-unfixed enumeration are still in the book would fit the number to the defect. |
+| — | `BOOK-PARAGRAPH-BLOBS.4` | `done` | Instruments promoted `2026-08-02`; the census reproduces `.1`'s numbers exactly and is now durable. |
 | — | `BOOK-PARAGRAPH-BLOBS.1` | `done` | Repaired `2026-08-02`; worst block −62 %. |
 
 ## Decisions
@@ -339,6 +409,7 @@ Restored with `cmp`-verified identity and rebuilt clean.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-02` | `.4` | `Promoted census reproduces the validated instrument EXACTLY: 3,501 prose blocks / 30 chapters / 12 over 1,500 / mass 43,092, all 12 sizes identical — after a first draft that matched both headline numbers while inflating 9 of 12 sizes. book_list_signature.py reproduces .1's 1,325 <li> across 31 chapters. All 12 source anchors resolve. Three controls via scripts/negative_control.sh (every substitution count asserted): paragraph merge -> census FIRES (3,501->3,500 blocks, 12->13, mass 43,092->44,919); source re-wrap -> census SILENT on measurement fields; break inside <li> without continuation indent -> list signature FIRES, word proof OK (90,542 -> 90,542). One control FAILED first and was root-caused to the carrier, not the instrument (it deleted the blank line, so mdBook lazily continued the paragraph inside the same <li>). Restores cmp-verified; mdbook build exit 0; scripts/check_doctrines.sh 11/11.` | `promoted; instruments durable in scripts/ and documented in TOOLBOX.md §7` (docs+scripts only; DUT byte-identical) |
 | `2026-08-02` | `.1` | `24 paragraph breaks across 5 chapters. WORST PROSE BLOCK 22,908 -> 8,704 chars (-62.0 %); architecture.html 22,908 -> 7,043 (-69.3 %); oversized mass 54,897 -> 43,092 (-21.5 %). Two independent proofs, both negative-controlled: whitespace-normalized word identity (passes on the edit, FAILS on a one-character word change) and a rendered <li> census of 1,325 items across 31 chapters (identical after; FIRES on a landed sabotage that strips a list continuation's indent, which the word proof passes). The .0 census was CORRECTED: denominator 1,244 -> 3,467, over-threshold 6 -> 11, after rebuilding the instrument on html.parser with <pre> excluded. mdbook build exit 0; cargo test --test book_examples 4 passed / 0 failed; scripts/check_doctrines.sh 11/11. mdbook test fails identically on HEAD with the edits stashed - pre-existing, root-caused, surfaced.` | `repaired (whitespace-only); the run-on-enumeration residue is registered as .3 rather than claimed as fixed` |
 | `2026-08-02` | `.0` | `registered from an owner finding, measured first at 9060993: mdbook build book, then over book/book-out/*.html (main only, print.html + 404.html excluded) — 1,244 rendered paragraphs across 30 chapters, 6 over 1,500 chars, worst 22,908 in architecture.html. Source confirmed: book/src/architecture.md lines 658-903 are 246 consecutive non-blank lines. Ownership search run against the six book/live-doc trees and TABLE-RENDER-FIDELITY; none owns paragraph structure.` | `registered` (docs-only; DUT byte-identical) |
 
@@ -351,6 +422,23 @@ Restored with `cmp`-verified identity and rebuilt clean.
 
 ## Changelog
 
+- `2026-08-02`: `.4` made this tree's instruments durable. The census, the list-structure proof and
+  the word-identity proof lived in **gitignored `target/tmp/book-blob/`** — so the apparatus that
+  judges `.1`, `.3` and `.2` would have vanished with the next `cargo clean`, and `.2` cannot derive
+  a threshold from a measurement nobody can re-run. Promoted to `scripts/book_prose_census.py`,
+  `scripts/book_list_signature.py` and `scripts/prove_words_unchanged.py`, documented in
+  `TOOLBOX.md` **§7**, and **deliberately not registered as a doctrine check** — `.2` owns that
+  question and `0047` prefers removing the need to watching harder. The census gained a **source
+  anchor** and a **repairability class** per block (`SPLITTABLE` / `RUN-ON` / `LIST-ITEM` /
+  `TABLE-CELL`), which is what `.3` needs to give each surviving block a verdict. Three things are
+  recorded rather than smoothed over: **(1)** the first draft matched the denominator and the
+  over-threshold count while inflating **9 of 12** block sizes — caught only because `.4`'s
+  acceptance demanded every size; **(2)** a control **failed and the instrument was innocent** — the
+  carrier deleted a blank line as well as an indent, so mdBook lazily continued the paragraph and
+  nothing escaped its `<li>`, which refines `0047`: an asserted substitution count proves the
+  experiment *ran*, not that it ran the *intended* experiment; **(3)** `.1`'s complementarity claim
+  is **carrier-sensitive** — the word proof is blind only to a break inserted inside a list item
+  without a continuation indent, and that exact carrier is now recorded with both verdicts.
 - `2026-08-02`: `.1` repaired the splittable blobs. **Worst prose block 22,908 → 8,704 characters
   (−62.0 %)**, `architecture.html` **−69.3 %**, oversized mass **−21.5 %**; 24 paragraph breaks
   across 5 chapters with **zero words changed**. Three things went differently from the plan and all
