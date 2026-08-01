@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.3 — the mutation refuses to no-op (tree CLOSED)
 
-**Landed as:** _pending_. Previous: `c5d6580`, `46f2af1`, `83a2a5b`.
+**Landed as:** `dbc8d62`. Previous: `c5d6580`, `46f2af1`, `83a2a5b`.
 **Shell instrument + docs; no `src/`, `tests/` or `examples/` change** ⇒ **DUT byte-identical**.
 **Closes `NEGATIVE-CONTROL-HARNESS`.**
 
