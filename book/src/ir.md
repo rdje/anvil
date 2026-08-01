@@ -517,20 +517,26 @@ sessions.
   *only* through an opaque `Node::MemRead` leaf — a sibling to
   `FlopQ` that is never CSE'd or factorized, with load-bearing
   `compact.rs` reachability keeping the memory's
-  `we`/`waddr`/`wdata`/`raddr` source cones alive. The emitter
+  `we`/`waddr`/`wdata`/`raddr` source cones alive.
+
+  The emitter
   renders the empirically-validated synchronous-write /
   registered-read template that Yosys infers as `$mem_v2`
   (`SinglePort` shares one address; `SimpleDualPort` adds an
   independent read port). It is opt-in behind the `memory_prob`
   knob (default `0.0` → byte-identical; the array never participates
-  in CSE/identity). The memory contents are not reset-defined; reset-all
+  in CSE/identity).
+
+  The memory contents are not reset-defined; reset-all
   array templates are not used in this lane because Yosys lowers them to
   register lists with a warning instead of preserving warning-clean
   memory inference. The current template is proven downstream-clean
   against the
   `Phase4Hierarchy` matrix gate (`phase6_inferrable_memory`
   scenario — 219 scenarios / 876 designs, `coverage_gaps = []`,
-  876/0 Verilator + both Yosys). See `book/src/knobs.md`
+  876/0 Verilator + both Yosys).
+
+  See `book/src/knobs.md`
   `memory_prob`, `docs/tasks/PHASE-6-ADVANCED-MOTIFS.md`, and the
   `ROADMAP.md` Phase 6 entry. **Phase 6 is now done** (2026-05-20):
   the generated-encoding FSM motif also landed (first-class `Fsm`
@@ -552,7 +558,9 @@ sessions.
   package constants), and parity comparator core
   (`ToolReport`/`Divergence` × 17 variants per axis ×
   direction / `FactCategory`/`ParityScope` /
-  `compare_manifest_to_tool_report_in_scope`). The generator
+  `compare_manifest_to_tool_report_in_scope`).
+
+  The generator
   IS the oracle: every value is resolved once at construction
   time (one `ChaCha8` stream per seed) and shipped in the
   manifest while held symbolic in the `.sv`. A repo-owned
@@ -600,7 +608,9 @@ sessions.
   `.2c.2b.1` non-negative-modulo-idiom fix forward for
   free — Phase 8's parity gate against real yosys 0.64
   came back clean on the **first** real-tool run
-  (contrast with Phase 7's fix-and-retry). Repo-owned
+  (contrast with Phase 7's fix-and-retry).
+
+  Repo-owned
   gate `tests/frontend_parity.rs::parity_against_real_yosys_hierarchy_write_json`
   (`#[ignore]`-gated, Phase-1 doctrine) drives the
   deterministic 5-seed corpus through `yosys
@@ -612,6 +622,7 @@ sessions.
   (Seed/Top/TopParams/Instances/GenerateBranches; the
   load-bearing per-instance per-binding values are
   read from yosys's `.cells[<inst>].parameters`).
+
   Top_localparams + package_constants are folded by
   yosys. `SIGNOFF-SURFACE-EXPANSION.2` adds the richer
   optional Verilator JSON-AST gate
@@ -620,7 +631,9 @@ sessions.
   That extractor reads top GPARAMs, top LPARAMs, package
   constants, specialized child-module GPARAMs reached
   through each top `CELL.modp`, and surviving
-  `GENBLOCK` names. Its scope is `ParityScope::all()`,
+  `GENBLOCK` names.
+
+  Its scope is `ParityScope::all()`,
   so it checks all 7 manifest categories:
   Seed/Top/PackageConstants/TopParams/TopLocalparams/
   Instances/GenerateBranches. The local gate is clean
@@ -656,13 +669,17 @@ sessions.
   files are named after its top module, never its
   first-emitted child stub) + the `CheckPlan`
   enum (`SynthAccept` for L1; `ParityVsManifest` for
-  L2/L3). Three lane impls — `DutLane`,
+  L2/L3).
+
+  Three lane impls — `DutLane`,
   `MicrodesignLane`, `FrontendLane` — wrap the existing
   three rules-first generators
   (`src/gen/`/`src/microdesign/`/`src/frontend/`)
   without modifying them; the explicit anti-goal from
   `.1` is preserved (the three lanes' generators stay
-  decoupled; only their plumbing unifies). The `anvil`
+  decoupled; only their plumbing unifies).
+
+  The `anvil`
   CLI gained a `--artifact <lane>` top-level flag with
   default `dut`; non-`dut` invocations dispatch via
   `Box<dyn ArtifactLane>` through the umbrella, while

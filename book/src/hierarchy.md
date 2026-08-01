@@ -1150,7 +1150,9 @@ stateful parent-composed helper child-input routing through
 parent-local flops, plus recursive non-top multi-stage registered
 parent-composed no-helper routing, plus recursive non-top multi-stage
 registered sibling no-helper routing, plus recursive non-top
-multi-stage registered mixed-support no-helper routing. The earlier coverage-only proofs at
+multi-stage registered mixed-support no-helper routing.
+
+The earlier coverage-only proofs at
 `anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
@@ -1663,6 +1665,7 @@ local proofs remain useful:
   child-input mixed-support routes, direct registered sibling
   mixed-support routes, and recursive non-top parent-port-composed
   parent-output routes.
+
   The older `r7` report is now the historical
   wrapper-baseline artifact, `r9` is the pre-mixed recursive bank,
   `r10` is the pre-on-demand mixed-depth bank, `r11` is the first

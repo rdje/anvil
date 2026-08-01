@@ -668,20 +668,28 @@ full current-code Phase 1 gate is now closed via
 (1005 modules, `coverage_gaps = []`, and 1005/0 pass-fail in
 Verilator plus both repo-owned Yosys modes). The explicit
 `--phase1-gate` mode turned the old roadmap arithmetic into a real
-repo-owned closure command. The dedicated Phase 2 sharing gate is now
+repo-owned closure command.
+
+The dedicated Phase 2 sharing gate is now
 closed too via `anvil-tool-matrix-phase2-share-r1/tool_matrix_report.json`
 (216 modules, `coverage_gaps = []`, and 216/0 pass-fail in Verilator
 plus both repo-owned Yosys modes), with a normalized `share_sweep`
 summary proving that `shared_node_fraction` rises monotonically across
-`share_prob = 0.0`, `0.3`, and `0.9`. The dedicated Phase 3
+`share_prob = 0.0`, `0.3`, and `0.9`.
+
+The dedicated Phase 3
 structured-surface gate is now closed as well via
 `anvil-tool-matrix-phase3-structured-r4/tool_matrix_report.json`
 (210 modules, `coverage_gaps = []`, and 210/0 pass-fail in Verilator
-plus both repo-owned Yosys modes). The Phase 4 hierarchy slice now has
+plus both repo-owned Yosys modes).
+
+The Phase 4 hierarchy slice now has
 its latest full downstream-clean repo-owned gate via
 `anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 (840 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-840/0 pass-fail in Verilator plus both repo-owned Yosys modes). That
+840/0 pass-fail in Verilator plus both repo-owned Yosys
+
+modes). That
 report banks wrapper exact / reuse / under-instantiation, the current
 representative recursive depth-2 profiles, the mixed recursive
 depth-range profile `2:3`, the explicit child-sourcing modes
@@ -738,6 +746,7 @@ direct registered sibling mixed-support routes, and recursive non-top
 unregistered parent-composed mixed-support child-input routes without
 helper instances, and recursive non-top parent-port-composed parent-output
 routes without helper instances or parent-local state, and recursive non-top stateful parent-port-composed parent-output routes without helper instances, and recursive non-top stateful unregistered parent-composed mixed-support child-input routes through parent-local Qs without helper instances at exact hierarchy depth 7 (2,2 calibrated) — closing the depth-7 sweep, recursive non-top registered parent-composed child-input bindings that chain through at least three parent-local flop stages without helpers — opening a chain-depth axis above the closed depth-3..7 sweeps, a recursive non-top internal parent saturating a parent-cone helper budget of 5 helpers — extending the helper-budget axis above the previous budget-3 baseline, and per-module canonical signatures as the first slice of hierarchy-aware identity instrumentation.
+
 The `r85` report records
 `saw_hierarchy_parent_composed_child_inputs = true`,
 `saw_hierarchy_parent_local_flops = true`,
@@ -817,6 +826,7 @@ The `r85` report records
 `saw_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`,
 and
 `saw_recursive_hierarchy_parent_composed_parent_cone_instance_flop_mixed_support_routing = true`.
+
 It proves recursive non-top direct registered sibling mixed-support routing,
 recursive non-top direct sibling helper routing, recursive
 non-top direct registered sibling helper routing, recursive non-top
@@ -829,19 +839,26 @@ parent-composed helper child-input routing, plus recursive non-top
 parent-output helper routing and recursive non-top stateful
 parent-output helper routing, and recursive non-top parent-port-composed
 parent-output routing without helpers or parent-local state, through the full
-downstream tool bank. It
+downstream tool
+
+bank. It
 also proves recursive non-top parent-output multi-helper budget evidence,
 recursive non-top child-input multi-helper budget evidence, and recursive
 non-top stateful multi-helper budget evidence through the same full
-downstream tool bank. It also proves recursive non-top multi-stage
+downstream tool
+
+bank. It also proves recursive non-top multi-stage
 registered parent-composed no-helper routing and recursive non-top
 multi-stage registered sibling no-helper routing through the same full
-downstream tool bank. The
+downstream tool
+
+bank. The
 earlier coverage-only proofs at
 `anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
 are now historical policy breadcrumbs.
+
 Earlier coverage-only probes at
 `anvil-tool-matrix-phase4-registered-mixed-r1/tool_matrix_report.json`,
 `anvil-tool-matrix-phase4-registered-multistage-r1/tool_matrix_report.json`,
@@ -852,10 +869,14 @@ and
 `anvil-tool-matrix-phase4-parent-output-helper-state-r3/tool_matrix_report.json`
 remain useful focused policy breadcrumbs, while the current full `r85`
 bank carries those facts through Verilator and both repo-owned Yosys
-modes. The old hierarchy smoke at
+modes.
+
+The old hierarchy smoke at
 `anvil-hierarchy-smoke-r1`
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
-ABC path. The focused clean proofs at `anvil-hier-reuse-smoke-r1`,
+ABC path.
+
+The focused clean proofs at `anvil-hier-reuse-smoke-r1`,
 `anvil-hier-under-smoke-r2`,
 `anvil-hier-parent-compose-smoke-r1/manifest.json`,
 `anvil-hier-range-smoke-r1/manifest.json`, and
@@ -884,7 +905,9 @@ and
 `cargo test recursive_hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops_below_top`,
 and
 `cargo test hierarchy_parent_composed_helper_routes_can_use_parent_flops`
-remain useful targeted evidence. The old `r7` report is now the historical
+remain useful targeted evidence.
+
+The old `r7` report is now the historical
 wrapper-baseline artifact, `r10` is the pre-on-demand mixed-depth bank,
 `r11` is the first explicit child-sourcing bank, `r21` is historical
 pre-parent-output-helper evidence, `r22` is the clean but insufficient
@@ -897,6 +920,7 @@ recursive non-top multi-stage registered parent-composed helper bank,
 is the previous recursive non-top stateful parent-output helper bank,
 `r41` is the previous recursive non-top parent-output multi-helper budget bank, `r42`
 is the previous recursive non-top stateful multi-helper budget bank, `r43` is the previous recursive non-top child-input multi-helper budget bank, `r44` is the previous recursive non-top registered mixed-support routing bank, `r45` is the previous recursive non-top multi-stage registered parent-composed no-helper bank, `r46` is the previous recursive non-top multi-stage registered sibling no-helper bank, `r47` is the previous recursive non-top multi-stage registered mixed-support no-helper bank, `r48` is the previous recursive non-top registered parent-composed helper mixed-support bank, `r49` is the previous recursive non-top parent-output helper mixed-support bank, `r50` is the previous accumulated mixed-support hierarchy full bank, `r51` is the previous direct registered sibling mixed-support hierarchy full bank, `r52` is the previous recursive direct registered sibling mixed-support hierarchy full bank, `r53` is the previous recursive parent-composed mixed-support child-input hierarchy full bank, `r54` is the previous recursive parent-port-composed parent-output hierarchy full bank, `r55` is the previous recursive stateful parent-port-composed parent-output hierarchy full bank, `r56` is the previous recursive stateful unregistered parent-composed mixed-support child-input hierarchy full bank, `r57` is the previous hierarchy full bank that gated recursive non-top parent-local flops as a first-class coverage fact, `r58` is the previous hierarchy full bank that pushed recursive parent-local flops to exact hierarchy depth 3, `r59` is the previous hierarchy full bank that pushed recursive non-top unregistered parent-composed mixed-support child inputs to exact hierarchy depth 3 without helpers, `r60` is the previous hierarchy full bank that pushed recursive non-top parent-port-composed parent outputs to exact hierarchy depth 3 without helpers or state, `r61` is the previous hierarchy full bank that pushed recursive non-top stateful parent-port-composed parent outputs to exact hierarchy depth 3 without helpers, `r62` is the previous hierarchy full bank that closed the depth-3 push with recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 3 without helpers, `r63` is the previous hierarchy full bank that opened the depth-4 axis with recursive non-top parent-local flops at exact hierarchy depth 4, `r64` is the previous hierarchy full bank that extended the depth-4 axis with recursive non-top mixed-support child inputs at exact hierarchy depth 4 without helpers, `r65` is the previous hierarchy full bank that extended the depth-4 axis with recursive non-top parent-port-composed parent outputs at exact hierarchy depth 4 without helpers or state, `r66` is the previous hierarchy full bank that extended the depth-4 axis with recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 4 without helpers, `r67` is the previous hierarchy full bank that closed the depth-4 sweep with recursive non-top stateful parent-composed mixed-support child inputs at exact hierarchy depth 4 without helpers, `r68` is the previous hierarchy full bank that opened the depth-5 axis with recursive non-top parent-local flops at exact hierarchy depth 5, `r69` is the previous hierarchy full bank that extended the depth-5 axis with recursive non-top mixed-support child inputs at exact hierarchy depth 5 without helpers, `r70` is the previous hierarchy full bank that extended the depth-5 axis with recursive non-top parent-port-composed parent outputs at exact hierarchy depth 5 without helpers or state, `r71` is the previous hierarchy full bank that extended the depth-5 axis with recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 5 without helpers, `r72` is the previous hierarchy full bank that closed the depth-5 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 5 without helpers, `r73` is the previous hierarchy full bank that opened the depth-6 axis with recursive non-top parent-local flops at exact hierarchy depth 6, `r74` is the previous hierarchy full bank that extended the depth-6 axis with recursive non-top mixed-support child inputs at exact hierarchy depth 6 without helpers (2,2 calibrated), `r75` is the previous hierarchy full bank that extended the depth-6 axis with recursive non-top parent-port-composed parent outputs at exact hierarchy depth 6 without helpers or state, `r76` is the previous hierarchy full bank that extended the depth-6 axis with recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 6 without helpers, `r77` is the previous hierarchy full bank that closed the depth-6 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 6 without helpers (2,2 calibrated), `r78` is the previous hierarchy full bank that opened the depth-7 axis with recursive non-top parent-local flops at exact hierarchy depth 7, `r79` is the previous hierarchy full bank that extended the depth-7 axis with recursive non-top mixed-support child inputs at exact hierarchy depth 7 without helpers (2,2 calibrated), `r80` is the previous hierarchy full bank that extended the depth-7 axis with recursive non-top parent-port-composed parent outputs at exact hierarchy depth 7 without helpers or state, `r81` is the previous hierarchy full bank that extended the depth-7 axis with recursive non-top stateful parent-port-composed parent outputs at exact hierarchy depth 7 without helpers, `r82` is the previous hierarchy full bank that closed the depth-7 sweep with recursive non-top stateful unregistered parent-composed mixed-support child inputs at exact hierarchy depth 7 without helpers (2,2 calibrated), `r83` is the previous hierarchy full bank that opened a chain-depth axis above the closed depth-3..7 sweeps with recursive non-top registered parent-composed three-stage chain coverage, `r84` is the previous hierarchy full bank that extended the helper-budget axis above the previous budget-3 baseline with recursive non-top parent-cone helper budget 5 coverage, `r85` is the current hierarchy full bank that adds canonical module signatures as the first slice of hierarchy-aware identity instrumentation, and
+
 the aborted `r8` rerun remains
 useful as evidence that the Phase 4 gate should use a hierarchy-focused
 sequential leaf profile rather than silently borrowing the fattest

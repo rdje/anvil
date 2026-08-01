@@ -1,6 +1,92 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.1 — split the wall-of-text paragraphs; worst block down 62 %
+
+**Landed as:** `pending`. Previous: `ff548e2`, `ebd7869`, `9060993`.
+**Book-only (`architecture`, `hierarchy`, `ir`, `knobs`, `api-introspection`); no `src/` change** ⇒
+**DUT byte-identical**.
+
+**What.** The owner's reported reading defect is repaired for every block a blank line can fix. **24
+paragraph breaks across 5 chapters, zero words changed.**
+
+| Metric | before | after | Δ |
+| --- | --- | --- | --- |
+| worst rendered prose block | **22,908 chars** | **8,704** | **−62.0 %** |
+| `architecture.html` worst | 22,908 | 7,043 | −69.3 % |
+| total mass in oversized blocks | 54,897 | 43,092 | −21.5 % |
+
+**Why.** The owner reviews the book rather than the code, and a 22,908-character paragraph — 246
+consecutive source lines with no blank line, roughly 71 % of its chapter's prose — is unreadable in
+the only surface they see.
+
+**The registered census was wrong, and correcting it is the larger half of this leaf.** `.0`
+reported *6 of 1,244*. That instrument matched `<p>…</p>` with a non-greedy regex over rendered HTML,
+which **spans code blocks** — it once reported a 7,913-character "paragraph" that was a Rust struct
+definition — and it never looked outside `<p>`. Rebuilt on `html.parser`, walking block containers
+under `<main>` with **`<pre>` excluded**, the true figures are a denominator of **3,467** prose
+blocks and **11** over 1,500 characters. The `<p>`-only count of 6 was coincidentally right; the
+denominator was wrong by **2.8×** and **5 oversized blocks were invisible**, including a
+**10,781-character `<li>`** in `hierarchy.html` — the book's second-worst blob. `.0`'s own Open
+Question 3 had named this limit, which is why it was measured instead of inherited.
+
+**The blob turned out to be two defects, and only one is whitespace-fixable.** Classifying every
+oversized block by how many sentence boundaries it contains: **11 splittable**, and **4 run-on
+enumerations** — a *single sentence* listing dozens of clauses (*"The old `r7` report is now the
+historical wrapper-baseline artifact, `r10` is …, `r11` is …"* for 7,159 characters). **No blank line
+can split a sentence.** The natural repair is a markdown list, which changes structure and wording
+and therefore cannot ride inside this leaf's stated constraint, so it is registered as **`.3`**
+rather than smuggled in. Claiming *"the paragraphs are fixed"* with those still present would be
+false, and it is why the **mass** figure moves so much less than the **worst-case** figure.
+
+**The acceptance criterion was wrong and was corrected in flight, toward something stricter.** `.0`
+promised *"a diff that adds only empty lines"*. Held to the letter it would have produced a worse
+book: topic-starting sentences mostly begin **mid-line** in hard-wrapped source, so only three cuts
+in `architecture.md` were reachable. It was replaced by a **stronger** proof — collapse each file's
+whitespace to single spaces and require byte-identical text before and after, which permits arbitrary
+re-wrapping and forbids any word change. Negative-controlled: it passes on the real edit and
+**fails** on a one-character change (`tests` → `testz`), printing the located divergence.
+
+**A real regression shipped in the first pass, and only a second proof caught it.** Splitting inside
+a markdown list item dropped its **two-space indent**, silently promoting the continuation **out of
+its `<li>`** and ending the list. The words were identical, so the word proof **passed** — it
+collapses precisely the whitespace that carries list nesting, and is blind to this by construction.
+Fixed in the splitter, and guarded by a second, independent proof: a rendered **`<li>` census**
+(count plus a SHA of every item's normalized text) across **1,325** items in 31 chapters.
+
+**Both proofs are negative-controlled, and the control had to be run twice.** The first sabotage
+**refused to apply** (`0 matches` — it targeted a cut that sits at indent 0, not 2) and printed
+`REFUSED` instead of a verdict, which is exactly the `NEGATIVE-CONTROL-HARNESS.1` trap avoided by a
+guard that asserts its own substitution count. Retargeted at a genuinely indented cut, the sabotage
+**landed** (1 substitution, asserted) and the result is decisive: the **`<li>` signature FIRES**
+(`hierarchy.html`, `n_li` unchanged at 476, content SHA changed) while the **word proof passes** —
+so the word proof alone would have shipped the regression. Restored with `cmp`-verified identity.
+
+**Surfaced, root-caused, and not silently absorbed: `mdbook test book` FAILS on a clean tree.** Local
+mdBook **v0.5.2** compiles an **unlabelled ``` fence** as a Rust doctest, so `book/src/agent-mcp.md`
+lines 174 and 245 fail with `E0425`. **CI pins v0.4.40**, which does not, so the CI step is green
+while a current local run is red. Proven **pre-existing** rather than assumed: stashing the
+`book/src/` edits and re-running on `HEAD` gives **identical two failures and identical exit 101**.
+The book holds ~100 unlabelled fences, so bumping the pin turns this red in CI. It is a **third
+instance of the by-product rule** landed at `UNGATED-PRACTICE-AUDIT.1` — nothing forces a local
+`mdbook test`, and a pinned CI green is not evidence about any other version. It needs its own tree;
+none was opened here because the repo may not pivot while a leaf is mid-flight.
+
+**Validation.** `mdbook build book` exit `0`. `cargo test --test book_examples` **4 passed / 0
+failed**. `scripts/check_doctrines.sh` **11/11**. Word-identity proof **OK** on all five files
+(57,046 / 112,543 / 30,768 / 90,542 / 11,984 normalized chars, unchanged); `<li>` structural proof
+**identical** across 1,325 items. Book-only ⇒ **DUT byte-identical**; `tests/snapshots.rs` untouched.
+
+**Impact.** The chapter the owner is most likely to abandon mid-read is 69 % less dense at its worst
+point, with a guarantee no wording moved. Two reusable proofs now exist for any future
+whitespace-only documentation edit, and the measured lesson — that the obvious proof is blind to list
+nesting — is recorded rather than relearned. The remaining mass is one named defect class with an
+owning leaf.
+
+**Files touched.** `book/src/architecture.md`, `book/src/hierarchy.md`, `book/src/ir.md`,
+`book/src/knobs.md`, `book/src/api-introspection.md`, `docs/tasks/BOOK-PARAGRAPH-BLOBS.md`,
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs
 
 **Landed as:** `ebd7869`. Previous: `9060993`, `0e4654f`, `1dedbd8`.

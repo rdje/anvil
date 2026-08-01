@@ -651,18 +651,24 @@ instead of creating fresh logic.
   to several, so it has its **own** knob — the shipped single-gate surface stays
   byte-identical (reusing `task_emit_prob` was rejected). A shared non-constant
   operand becomes one input formal feeding multiple outputs (the "co-supported
-  sink"); a shared *constant* folds inline (never a formal). The
+  sink"); a shared *constant* folds inline (never a formal).
+
+  The
   **fan-in-independence** rule is the soundness condition — co-emitting a member
   that lies in another's fan-in would close a combinational cycle through the
   shared `always_comb` call; each new member is checked against **every** member, so
   the group is cycle-free at any size. Members keep their module wires (co-equal
-  roots, not absorbed). Selection is rules-first at construction time; the group
+  roots, not absorbed).
+
+  Selection is rules-first at construction time; the group
   grows greedily from the leader up to the 8-member cap (the first cut shipped a
   pair; `k > 2` is now delivered). The six emit-projections
   (`function_emit` / `generate_loop` / `task_emit` / `multi_output_task` /
   `cone_function` / `soft_union`) are mutually exclusive on a gate — this pass runs
   after the single-gate `task` and before the cone `function`. Combinational only.
-  `default = 0.0` ⇒ byte-identical. Surfaced via the
+  `default = 0.0` ⇒ byte-identical.
+
+  Surfaced via the
   `num_emitted_multi_output_tasks` metric in `--introspect` (schema `1.14`). Proven
   downstream-clean by the repo-owned `tool_matrix --multi-output-task-gate`
   (Verilator + both Yosys modes + Icarus; `saw_multi_output_task_emit`). See
@@ -727,13 +733,17 @@ instead of creating fresh logic.
   the `case` labels are distinct constants by construction (arm `i` ⇒ label `SW'd{i}`),
   at most one equality is true, so the priority chain selects the same arm as the
   parallel `case` and the trailing `else` covers exactly the `default` —
-  behaviour-preserving by construction. A **constant-selector** `CaseMux` (statically
+  behaviour-preserving by construction.
+
+  A **constant-selector** `CaseMux` (statically
   collapsed to a continuous `assign`) and a `CasezMux` (masked `casez` wildcards — the
   recorded follow-up) are **not** candidates. It has its **own** knob so the shipped
   surfaces stay byte-identical (reusing `mux_if_emit_prob` was rejected). The eight
   emit-projections (`function_emit` / `generate_loop` / `task_emit` / `multi_output_task`
   / `cone_function` / `soft_union` / `mux_if` / `case_mux_if`) are mutually exclusive on
-  a gate — this pass runs **last**. No new IR node / no new computed truth. Combinational
+  a gate — this pass runs **last**. No new IR node / no new computed truth.
+
+  Combinational
   only. `default = 0.0` ⇒ byte-identical. Surfaced via the
   `num_emitted_case_mux_if_chains` metric in `--introspect` (schema `1.16`; exact because
   constant-selector `CaseMux` is excluded). Proven downstream-clean by the repo-owned
@@ -763,16 +773,22 @@ instead of creating fresh logic.
   `2'b0?` ignores the `?` bit. Because anvil builds `casez` patterns with one wildcard bit per
   arm and non-overlapping care patterns, at most one masked equality is true, so the chain
   selects the same arm as the parallel `casez` and the trailing `else` covers exactly the
-  `default` — behaviour-preserving by construction. Like the eighth surface it is **simpler
+  `default` — behaviour-preserving by construction.
+
+  Like the eighth surface it is **simpler
   than the seventh**: a `CasezMux` is *already* an `always_comb`-written `logic` var, so it
   needs **no** `<wire>__cv` output var + passthrough — only the block *body* swaps `casez …
   endcase` → masked `if … else if`. A **constant-selector** `CasezMux` (statically collapsed
   to a continuous `assign`) and the bare-equality `CaseMux` (owned by the eighth surface) are
-  **not** candidates. It has its **own** knob so the shipped surfaces stay byte-identical
+  **not** candidates.
+
+  It has its **own** knob so the shipped surfaces stay byte-identical
   (reusing `case_mux_if_emit_prob` was rejected). The nine emit-projections (`function_emit` /
   `generate_loop` / `task_emit` / `multi_output_task` / `cone_function` / `soft_union` /
   `mux_if` / `case_mux_if` / `casez_mux_if`) are mutually exclusive on a gate — this pass runs
-  **last**. No new IR node / no new computed truth. Combinational only. `default = 0.0` ⇒
+  **last**. No new IR node / no new computed truth.
+
+  Combinational only. `default = 0.0` ⇒
   byte-identical. Surfaced via the `num_emitted_casez_mux_if_chains` metric in `--introspect`
   (schema `1.17`; exact because constant-selector `CasezMux` is excluded). Proven
   downstream-clean by the repo-owned `tool_matrix --casez-mux-if-gate` (Verilator + both Yosys

@@ -242,6 +242,7 @@ The document schema is **`1.28`** and evolves under a strict MINOR/MAJOR policy
   fan-OUT path from a node forward to a boundary sink, the gate chain witnessing one
   of `node_reach`'s targets (the forward complement to `longest_path`, exactly as
   `longest_path` realizes `output_support`'s scalar `cone_depth`) — (`1.26 → 1.27`).
+
   The structured-emission and capability metric
   counts grew the schema the same way: `1.11 → 1.12` added the `coverage_readout`
   section + the standalone `coverage` tool document, `1.12 → 1.13` added
