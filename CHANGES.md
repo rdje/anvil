@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3 — decision 0048: the book links to the file it stopped duplicating
 
-**Landed as:** `pending`. Previous: `a5645c1`, `9b4aad5`, `edc9ad7`.
+**Landed as:** `30a0346`. Previous: `a5645c1`, `9b4aad5`, `edc9ad7`.
 **Docs-only; no `src/` and no `book/src/` change** ⇒ **DUT byte-identical**. **Decision only — no
 book content removed yet.**
 
