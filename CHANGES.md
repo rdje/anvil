@@ -1,6 +1,103 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty
+
+**Landed as:** `pending`. Previous: `614e977`, `f8b9603`, `ac05f01`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **No book edit.**
+
+**What.** `BOOK-LINK-INTEGRITY.1` measures the mdBook for **both** dead-link classes — dead file
+targets and dead in-page anchors — names every offender, and states the instrument. No repair;
+that is `.2`.
+
+**The result, in one line.** **One** offending site in the whole book, and **the anchor class is
+empty**.
+
+**Two independent derivations**, because one alone is not trustworthy here: the rendered side is
+dominated by mdBook's generated chrome, and the authored side is the population that can actually
+rot.
+
+| | rendered (`book/book-out/**/*.html`, 33 files) | authored (`book/src/*.md`) |
+| --- | ---: | ---: |
+| denominator | **1782** `href` occurrences | **229** markdown links |
+| — breakdown | 1456 `<a>` + 325 `<link>` + 1 `<base>` | 228 inline + 1 reference definition |
+| — external | 16 | 7 |
+| — in-page anchor (`#…`) | **1101** | **35** |
+| — file reference | **339** (35 with a `#fragment`) | **187** (36 with a `#fragment`) |
+| **anchor-class denominator** | **1136** | **71** |
+| **dead file target** | **2 occurrences / 1 href** | **1 site** |
+| **dead anchor** | **0** | **0** |
+
+The two reconcile exactly: **one** authored site — `book/src/recipes.md:857`,
+`[USER_GUIDE.md](../../USER_GUIDE.md#tracing-and-debugging)` — surfacing as **two** rendered
+occurrences, because `print.html` concatenates every chapter.
+
+**The tree's central prediction was wrong, and that is the finding.** It was registered on the
+expectation that dead **anchors** were "the likelier silent class" — heading text changes far more
+often than file layout, and nothing checks it. Measured: **zero**, of 71 authored and 1136
+rendered. The reason is structural, not luck: the book's cross-references are overwhelmingly
+whole-chapter links (`knobs.md`), not deep links into a heading. Recording a refuted prediction
+rather than dropping it is the point — an unmeasured fear that turns out empty is worth exactly as
+much as one that turns out full.
+
+**The zero is negative-controlled.** Four defects and two live controls were appended to a
+copy-aside `book/src/faq.md`, the book rebuilt, both derivations run, then the chapter restored
+and the baseline re-confirmed (`git status` clean; no book edit survives this leaf):
+
+| probe | caught? |
+| --- | --- |
+| dead intra-book file (`does-not-exist-xyz.md`) | **yes**, both derivations |
+| dead in-page anchor (`#no-such-heading-xyz`) | **yes** |
+| dead cross-chapter anchor (`knobs.md#no-such-anchor-xyz`) | **yes** |
+| repo-root escape (`../../CHANGES.md`) | **yes**, both derivations |
+| live control `knobs.md` | correctly **not** flagged |
+| live control `ir.md#node` | **flagged** — and `ir.html` genuinely has no `id="node"`; the guess was wrong, the instrument right |
+
+**`mdbook build` exited `0` with all four defects present** — re-confirmed directly rather than
+assumed. And the positive control for the anchor predicate is not one link but the **71** authored
+anchors that resolved: it demonstrably returns *alive* as well as *dead*.
+
+**The registration scan's `665` was reconciled, not discarded.** It reproduces exactly — but it is
+not "local hrefs". It is **339 `<a>` file references plus 326 `<link>`/`<base>` chrome**, and it
+**excluded all 1101 in-page anchors**. That is precisely why the anchor half had never been
+measured, and it is a cleaner explanation than "the earlier scan was sloppy".
+
+**Extractor recall was audited, not assumed** (the `extractor-charset-narrower-than-source`
+lesson): `grep -o '](' ` over `book/src` returns **228** against **228** captured. Also triaged to
+zero surprise — **0** image links, **0** raw `<a href` in markdown, **0** autolinks, and **5**
+`][` occurrences of which **2** are the reference-style `[MCP][mcp]` usages resolving to the single
+*external* reference definition and **3** are array-index syntax (`transitions[state][sel]`).
+
+**Two instrument traps were hit and are now recorded**, because both silently corrupt a
+re-implementation:
+
+1. **Match the element, not just the attribute.** A tag-agnostic `href="…"` regex reports mdBook's
+   generated `<base href="/">` in `404.html` as a dead link. It is not a link. The first run of the
+   scan reported it, which is how it was found.
+2. **Resolve anchors per-file.** In `print.html` mdBook rewrites a cross-chapter `knobs.html#x` to
+   a bare `#x` against the merged page — a *different* anchor namespace from the per-chapter one.
+
+**Why this makes `.3` harder, not easier.** The honest tooling obstacle was already on the record:
+a rendered-output check needs `mdbook`, which ANVIL does not vendor, so it would be *skipped* on a
+fresh clone — the failure mode `USER-GUIDE-CLI-TABLE-SHADOW.3` rejected for `anvil --help`. `.1`
+adds a second and sharper one: **the sole real defect is an escape, not a missing file.**
+`../../USER_GUIDE.md` **exists**. So the obvious portable check — *"does the link target exist?"* —
+**passes the one link this tree was opened for**. Any source-level check must model the
+`.md`→`.html` rewrite *and* ask whether the rewritten path still lands inside `book-out`, or it is
+vacuous against its own subject.
+
+**Recorded durably** as the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md`, keyed on
+the question a future session will actually ask — *"why does this link work on GitHub but 404 in
+the book?"*
+
+**Validation.** `scripts/check_doctrines.sh` **10/10**; knowledge map regenerated in sync (119 →
+**120** facts). Docs-only ⇒ DUT byte-identical; no `src/` change, so the `cargo` gates are not the
+discriminator for this leaf (decision `0003`).
+
+**Files touched.** `docs/tasks/BOOK-LINK-INTEGRITY.md`,
+`docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (new), `KNOWLEDGE_MAP.md` (derived),
+`docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — RESUME-POINTER-CONTRACT.1 — the hypothesis is false; close the tree
 
 **Landed as:** `614e977`. Previous: `f8b9603`, `ac05f01`, `cf5deac`.

@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / book fidelity
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (registered from a `USER-GUIDE-CLI-TABLE-SHADOW.4` finding; frontier `.1`)
+- Last updated: `2026-08-01` (`.1` measured both classes; frontier `.2`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -52,6 +52,99 @@ The instrument, stated so it can be re-run: render with `mdbook build book`, the
 `href="…"` in `book/book-out/*.html` that is not `http`/`mailto`/`javascript`, resolve it relative
 to the containing file and assert the target exists. Note `book-out` — the build dir is
 `book-out`, not mdBook's default `book`, per `book/book.toml`.
+
+**Superseded as the instrument of record by `.1` below.** That scan's `665` is reproducible and
+is re-derived exactly in `.1` — but it is *not* "local hrefs". It is **file references including
+`<link>`/`<base>` chrome** (339 `<a>` file refs + 326 stylesheet/font/base hrefs = 665), and it
+**excluded all 1101 in-page anchors**, which is precisely why the anchor class was unmeasured.
+
+## `.1` — the measurement (`2026-08-01`, at `614e977`)
+
+Two **independent derivations**, because one alone is not trustworthy here: the rendered side is
+dominated by generated chrome, and the authored side is the population that can actually rot.
+
+### Derivation 1 — RENDERED
+
+**Region:** `book/book-out/**/*.html` — **33** files, after `mdbook build book`.
+**Denominator:** **1782** `href="…"` occurrences, classified so every candidate lands in exactly
+one bucket:
+
+| bucket | count |
+| --- | ---: |
+| `<a>` | **1456** |
+| `<link>` (stylesheets, fonts) | 325 |
+| `<base>` | 1 |
+| — of the 1456 `<a>`: external (`http`/`mailto`/…) | 16 |
+| — in-page anchor (`#…`) | **1101** |
+| — file reference | **339** |
+| — …of those, carrying a `#fragment` | 35 |
+| **anchor-class denominator** (1101 + 35) | **1136** |
+
+- **CLASS A — dead file target: 2 occurrences, 1 distinct href.**
+  `../../USER_GUIDE.html#tracing-and-debugging`, in `book/book-out/recipes.html` **and**
+  `book/book-out/print.html`.
+- **CLASS B — dead anchor: 0 occurrences**, out of a **1136** anchor-class denominator.
+
+### Derivation 2 — AUTHORED (`book/src/*.md`)
+
+**Denominator:** **229** authored markdown links = **228** inline `[…](…)` + **1** reference
+definition (`[mcp]:` in `agent-mcp.md`). Recall audited against the raw source: `grep -o '](' `
+returns **228** — the extractor captured **228/228**, not a subset ⇒
+[[extractor-charset-narrower-than-source]]. Also checked and accounted for: **0** image links,
+**0** raw `<a href` in markdown, **0** autolinks, **5** `][` occurrences of which **2** are the
+reference-style `[MCP][mcp]` usages resolving to that one *external* definition and **3** are
+array-index syntax (`transitions[state][sel]`), not links.
+
+| bucket | count |
+| --- | ---: |
+| external | 7 |
+| in-page anchor (`#…`) | 35 |
+| file reference | 187 |
+| — …carrying a `#fragment` | 36 |
+| **anchor-class denominator** (35 + 36) | **71** |
+
+- **Escapes `book-out` — the `.md`→`.html` trap: 1 site.**
+  `book/src/recipes.md:857` → `../../USER_GUIDE.md#tracing-and-debugging`.
+  **The target `.md` exists.** It is dead only because the rewrite sends it outside the build dir.
+- **Dead file target inside the book: 0.**
+- **Dead anchor: 0.**
+
+The two derivations reconcile: 1 authored site ⇒ 2 rendered occurrences (chapter + `print.html`).
+
+### The negative control (both predicates, one sabotaged chapter)
+
+`book/src/faq.md` was copied aside, appended with **four defects and two live controls**, rebuilt,
+scanned by both derivations, then restored from the copy and re-scanned to confirm the baseline
+returns. `git status` clean afterwards; **no book edit survives this leaf.**
+
+| probe | caught? |
+| --- | --- |
+| dead intra-book file (`does-not-exist-xyz.md`) | **yes**, both derivations |
+| dead in-page anchor (`#no-such-heading-xyz`) | **yes** |
+| dead cross-chapter anchor (`knobs.md#no-such-anchor-xyz`) | **yes** |
+| repo-root escape (`../../CHANGES.md`) | **yes**, both derivations |
+| live control `knobs.md` | correctly **not** flagged |
+| live control `ir.md#node` | **flagged** — and `ir.html` genuinely has no `id="node"`. The guess was wrong, the instrument right. |
+
+- **`mdbook build` exited `0` with all four defects present** — re-confirmed directly, not assumed.
+- The **positive** control for CLASS B is not one link but the **71** authored anchors that
+  resolved: the predicate demonstrably returns *alive* as well as *dead* ⇒
+  [[negative-control-must-be-able-to-fail]], [[coverage-check-vacuity]].
+
+### Instrument of record
+
+Kept at `.cache/book_link_scan.py` (rendered) and `.cache/book_link_source.py` (authored) —
+untracked by design, since `.3` and not `.1` decides whether a mechanism is warranted, and
+committing a script under `scripts/` would preempt that. Both are re-derivable from this
+statement; a one-line approximation of the escape class alone is
+`grep -rnE '\]\([^)]*\.\./[^)]*\.md' book/src/*.md`.
+
+Two traps a re-implementation must avoid, both hit during this leaf:
+
+1. **Match the element, not just the attribute.** A tag-agnostic `href="…"` regex reports
+   mdBook's generated `<base href="/">` in `404.html` as a dead link. It is not a link.
+2. **Check anchors per-file.** In `print.html` mdBook rewrites cross-chapter `knobs.html#x` to a
+   bare `#x` resolved against the merged page — a *different* namespace from the per-chapter one.
 
 ## Why a new tree rather than a leaf of an existing one
 
@@ -99,11 +192,11 @@ rather than an assertion inside another.
   Children: `.1` (measure both classes + register), `.2` (decide the repair, then repair), `.3` (the mechanism question)
 
 - ID: `BOOK-LINK-INTEGRITY.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Measure the rendered book for BOTH dead file targets and dead in-page anchors, name every offender, and state the instrument precisely enough to re-run. No repair in this leaf.`
   Acceptance: `Offenders NAMED not counted, for both classes. The anchor class must actually be measured, not assumed empty — .4's scan did not cover it. The match count is recorded alongside the finds (decision 0039), so recall is auditable. No book edit.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `MET. Two independent derivations (rendered: 1782 hrefs over 33 files, anchor-class denominator 1136; authored: 229 links, anchor-class denominator 71), each denominator stated and each offender named. CLASS A = 1 authored site / 2 rendered occurrences, named. CLASS B = 0, and the zero is negative-controlled: four planted defects caught, 71 real anchors resolved. Authored-extractor recall audited at 228/228. No book edit survives — the sabotaged chapter was restored and the baseline re-confirmed.`
+  Commit: `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty`
 
 - ID: `BOOK-LINK-INTEGRITY.2`
   Status: `pending`
@@ -123,9 +216,9 @@ rather than an assertion inside another.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-LINK-INTEGRITY.1` | `pending` | **Next.** Measure before repairing. The file-target class is known (**2** dead at `ccfbc23`); the **anchor** class is *unmeasured*, and an anchor that no longer matches a renamed heading is the silent half of this defect — `USER-GUIDE-CLI-TABLE-SHADOW.4` itself renamed two headings in `book/src/knobs.md`. |
-| 2 | `BOOK-LINK-INTEGRITY.2` | `pending` | Decide the repair form first, then repair. `.4` chose plain-backtick prose under time pressure for two sites; that choice should be made deliberately for all of them. |
-| 3 | `BOOK-LINK-INTEGRITY.3` | `pending` | The mechanism question, answered against what a check can actually read. |
+| 1 | `BOOK-LINK-INTEGRITY.2` | `pending` | **Next.** `.1` reduced the repair to **one site** — `book/src/recipes.md:857` — so `.2` is now a decision leaf with a one-line payload, exactly as intended. The decision is the deliverable; record it before editing. |
+| 2 | `BOOK-LINK-INTEGRITY.3` | `pending` | The mechanism question, answered against what a check can actually read — and now against `.1`'s sharpened finding that the defect is an **escape**, not a missing file, so the naive source-level check is *vacuous* against it. |
+| — | `BOOK-LINK-INTEGRITY.1` | `done` | Both classes measured, offenders named, negative-controlled. **The anchor class is empty** (0 of 71 authored / 1136 rendered). |
 
 ## Decisions
 
@@ -141,16 +234,30 @@ rather than an assertion inside another.
 
 ## Open Questions
 
-- **Are there dead in-page anchors too?** Unmeasured. `.1`'s first job. This is the likelier silent
-  class: heading text changes far more often than file layout, and nothing checks it.
-- **Can a doctrine check reach this at all?** A rendered-output check is exact but needs `mdbook`,
-  which is not vendored — so it would be *skipped* on a fresh clone, the failure mode
-  `USER-GUIDE-CLI-TABLE-SHADOW.3` rejected for `anvil --help`. A source-level check is portable but
-  must model mdBook's rewrite rules to be right. `.3` decides; "no mechanism, and here is why" is a
-  legitimate outcome under `DOCTRINE_ENFORCEMENT.md` §9.
-- **Does `print.html` double-count?** mdBook emits a concatenated `print.html` containing every
-  chapter, so one bad link in a chapter appears twice in a naive scan. `.1` should decide whether
-  to report sites or occurrences, and say which.
+- ~~**Are there dead in-page anchors too?**~~ **ANSWERED by `.1`: no — zero.** Out of an anchor-class
+  denominator of **71** authored (**1136** rendered), **none** is dead. The prediction that this was
+  "the likelier silent class" was **wrong**, and it is worth saying so plainly rather than quietly
+  dropping it: heading text does change often, but the book's cross-references are overwhelmingly
+  whole-chapter links (`knobs.md`), not deep links into a heading. The zero is negative-controlled —
+  four planted anchor/file defects were all caught — so it is a measured zero, not a vacuous one.
+- ~~**Does `print.html` double-count?**~~ **ANSWERED by `.1`: yes, exactly ×2 per chapter site.**
+  The decision is to **report sites, and say so** — the single authored site at `recipes.md:857`
+  surfaces as 2 rendered occurrences. Both numbers are recorded above so neither reading is hidden.
+  A second, sharper `print.html` fact fell out: it carries its **own anchor namespace** (cross-chapter
+  `knobs.html#x` is rewritten to bare `#x`), so anchors must be resolved per-file.
+- **Can a doctrine check reach this at all?** Still open — `.3`'s question, and `.1` has made it
+  **harder, not easier**. The honest tooling obstacle stands (a rendered check needs `mdbook`, not
+  vendored, so it would skip on a fresh clone — the failure `USER-GUIDE-CLI-TABLE-SHADOW.3`
+  rejected for `anvil --help`). `.1` adds a second obstacle: the sole real defect is an **escape**,
+  not a missing file — `../../USER_GUIDE.md` **exists**. So the obvious portable check ("does the
+  link target exist?") **passes the one link the tree was opened for**, i.e. it is vacuous against
+  its own subject. A source-level check must model the `.md`→`.html` rewrite *and* test whether the
+  rewritten path still lands inside `book-out`. "No mechanism, and here is why" remains legitimate
+  under `DOCTRINE_ENFORCEMENT.md` §9.
+- **New, raised by `.1`:** should the subject be *links* or *link **targets***? The one defect is a
+  link whose target is a **repo-root live doc**. `.2` may find the durable repair is a rule about
+  crossing the `book/src` boundary at all, in which case the checkable predicate is much simpler
+  than a link checker. Do not settle this inside `.2`; note it for `.3`.
 
 ## Blockers
 
@@ -161,15 +268,32 @@ rather than an assertion inside another.
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
 | `2026-08-01` | registration | `found by USER-GUIDE-CLI-TABLE-SHADOW.4 nearly shipping a dead pointer; rendered-HTML link scan at ccfbc23 over book/book-out/*.html: 665 local hrefs, 2 dead (recipes.md:857 and its print.html copy), after .4 fixed its own two; mdbook build exits 0 on all of them` | `registered` (docs-only; DUT byte-identical) |
+| `2026-08-01` | `.1` | `mdbook build book (exit 0); TWO derivations. RENDERED book/book-out/**/*.html, 33 files: 1782 href occurrences = 1456 <a> + 325 <link> + 1 <base>; of the <a>: 16 external, 1101 in-page anchors, 339 file refs (35 with #fragment); anchor-class denominator 1136. AUTHORED book/src/*.md: 229 links (228 inline + 1 refdef), 7 external, 35 in-page, 187 file refs (36 with #fragment); anchor-class denominator 71. Extractor recall audited: grep -o '](' = 228 vs 228 captured; 0 images, 0 raw <a href>, 0 autolinks, 5 '][' triaged (2 refstyle -> the one external refdef, 3 array-index syntax).` | **CLASS A = 2 occurrences / 1 site** (`book/src/recipes.md:857`, surfacing in `recipes.html` + `print.html`); **CLASS B = 0 of 1136** |
+| `2026-08-01` | `.1` | `negative control: 4 defects + 2 live controls appended to a copy-aside book/src/faq.md, rebuilt, scanned, restored, baseline re-confirmed. Probes: dead intra-book file, dead in-page anchor, dead cross-chapter anchor, repo-root escape.` | `all 4 caught by both derivations; live control knobs.md correctly clean; ir.md#node flagged and CONFIRMED a true negative (ir.html has no id="node"); mdbook build STILL exit 0 with all 4 present; git clean after restore` |
+| `2026-08-01` | `.1` | `earlier 665 reconciled, not waved through: 339 <a> file refs + 326 <link>/<base> chrome = 665 exactly; that denominator excluded all 1101 in-page anchors` | `prior scan reproduced; its blind spot identified` |
+| `2026-08-01` | `.1` | `scripts/check_doctrines.sh; knowledge-map/scripts/check_knowledge_map.sh` | `10/10 doctrines PASS; knowledge map in sync (119 -> 120 facts)`. Docs-only ⇒ DUT byte-identical; no `src/` change, so `cargo` gates are not the discriminator for this leaf (decision `0003`). |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | registration | `USER-GUIDE-CLI-TABLE-SHADOW.4 — backfill the landed commit hash` | Tree registered alongside the hash backfill; no leaf executed yet. |
+| `.1` | `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
 
 ## Changelog
 
+- `2026-08-01` (`.1`): **Both classes measured; the anchor class is empty.** Two independent
+  derivations — rendered (**1782** hrefs over 33 files) and authored (**229** links) — agree on
+  **one** offending site, `book/src/recipes.md:857`, surfacing as **2** rendered occurrences. The
+  tree's central prediction, that dead **anchors** were the likelier silent half, is **refuted**:
+  **0** dead of an anchor-class denominator of **71** authored / **1136** rendered, and the zero
+  is negative-controlled by four planted defects that were all caught. Two instrument traps were
+  hit and recorded (`<base href="/">` is not a link; `print.html` has its own anchor namespace),
+  and the registration scan's `665` was **reconciled** rather than discarded — it is `<a>` file
+  refs **plus `<link>`/`<base>` chrome**, and it excluded all 1101 in-page anchors, which is
+  exactly why the anchor class had never been measured. Sharpened for `.3`: the sole defect is an
+  **escape**, not a missing file — `../../USER_GUIDE.md` exists — so the obvious portable check
+  ("does the target exist?") is **vacuous against this tree's own subject**.
 - `2026-08-01`: Created. Found while `USER-GUIDE-CLI-TABLE-SHADOW.4` replaced the book's deleted
   CLI-flag copy with a pointer at `USER_GUIDE.md` — and the pointer, written in the form the book
   already used at `recipes.md:857`, rendered **dead**. mdBook rewrites `.md` → `.html`, so a link

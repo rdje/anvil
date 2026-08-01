@@ -5,6 +5,62 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A check can be vacuous against the very defect it was written for — `BOOK-LINK-INTEGRITY.1`
+
+The reusable lesson from this leaf is not the counts. It is that the **obvious** check for a
+defect class can pass the **one instance the class was named after**, and look completely
+reasonable while doing it.
+
+### The defect
+
+The book's one dead link is `book/src/recipes.md:857`:
+
+```markdown
+[USER_GUIDE.md](../../USER_GUIDE.md#tracing-and-debugging)
+```
+
+mdBook rewrites every `.md` target to `.html`, so this renders as `../../USER_GUIDE.html` — which
+does not exist. It resolves on GitHub, where the *source* is read, and is dead in the *rendered*
+book, which is the surface the owner actually reviews.
+
+### Why the obvious check is vacuous
+
+Write the portable, source-level link checker anyone would write — *"for each markdown link, does
+the target file exist?"* — and point it at this book. It reports **clean**. `../../USER_GUIDE.md`
+**exists**. The file is right there.
+
+The defect is not a missing file. It is a **rendered target that escapes the build directory**. A
+check for this class must model the `.md`→`.html` rewrite *and* ask whether the rewritten path
+still lands inside `book-out`. Miss that second half and you have a check that runs, passes, and
+proves nothing about its own subject — the shape [[coverage-check-vacuity]] warns about, arriving
+from a direction that file does not cover: not a fence around an empty region, but a **predicate
+that is subtly the wrong predicate**.
+
+This is now `.3`'s central constraint, and it is worth stating that `.1` made `.3` *harder*. A
+measurement leaf that only ever narrows the next leaf's options is doing half its job.
+
+### Two instrument traps, both hit in this leaf
+
+- **Match the element, not just the attribute.** A tag-agnostic `href="…"` regex over the rendered
+  HTML reports mdBook's generated `<base href="/">` in `404.html` as a dead link. It is not a link
+  at all. The first run reported it; classifying by element removed it and left the real finding.
+- **Resolve anchors per-file.** `print.html` concatenates every chapter *and* rewrites
+  cross-chapter `knobs.html#x` to a bare `#x` resolved against the merged page. Its anchor
+  namespace is genuinely different from any chapter's, so a global anchor set silently mis-resolves.
+
+### A refuted prediction is a result
+
+The tree was opened partly on the expectation that dead **anchors** were the likelier silent half
+— heading text changes constantly and nothing checks it. Measured: **zero**, against 71 authored
+and 1136 rendered anchor-class links, negative-controlled by four planted defects that were all
+caught. The prediction was structural-sounding and wrong: this book cross-references whole
+chapters, not headings. It is written down as refuted rather than quietly dropped, because the
+next session would otherwise re-open it on the same plausible reasoning.
+
+Fact card: `docs/knowledge/mdbook-md-to-html-rewrite-trap.md`.
+
+---
+
 ## 2026-08-01 — A negative control must prove its sabotage landed — `USER-GUIDE-CLI-TABLE-SHADOW.7`
 
 This leaf gated the last of ANVIL's three clap registries and found **nothing wrong** — the
