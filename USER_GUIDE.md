@@ -1267,6 +1267,39 @@ Useful options:
   when `--iverilog-compile` is set) plan. Banked clean at `anvil-casez-mux-if-gate-r1`
   (3 scenarios / 12 modules / 12 emitting a chain / 108 chains / `coverage_gaps = []` /
   Verilator 12/0 / Yosys 12/0 both modes / Icarus compile 12/0).
+- `--case-qualifier-gate` to run the repo-owned **case-qualifier** gate
+  (`CAPABILITY-BREADTH-EXPANSION.4b.2b`, decision `0044`) and fail unless the report proves
+  both qualifiers fire **by construction**, are downstream-accepted, and co-occur with the
+  chain surfaces they exclude. This is the first gate whose subject is an **assertion**
+  rather than a rendering: `unique` / `priority` prefix the `case` / `casez` statement the
+  module already emits, so the question is not *"does the tool ingest this shape?"* but
+  *"does it accept the claim, and does it say anything about it?"*
+  - **13 scenarios**: `{unique, priority}` × `{case_mux-biased, casez_mux-biased}` × three
+    construction strategies (12), plus **one co-occurrence scenario** with
+    `case_mux_if_emit_prob` / `casez_mux_if_emit_prob` also live at `0.25`. One qualifier per
+    scenario, never both — the pass rolls `unique` first and *skips* the `priority` roll on a
+    hit, so a both-on scenario would give `priority` a `0/0` rate and light nothing.
+  - **The thirteenth is the load-bearing one.** The annotation pass excludes gates the
+    eighth/ninth surfaces already claimed (a chain has no `case` keyword to prefix) — the
+    lane's only **non-vacuous** sibling exclusion. Without a scenario in which both fire, that
+    predicate would be written, unit-tested and never exercised end-to-end. Its knobs sit at
+    `0.25`, not `1.0`: at `1.0` every selector gate becomes a chain and the qualifier claims
+    *nothing*, which proves the exclusion but loses the co-occurrence.
+  - **Per-qualifier tool plans.** `priority` and the co-occurrence run the full Verilator +
+    both Yosys modes (+ Icarus when `--iverilog-compile` is set) plan. `unique` scenarios drop
+    **only** the Icarus column, a recorded accepting no-op: `iverilog`/`vvp` exits `0` but
+    prints `vvp.tgt sorry: Case unique/unique0 qualities are ignored.` per qualified block.
+    This is deliberately *not* the `verilator_only` reduction, which would also drop both
+    Yosys modes — and Yosys is this surface's strongest column, since identical synthesized
+    cell counts with and without the qualifier are the synthesis-side statement that an
+    assertion which holds gives the synthesizer no new freedom.
+  - Detection is **metric-keyed** (`num_emitted_unique_cases > 0` /
+    `num_emitted_priority_cases > 0`), and requires `saw_unique_case_qualifier`,
+    `saw_priority_case_qualifier` and `saw_case_qualifier_beside_if_chain`. Banked clean at
+    [`anvil-case-qualifier-gate-r1`](docs/evidence/anvil-case-qualifier-gate-r1.md)
+    (13 scenarios / 52 modules / **359** qualified statements — 173 `unique`, 186 `priority` —
+    `coverage_gaps = []` / Verilator 52/0 / Yosys 52/0 both modes / Icarus compile 28/0, the
+    28 being exactly the non-`unique` modules).
 - `--emit-surface-interaction-gate` to run the repo-owned **emit-surface interaction**
   gate (`EMIT-SURFACE-INTERACTION-GATE.3`, decision `0032`) — the only gate that runs
   the structured-emission surfaces **together**. Each gate above sets one
@@ -1381,6 +1414,9 @@ cargo run --bin tool_matrix -- --out ./tm-se6 --multi-output-task-gate
 cargo run --bin tool_matrix -- --out ./tm-se7 --mux-if-gate
 cargo run --bin tool_matrix -- --out ./tm-se8 --case-mux-if-gate
 cargo run --bin tool_matrix -- --out ./tm-se9 --casez-mux-if-gate
+
+# The case QUALIFIER gate — an assertion, not a rendering (decision 0044).
+cargo run --bin tool_matrix -- --out ./tm-cq --case-qualifier-gate
 
 # The only gate that runs the emission surfaces TOGETHER (decision 0032).
 cargo run --bin tool_matrix -- --out ./tm-se-interaction --emit-surface-interaction-gate

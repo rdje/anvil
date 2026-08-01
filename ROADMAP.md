@@ -2875,8 +2875,12 @@ other five remain `active` with a design-first `.1` ADR frontier:
    Questions and pinned every impl point; `.4b.1` (`2026-08-01`) shipped **the live surface**
    (the annotation pass + the two default-off knobs + the emitter prefix, in a new `qualifiers`
    steering category), and `.4b.2a` (`2026-08-01`) made it **queryable** —
-   `num_emitted_{unique,priority}_cases` at introspection schema `1.27 → 1.28`. Frontier
-   `.4b.2b` (the `--case-qualifier-gate`), then `.4b.3` (user docs). Each default-off / proven /
+   `num_emitted_{unique,priority}_cases` at introspection schema `1.27 → 1.28`; and `.4b.2b`
+   (`2026-08-01`) shipped the repo-owned **`--case-qualifier-gate`** — 13 scenarios, three
+   coverage facts, per-qualifier tool plans — banked clean at `anvil-case-qualifier-gate-r1`
+   (52 modules, 359 qualified statements, `coverage_gaps = []`, Verilator + both Yosys 52/0,
+   Icarus 28/0 = exactly the non-`unique` modules). Frontier `.4b.3` (user docs). Each
+   default-off / proven /
    API-selectable; the lane stays `active`. Default-off / DUT byte-identical.
 
 Nothing is retired; the default `anvil` build and `--artifact dut` stay

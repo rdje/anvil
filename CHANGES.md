@@ -1,9 +1,85 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.2b — the repo-owned `--case-qualifier-gate`
+
+**Landed as:** `pending`. Previous: `c1cc6a1`.
+**Default-off** ⇒ **DUT byte-identical**; the gate is the opt-in proof axis.
+
+**What.** `tool_matrix --case-qualifier-gate` + `ScenarioSet::CaseQualifierSweep` — the first
+gate whose subject is an **assertion** rather than a rendering. Every emit gate before it asks
+*"does the tool ingest this shape?"*; a qualifier changes no shape, so this one asks *"does the
+tool accept the claim, and does it say anything about it?"*
+
+- **13 scenarios**: `{unique, priority}` × `{case_mux-biased, casez_mux-biased}` × three
+  construction strategies (12), plus **one co-occurrence scenario** with
+  `case_mux_if_emit_prob` / `casez_mux_if_emit_prob` live at `0.25`. One qualifier per
+  scenario, never both — the pass rolls `unique` first and skips the `priority` roll on a hit,
+  so a both-on scenario would give `priority` a `0/0` rate and light nothing.
+- **Three coverage facts**, each independently required: `saw_unique_case_qualifier`,
+  `saw_priority_case_qualifier`, `saw_case_qualifier_beside_if_chain`.
+- **Metric-keyed detection** (decision `0028`) off the `.4b.2a` metrics, plus two
+  `#[serde(default)]` `ModuleReport` booleans.
+- **Per-qualifier tool plans** via a new `scenario_emits_unique_case_qualifier` predicate,
+  threaded as a **second** boolean beside `verilator_only` and gating the Icarus column alone.
+
+**Why the thirteenth scenario is not decoration.** The annotation pass excludes gates the
+eighth/ninth surfaces already claimed — a chain has no `case` keyword to prefix — and that is
+the lane's **only non-vacuous** sibling exclusion (every other one is vacuous by target type).
+Without a scenario where both fire, the predicate would be written, unit-tested and never
+exercised end-to-end: the exact hole decision `0032` was opened to close, one construct later.
+Its knobs sit at `0.25` rather than `1.0` deliberately — at `1.0` every selector gate becomes a
+chain and the qualifier claims *nothing*, which proves the exclusion but loses the co-occurrence.
+
+**Why the Icarus reduction is its own boolean.** `verilator_only` drops Yosys **and** Icarus;
+this drops Icarus **alone**. Folding them together is a one-line change that would have cost all
+six `unique` scenarios both Yosys columns — and Yosys is this surface's strongest evidence, since
+identical synthesized cell counts with and without the qualifier are the synthesis-side statement
+that an assertion which holds gives the synthesizer no new freedom. `first_tool_warning` is
+**not** widened to catch `sorry:` either: it is a shared classifier every gate depends on.
+
+**Validation.** `cargo check --all-targets` / `clippy --all-targets -D warnings` /
+`fmt --all --check` clean; full `cargo test` green; `tool_matrix` bin 115 → 125 proofs;
+snapshots 6/6 byte-identical.
+
+**Banked clean** — [`anvil-case-qualifier-gate-r1`](docs/evidence/anvil-case-qualifier-gate-r1.md),
+Verilator 5.046 / Yosys 0.64 / Icarus 13.0: 13 scenarios / 52 modules / **359** qualified
+statements (173 `unique`, 186 `priority`) / `coverage_gaps = []` with all three facts lit /
+Verilator **52/0** / Yosys **52/0** in *both* modes / Icarus **28/0** — and 28 is exactly the
+seven non-`unique` scenarios × 4, so the per-qualifier plan is visible in the bank rather than
+merely asserted. The co-occurrence scenario emitted 3 chains beside 23 qualifiers.
+
+**The finding worth carrying (recorded in `DEVELOPMENT_NOTES.md`).** The non-vacuity test first
+generated **one** module per scenario while the gate generates **four**, and it failed on the
+co-occurrence scenario — the test's fault, not the config's. Measured over the real four: the 12
+single-qualifier scenarios fire in 4 of 4 modules, the co-occurrence one in **2 of 4**. So a
+one-module probe reports a false failure here, and had module 0 happened to carry both it would
+have passed while hiding a real dependency — the co-occurrence fact is per module, which makes
+the unit floor load-bearing for this gate rather than a generic minimum. Now pinned by
+`case_qualifier_gate_unit_floor_cannot_be_lowered_from_the_cli`. **A vacuity probe that does not
+reproduce the run plan is testing a different experiment.**
+
+**One claim retracted before it shipped.** The detection comment first justified metric-keying by
+asserting `unique`/`priority` would collide with ordinary emitted vocabulary. Probed: false —
+neither word appears anywhere else in generated SV. Replaced with the reason that does not depend
+on that measurement (the metric already carries the fact exactly, so a text scan would be a
+second source of truth and would couple the gate to the emitter's spelling).
+
+**Two items deliberately deferred, not omitted.** (1) The **book** is untouched: the qualifier
+surface has no chapter section yet, and `.4b.3` — the next leaf — owns surface + knobs + gate
+together, so documenting the gate alone would create a section that leaf must immediately
+restructure. (2) The evidence digest's `commit` field records `c1cc6a1`, the commit the run
+executed *against*; `scripts/evidence_digest.sh` warns that a gate banked by its own introducing
+commit needs that backfilled, and `.4b.3` will do so.
+
+**Files touched.** `src/bin/tool_matrix.rs`, `USER_GUIDE.md`,
+`docs/evidence/anvil-case-qualifier-gate-r1.md` (new), `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`, `MEMORY.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`,
+`ROADMAP.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.2a — case-qualifier metrics + introspection schema 1.28
 
-**Landed as:** `pending`. Previous: `34b8d14`.
+**Landed as:** `c1cc6a1`. Previous: `34b8d14`.
 **Default-off** ⇒ **DUT byte-identical** (a post-hoc `Metrics` field changes no emitted RTL);
 `tests/snapshots.rs` untouched.
 

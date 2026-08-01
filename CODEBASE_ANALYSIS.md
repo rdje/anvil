@@ -959,8 +959,23 @@ src/
 │                     knob-aligned: each metric == that knob's `fires`, and the
 │                     two sum to `case_qualifiers.len()` (pinned by
 │                     `metrics_count_emitted_case_qualifiers_per_qualifier`).
-│                     `.4b.2b` (the `--case-qualifier-gate`) and `.4b.3` (user
-│                     docs) pending.
+│                     `.4b.2b` (done) adds the repo-owned
+│                     `tool_matrix --case-qualifier-gate` +
+│                     `ScenarioSet::CaseQualifierSweep`: 13 scenarios
+│                     ({unique,priority} x {case_mux,casez_mux} x 3
+│                     strategies, plus ONE co-occurrence scenario with the
+│                     chain knobs at 0.25 — the only place the pass's
+│                     non-vacuous exclusion fires end-to-end), 3 coverage
+│                     facts, metric-keyed detection, and PER-QUALIFIER tool
+│                     plans via a new `scenario_emits_unique_case_qualifier`
+│                     threaded as a SECOND bool beside `verilator_only`,
+│                     gating the Icarus column ALONE (verilator_only would
+│                     also drop both Yosys modes). Banked clean
+│                     `anvil-case-qualifier-gate-r1`: 52 modules / 359
+│                     qualified statements / coverage_gaps = [] / Verilator
+│                     52/0 / Yosys 52/0 both modes / Icarus 28/0 = exactly
+│                     the non-unique modules. `.4b.3` (user docs + the book's
+│                     gate section + the digest commit backfill) pending.
 │                     EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — the
 │                     first gate over the surfaces' INTERACTION rather than any
 │                     one surface: `ScenarioSet::EmitSurfaceInteraction` + the

@@ -50,6 +50,7 @@ const MULTI_OUTPUT_TASK_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const CASE_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const CASEZ_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
+const CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO: usize = 4;
 const EMIT_SURFACE_INTERACTION_MIN_UNITS_PER_SCENARIO: usize = 4;
 
 /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the number of
@@ -199,6 +200,26 @@ struct Cli {
     /// (+ Icarus when `--iverilog-compile` is also set).
     #[arg(long)]
     casez_mux_if_gate: bool,
+
+    /// Elevate the run to the repo-owned **case-qualifier** gate
+    /// (`CAPABILITY-BREADTH-EXPANSION.4b.2b`, decision `0044`): force
+    /// `unique_case_prob` / `priority_case_prob = 1.0` over `case_mux_prob`- and
+    /// `casez_mux_prob`-biased comb-only DUTs across the three construction
+    /// strategies, plus one **co-occurrence** scenario where the eighth/ninth
+    /// surfaces also fire, and require the `saw_unique_case_qualifier`,
+    /// `saw_priority_case_qualifier` and `saw_case_qualifier_beside_if_chain`
+    /// coverage facts.
+    ///
+    /// Unlike every gate above it, the subject is not a *rendering* but an
+    /// **assertion** — the qualifier decorates the `case`/`casez` statement the
+    /// module already emits — so the tool plan is **per qualifier**: `priority` and
+    /// the co-occurrence scenario run the full Verilator + both Yosys modes (+
+    /// Icarus when `--iverilog-compile` is set) plan, while `unique` scenarios run
+    /// Verilator + both Yosys with **Icarus a recorded accepting no-op** (it exits
+    /// `0` but prints `vvp.tgt sorry: Case unique/unique0 qualities are ignored.`
+    /// per block).
+    #[arg(long)]
+    case_qualifier_gate: bool,
 
     /// Elevate the run to the repo-owned **emit-surface interaction** gate
     /// (`EMIT-SURFACE-INTERACTION-GATE.3`, decision `0032`): prove the nine
@@ -495,6 +516,34 @@ struct ModuleReport {
     /// full Verilator + Yosys (+ Icarus) plan.
     #[serde(default)]
     emitted_casez_mux_if: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — `true` iff this module emitted at
+    /// least one `case` / `casez` statement carrying the IEEE 1800-2017 §12.5.3
+    /// **`unique`** qualifier (the `unique_case_prob` decoration; decision `0044`).
+    ///
+    /// Unlike every `emitted_*` above it, this one records an **assertion**, not a
+    /// rendering: the statement is byte-for-byte what it would have been plus a
+    /// keyword. Detection is **metric-keyed**:
+    /// `module_metrics.num_emitted_unique_cases > 0` (exact — the annotation pass
+    /// excludes constant-selector gates, which the emitter statically collapses,
+    /// and chain-projected gates, which emit no `case` keyword). A text scan for
+    /// `unique ` was available and rejected — decision `0028`'s metric-keyed rule
+    /// exists precisely so a gate's evidence does not depend on an emitter's
+    /// spelling.
+    ///
+    /// Such a module runs Verilator + both Yosys modes; Icarus is a recorded
+    /// accepting no-op (see [`scenario_emits_unique_case_qualifier`]).
+    #[serde(default)]
+    emitted_unique_case_qualifier: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — `true` iff this module emitted at
+    /// least one `case` / `casez` statement carrying the IEEE 1800-2017 §12.5.3
+    /// **`priority`** qualifier (the `priority_case_prob` decoration; decision
+    /// `0044`). Metric-keyed off `module_metrics.num_emitted_priority_cases > 0`,
+    /// exact on the same argument as `emitted_unique_case_qualifier`.
+    ///
+    /// The weaker assertion — FULL only, first-match semantics — and silent on
+    /// every installed tool, so such a module runs the **full** three-tool plan.
+    #[serde(default)]
+    emitted_priority_case_qualifier: bool,
 }
 
 // `DiffSimReport` (the per-module diff-sim outcome) now lives in
@@ -880,6 +929,38 @@ struct CoverageSummary {
     /// wildcard `CasezMux` masked priority chain) fires by construction and is
     /// downstream-clean, not just that the knob was requested.
     saw_casez_mux_if_emit: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — at least one module emitted a
+    /// `case` / `casez` statement carrying the IEEE 1800-2017 §12.5.3 **`unique`**
+    /// qualifier (`unique_case_prob`; decision `0044`) **and** that module was
+    /// accepted by the downstream tools.
+    ///
+    /// The acceptance bar is Verilator success **plus** Yosys clean, exactly like
+    /// its nine siblings — but for a different reason. For a projection, Yosys
+    /// proves the *shape* synthesizes. Here the shape was never in doubt; Yosys
+    /// proves the **assertion changes nothing**, which is the claim that matters
+    /// for a construct whose whole point is that it is free. Icarus is excluded
+    /// from the bar by construction (it is a recorded no-op for `unique`), not by
+    /// omission.
+    saw_unique_case_qualifier: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — the `priority` half: at least one
+    /// module emitted a `priority`-qualified `case` / `casez` statement
+    /// (`priority_case_prob`; decision `0044`) and was downstream-accepted. Same
+    /// Verilator + Yosys bar; unlike `unique` this one also runs Icarus, which is
+    /// silent on `priority`.
+    saw_priority_case_qualifier: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — the fact that makes the qualifier
+    /// pass's **non-vacuous** exclusion real: at least one downstream-accepted
+    /// module carried **both** a case qualifier and an eighth/ninth-surface
+    /// `if`/`else if` chain.
+    ///
+    /// Every other sibling exclusion in the lane is vacuous by target type (no two
+    /// passes want the same gate kind). This one bites: a gate the chain surfaces
+    /// claimed renders as an `if`/`else if` chain and has **no `case` keyword to
+    /// prefix**, so the qualifier pass must skip exactly those and claim the rest.
+    /// Without a module in which both populations are non-empty, that predicate is
+    /// written, unit-tested, and never exercised end-to-end — the hole decision
+    /// `0032` was opened to close, reproduced one construct later.
+    saw_case_qualifier_beside_if_chain: bool,
     /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — at least one
     /// **downstream-accepted** module carried `>= 2` distinct structured-emission
     /// surfaces at once. This is the invariant under test at its robust floor: with
@@ -1081,6 +1162,40 @@ enum ScenarioSet {
     /// emission stays byte-identical; the gate is the opt-in proof axis for the
     /// non-default surface.
     CasezMuxIfSweep,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` (decision `0044`) — the repo-owned
+    /// **case-qualifier** gate, and the first gate whose subject is an
+    /// **assertion** rather than a rendering.
+    ///
+    /// Every emit gate above proves *"the downstream tool ingests this shape"*.
+    /// A qualifier changes no shape: `unique` / `priority` prefix the `case` /
+    /// `casez` statement the module already emits and make a claim a simulator
+    /// checks at runtime and a synthesizer may act on. So the question this gate
+    /// asks is different — *"does the tool accept the claim, and does it say
+    /// anything about it?"* — and that is why the plan is per qualifier.
+    ///
+    /// **13 scenarios.** `{unique, priority}` × `{case_mux-biased,
+    /// casez_mux-biased}` × three construction strategies (12), plus **one
+    /// co-occurrence scenario** where `case_mux_if_emit_prob` /
+    /// `casez_mux_if_emit_prob` are also live at `0.25`. That thirteenth is not
+    /// decoration: the annotation pass excludes gates the eighth/ninth surfaces
+    /// already claimed (a chain has no `case` keyword to prefix), and it is the
+    /// lane's **only non-vacuous** sibling exclusion. Without a scenario in which
+    /// both fire, that predicate would be written, unit-tested and **never
+    /// exercised end-to-end** — the exact hole decision `0032` was opened to close.
+    ///
+    /// **Per-qualifier tool plans.** `priority` and the co-occurrence scenario run
+    /// the full Verilator + both Yosys modes (+ Icarus) plan. `unique` scenarios
+    /// drop **only** the Icarus column, which is a recorded accepting no-op: Icarus
+    /// exits `0` but prints `vvp.tgt sorry: Case unique/unique0 qualities are
+    /// ignored.` once per qualified block. Deliberately **not** routed through
+    /// `verilator_only`, which would also drop both Yosys modes — and Yosys is this
+    /// surface's strongest column, since identical synthesized cell counts are the
+    /// synthesis-side statement that an assertion which holds gives the synthesizer
+    /// no new freedom.
+    ///
+    /// Both knobs default `0.0` ⇒ DUT emission is byte-identical; the gate is the
+    /// opt-in proof axis.
+    CaseQualifierSweep,
     /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the repo-owned
     /// **emit-surface interaction** gate: the only set that runs the structured
     /// emission surfaces *together*.
@@ -1214,6 +1329,14 @@ struct MatrixReport {
     /// the `saw_casez_mux_if_emit` fact is enforced under `coverage_gaps`.
     #[serde(default)]
     casez_mux_if_gate: bool,
+    /// `CAPABILITY-BREADTH-EXPANSION.4b.2b` (decision `0044`) — whether
+    /// `--case-qualifier-gate` drove this run. When `true`, every scenario forced a
+    /// case qualifier at `1.0` over selector-biased comb-only DUTs (one scenario
+    /// also leaving the eighth/ninth chain surfaces live), and the three facts
+    /// `saw_unique_case_qualifier`, `saw_priority_case_qualifier` and
+    /// `saw_case_qualifier_beside_if_chain` are enforced under `coverage_gaps`.
+    #[serde(default)]
+    case_qualifier_gate: bool,
     /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — whether
     /// `--emit-surface-interaction-gate` drove this run. When `true`, every
     /// scenario turned on ALL eight non-version-gated `*_emit_prob` at once (one
@@ -1428,6 +1551,7 @@ fn main() -> Result<()> {
         mux_if_gate: cli.mux_if_gate,
         case_mux_if_gate: cli.case_mux_if_gate,
         casez_mux_if_gate: cli.casez_mux_if_gate,
+        case_qualifier_gate: cli.case_qualifier_gate,
         emit_surface_interaction_gate: cli.emit_surface_interaction_gate,
         yosys_mode: yosys_mode_slug(cli.yosys_mode).to_string(),
         coverage: global_coverage,
@@ -1679,6 +1803,12 @@ static GATES: &[GateSpec] = &[
         unit_floor: UnitFloor::PerScenario(CASEZ_MUX_IF_SWEEP_MIN_UNITS_PER_SCENARIO),
     },
     GateSpec {
+        flag: "--case-qualifier-gate",
+        enabled: |c| c.case_qualifier_gate,
+        scenario_set: ScenarioSet::CaseQualifierSweep,
+        unit_floor: UnitFloor::PerScenario(CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO),
+    },
+    GateSpec {
         flag: "--emit-surface-interaction-gate",
         enabled: |c| c.emit_surface_interaction_gate,
         scenario_set: ScenarioSet::EmitSurfaceInteraction,
@@ -1744,6 +1874,7 @@ fn build_scenarios(base_seed: u64, scenario_set: ScenarioSet) -> Result<Vec<Scen
         ScenarioSet::MuxIfSweep => build_mux_if_sweep_scenarios(base_seed)?,
         ScenarioSet::CaseMuxIfSweep => build_case_mux_if_sweep_scenarios(base_seed)?,
         ScenarioSet::CasezMuxIfSweep => build_casez_mux_if_sweep_scenarios(base_seed)?,
+        ScenarioSet::CaseQualifierSweep => build_case_qualifier_sweep_scenarios(base_seed)?,
         ScenarioSet::EmitSurfaceInteraction => build_emit_surface_interaction_scenarios(base_seed)?,
     };
 
@@ -4344,6 +4475,213 @@ fn casez_mux_if_focus_config(strategy: ConstructionStrategy, seed: u64) -> Confi
     }
 }
 
+/// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — which case qualifier a scenario forces.
+/// A gate scenario turns on exactly one, because the annotation pass rolls
+/// `unique` first and **skips** the `priority` roll on a hit: with both at `1.0`
+/// `priority` would have a fire rate of `0/0` and light nothing (decision `0044`,
+/// resolved at `.4a`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GateCaseQualifier {
+    Unique,
+    Priority,
+}
+
+impl GateCaseQualifier {
+    /// The scenario-name fragment.
+    fn slug(self) -> &'static str {
+        match self {
+            GateCaseQualifier::Unique => "unique",
+            GateCaseQualifier::Priority => "priority",
+        }
+    }
+}
+
+/// `CAPABILITY-BREADTH-EXPANSION.4b.2b` — which selector kind a scenario biases
+/// towards, so both statement forms the qualifier can decorate are proven.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GateSelectorKind {
+    /// `case (sel)` — the bare-equality `CaseMux` block.
+    CaseMux,
+    /// `casez (sel)` — the wildcard `CasezMux` block.
+    CasezMux,
+}
+
+impl GateSelectorKind {
+    fn slug(self) -> &'static str {
+        match self {
+            GateSelectorKind::CaseMux => "case_mux",
+            GateSelectorKind::CasezMux => "casez_mux",
+        }
+    }
+
+    /// The emitted statement keyword this selector kind produces.
+    fn statement(self) -> &'static str {
+        match self {
+            GateSelectorKind::CaseMux => "case",
+            GateSelectorKind::CasezMux => "casez",
+        }
+    }
+}
+
+/// `CAPABILITY-BREADTH-EXPANSION.4b.2b` scenario builder for the `unique` /
+/// `priority` **case qualifiers** (decision `0044`) — the first gate whose subject
+/// is an assertion rather than a rendering.
+///
+/// **13 scenarios**, in two groups:
+///
+/// - **12 single-qualifier scenarios**: `{unique, priority}` × `{case_mux-biased,
+///   casez_mux-biased}` × three construction strategies. One qualifier per
+///   scenario, never both — the pass rolls `unique` first and skips the `priority`
+///   roll on a hit, so a both-on scenario would give `priority` a `0/0` rate and
+///   light nothing. Both selector kinds, because `unique` on a `casez` is the
+///   stronger claim (its arms are wildcard patterns, so PARALLEL is a real property
+///   rather than a tautology over distinct integer labels).
+/// - **1 co-occurrence scenario**: both selector kinds live *and*
+///   `case_mux_if_emit_prob` / `casez_mux_if_emit_prob` at `0.25`, so the chain
+///   surfaces claim some gates and the qualifier claims the rest. This is the only
+///   scenario in which the pass's **non-vacuous** exclusion — a chain-projected
+///   gate has no `case` keyword to prefix — is exercised end-to-end, and it lights
+///   `saw_case_qualifier_beside_if_chain`.
+///
+/// Tool plans are per qualifier (see [`scenario_emits_unique_case_qualifier`]).
+/// Both knobs default `0.0`, so DUT emission is byte-identical; the gate is the
+/// opt-in proof axis.
+fn build_case_qualifier_sweep_scenarios(base_seed: u64) -> Result<Vec<Scenario>> {
+    let mut scenarios = Vec::new();
+    let mut index = 0u64;
+
+    for qualifier in [GateCaseQualifier::Unique, GateCaseQualifier::Priority] {
+        for selector in [GateSelectorKind::CaseMux, GateSelectorKind::CasezMux] {
+            for strategy in [
+                ConstructionStrategy::Sequential,
+                ConstructionStrategy::Shuffled,
+                ConstructionStrategy::Interleaved,
+            ] {
+                let seed = base_seed + index;
+                index += 1;
+                let strategy_slug = strategy_slug(strategy);
+                let strategy_label = construction_strategy_name(strategy);
+                scenarios.push(make_scenario(
+                    &format!(
+                        "{strategy_slug}_nodeid_egraph_{}_{}_qualifier",
+                        selector.slug(),
+                        qualifier.slug()
+                    ),
+                    &format!(
+                        "{strategy_label} strategy, node-id + e-graph, comb-only DUT with {}_case_prob = 1.0 over a {}_prob-biased shape — prefixes every qualifying dynamic-selector `{}` statement with the IEEE 1800-2017 §12.5.3 `{}` qualifier, an ASSERTION over a rendering that is otherwise unchanged (decision 0044; lights saw_{}_case_qualifier).",
+                        qualifier.slug(),
+                        selector.slug(),
+                        selector.statement(),
+                        qualifier.slug(),
+                        qualifier.slug()
+                    ),
+                    case_qualifier_focus_config(strategy, seed, qualifier, selector),
+                )?);
+            }
+        }
+    }
+
+    // The thirteenth: the qualifier beside the chain projections it excludes.
+    scenarios.push(make_scenario(
+        "interleaved_nodeid_egraph_case_qualifier_beside_if_chain",
+        "Interleaved strategy, node-id + e-graph, comb-only DUT with BOTH selector kinds live, priority_case_prob = 1.0 and case_mux_if_emit_prob = casez_mux_if_emit_prob = 0.25 — the eighth/ninth surfaces re-express a quarter of the selector gates as `if`/`else if` chains, which have no `case` keyword to prefix, so the qualifier pass must skip exactly those and claim the rest. The lane's only NON-VACUOUS sibling exclusion, exercised end-to-end (decision 0044; lights saw_case_qualifier_beside_if_chain).",
+        case_qualifier_co_occurrence_config(base_seed + index),
+    )?);
+
+    Ok(scenarios)
+}
+
+/// `CAPABILITY-BREADTH-EXPANSION.4b.2b` anchor config for one single-qualifier
+/// scenario: a comb-only (`flop_prob = 0.0`), node-id + e-graph DUT biased towards
+/// one selector kind with one qualifier knob at `1.0`, so
+/// `annotate_case_qualifiers` marks every qualifying gate and the emitter writes
+/// the keyword prefix.
+///
+/// **The selector-knob calibration is the load-bearing part**, and it is the same
+/// short-circuit-chain problem the eighth and ninth surfaces solved: the cone
+/// builder rolls `comb_mux_prob`, then `case_mux_prob`, then `casez_mux_prob`, and
+/// an earlier hit short-circuits the later rolls (`src/gen/cone.rs`). So the
+/// targeted kind is biased to `0.9` and **every earlier-rolling selector knob is
+/// forced to `0.0`** — otherwise the targeted block never gets its draw and the
+/// scenario is silently vacuous.
+///
+/// The chain projections stay at their `0.0` default here: a chain-projected gate
+/// emits no `case` keyword, so leaving them live would shrink the candidate pool
+/// for no gain. The co-occurrence scenario turns them on deliberately, which is a
+/// different question ([`case_qualifier_co_occurrence_config`]).
+fn case_qualifier_focus_config(
+    strategy: ConstructionStrategy,
+    seed: u64,
+    qualifier: GateCaseQualifier,
+    selector: GateSelectorKind,
+) -> Config {
+    let (case_mux_prob, casez_mux_prob) = match selector {
+        // `case_mux_prob` rolls before `casez_mux_prob`, so biasing it is enough;
+        // `casez` is zeroed for symmetry with the sibling gates' explicitness.
+        GateSelectorKind::CaseMux => (0.9, 0.0),
+        GateSelectorKind::CasezMux => (0.0, 0.9),
+    };
+    let (unique_case_prob, priority_case_prob) = match qualifier {
+        GateCaseQualifier::Unique => (1.0, 0.0),
+        GateCaseQualifier::Priority => (0.0, 1.0),
+    };
+    Config {
+        seed,
+        construction_strategy: strategy,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        unique_case_prob,
+        priority_case_prob,
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob,
+        casez_mux_prob,
+        constant_prob: 0.1,
+        max_depth: 3,
+        min_inputs: 4,
+        max_inputs: 6,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    }
+}
+
+/// `CAPABILITY-BREADTH-EXPANSION.4b.2b` anchor config for the **thirteenth**
+/// scenario — the one that makes the qualifier pass's exclusion non-vacuous.
+///
+/// Both selector kinds are live so both chain surfaces have candidates, and both
+/// chain knobs sit at `0.25` rather than `1.0`: at `1.0` every selector gate would
+/// be projected to a chain and the qualifier would claim **nothing**, proving the
+/// exclusion but losing the co-occurrence. A quarter leaves both populations
+/// non-empty in the same module, which is what the fact
+/// `saw_case_qualifier_beside_if_chain` asserts.
+///
+/// `priority` rather than `unique` so this scenario keeps the **full three-tool
+/// plan** — the co-occurrence is worth proving against Icarus too, and `unique`
+/// would drop that column for a reason unrelated to the exclusion under test.
+fn case_qualifier_co_occurrence_config(seed: u64) -> Config {
+    Config {
+        seed,
+        construction_strategy: ConstructionStrategy::Interleaved,
+        identity_mode: IdentityMode::NodeId,
+        factorization_level: FactorizationLevel::EGraph,
+        priority_case_prob: 1.0,
+        case_mux_if_emit_prob: 0.25,
+        casez_mux_if_emit_prob: 0.25,
+        flop_prob: 0.0,
+        comb_mux_prob: 0.0,
+        case_mux_prob: 0.5,
+        casez_mux_prob: 0.9,
+        constant_prob: 0.1,
+        max_depth: 3,
+        min_inputs: 4,
+        max_inputs: 6,
+        min_outputs: 2,
+        max_outputs: 4,
+        ..Config::default()
+    }
+}
+
 /// `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the repo-owned
 /// emit-surface **interaction** gate. Five scenarios that, unlike every
 /// single-surface gate, run the structured-emission projections *together*:
@@ -5500,6 +5838,35 @@ fn scenario_emits_soft_union_overlay(scenario: &Scenario) -> bool {
         && scenario.config.sv_version.permits(SvVersion::Sv2023)
 }
 
+/// `CAPABILITY-BREADTH-EXPANSION.4b.2b` (decision `0044`) — true iff this
+/// scenario's emission can carry the IEEE 1800-2017 §12.5.3 **`unique`** case
+/// qualifier. Such a module runs Verilator + both Yosys modes but **not** Icarus:
+/// `iverilog`/`vvp` exits `0` and prints `vvp.tgt sorry: Case unique/unique0
+/// qualities are ignored.` once per qualified block — an accepting no-op, recorded
+/// here rather than run.
+///
+/// **A second boolean beside `verilator_only`, deliberately not a widening of it.**
+/// The two reductions are different: `verilator_only` drops Yosys *and* Icarus (the
+/// `union soft` syntax neither accepts), this drops Icarus *alone*. Collapsing them
+/// would cost every `unique` scenario both Yosys modes — and Yosys is this
+/// surface's strongest column, because identical synthesized cell counts with and
+/// without the qualifier are the synthesis-side statement that an assertion which
+/// holds gives the synthesizer no new freedom.
+///
+/// **And not a widening of `downstream::first_tool_warning` either.** That
+/// classifier matches `warning:` on the Icarus arm, and the `sorry:` note does not
+/// contain it — so Icarus would in fact pass this corpus, *by lexical accident*.
+/// Teaching a shared classifier about `sorry:` to serve one scenario would change
+/// the wrong mechanism for every gate that depends on it
+/// (`feedback_full_factorization`).
+///
+/// `priority` is unaffected: it is silent on every installed tool, so a `priority`
+/// scenario runs the full plan. Like the `soft_union` predicate this is a pure
+/// function of the scenario config, not a separate flag.
+fn scenario_emits_unique_case_qualifier(scenario: &Scenario) -> bool {
+    scenario.config.unique_case_prob > 0.0
+}
+
 fn run_scenario(
     scenario: &Scenario,
     cli: &Cli,
@@ -5548,6 +5915,11 @@ fn run_module_scenario(
     // `SV-VERSION-TARGETING.3b.2b` — a `union soft` up-opt scenario runs
     // Verilator-only; Yosys/Icarus are a recorded no-op for it.
     let verilator_only = scenario_emits_soft_union_overlay(scenario);
+    // `CAPABILITY-BREADTH-EXPANSION.4b.2b` — a `unique` case-qualifier scenario
+    // drops the Icarus column ONLY (an accepting `sorry:` no-op); Verilator and
+    // both Yosys modes still run. A separate boolean, not a widening of
+    // `verilator_only`, which drops a different pair of columns.
+    let iverilog_no_op = scenario_emits_unique_case_qualifier(scenario);
 
     let mut generator = Generator::new(scenario.config.clone());
     let mut modules = Vec::with_capacity(plan.modules_per_scenario);
@@ -5562,6 +5934,7 @@ fn run_module_scenario(
             runtime_fingerprint,
             verilator_language,
             verilator_only,
+            iverilog_no_op,
         )? {
             modules.push(report);
             continue;
@@ -5578,6 +5951,7 @@ fn run_module_scenario(
             true,
             verilator_language,
             verilator_only,
+            iverilog_no_op,
         )?);
     }
 
@@ -5688,6 +6062,7 @@ fn resume_existing_module(
     runtime_fingerprint: Option<&str>,
     verilator_language: Option<&str>,
     verilator_only: bool,
+    iverilog_no_op: bool,
 ) -> Result<Option<ModuleReport>> {
     if !cli.resume {
         return Ok(None);
@@ -5745,6 +6120,7 @@ fn resume_existing_module(
         false,
         verilator_language,
         verilator_only,
+        iverilog_no_op,
     )
     .map(Some)
 }
@@ -6060,6 +6436,7 @@ fn materialize_prepared_module(
     write_sv: bool,
     verilator_language: Option<&str>,
     verilator_only: bool,
+    iverilog_no_op: bool,
 ) -> Result<ModuleReport> {
     if write_sv {
         std::fs::write(&prepared.paths.sv_path, &prepared.sv_text)
@@ -6140,6 +6517,24 @@ fn materialize_prepared_module(
     // qualifying dynamic-selector `CasezMux`.
     let emitted_casez_mux_if = prepared.metrics.num_emitted_casez_mux_if_chains > 0;
 
+    // `CAPABILITY-BREADTH-EXPANSION.4b.2b` — real evidence a case **qualifier** was
+    // actually emitted (not just requested by `unique_case_prob` /
+    // `priority_case_prob`).
+    //
+    // Unlike the two chains above, this construct DOES add a token, so a text scan
+    // for `unique case (` would work against today's emitter — measured: the words
+    // `unique` and `priority` appear nowhere else in generated SV. It is still the
+    // wrong instrument, for a reason that does not depend on that measurement
+    // holding: the metric already carries this fact **exactly**, so a text scan
+    // would be a *second* source of truth for it — decision `0033`'s shadow, whose
+    // failure mode is silent divergence rather than a visible break. It would also
+    // couple the gate to the emitter's spelling, so a change to the prefix would
+    // turn the gate green-and-blind instead of red. Keyed off the exact
+    // `num_emitted_{unique,priority}_cases` counts, exact because the annotation
+    // pass excludes both statically-collapsed and chain-projected gates.
+    let emitted_unique_case_qualifier = prepared.metrics.num_emitted_unique_cases > 0;
+    let emitted_priority_case_qualifier = prepared.metrics.num_emitted_priority_cases > 0;
+
     let (verilator, yosys, iverilog_compile, sv2v, slang, slang_facts) = run_module_tools(
         cli,
         scenario_dir,
@@ -6147,6 +6542,7 @@ fn materialize_prepared_module(
         &prepared.paths.stem,
         verilator_language,
         verilator_only,
+        iverilog_no_op,
     )?;
 
     // `DIFFERENTIAL-SIMULATION.3b.2` — opt-in diff-sim column.
@@ -6206,6 +6602,8 @@ fn materialize_prepared_module(
         emitted_mux_if,
         emitted_case_mux_if,
         emitted_casez_mux_if,
+        emitted_unique_case_qualifier,
+        emitted_priority_case_qualifier,
     };
     write_module_checkpoint(
         cli,
@@ -6430,6 +6828,13 @@ fn run_module_tools(
     // Verilator-only: Yosys/Icarus reject the syntax and are a recorded
     // no-op (empty Yosys vec / `None` Icarus), decision `0010`.
     verilator_only: bool,
+    // `CAPABILITY-BREADTH-EXPANSION.4b.2b` — a `unique` case-qualifier module
+    // drops the **Icarus column only**: `vvp` exits 0 but prints
+    // `vvp.tgt sorry: Case unique/unique0 qualities are ignored.` per block, an
+    // accepting no-op recorded rather than run (decision `0044`). Verilator and
+    // both Yosys modes still run — Yosys is this surface's strongest column, so
+    // routing it through `verilator_only` would have thrown that away.
+    iverilog_no_op: bool,
 ) -> Result<ModuleToolColumns> {
     // Dispatch each fixed column through the closed adapter registry
     // (`DOWNSTREAM-ADAPTER-EXPANSION.2a.3`, decision `0020`) instead of calling
@@ -6472,7 +6877,7 @@ fn run_module_tools(
         run_column(AcceptanceTool::Yosys, &cli.yosys_bin, None)?
     };
 
-    let iverilog_compile = if cli.iverilog_compile && !verilator_only {
+    let iverilog_compile = if cli.iverilog_compile && !verilator_only && !iverilog_no_op {
         run_column(AcceptanceTool::Iverilog, &cli.iverilog_bin, None)?
             .into_iter()
             .next()
@@ -7242,6 +7647,38 @@ fn summarize_coverage(
             && all_yosys_invocations_ok(&module.yosys)
         {
             coverage.saw_casez_mux_if_emit = true;
+        }
+
+        // `CAPABILITY-BREADTH-EXPANSION.4b.2b` — a genuinely-emitted case
+        // qualifier (proven from the exact `num_emitted_{unique,priority}_cases`
+        // metrics, not a text token) on a module the downstream tools accepted.
+        //
+        // The bar is Verilator success + Yosys clean, as for every sibling fact
+        // (`!yosys.is_empty()` guards the vacuous empty-vec case). Icarus, when
+        // `--iverilog-compile` is set, is enforced separately via the tool-summary
+        // `any_failed` bail for `priority`; for `unique` it is a recorded no-op and
+        // never ran, which is why it is not part of this bar.
+        let downstream_accepted = module
+            .verilator
+            .as_ref()
+            .map(|t| t.success)
+            .unwrap_or(false)
+            && !module.yosys.is_empty()
+            && all_yosys_invocations_ok(&module.yosys);
+        if module.emitted_unique_case_qualifier && downstream_accepted {
+            coverage.saw_unique_case_qualifier = true;
+        }
+        if module.emitted_priority_case_qualifier && downstream_accepted {
+            coverage.saw_priority_case_qualifier = true;
+        }
+        // The co-occurrence fact: a qualifier AND a chain in the same accepted
+        // module, i.e. the qualifier pass demonstrably skipped the gates the
+        // eighth/ninth surfaces had claimed and still found others to claim.
+        if (module.emitted_unique_case_qualifier || module.emitted_priority_case_qualifier)
+            && (module.emitted_case_mux_if || module.emitted_casez_mux_if)
+            && downstream_accepted
+        {
+            coverage.saw_case_qualifier_beside_if_chain = true;
         }
 
         // `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — surface
@@ -8792,6 +9229,9 @@ fn merge_coverage(dst: &mut CoverageSummary, src: &CoverageSummary) {
     dst.saw_mux_if_emit |= src.saw_mux_if_emit;
     dst.saw_case_mux_if_emit |= src.saw_case_mux_if_emit;
     dst.saw_casez_mux_if_emit |= src.saw_casez_mux_if_emit;
+    dst.saw_unique_case_qualifier |= src.saw_unique_case_qualifier;
+    dst.saw_priority_case_qualifier |= src.saw_priority_case_qualifier;
+    dst.saw_case_qualifier_beside_if_chain |= src.saw_case_qualifier_beside_if_chain;
     // `EMIT-SURFACE-INTERACTION-GATE.3` — the three co-occurrence facts union like
     // every sibling fact; the achieved-strength scalar takes the max.
     dst.saw_multi_surface_emit_interaction |= src.saw_multi_surface_emit_interaction;
@@ -9242,6 +9682,31 @@ fn compute_coverage_gaps(
         return gaps;
     }
 
+    // `CAPABILITY-BREADTH-EXPANSION.4b.2b` (decision `0044`) — the case-qualifier
+    // gate's sole contract is that both qualifiers fire by construction, are
+    // downstream-accepted, and co-occur with the chain surfaces they exclude. The
+    // broad motif/identity/category richness the other sets enforce below is out of
+    // scope, so check exactly the three facts (plus the universal
+    // construction-strategy coverage above) and return.
+    if scenario_set == ScenarioSet::CaseQualifierSweep {
+        if !coverage.saw_unique_case_qualifier {
+            gaps.push(
+                "matrix never proved unique_case_prob (a `unique`-qualified `case`/`casez` statement accepted by Verilator + Yosys; Icarus is a recorded no-op for `unique`)".to_string(),
+            );
+        }
+        if !coverage.saw_priority_case_qualifier {
+            gaps.push(
+                "matrix never proved priority_case_prob (a `priority`-qualified `case`/`casez` statement accepted by Verilator + Yosys)".to_string(),
+            );
+        }
+        if !coverage.saw_case_qualifier_beside_if_chain {
+            gaps.push(
+                "matrix never proved a case qualifier BESIDE an if/else-if chain, so the qualifier pass's only non-vacuous exclusion (a chain-projected gate has no `case` keyword to prefix) was never exercised end-to-end".to_string(),
+            );
+        }
+        return gaps;
+    }
+
     // `EMIT-SURFACE-INTERACTION-GATE.3` (decision `0032`) — the interaction gate's
     // sole contract is that the structured-emission surfaces are downstream-clean
     // **in combination**, and that they genuinely co-occur. The broad
@@ -9367,6 +9832,7 @@ fn compute_coverage_gaps(
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
         | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::CaseQualifierSweep
         | ScenarioSet::EmitSurfaceInteraction => {}
     }
 
@@ -9400,6 +9866,7 @@ fn compute_coverage_gaps(
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
         | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::CaseQualifierSweep
         | ScenarioSet::EmitSurfaceInteraction => &[],
     };
     for &category in required_categories {
@@ -10218,6 +10685,7 @@ fn compute_coverage_gaps(
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
         | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::CaseQualifierSweep
         | ScenarioSet::EmitSurfaceInteraction => &[],
     };
     for &knob in required_knobs {
@@ -10361,6 +10829,7 @@ fn scenario_set_slug(scenario_set: ScenarioSet) -> &'static str {
         ScenarioSet::MuxIfSweep => "mux-if-sweep",
         ScenarioSet::CaseMuxIfSweep => "case-mux-if-sweep",
         ScenarioSet::CasezMuxIfSweep => "casez-mux-if-sweep",
+        ScenarioSet::CaseQualifierSweep => "case-qualifier-sweep",
         ScenarioSet::EmitSurfaceInteraction => "emit-surface-interaction",
     }
 }
@@ -10385,6 +10854,7 @@ fn artifact_kind_slug(scenario_set: ScenarioSet) -> &'static str {
         | ScenarioSet::MuxIfSweep
         | ScenarioSet::CaseMuxIfSweep
         | ScenarioSet::CasezMuxIfSweep
+        | ScenarioSet::CaseQualifierSweep
         | ScenarioSet::EmitSurfaceInteraction => "module",
     }
 }
@@ -10434,6 +10904,7 @@ mod tests {
             mux_if_gate: false,
             case_mux_if_gate: false,
             casez_mux_if_gate: false,
+            case_qualifier_gate: false,
             emit_surface_interaction_gate: false,
             list_scenarios: false,
             skip_verilator: false,
@@ -10677,6 +11148,9 @@ mod tests {
             saw_mux_if_emit: true,
             saw_case_mux_if_emit: true,
             saw_casez_mux_if_emit: true,
+            saw_unique_case_qualifier: true,
+            saw_priority_case_qualifier: true,
+            saw_case_qualifier_beside_if_chain: true,
             saw_multi_surface_emit_interaction: true,
             saw_all_emit_surfaces_in_one_module: true,
             saw_all_nine_emit_surfaces_in_one_module: true,
@@ -12075,6 +12549,445 @@ mod tests {
     }
 
     // ===============================================================
+    // CAPABILITY-BREADTH-EXPANSION.4b.2b (decision 0044) — cargo-portable
+    // proofs of the repo-owned case-qualifier gate's wiring (CLI flag,
+    // scenario set, run plan, per-qualifier knob forcing + selector
+    // calibration, the co-occurrence scenario, the per-qualifier tool plan,
+    // and the three gap requirements). The downstream-clean bank is the
+    // repo-owned report, run separately with real Verilator + Yosys.
+    // ===============================================================
+
+    #[test]
+    fn case_qualifier_gate_flag_defaults_false_and_parses() {
+        use clap::Parser;
+        let no_flag =
+            Cli::try_parse_from(["tool_matrix", "--out", ".cache/anvil-sandbox/x"]).expect("parse");
+        assert!(!no_flag.case_qualifier_gate);
+        let with_flag = Cli::try_parse_from([
+            "tool_matrix",
+            "--case-qualifier-gate",
+            "--out",
+            ".cache/anvil-sandbox/x",
+        ])
+        .expect("parse");
+        assert!(with_flag.case_qualifier_gate);
+    }
+
+    #[test]
+    fn case_qualifier_gate_selects_set_and_raises_units() {
+        let mut cli = test_cli();
+        cli.case_qualifier_gate = true;
+        assert_eq!(
+            select_scenario_set(&cli).expect("select"),
+            ScenarioSet::CaseQualifierSweep
+        );
+        let scenarios = build_scenarios(0, ScenarioSet::CaseQualifierSweep).expect("build");
+        // {unique, priority} x {case_mux, casez_mux} x 3 strategies, plus the
+        // one co-occurrence scenario.
+        assert_eq!(scenarios.len(), 13);
+        let plan = derive_run_plan(&cli, scenarios.len());
+        assert_eq!(
+            plan.modules_per_scenario,
+            CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert_eq!(
+            plan.total_modules,
+            13 * CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO
+        );
+        assert!(plan.fail_on_coverage_gap);
+    }
+
+    #[test]
+    fn case_qualifier_gate_is_mutually_exclusive_with_other_gates() {
+        let mut cli = test_cli();
+        cli.case_qualifier_gate = true;
+        cli.casez_mux_if_gate = true;
+        assert!(select_scenario_set(&cli).is_err());
+    }
+
+    /// The twelve single-qualifier scenarios force **exactly one** qualifier and
+    /// bias **one** selector kind, with every earlier-rolling selector knob
+    /// zeroed — the short-circuit-chain calibration that decides whether the
+    /// scenario tests anything at all.
+    #[test]
+    fn case_qualifier_sweep_scenarios_force_one_qualifier_and_calibrate_the_selector() {
+        let scenarios = build_scenarios(0, ScenarioSet::CaseQualifierSweep).expect("build");
+        let mut strategies = BTreeSet::new();
+        let mut shapes = BTreeSet::new();
+
+        for scenario in scenarios.iter().filter(|s| s.name.ends_with("_qualifier")) {
+            strategies.insert(construction_strategy_slug(
+                scenario.config.construction_strategy,
+            ));
+            let cfg = &scenario.config;
+
+            // Exactly one qualifier per scenario: the pass rolls `unique` first
+            // and SKIPS the `priority` roll on a hit, so both at 1.0 would give
+            // `priority` a 0/0 rate and light nothing.
+            let unique = cfg.unique_case_prob;
+            let priority = cfg.priority_case_prob;
+            assert!(
+                (unique == 1.0 && priority == 0.0) || (unique == 0.0 && priority == 1.0),
+                "exactly one qualifier must be forced in {}: unique={unique} priority={priority}",
+                scenario.name
+            );
+
+            // One selector kind biased, the other zeroed — and `comb_mux_prob`
+            // always zeroed, because it rolls FIRST and would short-circuit both.
+            assert_eq!(cfg.comb_mux_prob, 0.0, "{}", scenario.name);
+            let case_mux = cfg.case_mux_prob;
+            let casez_mux = cfg.casez_mux_prob;
+            assert!(
+                (case_mux == 0.9 && casez_mux == 0.0) || (case_mux == 0.0 && casez_mux == 0.9),
+                "exactly one selector kind must be biased in {}: case={case_mux} casez={casez_mux}",
+                scenario.name
+            );
+
+            // The chain projections stay off here: a chain-projected gate has no
+            // `case` keyword to prefix, so leaving them live would shrink the
+            // candidate pool for nothing. The co-occurrence scenario, checked
+            // separately below, turns them on deliberately.
+            assert_eq!(cfg.case_mux_if_emit_prob, 0.0, "{}", scenario.name);
+            assert_eq!(cfg.casez_mux_if_emit_prob, 0.0, "{}", scenario.name);
+
+            // Comb-only single-module DUT: the qualifier decorates combinational
+            // selector statements only.
+            assert_eq!(cfg.flop_prob, 0.0, "{}", scenario.name);
+            assert!(cfg.effective_hierarchy_depth_range().is_none());
+
+            shapes.insert((
+                if unique == 1.0 { "unique" } else { "priority" },
+                if case_mux == 0.9 { "case" } else { "casez" },
+            ));
+        }
+
+        // All four (qualifier x selector) combinations present, on all three
+        // strategies — the 12 are a full cross-product, not 12 of one shape.
+        assert_eq!(
+            shapes,
+            BTreeSet::from([
+                ("unique", "case"),
+                ("unique", "casez"),
+                ("priority", "case"),
+                ("priority", "casez"),
+            ])
+        );
+        assert_eq!(
+            strategies,
+            BTreeSet::from(["sequential", "shuffled", "interleaved"])
+        );
+        assert_eq!(
+            scenarios
+                .iter()
+                .filter(|s| s.name.ends_with("_qualifier"))
+                .count(),
+            12
+        );
+    }
+
+    /// The thirteenth scenario is the one that makes the pass's **non-vacuous**
+    /// exclusion real: both chain surfaces live at a *fraction*, so the chains
+    /// claim some selector gates and the qualifier claims the rest.
+    #[test]
+    fn case_qualifier_sweep_has_one_co_occurrence_scenario_with_live_chain_surfaces() {
+        let scenarios = build_scenarios(0, ScenarioSet::CaseQualifierSweep).expect("build");
+        let co: Vec<&Scenario> = scenarios
+            .iter()
+            .filter(|s| s.name.ends_with("case_qualifier_beside_if_chain"))
+            .collect();
+        assert_eq!(co.len(), 1, "exactly one co-occurrence scenario");
+        let cfg = &co[0].config;
+
+        // A qualifier IS on...
+        assert_eq!(cfg.priority_case_prob, 1.0);
+        // ...and so are both chain projections — at a fraction, deliberately. At
+        // 1.0 every selector gate would be projected to a chain and the qualifier
+        // would claim NOTHING: that proves the exclusion but loses the
+        // co-occurrence, which is the fact under test.
+        assert!(cfg.case_mux_if_emit_prob > 0.0 && cfg.case_mux_if_emit_prob < 1.0);
+        assert!(cfg.casez_mux_if_emit_prob > 0.0 && cfg.casez_mux_if_emit_prob < 1.0);
+        // Both selector kinds live, so both chain surfaces have candidates.
+        assert!(cfg.case_mux_prob > 0.0);
+        assert!(cfg.casez_mux_prob > 0.0);
+        assert_eq!(cfg.comb_mux_prob, 0.0);
+        // `priority`, not `unique`, so this scenario keeps the FULL three-tool
+        // plan — the co-occurrence is worth proving against Icarus too, and
+        // `unique` would drop that column for a reason unrelated to the
+        // exclusion under test.
+        assert_eq!(cfg.unique_case_prob, 0.0);
+        assert!(!scenario_emits_unique_case_qualifier(co[0]));
+    }
+
+    /// The per-qualifier tool plan: `unique` scenarios drop the Icarus column and
+    /// **nothing else**; `priority` and the co-occurrence keep the full plan.
+    #[test]
+    fn unique_case_qualifier_scenarios_drop_only_the_icarus_column() {
+        let scenarios = build_scenarios(0, ScenarioSet::CaseQualifierSweep).expect("build");
+
+        let unique: Vec<&Scenario> = scenarios
+            .iter()
+            .filter(|s| scenario_emits_unique_case_qualifier(s))
+            .collect();
+        // Six: {case_mux, casez_mux} x 3 strategies.
+        assert_eq!(unique.len(), 6, "the six `unique` scenarios");
+        for scenario in &unique {
+            assert!(scenario.name.contains("unique"), "{}", scenario.name);
+            // NOT routed through `verilator_only` — that would also drop both
+            // Yosys modes, and Yosys is this surface's strongest column
+            // (identical synthesized cell counts with and without the qualifier).
+            assert!(
+                !scenario_emits_soft_union_overlay(scenario),
+                "a `unique` scenario must not become Verilator-only: {}",
+                scenario.name
+            );
+        }
+
+        // Every other scenario keeps the full three-tool plan.
+        for scenario in scenarios
+            .iter()
+            .filter(|s| !scenario_emits_unique_case_qualifier(s))
+        {
+            assert!(
+                !scenario.name.contains("unique"),
+                "only `unique` scenarios reduce the plan: {}",
+                scenario.name
+            );
+        }
+        assert_eq!(scenarios.len() - unique.len(), 7);
+    }
+
+    #[test]
+    fn case_qualifier_sweep_gaps_require_all_three_facts() {
+        // All three strategies present, no fact lit → exactly the three
+        // case-qualifier gaps (no broad-motif gaps leak in).
+        let mut coverage = CoverageSummary::default();
+        for s in ["sequential", "shuffled", "interleaved"] {
+            coverage.construction_strategies.insert(s.to_string());
+        }
+        let gaps = compute_coverage_gaps(ScenarioSet::CaseQualifierSweep, &coverage, None);
+        assert_eq!(gaps.len(), 3, "unexpected gaps: {gaps:?}");
+        assert!(gaps.iter().any(|g| g.contains("unique_case_prob")));
+        assert!(gaps.iter().any(|g| g.contains("priority_case_prob")));
+        assert!(gaps.iter().any(|g| g.contains("non-vacuous exclusion")));
+
+        // Each fact is INDEPENDENTLY required: lighting two still leaves the
+        // third as a gap. Without this the gate could pass on partial evidence.
+        coverage.saw_unique_case_qualifier = true;
+        coverage.saw_priority_case_qualifier = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::CaseQualifierSweep, &coverage, None);
+        assert_eq!(gaps.len(), 1, "unexpected gaps: {gaps:?}");
+        assert!(gaps[0].contains("non-vacuous exclusion"));
+
+        // All three lit → no gaps.
+        coverage.saw_case_qualifier_beside_if_chain = true;
+        let gaps = compute_coverage_gaps(ScenarioSet::CaseQualifierSweep, &coverage, None);
+        assert!(gaps.is_empty(), "unexpected gaps: {gaps:?}");
+    }
+
+    /// The co-occurrence fact needs **both** populations. A module with only a
+    /// qualifier, or only a chain, must not light it — otherwise the twelve
+    /// single-qualifier scenarios would satisfy the gate's hardest requirement by
+    /// accident and the thirteenth would be decoration.
+    #[test]
+    fn case_qualifier_beside_chain_fact_needs_both_populations() {
+        let scenario = make_scenario("probe", "probe", case_qualifier_co_occurrence_config(0))
+            .expect("scenario");
+
+        let accepted = |qualifier: bool, chain: bool| {
+            let mut module = module_report_with_no_surfaces();
+            module.emitted_priority_case_qualifier = qualifier;
+            module.emitted_case_mux_if = chain;
+            module.verilator = Some(passing_invocation());
+            module.yosys = vec![passing_invocation()];
+            summarize_coverage(&scenario, std::slice::from_ref(&module), false)
+        };
+
+        assert!(!accepted(true, false).saw_case_qualifier_beside_if_chain);
+        assert!(!accepted(false, true).saw_case_qualifier_beside_if_chain);
+        let both = accepted(true, true);
+        assert!(both.saw_case_qualifier_beside_if_chain);
+        // And the co-occurrence module still lights the plain qualifier fact.
+        assert!(both.saw_priority_case_qualifier);
+    }
+
+    /// Downstream acceptance is part of every qualifier fact: an emitted-but-
+    /// rejected module must light nothing. Without this the gate would report
+    /// success for RTL a tool refused.
+    #[test]
+    fn case_qualifier_facts_require_downstream_acceptance() {
+        let scenario = make_scenario(
+            "probe",
+            "probe",
+            case_qualifier_focus_config(
+                ConstructionStrategy::Sequential,
+                0,
+                GateCaseQualifier::Unique,
+                GateSelectorKind::CaseMux,
+            ),
+        )
+        .expect("scenario");
+
+        let mut module = module_report_with_no_surfaces();
+        module.emitted_unique_case_qualifier = true;
+
+        // Verilator absent/failed, or Yosys an empty vec (the vacuous case) ⇒
+        // no fact.
+        let coverage = summarize_coverage(&scenario, std::slice::from_ref(&module), false);
+        assert!(!coverage.saw_unique_case_qualifier);
+
+        module.verilator = Some(passing_invocation());
+        let coverage = summarize_coverage(&scenario, std::slice::from_ref(&module), false);
+        assert!(
+            !coverage.saw_unique_case_qualifier,
+            "an empty Yosys vec must not satisfy the bar vacuously"
+        );
+
+        module.yosys = vec![passing_invocation()];
+        let coverage = summarize_coverage(&scenario, std::slice::from_ref(&module), false);
+        assert!(coverage.saw_unique_case_qualifier);
+    }
+
+    /// **The non-vacuity proof, and the one that matters most.** Every check
+    /// above reads the *config*; this one runs the real `Generator` and asserts
+    /// the metrics the gate keys on are actually non-zero.
+    ///
+    /// Without it the gate could ship fully wired and prove nothing: a scenario
+    /// whose selector calibration is wrong builds no qualifying gate, the metric
+    /// stays `0`, no fact lights — and that failure would surface only as a
+    /// coverage gap in a downstream run needing real Verilator and Yosys, i.e.
+    /// **not** in `cargo test` and not in CI.
+    ///
+    /// It generates `CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO` modules from one
+    /// `Generator` per scenario, because that is exactly what a gate run does —
+    /// and the distinction is load-bearing rather than pedantic. Measured: the 12
+    /// single-qualifier scenarios fire in **every** module, but the co-occurrence
+    /// scenario fires in **2 of its 4**. Probing only the first module would have
+    /// reported a false failure here, and (worse, in the other direction) a
+    /// one-module probe that happened to pass would have hidden a real dependency
+    /// on the unit floor.
+    #[test]
+    fn case_qualifier_sweep_scenarios_are_non_vacuous() {
+        let scenarios = build_scenarios(0, ScenarioSet::CaseQualifierSweep).expect("build");
+        assert_eq!(scenarios.len(), 13);
+
+        let mut co_occurrence_checked = 0usize;
+        for scenario in &scenarios {
+            let mut generator = Generator::new(scenario.config.clone());
+            let mut modules_with_both = 0usize;
+            let mut chains_total = 0usize;
+
+            for index in 0..CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO {
+                let module = generator.generate_module();
+                anvil::ir::validate::validate(&module)
+                    .expect("case-qualifier anchor module must validate");
+                let m = anvil::metrics::compute(&module);
+
+                // The forced qualifier fires in EVERY module, and the other one
+                // never does — the pass rolls one knob because only one is above
+                // `0.0`, so a stray count would mean the focus config leaked.
+                if scenario.config.unique_case_prob > 0.0 {
+                    assert!(
+                        m.num_emitted_unique_cases > 0,
+                        "scenario {} module {index} emitted no `unique` qualifier —                          saw_unique_case_qualifier would be unreachable and the gate would                          carry a permanent coverage gap",
+                        scenario.name
+                    );
+                    assert_eq!(m.num_emitted_priority_cases, 0, "{}", scenario.name);
+                } else {
+                    assert!(
+                        m.num_emitted_priority_cases > 0,
+                        "scenario {} module {index} emitted no `priority` qualifier —                          saw_priority_case_qualifier would be unreachable and the gate would                          carry a permanent coverage gap",
+                        scenario.name
+                    );
+                    assert_eq!(m.num_emitted_unique_cases, 0, "{}", scenario.name);
+                }
+
+                let chains = m.num_emitted_case_mux_if_chains + m.num_emitted_casez_mux_if_chains;
+                chains_total += chains;
+                if chains > 0
+                    && (m.num_emitted_unique_cases > 0 || m.num_emitted_priority_cases > 0)
+                {
+                    modules_with_both += 1;
+                }
+            }
+
+            if scenario.name.ends_with("case_qualifier_beside_if_chain") {
+                co_occurrence_checked += 1;
+                // BOTH populations non-empty in ONE module: the chain surfaces
+                // claimed some selector gates, and the qualifier pass skipped
+                // exactly those and still found others to claim. The lane's only
+                // non-vacuous exclusion, fired for real.
+                assert!(
+                    modules_with_both > 0,
+                    "the co-occurrence scenario produced no module carrying BOTH a chain                      and a qualifier (chains seen across the scenario: {chains_total}), so                      saw_case_qualifier_beside_if_chain is unreachable"
+                );
+            } else {
+                // The 12 keep the chain knobs off, so a chain here would mean a
+                // focus config leaked and the qualifier pool is being eaten.
+                assert_eq!(
+                    chains_total, 0,
+                    "single-qualifier scenario {} must emit no if/else-if chains",
+                    scenario.name
+                );
+            }
+        }
+        assert_eq!(co_occurrence_checked, 1);
+    }
+
+    /// The co-occurrence fact is **per module**, and the co-occurrence scenario
+    /// satisfies it in only 2 of its 4 modules — so the gate's unit floor is not a
+    /// generic minimum here, it is what makes the hardest of the three facts
+    /// reachable at all. `derive_run_plan` takes the `max` of the CLI value and the
+    /// floor, so a `--modules-per-scenario 1` run cannot silently drop below it;
+    /// this pins that, because the failure mode would otherwise be a confusing
+    /// permanent coverage gap rather than an error.
+    #[test]
+    fn case_qualifier_gate_unit_floor_cannot_be_lowered_from_the_cli() {
+        let mut cli = test_cli();
+        cli.case_qualifier_gate = true;
+        cli.modules_per_scenario = 1;
+        let plan = derive_run_plan(&cli, 13);
+        assert_eq!(
+            plan.modules_per_scenario, CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO,
+            "the gate floor must win over a lower CLI value"
+        );
+
+        // A higher CLI value still wins, so the floor is a floor and not a pin.
+        cli.modules_per_scenario = CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO + 2;
+        let plan = derive_run_plan(&cli, 13);
+        assert_eq!(
+            plan.modules_per_scenario,
+            CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO + 2
+        );
+    }
+
+    /// The exclusion is not merely *non-empty on both sides* — no gate is ever
+    /// **both** chain-projected and qualified. The emitted text is the witness: a
+    /// qualified statement keeps its `case`/`casez` keyword, so if the pass ever
+    /// qualified a chain-projected gate the count of emitted qualified statements
+    /// would exceed the metric.
+    #[test]
+    fn a_chain_projected_gate_is_never_qualified_in_the_co_occurrence_scenario() {
+        let config = case_qualifier_co_occurrence_config(0);
+        let module = Generator::new(config).generate_module();
+        let m = anvil::metrics::compute(&module);
+        let sv = anvil::emit::to_sv(&module);
+
+        let qualified_statements = sv
+            .lines()
+            .filter(|l| {
+                let l = l.trim_start();
+                l.starts_with("priority case (") || l.starts_with("priority casez (")
+            })
+            .count();
+        assert_eq!(
+            qualified_statements, m.num_emitted_priority_cases,
+            "every counted qualifier must appear as exactly one emitted statement — \
+             a mismatch means the pass qualified a gate that renders as a chain"
+        );
+        assert!(qualified_statements > 0, "non-vacuous");
+    }
+
+    // ===============================================================
     // EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — cargo-portable
     // proofs of the emit-surface *interaction* gate's wiring (CLI flag,
     // scenario set, run plan, scenario shaping, the co-occurrence
@@ -12213,6 +13126,21 @@ mod tests {
         );
     }
 
+    /// A successful [`ToolInvocation`] — the "this tool accepted the module"
+    /// half of every coverage fact's acceptance bar.
+    fn passing_invocation() -> ToolInvocation {
+        ToolInvocation {
+            tool: "probe".to_string(),
+            argv: vec![],
+            success: true,
+            exit_code: Some(0),
+            stdout_log: None,
+            stderr_log: None,
+            error: None,
+            version: None,
+        }
+    }
+
     /// A `ModuleReport` with every emit-surface flag off — the baseline for the
     /// co-occurrence projection.
     fn module_report_with_no_surfaces() -> ModuleReport {
@@ -12237,6 +13165,8 @@ mod tests {
             emitted_mux_if: false,
             emitted_case_mux_if: false,
             emitted_casez_mux_if: false,
+            emitted_unique_case_qualifier: false,
+            emitted_priority_case_qualifier: false,
         }
     }
 
@@ -13465,6 +14395,8 @@ mod tests {
             emitted_mux_if: false,
             emitted_case_mux_if: false,
             emitted_casez_mux_if: false,
+            emitted_unique_case_qualifier: false,
+            emitted_priority_case_qualifier: false,
         }];
 
         let summary = summarize_tools(&modules);
@@ -13518,6 +14450,8 @@ mod tests {
             emitted_mux_if: false,
             emitted_case_mux_if: false,
             emitted_casez_mux_if: false,
+            emitted_unique_case_qualifier: false,
+            emitted_priority_case_qualifier: false,
             yosys: vec![],
         };
         let checkpoint0 = baseline.checkpoint();
@@ -13590,6 +14524,8 @@ mod tests {
             emitted_mux_if: false,
             emitted_case_mux_if: false,
             emitted_casez_mux_if: false,
+            emitted_unique_case_qualifier: false,
+            emitted_priority_case_qualifier: false,
             yosys: vec![],
         };
         let checkpoint = generator.checkpoint();
@@ -13659,6 +14595,8 @@ mod tests {
                 emitted_mux_if: false,
                 emitted_case_mux_if: false,
                 emitted_casez_mux_if: false,
+                emitted_unique_case_qualifier: false,
+                emitted_priority_case_qualifier: false,
             };
             let legacy_checkpoint = serde_json::json!({
                 "skip_verilator": true,
@@ -14142,6 +15080,8 @@ mod tests {
                 emitted_mux_if: false,
                 emitted_case_mux_if: false,
                 emitted_casez_mux_if: false,
+                emitted_unique_case_qualifier: false,
+                emitted_priority_case_qualifier: false,
             })
             .collect();
         // No DUTs ran diff-sim ⇒ fact stays false.
@@ -14318,6 +15258,8 @@ mod tests {
                 emitted_mux_if: false,
                 emitted_case_mux_if: false,
                 emitted_casez_mux_if: false,
+                emitted_unique_case_qualifier: false,
+                emitted_priority_case_qualifier: false,
             })
             .collect();
         // No unit carries a divergence report ⇒ the opportunistic fact stays
@@ -14385,6 +15327,8 @@ mod tests {
             emitted_mux_if: false,
             emitted_case_mux_if: false,
             emitted_casez_mux_if: false,
+            emitted_unique_case_qualifier: false,
+            emitted_priority_case_qualifier: false,
         };
         // None ⇒ the key is absent from the serialized report (byte-identical).
         let json = serde_json::to_value(&module).unwrap();
@@ -14553,6 +15497,8 @@ mod tests {
             emitted_mux_if: false,
             emitted_case_mux_if: false,
             emitted_casez_mux_if: false,
+            emitted_unique_case_qualifier: false,
+            emitted_priority_case_qualifier: false,
         }];
         let cov0 = summarize_coverage(&scenario, &modules, false);
         assert!(!cov0.saw_multi_clock_design);

@@ -5,6 +5,71 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A non-vacuity probe must reproduce the RUN PLAN, not just the config — `CAPABILITY-BREADTH-EXPANSION.4b.2b`
+
+The case-qualifier gate went in as thirteen scenarios mirroring two sibling gates. Three things
+are worth keeping, and the first is the one that nearly shipped wrong.
+
+### The probe tested a different experiment than the gate runs
+
+The non-vacuity test — the one whose whole job is *"this scenario actually produces the thing the
+coverage fact needs"* — generated **one** module per scenario. The gate generates
+`CASE_QUALIFIER_SWEEP_MIN_UNITS_PER_SCENARIO = 4`, from one `Generator`, in sequence. It failed
+on the co-occurrence scenario, and the failure was **the test's**, not the config's. Measured over
+the real four:
+
+| scenario group | modules carrying the needed shape |
+| --- | --- |
+| the 12 single-qualifier scenarios | **4 of 4** — every module |
+| the co-occurrence scenario | **2 of 4** |
+
+So a one-module probe reports a false failure here. Worse is the other direction: had module 0
+happened to carry both, the probe would have passed **and hidden a real dependency** — the
+co-occurrence fact is per module and is satisfied by half of them, which makes the unit floor
+*load-bearing for this gate* rather than a generic minimum. That is now pinned by its own test
+(`case_qualifier_gate_unit_floor_cannot_be_lowered_from_the_cli`), because `derive_run_plan` takes
+the `max` of the CLI value and the floor — a `--modules-per-scenario 1` run cannot silently drop
+below it, and the failure mode if it could would be a baffling permanent coverage gap rather than
+an error.
+
+**The rule: a vacuity probe that does not reproduce the run plan is testing a different
+experiment.** Sample count, generator reuse, and ordering are part of the experiment, not
+scaffolding around it.
+
+### The one place this gate could not copy its siblings: the tool plan
+
+The eighth and ninth surfaces run one plan for every scenario. This gate cannot, because `unique`
+and `priority` are different claims and Icarus treats them differently — `sorry: Case
+unique/unique0 qualities are ignored.` per block for `unique`, complete silence for `priority`.
+`.4a` pinned the mechanism and `.4b.2b` implemented it verbatim: a **new**
+`scenario_emits_unique_case_qualifier` predicate threaded as a **second** boolean beside
+`verilator_only`, gating the Icarus column alone.
+
+The measured payoff is in the bank: Verilator **52/0**, both Yosys modes **52/0**, Icarus
+**28/0** — and 28 is exactly the 7 non-`unique` scenarios × 4. Had this been folded into
+`verilator_only` (the tempting one-line version), all six `unique` scenarios would have lost
+**both Yosys columns too** — and Yosys is this surface's *strongest* evidence, because identical
+synthesized cell counts with and without the qualifier are the synthesis-side statement that an
+assertion which holds gives the synthesizer no new freedom. **Two reductions that overlap are
+still two reductions; collapsing them silently buys the wider one.**
+
+### A text scan was available here, and metric-keying is still right
+
+The two chain surfaces are metric-keyed because they *had* to be — they add no token. This
+construct does add one (`unique case (`), so the easy justification is unavailable, and I first
+wrote the comment claiming `unique`/`priority` would collide with ordinary emitted vocabulary.
+**Probed, and that is false**: neither word appears anywhere else in generated SV today.
+
+The claim was removed and replaced with the reason that does not depend on a measurement holding:
+the metric already carries this fact *exactly*, so a text scan would be a **second source of truth
+for it** — decision `0033`'s shadow, whose failure mode is silent divergence — and it would couple
+the gate to the emitter's spelling, so changing the prefix would turn the gate **green and blind**
+rather than red. Worth stating plainly because the instinct under time pressure is to reach for
+the more colourful justification: **do not defend a correct decision with an argument you have not
+measured; the decision survives the audit, the argument does not.**
+
+---
+
 ## 2026-08-01 — A version bump is a classification job, not a find-and-replace — `CAPABILITY-BREADTH-EXPANSION.4b.2a`
 
 The two case-qualifier metrics were the small half of this leaf. The interesting half was the
