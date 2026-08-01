@@ -1,6 +1,139 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing
+
+**Landed as:** `pending`. Previous: `f2d282e`, `2203574`, `beb1ebb`.
+**Docs-only** ⇒ **DUT byte-identical**.
+
+**What.** `USER_GUIDE.md`'s CLI flag table now carries a stated contract and **93** rows, up
+from **75**. The contract went in *above the table, before a single row was written*, which was
+`.2`'s whole point: the leaf was blocked on deciding what the table is, and repairing first
+would have answered that by accident.
+
+**The contract, and why it is neither option the leaf was framed around.** `.1` posed
+*exhaustive over `anvil --help`* vs *a curated core*. Both are wrong:
+
+- **Exhaustive over `--help`** forces rows for `--seed`, `--out`, `--count`, `--trace`,
+  `--help`, `--version` — flags the document already covers in dedicated sections. The table
+  would become a second copy of those sections, and a second copy drifts.
+- **A curated core** leaves inclusion to taste. Unmaintainable, and it gives `.3` nothing to
+  gate — a curated list is authoritative under decision `0033` test (2) and must *never* be
+  gated.
+
+What landed is **exhaustive over a derived set**: every flag that sets a **knob** has a row —
+directly (its value is a `Config` field, so it is equally settable in `--config knobs.json`) or
+as a convenience flag that sets several at once. Flags that select a **mode** rather than a knob
+**value** are owned by their own sections. The authority is the CLI projection of
+`config.rs::Overrides` (90 fields; 89 name-identical, plus `child_instances_per_module_by_depth`
+exposed as `--child-instances-per-depth`) together with `--profile`,
+`--full-factorization`, and `--no-full-factorization`.
+
+**The partition is total, not merely non-overlapping.** Measured at `f2d282e`:
+
+| set | count |
+| --- | ---: |
+| knob flags (the table's contract) | **93** |
+| mode flags (owned by their own sections) | **14** |
+| **total** | **107** = `\|anvil --help\|` |
+
+Zero flags in neither, zero in both. That was a requirement, not a happy result: a criterion
+that leaves a residue is a preference, not a contract — `PARITY-EXTRACTOR-CHARSET-GAP.2`'s
+`total_or_fail` rule (an extractor must account for every item it walks) applied to a docs audit
+instead of a gate script.
+
+**The repair: +18 rows, each placed beside its topical neighbours** rather than appended —
+9 hierarchy (the 8-knob absent cluster plus `--max-parent-cone-instances-per-module`), 4
+emit-projections (`--multi-output-task-emit-prob`, `--mux-if-emit-prob`,
+`--case-mux-if-emit-prob`, `--casez-mux-if-emit-prob`), 3 uniqueness (`--max-ast-instances`,
+`--operand-duplication-rate`, `--mux-arm-duplication-rate` — the last two being the *promoted
+unswept knobs* `SIGNOFF-AUTOMATION-EXPANSION.2b` built a gate to prove fire by construction:
+gated, banked, and until now undocumented), 2 memory-governor (`--max-rss-mb`,
+`--ram-abort-pct`).
+
+**The criterion earned six rows the original framing would have missed.** 12 of the 18 are the
+"absent from the document entirely" set; **6 more were mentioned in prose and are genuine
+knobs**. The obvious repair — "add the 13 absent flags" — would have shipped a table already
+incomplete against its own new contract on day one. The criterion also excludes `--version` **on
+principle** rather than as `.1`'s "honest caveat", which is the general lesson: *a number that
+needs an asterisk is usually a criterion that has not been stated yet.*
+
+**No count and no member list in the contract paragraph** — deliberately. Naming the 14 mode
+flags would be a hand-maintained list mirroring an authoritative set that grows: decision
+`0033`'s three tests all passing, i.e. the exact shadow this leaf removes, recreated inside the
+sentence that removes it. The paragraph states the criterion and nothing else.
+
+**Two of `.1`'s five numbers were wrong, and both from one root cause.** `USER_GUIDE.md`
+documents **two clap commands** — `anvil` and `anvil hunt`, two `#[derive(Parser)]` structs with
+disjoint namespaces — in two tables, and `.1` pooled the document's flag rows and measured them
+against one command's `--help`:
+
+| bucket | `.1` said | actually | why |
+| --- | ---: | ---: | --- |
+| clap flags (`S`) | 108 | **107** | `--diff-sim` is quoted **in prose** inside the `hunt` subcommand's one-line description in the `Commands:` block — it is not an option of `anvil`. |
+| mentioned, not tabled | 20 | **19** | the same phantom, propagated. |
+| rows naming a flag that no longer exists | 2 | **0** | `--divergence` and `--no-minimize` are **live `anvil hunt` options**, correctly tabled in the `anvil hunt` table — which is itself **10/10** complete against `anvil hunt --help`. |
+| in the table / absent entirely | 75 / 13 | 75 / 13 | ✓ both confirmed, member for member. |
+
+**Why this matters more than the two numbers.** It is the **fifth** instrument error in this
+repo's recent history — decision `0045` catalogues three, and `.1` recorded a fourth *in the very
+leaf being corrected*. The transferable rule: **an audit over a multi-command CLI must be
+command-scoped, and `--help` output is prose that contains flags, not a flag list.** Recorded as
+the fact card `docs/knowledge/cli-flag-audit-must-be-command-scoped.md` rather than only as prose,
+per the standing rule that a finding is not closed until something mechanical fails if it recurs;
+the mechanism itself is `.3`'s question, and this is its single most important input. Map
+regenerated **116 → 117** facts, in sync.
+
+**A second site found and registered, not silently fixed.** `book/src/knobs.md`'s
+`## CLI coverage` section is the **same** shadow of the **same** set — it says so itself (*"The
+canonical list comes from `anvil --help`; the snapshot below is accurate as of this commit"*) and
+is **missing 11 of the 107** flags. Registered as new leaf `.4` rather than repaired here:
+`COMMIT.md` task-tree rule #3 is one completed leaf per commit, and the standing directive is
+that a defect is only handled once a tree owns it. It extends *this* tree rather than opening a
+new one because it shadows the same authoritative set — one owner per set
+(`feedback_full_factorization`).
+
+**Why.** `README.md` calls `USER_GUIDE.md` *"the live CLI reference: **every** flag"*. A knob
+absent from that reference is a **delivered and invisible** capability — decision `0033`'s pair-4
+argument — and `--steer` *errors* on an unknown key, so a reader of a short list never learns the
+knob exists.
+
+**Two gates fired on this slice's own prose, and both were right.** Recorded rather than
+quietly fixed, because they are the enforcement working:
+
+- **`TABLE-RENDER-FIDELITY`** — the `docs/TASK_TREE.md` index row wrote the cardinality as
+  `` `|anvil --help|` `` and lost **1,242 rendered characters** to the two unescaped pipes.
+  A code span gives a pipe no protection; that is the doctrine's entire point, and it caught it
+  in a row *about* being rigorous with sets. Escaped as `\|`.
+- **`EVIDENCE-CITATIONS`** — the new in-page link `[…](#anvil-hunt-turnkey-cli-bug-hunt)` matches
+  the `anvil-<name>` bank-citation shape. The check is fail-closed and classifies rather than
+  guesses, so it correctly refused an unclassified token. Added to `docs/evidence/INVENTORY.md`
+  §2 (the sanctioned, growable list) — and it is a **third collision class**, after binaries and
+  directories: **a Markdown heading anchor**. Any heading beginning "anvil …" slugifies into the
+  citation shape. §2's heading count was also stale at `(19)` against 20 entries; corrected to
+  `(21)`.
+
+**Validation.** `cargo check --all-targets`, `cargo clippy --all-targets -- -D warnings` and
+`cargo fmt --all --check` green. `cargo test` green: **1,087 passed / 0 failed / 19 ignored**
+across 17 targets, including `tests/snapshots.rs` — docs-only, no generator path touched, so the
+byte-identical guard is untouched and passing. *(Run **unpiped**: `cargo test | tail` reports
+`tail`'s status, and the first run here was piped. Re-run to a file with the real `$?` before any
+green claim — the repo's own recorded gotcha, applied to itself.)* `bash
+scripts/check_doctrines.sh` → **all 10 registered doctrines hold**, including
+`TABLE-RENDER-FIDELITY` ok at 2,505 data rows across 434 tables in 256 tracked `*.md` (the added
+rows include an escaped pipe in `--hierarchy-child-source-mode`). `bash
+knowledge-map/scripts/check_knowledge_map.sh` → OK, in sync. Post-edit re-measurement: 93 table
+rows, **0** knob flags missing, **0** rows naming a non-knob.
+
+**Impact.** No code, no generated-RTL, no schema change. `USER_GUIDE.md`'s knob table is now
+complete against a stated, derivable criterion, and the next author has a rule to apply instead
+of a style to imitate.
+
+**Files touched.** `USER_GUIDE.md`, `docs/tasks/USER-GUIDE-CLI-TABLE-SHADOW.md`,
+`docs/TASK_TREE.md`, `docs/knowledge/cli-flag-audit-must-be-command-scoped.md`,
+`docs/evidence/INVENTORY.md`, `KNOWLEDGE_MAP.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.5 — card the seam rule, and the missing entry for it
 
 **Landed as:** `2203574`. Previous: `beb1ebb`, `8c93d1e`, `1cd46c3`.

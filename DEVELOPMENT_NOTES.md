@@ -5,6 +5,104 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — "Exhaustive or curated?" was the wrong question; the answer was a derived set — `USER-GUIDE-CLI-TABLE-SHADOW.2`
+
+`.1` left `.2` a clean binary: is `USER_GUIDE.md`'s CLI flag table the **exhaustive** flag
+reference, or a **curated** core with prose owning the rest? It deferred all repair on the
+grounds that writing rows first would answer that question by accident. That deferral was
+right. The binary was not.
+
+**Both options fail, and they fail for opposite reasons.**
+
+*Exhaustive over `anvil --help`* forces rows for `--seed`, `--out`, `--count`, `--trace`,
+`--help`, `--version`. The document already covers those in dedicated sections ("Basic usage",
+"Output layout", "Tracing and debugging"). A table row for each would be a lossy second copy of
+a section that is already correct — and the second copy is what drifts. That is
+`feedback_full_factorization` (one mechanism, never two) arguing against the option that *looks*
+like the rigorous one.
+
+*A curated core* has the opposite problem: inclusion becomes taste. Worse, it forecloses `.3` —
+decision `0033` test (2) says a list that is *supposed* to differ from its set is **authoritative,
+not a shadow**, and gating it would destroy the very property it exists to hold. Choosing
+"curated" would have been choosing to leave the defect unmechanized forever.
+
+**The third option is better than both because it is derived.** A knob is a flag whose value is
+a `Config` field — equivalently, a flag equally settable in `--config knobs.json`, which the
+table's own first sentence *already said* and nobody had read as a criterion. The authoritative
+set is therefore the CLI projection of `config.rs::Overrides`, plus the three convenience flags
+(`--profile`, `--full-factorization`, `--no-full-factorization`) that set several fields at once.
+`README.md`'s *"every flag"* promise is kept by the **document**; this table keeps the part of it
+that is a set with an authority.
+
+**The lesson worth generalizing:** when a "should this list be complete?" question feels
+unanswerable, it is usually because the list has no stated *membership rule*. Supply the rule and
+the completeness question answers itself — and becomes gateable as a side effect.
+
+**Require the partition to be total, not merely disjoint.** The audit classified every one of the
+107 top-level flags into knob (93) or mode (14) and asserted `93 + 14 == 107` with an empty
+intersection. A residue on either side would have meant the criterion was a preference dressed as
+a contract. This is `PARITY-EXTRACTOR-CHARSET-GAP.2`'s `total_or_fail` — an extractor must
+account for every item it walks — applied to a **docs audit** rather than to a gate script, and
+it is the reason the repair is trustworthy rather than merely large.
+
+**Two things fell out that the original framing could not reach.**
+
+1. **Six rows the "add the 13 absent flags" repair would have missed.** 12 of the 18 additions
+   were absent from the document entirely; 6 were mentioned in prose and are genuine knobs.
+   Repairing the absent set alone would have shipped a table already incomplete against its own
+   new contract.
+2. **`--version` stopped being awkward.** `.1` had to publish it as a footnote to a count
+   ("arguably not a flag this document owes the reader", making the actionable set 12 rather than
+   13). Under a criterion it is simply a mode flag. *A number that needs an asterisk is usually a
+   criterion that has not been stated yet.*
+
+**And do not fix a shadow by writing down its members.** The contract paragraph names no flags
+and gives no count. Listing the 14 mode flags would be derivable, growth-coupled and silent —
+decision `0033`'s three tests, all passing — the same shadow recreated inside the sentence that
+removes it. `check_markdown_tables.sh` confirms the added rows render (one escaped pipe, in
+`--hierarchy-child-source-mode`).
+
+## 2026-08-01 — An audit over a multi-command CLI must be command-scoped — `USER-GUIDE-CLI-TABLE-SHADOW.2`
+
+Re-measuring `.1`'s five numbers at `f2d282e` changed two of them, and both changes trace to
+**one** mistake: `USER_GUIDE.md` documents **two** clap commands — `anvil` and `anvil hunt`,
+two `#[derive(Parser)]` structs with disjoint namespaces — in two separate tables, and `.1`
+pooled the document's flag rows into one population measured against one command's `--help`.
+
+- **`S` is 107, not 108.** `.1` extracted every `--x` **string** from `anvil --help`. One of them,
+  `--diff-sim`, is not an option of `anvil`: it is quoted in prose inside the `hunt` subcommand's
+  one-line description in the `Commands:` block. `--help` output is *prose that contains flags*,
+  not a flag list. The phantom propagated, also inflating "mentioned but not tabled" 19 → 20.
+- **The "2 stale rows" are 0.** `--divergence` and `--no-minimize` exist — as `anvil hunt`
+  options (`src/main.rs`, `HuntCommand`) — and both are correctly tabled in the **`anvil hunt`
+  table**, which measured against `anvil hunt --help` is **10/10** complete (only `--help` is
+  untabled, as in every table here). Nothing was stale; the rows were measured against the wrong
+  command's registry.
+
+`.1`'s other three numbers (75 table rows, 13 absent, and the 13's membership) reproduced exactly.
+
+**This is the fifth instrument error in this repo's recent history, and the second in this tree.**
+Decision `0045` catalogues three; `.1` recorded a fourth — a backtick-anchored matcher that
+reported 22 absent because `` `--artifact dut` `` puts flag and value in one code span. The
+pattern across all five: **the extractor's domain was narrower or wider than the source it
+claimed to read, and the resulting number was plausible every time.** Nothing about `108`, or
+about `2 stale rows`, looks wrong on the page. That is the failure mode — not an implausible
+number, a plausible one.
+
+Filed as the fact card `docs/knowledge/cli-flag-audit-must-be-command-scoped.md`, because
+`DEVELOPMENT_NOTES.md` is not question-indexed and the next author to audit a CLI surface needs
+to retrieve this in one lookup, not re-derive it. It is also `.3`'s single most important input:
+if a check is written, its extractor must be **command-scoped**, and a check spanning both tables
+must not repeat the pooling that produced these two wrong numbers.
+
+**A corollary about scope discipline.** The same measurement found a *second* site — the book's
+`## CLI coverage` section, missing 11 of the 107 under a sentence promising it is "accurate as of
+this commit". It was **registered as leaf `.4`, not fixed in passing**: `COMMIT.md` task-tree
+rule #3 is one completed leaf per commit, and the standing directive is that a defect is only
+handled once a tree owns it. It extends this tree rather than opening a new one because it
+shadows the **same** authoritative set, and two trees over one set would each hold half a picture
+of the same drift.
+
 ## 2026-08-01 — A test seam that bypasses the extraction under test is a tautology — `CHANGES-ENTRY-PLACEMENT.5`
 
 Implementing decision `0045` as the tenth registered doctrine raised exactly one design

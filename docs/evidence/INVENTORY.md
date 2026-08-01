@@ -124,7 +124,7 @@ a digest instead.
 
 ---
 
-## 2. Not evidence — ANVIL's own vocabulary (19)
+## 2. Not evidence — ANVIL's own vocabulary (21)
 
 Tokens that match the `anvil-<name>` shape but are **not** citations of a
 banked artifact: binary names, directory names, Action inputs, negative-control
@@ -142,6 +142,10 @@ closed historical fact, §2 describes a living vocabulary.
 - `anvil-emitted` — English prose (“an anvil-emitted module”)
 - `anvil-fake-bank-r1` — the `VOLUME-DATA-LOCALITY.7` negative-control fixture token
 - `anvil-hunt-bundles` — the Action’s default reproducer-bundle artifact name
+- `anvil-hunt-turnkey-cli-bug-hunt` — a **Markdown heading-anchor slug**: the `USER_GUIDE.md`
+  in-page link target for the `### \`anvil hunt\` (turnkey CLI bug-hunt)` section
+  (`USER-GUIDE-CLI-TABLE-SHADOW.2`). A *third* collision class for the citation shape, after
+  binaries and directories — any heading whose text begins "anvil …" slugifies into it
 - `anvil-hunt` — the CLI subcommand and the Action step id
 - `anvil-mcp-http` — a rejected separate-binary name, kept in the `AGENT-MCP-EXPANSION.4a` design record
 - `anvil-mcp` — the MCP server binary (`src/bin/anvil_mcp.rs`)

@@ -272,6 +272,17 @@ module, pass the exact seed reported in `manifest.json`.
 Knobs control the shape and complexity of generated modules. Pass them
 as CLI flags or via a JSON config file (`--config knobs.json`).
 
+**What this table contains.** It is **exhaustive over the knobs**: every flag that
+sets a knob has a row — directly (its value is a `Config` field, so it is equally
+settable in `--config knobs.json`) or as a convenience flag that sets several at
+once. Flags that select a *mode* rather than a knob *value* — run size and
+destination, artifact lane, tracing, and the introspection dumps — are documented
+by their own sections and are deliberately not tabled. The two sets partition
+`anvil --help` with nothing left over, so a **knob** without a row here is a defect
+and a **mode** flag without one is not. (`anvil hunt` is a separate command with a
+separate flag namespace; its flags are tabled under
+[`anvil hunt`](#anvil-hunt-turnkey-cli-bug-hunt), not here.)
+
 | Flag                    | Default  | Meaning                                         |
 |-------------------------|----------|-------------------------------------------------|
 | `--min-inputs`          | 2        | Minimum primary input count per module          |
@@ -315,6 +326,15 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--min-child-instances-per-module` | 0 | Minimum child-instance count for each non-leaf module in bounded recursive hierarchy mode |
 | `--max-child-instances-per-module` | 0 | Maximum child-instance count for each non-leaf module in bounded recursive hierarchy mode |
 | `--child-instances-per-depth DEPTH=MIN:MAX` | none | Optional per-parent-depth child-instance override layered on top of the bounded recursive fallback range |
+| `--hierarchy-child-source-mode` | library | How a parent sources child module definitions: `library` (instantiate from a pre-generated reusable pool) \| `on-demand` (synthesize a fresh definition per planned instance slot) |
+| `--hierarchy-sibling-route-prob` | 0.35 | Probability a parent binds a child data input from a previously-instantiated sibling's output. Always acyclic: only earlier child outputs may feed later child inputs |
+| `--hierarchy-child-input-cone-prob` | 0.35 | Probability a parent binds a child data input through a local combinational cone over already-available parent sources (parent data inputs, earlier sibling outputs, earlier parent-side route gates) |
+| `--hierarchy-registered-sibling-route-prob` | 0.0 | Probability a parent binds a *later* child data input through a local parent flop whose `D` is driven by an earlier sibling output |
+| `--hierarchy-registered-sibling-mixed-support-prob` | 0.0 | Probability a registered sibling route mixes parent data-port support into the flop `D` side before driving the later child input |
+| `--hierarchy-registered-child-input-cone-prob` | 0.0 | Probability a parent binds a later child data input through parent-local combinational logic and then one local parent flop; the logic may mix parent data inputs with earlier sibling outputs and chain through live earlier parent flops |
+| `--hierarchy-parent-flop-prob` | 0.0 | Probability parent-side hierarchy cones may emit local parent flops (parent output cones and parent-composed child-input cones) |
+| `--hierarchy-parent-cone-instance-prob` | 0.0 | Probability a parent-composed child-input cone or parent-output cone instantiates an extra child module as an internal parent-cone source |
+| `--max-parent-cone-instances-per-module` | 1 | Cap on parent-cone helper child instances one hierarchy parent may instantiate. `1` preserves the first helper slice; `0` disables helper insertion regardless of probability |
 | `--share-prob`          | 0.3      | Per-operand probability of reusing an existing wire (DAG-cone fraction)|
 | `--terminal-reuse-prob` | 0.3      | Forced-leaf probability of reusing an exact-width pool signal |
 | `--constant-prob`       | 0.1      | Forced-leaf probability of emitting a constant instead of a width-adapter fallback |
@@ -327,6 +347,9 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--factorization-level` | e-graph  | Current-build enforcement/proof ladder inside `node-id`: none → cse → operand-unique → commutative → associative → constant-fold → peephole → e-graph |
 | `--full-factorization`  | off      | Convenience alias for `--identity-mode node-id --factorization-level e-graph` |
 | `--no-full-factorization` | off    | Convenience alias for `--identity-mode relaxed --factorization-level none` |
+| `--max-ast-instances`   | 1        | Max times one AST (gate expression / constant) may be materialised as a named node in one module. `1` = strict uniqueness (CSE); higher N permits N copies; `u32::MAX` effectively disables dedup |
+| `--operand-duplication-rate` | 0.0 | Probability an operator gate's operand list may repeat a `NodeId`. `0.0` = strict operand uniqueness for Add/Mul (And/Or/Xor are always strict regardless); `1.0` = unrestricted, exercising `x + x` / `x * x` shapes downstream |
+| `--mux-arm-duplication-rate` | 0.0 | Probability the arms of an N-to-1 mux may share the same data signal. `0.0` = every arm distinct; `1.0` = no constraint |
 | `--sv-version`          | 2012     | Target IEEE 1800 standard (`2012` / `2017` / `2023`). Default `2012` is the honest floor — the current default emitted subset is 1800-2012-valid, so the default (and, with every up-opt knob off, all three targets) reproduce current output byte-for-byte. A **down-gating guarantee**: the emitter never emits a construct newer than the target. Surfaced in `--dump-config` / `--introspect` (schema `1.28`). The first **up-opt** now ships — see `--soft-union-slice-prob`. |
 | `--profile`             | none     | Apply a curated knob preset *before* explicit flags: `arithmetic-heavy` / `deep-hierarchy` / `structured-emission-max` / `sv2023-upopts`. Explicit flags override the preset. See "Presets" below |
 | `--steer`               | none     | Bias construction-time coverage steering: repeatable `--steer <key>=<weight>` (knob name or category → a non-negative probability multiplier). Layers after `--profile`. See "Coverage steering" below |
@@ -334,6 +357,10 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--generate-loop-emit-prob` | 0.0  | Per-qualifying-replication probability of the `generate for` emit-projection |
 | `--task-emit-prob`      | 0.0      | Per-qualifying-gate probability of the `task automatic` emit-projection |
 | `--cone-function-emit-prob` | 0.0  | Per-qualifying-cone probability of the whole-cone `function automatic` emit-projection |
+| `--multi-output-task-emit-prob` | 0.0 | Per-leader probability of the multi-output `task automatic` emit-projection (a co-supported gate pair) |
+| `--mux-if-emit-prob`    | 0.0      | Per-qualifying-mux probability of the procedural `always_comb` if/else emit-projection |
+| `--case-mux-if-emit-prob` | 0.0    | Per-qualifying-`CaseMux` probability of the procedural `always_comb` if/else-if priority-chain emit-projection |
+| `--casez-mux-if-emit-prob` | 0.0   | Per-qualifying-`CasezMux` probability of the procedural `always_comb` if/else-if **masked** priority-chain emit-projection |
 | `--soft-union-slice-prob` | 0.0    | Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`) |
 | `--unique-case-prob`    | 0.0      | Per-qualifying-gate probability of prefixing the emitted `case`/`casez` statement with the IEEE 1800-2017 §12.5.3 `unique` qualifier — asserts FULL **and** PARALLEL. A decoration, not a projection: strip the keyword and the output is byte-identical (decision `0044`) |
 | `--priority-case-prob`  | 0.0      | Per-qualifying-gate probability of the `priority` qualifier — asserts FULL only, first-match semantics. Rolled **after** `--unique-case-prob`, and skipped for a gate `unique` already claimed (decision `0044`) |
@@ -349,6 +376,8 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--hierarchy-semantic-module-dedup` | off | Enable the opt-in bounded-semantic hierarchy module-dedup pass (on-only flag) |
 | `--hierarchy-sequential-module-dedup` | off | Enable the opt-in bounded-sequential whole-module dedup pass (on-only flag) |
 | `--bisimulation-flop-merge` | off  | Enable the opt-in bounded bisimulation flop-merge pass (on-only flag) |
+| `--max-rss-mb`          | 0        | Memory governor: abort an `--out` run once this process's resident set reaches this many MiB (`0` = off ⇒ byte-identical). Clean exit `99` naming the seed + effective knobs. See "Resource-safe runs" |
+| `--ram-abort-pct`       | 0        | Memory governor: abort an `--out` run once host used RAM reaches this percentage (`1..=100`; `0` = off). Mirrors `scripts/ram_guard.sh` from the inside. See "Resource-safe runs" |
 
 ### Presets (`--profile`)
 
