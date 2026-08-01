@@ -5,6 +5,49 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — Capture the charset the SOURCE permits, not the one its members happen to use — `PARITY-EXTRACTOR-CHARSET-GAP.1`
+
+Two `ENUMERATION-PARITY` extractors read an id with a character class narrower than the ids their
+source can legally contain. A value outside the class is not mis-read — it is **never read**, so it
+never enters the authoritative set, and every assertion about it passes **vacuously**. Measured at
+`CAPABILITY-BREADTH-EXPANSION.4b.1`: a new steering category named `case_qualifier` appears in
+**none** of the seven fenced doc sites, and the check reported **`ok` on all seven**.
+
+**The repository had already written down the accident and then relied on it anyway.** The comment
+above the extractor explains why an *earlier* version returned the right answer for the wrong
+reason: *"it skips every knob NAME only because each one happens to contain `_`, and no category
+does."* The rewrite that followed fixed the over-run that comment describes and **kept the
+charset** — converting a noticed coincidence into a live silent filter. Noticing an accident is not
+the same as removing your dependence on it; write the dependence down *in the code*, or the next
+rewrite will inherit it.
+
+**Why the count floor covers one site and not the other — this is the transferable part.** Both
+extractors have a floor. Probing them gave different answers:
+
+| probe | floor | what fired |
+| --- | --- | --- |
+| **rename** `iverilog` → `iverilog-compile` | `>= 5`, extracts 4 | trips — but reports *"produced 4 entries (floor 5)"*, pointing at the extractor, not at the two docs missing the id |
+| **add** a category `case_qualifier` | `>= 8`, extracts 8 | **nothing** — seven vacuous `ok`s |
+
+A floor is **shrink-coupled, not growth-coupled** — which the script's own notes already say, for a
+different reason. So a charset gap that hides a **renamed** id shows up as a shrink and the floor
+catches it; a gap that hides a **new** id is **born invisible** — the pre-existing members still
+extract, the floor is satisfied, nothing fires. **Ids are added far more often than they are
+renamed, so the case a floor cannot see is the common one.**
+
+**A floor is also a worse diagnosis even when it does fire.** The adapter probe's message named the
+extractor's entry count, not the missing doc entries — so an author would go debug the wrong file.
+Widening the charset turned that into two parity failures that name `iverilog-compile` and the
+sites it is missing from. Coverage at one site, *diagnosis* at the other.
+
+**On not taking the escape hatch.** Renaming the category to `qualifiers` made the gate work
+immediately, and it was independently the right name (it matches `selectors` / `terminals` /
+`motifs` / `emission`). It would also have **masked** the defect completely, leaving the next
+underscored id to be born invisible again. A fix that only works because you picked a value the
+broken reader happens to accept is not a fix.
+
+---
+
 ## 2026-08-01 — Case-qualifier surface — impl-time notes — `CAPABILITY-BREADTH-EXPANSION.4b.1`
 
 Implemented per the `.4a` design with **one correction**, recorded first because it reverses a

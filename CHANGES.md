@@ -1,9 +1,81 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — PARITY-EXTRACTOR-CHARSET-GAP.1 — an extractor must capture the charset its source permits
+
+**Landed as:** `pending`. Previous: `18e75ad`.
+**Doctrine-check only** ⇒ **DUT byte-identical**; no `src/` change.
+
+**What.** Two `ENUMERATION-PARITY` extractors in
+`scripts/check_enumeration_parity.sh` captured an id with a character class narrower than the ids
+their source can legally contain, so a value outside that class was **not read at all** — it never
+entered the authoritative set, and every doc-parity assertion about it passed **vacuously**.
+
+- steering categories: the category capture `"([a-z]+)"` → `"([a-z0-9_]+)"`, now matching the
+  **name** column on the very same row (the asymmetry was accidental — nothing declares that a
+  category must be one lowercase word);
+- adapter ids: `"[a-z0-9]+"` → `"[a-z0-9_-]+"`.
+
+**Found by measurement, not review.** `CAPABILITY-BREADTH-EXPANSION.4b.1` added a steering category
+first named `case_qualifier`. It appears in **zero** of the seven fenced doc sites, so the check had
+to fail seven times. It reported **`ok` seven times.** Renaming the category to `qualifiers` made the
+gate work — and would have **masked** the defect entirely, which is why the rename was not treated
+as the fix. Confirmed pre-existing; registered as its own tree per
+[`0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md) §(a) rather than
+bundled into the feature commit that tripped over it.
+
+**The repository had already recorded the accident and kept relying on it.** The comment above the
+extractor explains why an *earlier* version returned the right answer for the wrong reason —
+*"it skips every knob NAME only because each one happens to contain `_`, and no category does"* —
+and the rewrite that followed fixed the over-run that comment describes while **keeping the
+charset**, turning a noticed coincidence into a live silent filter.
+
+**Why the count floor covers one site and not the other.** Both extractors have a floor, and the two
+probes behaved differently:
+
+| probe | floor | what fired |
+| --- | --- | --- |
+| **rename** an adapter id `iverilog` → `iverilog-compile` | `>= 5`, extracts 4 | trips — but reports *"produced 4 entries (floor 5)"*, pointing at the extractor rather than at the two docs missing the id |
+| **add** a category `case_qualifier` | `>= 8`, extracts 8 | **nothing** — seven vacuous `ok`s |
+
+A floor is **shrink-coupled, not growth-coupled** (a property the script's own notes already state).
+A charset gap that hides a **renamed** id surfaces as a shrink and the floor catches it; one that
+hides a **new** id is *born invisible* — the pre-existing members still extract, the floor is
+satisfied, nothing fires. **Ids are added far more often than renamed, so the case a floor cannot
+see is the common one.** That is the durable rule now recorded beside the arm-shape lesson in the
+script: *capture the charset the SOURCE permits, not the charset its current members happen to use.*
+
+**Validation — both controls measured fail-before / pass-after on the real source, then restored to
+a zero diff** (`DOCTRINE_ENFORCEMENT.md` §9; a vacuous pass is exactly what is being repaired, so
+only a failing control distinguishes the fix from the coincidence that hid it):
+
+- **A** — a category renamed `qualifiers` → `case_qualifier`: **0 FAILs before → 7 after**, each
+  naming `case_qualifier` at its fenced site.
+- **B** — an adapter id renamed `iverilog` → `iverilog-compile`: **1 *wrong* failure before** (the
+  count floor's entry-count message) → **2 correct parity failures after**, each naming
+  `iverilog-compile` and the doc missing it. So this site gained **diagnosis**, not coverage.
+
+Both extractors still read their full authoritative sets (9 categories including the new
+`qualifiers`; 5 adapter ids), so both count floors hold. `scripts/check_doctrines.sh` green — all 9.
+
+**Promoted to a Knowledge Map card, because it is a class not an instance.** The existing
+`coverage-check-vacuity` card covers the **document side** of a parity check going vacuous (a loose
+predicate, repaired by fenced regions). This is the **authoritative-set side**: the extractor never
+produced the id, so `S` is missing it, so *no site can be missing it* — a perfect predicate does not
+help, because you cannot be missing what was never in the set. New card
+`docs/knowledge/extractor-charset-narrower-than-source.md`, cross-linked to
+[[coverage-check-vacuity]] and [[negative-control-must-be-able-to-fail]], with a `reverify` that
+re-earns the claim (introduce an underscored category; the gate must go red) rather than merely
+reading the regex. KM **111 → 112** facts / **1,088** question keys.
+
+**Files touched.** `scripts/check_enumeration_parity.sh`,
+`docs/tasks/PARITY-EXTRACTOR-CHARSET-GAP.md` (new), `docs/TASK_TREE.md`,
+`docs/knowledge/extractor-charset-narrower-than-source.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.1 — `unique` / `priority` case qualifiers: the live surface
 
-**Landed as:** `pending`. Previous: `c38024b`.
+**Landed as:** `18e75ad`. Previous: `c38024b`.
 **Default-off** (`unique_case_prob` = `priority_case_prob` = `0.0`) ⇒ **DUT byte-identical**;
 `tests/snapshots.rs` 6/6 untouched.
 

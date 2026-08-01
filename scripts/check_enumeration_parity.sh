@@ -82,7 +82,7 @@ extract_book_summary_links() {
 # read of the same ids for the docs that quote them.
 extract_adapter_ids() {
   grep -A1 "fn id(&self) -> &'static str {" src/downstream/mod.rs |
-    grep -oE '"[a-z0-9]+"' | tr -d '"' | sort -u
+    grep -oE '"[a-z0-9_-]+"' | tr -d '"' | sort -u
 }
 
 # Authoritative: the steering category names in the `knob_ids!` table in
@@ -119,6 +119,39 @@ extract_adapter_ids() {
 # The transferable rule: **a `sed` line-range whose terminator stops existing does
 # not fail — it runs on and returns something plausible.** Anchor an extraction to
 # a shape that cannot silently widen, and re-measure it whenever its target moves.
+#
+# ── WHY THE CATEGORY CAPTURE IS `[a-z0-9_]+` (PARITY-EXTRACTOR-CHARSET-GAP.1) ──
+# It was `[a-z]+` until `2026-08-01`, and note what point (b) above says: the old
+# extractor worked "only because each [knob name] happens to contain `_`, and no
+# category does." That sentence records an accident being relied upon — and the
+# rewrite fixed the over-run (a) while KEEPING the charset (b), which turned the
+# noticed accident into a live silent filter.
+#
+# Measured at `CAPABILITY-BREADTH-EXPANSION.4b.1`: a new steering category named
+# `case_qualifier` appears in **none** of the seven fenced doc sites, and this
+# check reported **ok on all seven**. Not mis-read — never read, so it never
+# entered the authoritative set and every assertion about it passed vacuously.
+#
+# **Why the count floor cannot cover this, and the general rule.** The floor is
+# *shrink-coupled, not growth-coupled* (see its own note below). A charset gap
+# that hides a **renamed** id shows up as a shrink and the floor trips — which is
+# exactly what the adapter extractor did when probed (5 → 4, "produced 4 entries
+# (floor 5)"). A charset gap that hides a **new** id is born invisible: the other
+# eight still extract, the floor is satisfied, and nothing fires. Since ids are
+# added far more often than renamed, **the case a floor cannot see is the common
+# one.**
+#
+# So the rule for any extractor here: **capture the charset the SOURCE permits,
+# not the charset its current members happen to use.** The name column on this
+# very row already allowed `_`; the asymmetry was accidental. The adapter capture
+# below is `[a-z0-9_-]+` for the same reason — no current adapter id carries a
+# separator, but `iverilog-compile` is already the tool-column spelling elsewhere
+# in this codebase, so the shape is not hypothetical.
+#
+# Both are held by a control, per DOCTRINE_ENFORCEMENT.md §9: temporarily give a
+# category an `_` (or an adapter id a `-`) and this check must go RED naming it.
+# Before the widening the first probe printed `ok` seven times; after it, seven
+# FAILs. That difference is the whole assertion.
 #
 # ── WHY THIS MATCHES A WHOLE ROW (PARITY-EXTRACTOR-ARM-SHAPE-GAP.1) ───────────
 # It was once `grep -oE '=> "[a-z]+"'` over the match arms, and that silently
@@ -157,7 +190,7 @@ extract_adapter_ids() {
 # identifier followed by `=>` — this check must fail loud, never cry wolf.
 extract_steering_categories() {
   sed -n '/^knob_ids! {$/,/^}$/p' src/ir/knob_id.rs |
-    sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[a-z0-9_]+",[[:space:]]*"([a-z]+)";[[:space:]]*$/\1/p' |
+    sed -nE 's/^[[:space:]]*[A-Za-z0-9_]+[[:space:]]*=>[[:space:]]*"[a-z0-9_]+",[[:space:]]*"([a-z0-9_]+)";[[:space:]]*$/\1/p' |
     sort -u
 }
 
