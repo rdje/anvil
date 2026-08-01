@@ -5,6 +5,74 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A detector must not depend on a field the defect also destroys — `CHANGES-ENTRY-PLACEMENT.4`
+
+Three candidate mechanisms for *"was the `CHANGES.md` entry added at the top?"*. Two were
+already dead on measurement; the third works. The reason the dead ones died is more useful than
+the fact that they did.
+
+| candidate | keys on | measured failure |
+| --- | --- | --- |
+| date-keyed ordering scan | heading dates | **cries wolf** — 3 findings, 2 false (mis-dated headings above correctly-ordered entries) |
+| hash-keyed ordering scan | `Landed as:` hashes | **vacuous** — 0 of 3 real offenders visible |
+| **authoring-path** | the staged diff | **3 fires / 766 commits, 3 true positives, 0 false alarms** |
+
+### The vacuity has a cause, and the cause generalises
+
+`.2` had already called the hash-keyed scan vacuous *for the two known offenders*. Running the
+third candidate over history surfaced a **third** offender (`f9cf50a`, entry at heading 6 of
+379, previously unknown), and it too carries no resolvable hash — it says
+`**Landed as:** this commit`.
+
+Zero of three. That is no longer an accident, and the mechanism is visible once stated: **a
+stale entry template both misplaces the entry and omits its provenance line.** One cause, two
+symptoms. So any detector keyed on the provenance line is guaranteed to be blind to precisely
+the population it exists to find.
+
+> **A detector must not depend on a field that the defect it detects also destroys.**
+
+This is worth carrying beyond `CHANGES.md`. The general shape: when a defect has a *common
+cause* with the metadata your check reads, the check's coverage is anti-correlated with the
+defect's presence — it is most blind exactly where it matters. Ask, before writing any check:
+*if the thing I am detecting happened, would my input still be there?*
+
+### Why the working candidate works
+
+It keys on the **authoring act** rather than the file's content: *the staged diff adds a
+heading ⇒ the file's first heading must be one of the added lines.* No date, no hash, nothing
+the stale template can take away. Two properties fell out that were not designed in:
+
+- **The 99 no-new-entry commits are silent for free.** A hash backfill or a typo fix adds no
+  heading, so the predicate never engages. That was the main false-alarm risk and it needs no
+  special case.
+- **It is scope-independent.** Both original offenders were docs-only commits, and the
+  existing `CODE-CHANGE-EVIDENCE` check is scope-aware — it exempts them outright. Keying on
+  the staged `CHANGES.md` diff sidesteps the exemption that let them through.
+
+### The count that is 181, 202, or 233 depending on how you ask
+
+`.3` reported **181** entries still saying `Landed as: this commit`. A line-anchored `grep`
+requiring backticks reports **0**; a loose substring grep reports **233**; counting provenance
+*lines* rather than *entries* gives **202**. Only a per-heading classifier — walk `## `
+headings, take the first `**Landed as:**` inside each section, classify its first token —
+reproduces 181.
+
+That makes **four** counts in this tree's orbit that did not survive re-derivation (`.2`'s
+`388`, `.3`'s `269`, the sibling tree's `~649`, and this one). The pattern is consistent enough
+to name: **a count is a function of its extractor, so a count published without its extractor
+is not a measurement — it is a memory.** Decision `0045` therefore ships the whole scan as a
+runnable `reverify` with its expected output, not as a number in prose.
+
+### On refusing to force-fit the framework
+
+`.4`'s acceptance said to apply decision `0033`'s three-part test first. Applied honestly, it
+**does not apply**: it classifies a hand-maintained *list* mirroring a set, and placement is a
+property of an authoring act, not a duplicated enumeration. Recording *"the rule does not
+reach this"* was more useful than producing three strained answers — a framework stretched past
+its subject still returns a verdict, and that verdict is confidently wrong.
+
+---
+
 ## 2026-08-01 — A decomposition tree needs a leaf whose licensed answer is STOP — `IR-TYPES-DECOMPOSITION.4`
 
 `IR-TYPES-DECOMPOSITION` closed by **not** splitting. That is the interesting part, and it did

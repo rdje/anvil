@@ -1,9 +1,84 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.4 — the mechanism question, answered on measurement
+
+**Landed as:** `pending`. Previous: `928817f`.
+**Docs-only** ⇒ **DUT byte-identical**; no `src/` change. Decision
+[`0045`](docs/decisions/0045-changes-entry-placement-authoring-path-check.md) recorded; `.5`
+registered to implement it.
+
+**The answer is: ship a mechanism, and key it on the authoring path.**
+
+> If a commit's staged `CHANGES.md` diff adds at least one `## ` heading, then the first
+> `## ` heading in the resulting file must be one of those added lines.
+
+No date, no hash, no knowledge of the ordering convention — it reads the diff and the
+resulting file, both of which `git` already has. This is the third candidate `0038` named but
+could not yet evaluate.
+
+**Measured over the whole history — 766 commits touching `CHANGES.md`:**
+
+| outcome | count | what it is |
+| --- | ---: | --- |
+| ok | 664 | the new entry is at the top |
+| skipped | 99 | the commit adds no entry (hash backfills, typo fixes) — the main false-alarm risk, correctly silent |
+| **fires** | **3** | **all three true positives; zero false alarms** |
+
+That is the bar the date-keyed candidate failed at 2-false-of-3. Negative-controlled both
+ways on the staged path: the same new entry placed at the top is silent, **appended at the
+bottom it fires**, and a provenance-only hash backfill correctly skips — *same content,
+different placement, opposite verdict*, which is what proves it looks at placement rather
+than at text.
+
+**It found a third offender nobody knew about.** `f9cf50a` (`RESOURCE-SAFE-TOOLING.2`,
+`2026-06-14`) placed its entry at heading **6 of 379** — five below the top. `.1`, `.2` and
+`.3` all reported this class as **two** members; it is **three**.
+
+**And it explained why they missed it, which is the finding worth keeping.** All three
+offenders are invisible to a hash-keyed ordering scan: `f9cf50a`'s entry says
+`**Landed as:** this commit`, and the other two carry no `Landed as:` line at all. That is not
+coincidence — **the stale entry template that misplaces an entry is the same one that omits
+its provenance line**, so a check needing that line is guaranteed to miss exactly the entries
+that are broken. Measured **0 of 3**. The rule, recorded in `0045`: *a detector must not depend
+on a field that the defect it detects also destroys.*
+
+**Two things ruled on explicitly, as `.3` demanded.**
+
+- **Do not back-fill the 181 `this commit` lines.** Re-measured with **one** per-heading
+  classifier at two commit points, so instrument change is separated from corpus change:
+  `80edd42` = 652 headings / 392 hash / **182** `this commit` / 77 none; `928817f` = 678 /
+  412 / **181** / 77 / 7 `pending`. The count went **182 → 181 across 26 new entries** — a
+  frozen legacy block from a retired template, not an ongoing practice. Back-filling would be
+  a 181-entry history rewrite against `0031`, and `0038` §(d)(5) already refused the adjacent
+  act.
+- **Never require a `Landed as:` hash.** The newest entry **structurally cannot** carry its
+  own — the commit does not exist while its message is being written — so such a check would
+  be permanently red by at least one entry.
+
+**Decision `0033`'s three-part test is recorded as NOT APPLYING**, rather than force-fitted.
+That rule classifies a hand-maintained *list* mirroring a set; entry placement is a property
+of an authoring *act*. A rule stretched past its subject is how a framework starts producing
+confident wrong answers — the governing contract is `DOCTRINE_ENFORCEMENT.md` §4 instead.
+
+**A fourth unreproducible count, found and recorded.** The same corpus yields **181, 202 or
+233** `this commit` entries depending on the extractor — a line-anchored `grep` requiring
+backticks reports **0**, because the legacy form is unbackticked. Only a per-heading
+classifier gives the number that means anything. This tree has now produced four counts that
+did not survive re-derivation (`.2`'s `388`, `.3`'s `269`, the `~649` in the sibling tree, and
+this), which is why `0045` ships its extractor as a runnable `reverify` expected to print
+exactly three commits.
+
+**Validation.** Docs-only; `scripts/check_doctrines.sh` 9/9. Every number above is from the
+real repository at `928817f`.
+
+**Files touched.** `docs/decisions/0045-…md` (new), `docs/decisions/INDEX.md`,
+`docs/tasks/CHANGES-ENTRY-PLACEMENT.md`, `docs/TASK_TREE.md`, `MEMORY.md`, `CHANGES.md`,
+`DEVELOPMENT_NOTES.md`.
+
 ## 2026-08-01 — IR-TYPES-DECOMPOSITION.4 — re-measure and close: it is one thing now
 
-**Landed as:** `pending`. Previous: `f0eb8fb`.
+**Landed as:** `928817f`. Previous: `f0eb8fb`.
 **Docs-only** ⇒ **DUT byte-identical**; no `src/` change. **Closes the tree.**
 
 **What.** The closing leaf of the ownership-split tree. `.4` was deliberately written as
