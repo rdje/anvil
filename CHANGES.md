@@ -1,9 +1,95 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.3 — `unique`/`priority` case qualifiers: a third breadth strand (decision 0044)
+
+**Landed as:** `pending`. Previous: `9bf2420`.
+**Docs only** ⇒ **DUT byte-identical**; `tests/snapshots.rs` untouched.
+
+**What.** Decision [`0044`](docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)
+picks the next capability-breadth construct: a default-off, valid-by-construction `unique` /
+`priority` **case-qualifier** prefix on the `case` / `casez` statement a dynamic-selector
+`CaseMux` / `CasezMux` already emits.
+
+**The scope call, made explicitly because it could have gone wrong silently.** The pre-`.1`
+findings recommended *reframing* `.1` from *version-distinctive up-opt* to *synthesizable
+breadth*. **Declined.** The two are different questions — `.1` asks *which post-2012 construct
+is both synthesizable and distinctive*, `.3` asks *which 2012-legal construct is missing* — and
+`.1` is the **only** place in the repo that asks the first (`SV-VERSION-TARGETING` is closed).
+So a **third strand** was opened beside it; `.1` stays `pending`, deferred-not-retired, question
+intact. Only *"two strands"* became *"three"*. Decided under `0041` §(b) (*decide, don't ask*):
+`.3` is additive, `.1` is untouched, and a reversal costs one tree edit.
+
+**Why this construct.** A qualifier routes tools down code paths nothing else in ANVIL reaches —
+full/parallel-case *inference* in synthesis, violation-check *instrumentation* in simulation —
+which is exactly where lint, synthesis and simulation disagree. ANVIL emits zero of them today.
+It is emission-level only: `CaseMux`/`CasezMux` already exist in `GateOp`, so no IR change.
+
+**Why it is safe to emit.** A qualifier is an **assertion**, so the load-bearing question is not
+*do tools accept it* but *is it true for every block the generator can emit*. Both properties
+come free from the emitter, with no analysis pass and no generate-then-filter:
+`src/emit/sv.rs:800-806` always writes a `default:` arm ⇒ **FULL**; `src/emit/sv.rs:712-721`
+labels `CaseMux` arm `i` as `SW'd{i}` and `src/gen/cone/motifs.rs:832-841`
+(`build_casez_patterns`, the **sole** casez pattern source) gives `CasezMux` arm `i` the
+care-value `i` with one don't-care LSB ⇒ **PARALLEL**.
+
+**Validation (Verilator 5.046 / Yosys 0.64 / Icarus 13.0).**
+
+- **Corpus:** 50,761 emitted `case`/`casez` blocks (120 modules × 3 construction strategies) —
+  **100 % FULL, 100 % PARALLEL, 0 nested, 0 unparsed, 0 violations**; plus 130 FSM blocks (106
+  of them nested `case (state_q)` → `case (sel)` with symbolic labels) — 130/130 both.
+- **Downstream ON-vs-OFF** (24 gate-shaped modules, 169 qualified blocks): `verilator
+  --lint-only` (the repo-owned argv) **0 warn/err** ON and OFF; `verilator -Wall` at
+  `--language 1800-2012/2017/2023` **68 vs 68 ⇒ Δ = 0**; Yosys both repo modes **0 failures,
+  0 messages**; synthesized **cell counts identical 24/24**; `iverilog -g2012` exit 0.
+- **Runtime:** `verilator --binary --assert` reports **zero** violations on a real `CaseMux`
+  module (exhaustive selector sweep) and a real `CasezMux` module with `unique casez` on all
+  five blocks (20,000 vectors), outputs identical to unqualified — while the hand-written
+  negative control **does** report `unique case, but multiple matches found`.
+- **LRM:** IEEE 1800-2017 §12.5.3, grounded against the local cache.
+
+**Two corrections, both found by measuring rather than assuming.**
+
+1. **The pre-`.1` claim that `CasezMux` arms can overlap is WITHDRAWN.** It reasoned from the
+   *IR shape* (the `(pattern, wildcard_mask, data)` triples **can** express overlap) instead of
+   from the **constructor** (which never builds one). *What the IR can represent is not what the
+   generator constructs.* The finding is marked in place on the tree, not deleted
+   (`MEMORY_ARCHITECTURE.md` §10).
+2. **The first version of the measurement checker failed `DOCTRINE_ENFORCEMENT.md` §9's
+   delete-the-subject test — on its own author.** It was nesting-unaware (an FSM's outer
+   `case (state_q)` swallowed its first inner `case (sel)`) and **silently skipped** blocks whose
+   labels it could not parse, so it reported a clean FSM result it had never looked at. Rewritten
+   to track nesting, resolve symbolic `localparam` labels, and **count unparsed labels as
+   violations** — which immediately surfaced 8 more. No number was trusted until the rewrite ran
+   green on the corpus and red on the negative control.
+
+**One tool result recorded rather than glossed.** `iverilog -g2012` exits 0 but prints
+`vvp.tgt sorry: Case unique/unique0 qualities are ignored.` for each `unique`/`unique0` block
+(`priority` is silent). `downstream::first_tool_warning` matches `warning:`, not `sorry:`, so the
+gate would pass **without anyone deciding it should** — a lexical accident, which
+`DOCTRINE_ENFORCEMENT.md` §6.1 forbids relying on. The ADR therefore pins **per-qualifier tool
+plans**: `unique` runs Verilator + both Yosys with Icarus a *recorded accepting no-op* (the
+`union soft` precedent), `priority` runs the full three-tool plan, and the shared classifier is
+**not** widened to serve one scenario.
+
+**Rejected: `priority`-only.** It looks safer (universally silent) but is the *inert* qualifier
+here — with a `default:` always present, `priority case` and plain `case` are identical in both
+simulation and synthesis, so shipping it alone would exercise **no new tool code path**. `unique`
+is the one that adds the runtime uniqueness check and `parallel_case` inference.
+
+**Impact.** Design-only; nothing in `src/` changed. `.3` splits the strand into `.3` (design,
+done) + `.4` (impl, pending: the two knobs, a `src/ir/case_qualifier.rs` annotation pass, the
+emitter prefix, the metrics at introspection schema `1.27 → 1.28`, and
+`tool_matrix --case-qualifier-gate`). The tree frontier moves `.1` → `.4`.
+
+**Files touched.** `docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md`
+(new), `docs/decisions/INDEX.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md`, `DEVELOPMENT_NOTES.md`, `KNOWLEDGE_MAP.md` (regenerated),
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.1 (groundwork; leaf remains `pending`) — record the pre-`.1` probe findings
 
-**Landed as:** `pending`. Previous: `8a6dcf3`.
+**Landed as:** `9bf2420`. Previous: `8a6dcf3`.
 **Docs only** ⇒ **DUT byte-identical**.
 
 **What.** Measured findings recorded on the tree *before* `.1` opens, so the next session inherits

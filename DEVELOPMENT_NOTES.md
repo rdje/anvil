@@ -5,6 +5,72 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — What the IR can represent is not what the generator constructs — `CAPABILITY-BREADTH-EXPANSION.3`
+
+Three things from picking the `unique` / `priority` case qualifiers as the next breadth
+construct.
+
+**1. Read a by-construction property off the CONSTRUCTOR, never off the type.** The pre-`.1`
+findings had ruled `unique` unsafe on `CasezMux` because its operands are
+`(pattern, wildcard_mask, data)` triples and triples **can** encode overlapping wildcard arms.
+True about the IR, and false about ANVIL: `build_casez_patterns`
+(`src/gen/cone/motifs.rs:832-841`) is the **sole** casez pattern source in the generator, and it
+gives arm `i` the care-value `i` in the high bits with exactly one don't-care LSB — so two arms
+overlap iff two arm indices coincide, which they cannot. The claim had to be withdrawn.
+
+The general form is worth keeping, because the same mistake is available everywhere in this
+codebase: **an IR type describes the space of representable values; a by-construction claim is
+about the subset the constructors actually reach.** Reasoning about safety from the type is
+reasoning about a superset, and it fails *conservatively* — which is why it survives review. It
+does not look like a bug; it looks like caution. The cheap fix is mechanical: find every call
+site of the constructor and check whether the dangerous case is reachable, then confirm it on
+emitted output.
+
+**2. A qualifier is an assertion, so "the tools accept it" is the wrong acceptance test.** Every
+prior emission surface in this project asks *does the downstream tool ingest this shape?* A
+`unique case` is different in kind: it is a **claim about the design** that a simulator checks at
+runtime and a synthesizer *acts on*. Emitting one that can be false would manufacture precisely
+the sim/synth divergence class ANVIL exists to *find in tools*, not to *inject into its own
+output*. So the acceptance test had to be *is the assertion true for every block the generator
+can emit* — answered by reading the emitter, then measured over 50,761 emitted blocks, then
+executed with `verilator --binary --assert`.
+
+The corollary is a design preference worth stating: **prefer constructs whose assertions the
+generator already establishes.** Here the emitter's always-present `default:` arm gives FULL for
+free and the sequential arm indices give PARALLEL for free — so the surface needs no analysis
+pass and no generate-then-filter. A construct requiring a *proof pass* to be safe is a much
+larger, and much later, piece of work.
+
+**3. The silent qualifier was the inert one — don't optimise the gate report.** `priority` is
+clean on every tool including Icarus; `unique` makes Icarus print
+`vvp.tgt sorry: Case unique/unique0 qualities are ignored.` The tempting move is to ship
+`priority` first. It is wrong: with a `default:` arm always present, `priority case` and plain
+`case` are semantically identical in both simulation and synthesis — first-match either way, and
+the `full_case` hint is moot — so `priority` alone exercises **no new tool code path at all**.
+`unique` is the one that adds the runtime uniqueness check and `parallel_case` inference. Picking
+the quiet-but-inert construct would have produced a greener gate and a worse product.
+
+A second trap sat behind the same message. `downstream::first_tool_warning`'s iverilog arm matches
+`warning:`, and Icarus says `sorry:` — so the gate passes today **by lexical accident**, with
+nobody having decided that it should. `DOCTRINE_ENFORCEMENT.md` §6.1 is exactly about this: a box
+must be *earned*. The resolution is the scenario's **tool plan** (per-qualifier), not widening a
+shared classifier that every other gate depends on to serve one scenario.
+
+**4. The measurement instrument failed its own §9 test, and that is the point of having the
+test.** `DOCTRINE_ENFORCEMENT.md` §9 says the acceptance test for any coverage-shaped check is
+*delete the subject and re-run it*. The first version of this leaf's arm checker reported
+"24 blocks, all FULL, all PARALLEL" on the FSM corpus — and had measured none of them: it was
+nesting-unaware, so an outer `case (state_q)` consumed the arms of its first inner `case (sel)`,
+and it `continue`d silently past every block whose labels it could not parse. **A checker that
+skips silently reports success about what it never looked at** — indistinguishable, in the
+output, from a real pass. The rewrite tracks nesting, resolves symbolic `localparam` labels, and
+promotes *unparsed label* to a **violation**; that promotion alone surfaced 8 more blocks (a
+1-bit FSM state is emitted as a bare `localparam logic NAME = 1'h0;` with no `[W:0]` range, which
+the label regex required). The reported counts now carry `nested:` and `unparsed:` columns
+precisely so a future reader can see the checker looked, rather than trust that it did.
+
+---
+
 ## 2026-08-01 — A move is only "pure" if something other than your reading of the diff says so — `IR-TYPES-DECOMPOSITION.3`
 
 Three things from extracting the 2,123-line canonicalization engine out of `types.rs`.

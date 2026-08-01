@@ -2853,8 +2853,25 @@ other five remain `active` with a design-first `.1` ADR frontier:
    `tool_matrix` scenario + `saw_mealy_fsm_design` gate); the state register stays
    Moore-clocked. (`.1`) more SV-2017/2023 up-opts (enum/typedef, packed multidim
    arrays, more 2023 constructs continuing the `union soft` pattern) stays a
-   **deferred-not-retired** future strand (the `.2a` probe found the named
-   candidates not version-distinctive). Each default-off / proven /
+   **deferred-not-retired** future strand — deferred twice on measurement (the `.2a`
+   probe found the named candidates not version-distinctive; the `2026-08-01` probe
+   added the structural reason, that post-2012 SV additions are overwhelmingly
+   *verification* features a synthesizable generator cannot emit, leaving essentially
+   `union soft`). (`.3`) A **third strand** opened `2026-08-01` (decision
+   [`0044`](docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md))
+   for **2012-legal synthesizable breadth** — constructs the emitter does not produce at
+   all — deliberately *beside* `.1` rather than a reframing of it, because *"which
+   post-2012 construct is distinctive"* and *"which 2012-legal construct is missing"* are
+   different questions and `.1` is the only place the repo asks the first. First pick: the
+   default-off `unique` / `priority` **case qualifiers** on `CaseMux` / `CasezMux`
+   (`unique_case_prob` / `priority_case_prob`, `num_emitted_{unique,priority}_cases` at
+   introspection schema `1.27 → 1.28`, a `tool_matrix --case-qualifier-gate` with
+   per-qualifier tool plans). A qualifier is an **assertion**, so it is emittable only
+   because both asserted properties are free from the emitter — the always-present
+   `default:` arm gives FULL and the sequential arm indices give PARALLEL — measured over
+   **50,761** emitted `case`/`casez` blocks (100 % both, 0 violations) and runtime-proven
+   by `verilator --assert` (zero violations; the negative control fires). `.3` design done,
+   `.4` impl pending. Each default-off / proven /
    API-selectable; the lane stays `active`. Default-off / DUT byte-identical.
 
 Nothing is retired; the default `anvil` build and `--artifact dut` stay
