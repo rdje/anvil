@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3a — the book links the registers it stopped duplicating
 
-**Landed as:** `pending`. Previous: `c988f77`, `57f5d66`, `d25bbe7`.
+**Landed as:** `a385b76`. Previous: `c988f77`, `57f5d66`, `d25bbe7`.
 **`book/src/` only; no `src/`, no `tests/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs`
 untouched.
 

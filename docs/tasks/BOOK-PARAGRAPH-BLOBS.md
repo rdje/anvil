@@ -504,7 +504,7 @@ the **book**), and recorded under *Surfaced by `.3a`* so it is not rediscovered.
 | --- | --- | --- |
 | `.0` (registration) | `ebd7869` — `BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 | `.1` | `df7bc6e` — `BOOK-PARAGRAPH-BLOBS.1 — split the wall-of-text paragraphs; worst block down 62 %` | Book-only ⇒ DUT byte-identical. Whitespace-only, proven twice. |
-| `.3a` | `pending` — `BOOK-PARAGRAPH-BLOBS.3a — link the registers the book stopped duplicating` | Book-only ⇒ DUT byte-identical. Three `0048` links; worst block −49.2 %, mass −49.1 %. |
+| `.3a` | `a385b76` — `BOOK-PARAGRAPH-BLOBS.3a — link the registers the book stopped duplicating` | Book-only ⇒ DUT byte-identical. Three `0048` links; worst block −49.2 %, mass −49.1 %. |
 | `.4` | `d25bbe7` — `BOOK-PARAGRAPH-BLOBS.4 — promote the book-census instruments into scripts/` | Docs + `scripts/` only ⇒ DUT byte-identical. Reproduces the validated census exactly; three controls, one of which failed with the instrument innocent. |
 
 ## Changelog
