@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.4 — the instruments that judge this tree become durable
 
-**Landed as:** `pending`. Previous: `5e52117`, `30a0346`, `a5645c1`.
+**Landed as:** `d25bbe7`. Previous: `5e52117`, `30a0346`, `a5645c1`.
 **Docs + `scripts/` only; no `src/`, no `tests/`, no `book/src/` change** ⇒ **DUT byte-identical**,
 `tests/snapshots.rs` untouched.
 

@@ -93,7 +93,7 @@ independent instance of that rule since it was written, arriving from an owner r
   Goal: `Split the rendered prose blocks over 1,500 characters at genuine topic boundaries by inserting blank lines only.`
   Acceptance: `The diff adds blank lines and changes no words — ORIGINAL WORDING SUPERSEDED at execution, see Findings: "git diff --ignore-blank-lines shows no content hunks" is too narrow, because a sentence that begins mid-line cannot be split without moving the line break. Replaced by a stronger proof: whitespace-normalized word identity, plus a rendered list-structure proof. The post-repair census is re-run and reported against the pre-repair one. mdbook build green.`
   Verification: `Worst prose block 22,908 -> 8,704 chars (-62.0 %); architecture.html 22,908 -> 7,043 (-69.3 %); oversized mass 54,897 -> 43,092 (-21.5 %). Both proofs pass and both are negative-controlled. 24 paragraph breaks inserted across 5 chapters, zero words changed.`
-  Commit: `pending`
+  Commit: `d25bbe7`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.3`
   Status: `pending`
@@ -419,6 +419,7 @@ measurement, not the whole document.
 | --- | --- | --- |
 | `.0` (registration) | `ebd7869` — `BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 | `.1` | `df7bc6e` — `BOOK-PARAGRAPH-BLOBS.1 — split the wall-of-text paragraphs; worst block down 62 %` | Book-only ⇒ DUT byte-identical. Whitespace-only, proven twice. |
+| `.4` | `d25bbe7` — `BOOK-PARAGRAPH-BLOBS.4 — promote the book-census instruments into scripts/` | Docs + `scripts/` only ⇒ DUT byte-identical. Reproduces the validated census exactly; three controls, one of which failed with the instrument innocent. |
 
 ## Changelog
 
