@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.1 — measure the record: leg 3 is reported in 2 of 39 episodes
 
-**Landed as:** _pending_. Previous: `da73827`, `3b0d2c2`, `425c0ca`.
+**Landed as:** `4ad09a4`. Previous: `da73827`, `3b0d2c2`, `425c0ca`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Measurement only — no mechanism written.**
 
 **What.** `.1` of `NEGATIVE-CONTROL-HARNESS` measures how this repository's recorded negative-control

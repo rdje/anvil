@@ -314,7 +314,7 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.1` | `NEGATIVE-CONTROL-HARNESS.1 — measure the record: leg 3 is reported in 2 of 39 episodes` | Measurement only; **no mechanism, no KM card, no repair** — each deliberately deferred to `.2` with the reason recorded. Docs-only ⇒ DUT byte-identical. |
+| `.1` | `4ad09a4` — `NEGATIVE-CONTROL-HARNESS.1 — leg 3 is reported in 2 of 39 episodes` | Measurement only; **no mechanism, no KM card, no repair** — each deliberately deferred to `.2` with the reason recorded. Docs-only ⇒ DUT byte-identical. |
 | `.0` (registration) | `3b0d2c2` — `NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention (`RESUME-POINTER-CONTRACT.0`, `EMIT-SURFACE-INTERACTION-GATE.0`), required because `.githooks/commit-msg` rejects a subject that names no leaf. |
 
 ## Changelog
