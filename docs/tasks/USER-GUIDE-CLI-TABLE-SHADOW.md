@@ -3,15 +3,14 @@
 ## Metadata
 
 - Tree ID: `USER-GUIDE-CLI-TABLE-SHADOW`
-- Status: `active`
+- Status: `closed` (`2026-08-01`, at `.7`)
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.6` **done** — the `tool_matrix` option list is gated as
-  `ENUMERATION-PARITY` **pair 6** at **exact** parity, after measurement overturned the leaf's
-  own *"coverage, not parity"* acceptance: `covers_fenced_set` is **vacuous for 10 of 35** here.
-  Six negative controls fired. **`.7` registered and the tree stays `active`:** pair 6's
-  extractor removes the reason `.3` gave for leaving the third clap registry — `anvil hunt` —
-  ungated; frontier `.7`)
+- Last updated: `2026-08-01` (`.7` **done — TREE CLOSED**. A census of `src/` finds **three**
+  clap `#[derive(Parser)]` registries and **all three are now gated**: `anvil`'s knob flags as
+  pair 5, `tool_matrix`'s options as pair 6, `anvil hunt`'s as pair 7. Both book copies were
+  deleted by `0033` rung R1. The one remaining CLI surface, `anvil-mcp`, is hand-parsed with a
+  single option and is **stated** as out of scope rather than left silent)
 - Owner: repo-local workflow
 
 ## Goal
@@ -128,7 +127,7 @@ error from a document that told them it exists.
 ## Task Tree
 
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW`
-  Status: `active`
+  Status: `closed`
   Goal: `Close the gap between the live docs' hand-maintained flag lists and clap's flag registry, after deciding what each list is meant to contain.`
   Children: `.1` (audit + register), `.2` (decide the table's contract, then repair), `.3` (the mechanism question), `.4` (the book's second copy of the same shadow), `.5` (the book's `tool_matrix` block — a different clap registry), `.6` (the mechanism question for that second set), `.7` (the third and last clap registry — `anvil hunt`)
 
@@ -175,11 +174,11 @@ error from a document that told them it exists.
   Commit: `USER-GUIDE-CLI-TABLE-SHADOW.6`
 
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW.7`
-  Status: `pending`
+  Status: `done`
   Goal: `The THIRD and last clap registry in this repo: HuntCommand in src/main.rs, whose flags USER_GUIDE.md tables as the anvil hunt table. .3 declined to gate it and gave a reason that was true then and is FALSE NOW — pair 5's extractor reads cli_overrides' projection onto config::Overrides, which HuntCommand has none of; pair 6's reads #[arg(...)]<field> pairs straight off a clap struct, and HuntCommand is exactly that shape. Decide whether to gate it as pair 7.`
   Acceptance: `Measure FIRST and publish the region and the denominator (the tree's own recurring defect). Probed at .6: HuntCommand declares 10 #[arg(long)] fields and the table is 10/10, so the subject is mechanization, not drift — say so plainly rather than manufacturing a repair. If a pair lands it REUSES pair 6's extractor shape rather than forking a third one (feedback_full_factorization: the two differ only in which struct they read, so the difference belongs in an argument, not in a copy), keeps the long = "..." rename guard, and is negative-controlled both ways. DECIDE THE PREDICATE BY PROBING IT, as .6 did: the anvil hunt table is a TABLE, so its shadow side extracts from row heads and exact parity is likely available — but run the delete-the-subject probe before choosing, because .6's whole finding was that the predicate the acceptance assumed was the wrong one. If the answer is NOT to gate it, the honest state is unmechanized-and-recorded, not fine. Docs + at most one enforcement script; DUT byte-identical.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — GATED AS PAIR 7, AND THE HONEST HEADLINE IS THAT NOTHING WAS BEHIND. MEASURED FIRST, with the region and the denominator both published because that is this tree's own recurring defect: the region is the "### anvil hunt (turnkey CLI bug-hunt)" section, 46 lines; the denominator is 10 — HuntCommand's #[arg(long)] fields, with clap's built-in --help outside the set on pair 6's derivable rule (a built-in is an option with no struct field). The table is 10/10 against the struct, zero missing and zero extra. So the gap was MECHANIZATION, not drift, and the leaf says so rather than manufacturing a repair; what the pair buys is that the NEXT HuntCommand option cannot ship undocumented, which is exactly how the other two lists fell behind while every gate stayed green. THE VACUITY FINDING IS DENSER HERE THAN AT .6 AND WAS PROBED THE SAME WAY: whole-section coverage would be vacuous for 7 OF 10 options (--tools 5x, --seeds 5x, --seed / --out / --diff-sim 3x each), because the section opens with four runnable `anvil hunt ...` examples that name the flags they demonstrate. Counterfactual run on one mutated file with the --tools row deleted: the coverage predicate PASSES, the row-head predicate FAILS. 70% vacuous vs .6's 29% — the denser case, and produced by EXAMPLES rather than cross-references, which is a second independent source of the same failure. THE EXTRACTOR WAS REFACTORED RATHER THAN FORKED (feedback_full_factorization, and the leaf's own acceptance required it): clap_struct_body / _arg_tokens / _arg_pairs / _options / _long_renames are now parameterised by (file, struct), doc_option_heads by (file, set-id, item-prefix), and one clap_struct_pair helper runs the whole pattern. Pairs 6 and 7 are now TWO ARGUMENT LISTS, not two copies — which also stops them drifting into inconsistent strictness, and means a copy would not have to be re-taught each recorded lesson one at a time. THE ITEM PREFIX IS THE ONLY REAL DIFFERENCE between a bullet list and a table row: `- ` vs `| `. SIX NEGATIVE CONTROLS, ALL FIRED, src/main.rs verified byte-identical to HEAD afterwards: (1) delete the --budget row => FAIL naming --budget; (2) add probe_hunt_option to HuntCommand => FAIL naming --probe-hunt-option, the growth direction; (3) remove the fence => hard FAIL with its own message; (4) neuter the word-boundary inner match => FAIL, and note it fires BOTH pairs at once, pair 6 in both directions — for the hunt table EVERY row is flag+value in one span (`--seed N`, `--config <path>`), so the naive matcher reads ZERO there, making this the strongest instance of the .1 code-span trap in the repo; (5) long = "cap" on budget => hard FAIL naming the field; (6) REGRESSION — pair 6 still fires after the refactor (delete a tool_matrix bullet => FAIL naming --slang-bin). A CONTROL THAT DID NOT ACTUALLY RUN WAS CAUGHT AND RE-RUN, and it is the methodological finding of this leaf: control 5's first perl substitution did not match the source text, so nothing was sabotaged and the check passed — WHICH IS INDISTINGUISHABLE FROM A CONTROL THAT FAILED TO FIRE. It was caught only because the run asserted the substitution count rather than trusting it. Rule: a negative control must PROVE ITS SABOTAGE LANDED before its verdict means anything. THE FENCE MARKERS ARE ON THEIR OWN LINES HERE, NOT INLINE, and that is a deliberate departure from the other sites: the script's inline-marker rule exists because an HTML comment on its own line is a CommonMark HTML BLOCK that would split a paragraph or a list — but this enumeration is a TABLE, and a marker appended to a row would put content after the row's final pipe. Blank-line-separated own-line markers touch neither; TABLE-RENDER-FIDELITY re-run at 2,530 rows / 442 tables / 259 files confirms the table still renders. THE SET ID IS `hunt-flags`, DELIBERATELY NOT PREFIXED WITH THE BINARY NAME, chosen to AVOID a collision rather than to classify one: any token shaped `anvil-<name>` is a bank citation under EVIDENCE-CITATIONS, and .2 already had to classify a a `hunt`-section heading anchor in docs/evidence/INVENTORY.md section 2 for exactly this reason. Checks: scripts/check_doctrines.sh 10/10; cargo check --all-targets / clippy -D warnings / fmt --check all exit 0; cargo test under ram_guard exit 0 — 1,087 passed / 0 failed / 19 ignored across 17 targets incl. tests/snapshots.rs, run UNPIPED; docs + one enforcement script, no src/ change => DUT byte-identical. AND THE GATE FIRED ON THIS LEAF'S OWN PROSE: EVIDENCE-CITATIONS blocked the first commit attempt because the task tree SPELLED OUT the citation-shaped fence id it had deliberately chosen not to use, twice, in the sentences explaining that choice. The tree file is not exempt (unlike CHANGES.md / DEVELOPMENT_NOTES.md, append-only history the owner directed stays raw). Repaired by DESCRIBING the shape instead of quoting it — the third instance in this repo of a prose file governed by a lexical gate being unable to quote what the gate forbids.`
+  Commit: `USER-GUIDE-CLI-TABLE-SHADOW.7`
 
 ## Current Frontier
 
@@ -191,7 +190,7 @@ error from a document that told them it exists.
 | 4 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `done` | The copy is **deleted** (`0033` rung R1) and the section now points at the gated table. The registered **11** was **14** — an instrument difference, not a file change. And the copy was not merely behind: **9 of the 12** knobs in its *"not yet exposed via CLI"* list **have CLI flags**, 8 of them contradicted inside the same section. Deletion proven lossless first: **0** of the 107 flags lost documentation. |
 | 5 | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `done` | The copy is **deleted** (`0033` rung R1) and the destination now carries the contract. `.2`'s knob/mode criterion **settled it by failing**: `tool_matrix` has no `Overrides` projection and no knobs, so under that partition all 37 options are *mode* flags and a knob chapter owes **zero** rows. Unlike `.4`, R1 was **not lossless as found** — four options were documented nowhere else — so the destination was completed and losslessness **proven first**. The registered **22** is section-scope; the snapshot itself named **21**. |
 | 6 | `USER-GUIDE-CLI-TABLE-SHADOW.6` | `done` | Gated as **`ENUMERATION-PARITY` pair 6** — and the acceptance's *"one-directional coverage"* was **overturned by measurement**. `covers_fenced_set` is **vacuous for 10 of the 35** options here, because the gate bullets correctly cross-reference each other (`--iverilog-compile` **eleven** times). Probed both ways on one mutated file: coverage **passes** with the entry deleted, bullet-head parity **fails**. Extracting *heads* makes the shadow a derived set ⇒ **exact parity, 35 = 35**, and both of `.5`'s stated constraints dissolve. **Six negative controls fired.** |
-| 7 | `USER-GUIDE-CLI-TABLE-SHADOW.7` | `pending` | **Next.** The third and last clap registry: `HuntCommand`. `.3` declined to gate it for a reason that was true then and **`.6` removed** — pair 5 needs an `Overrides` projection this struct lacks; pair 6's extractor reads a clap struct directly, and `HuntCommand` is that shape (**10** `#[arg(long)]` fields, extracted cleanly as a probe). Table measured **10/10**, so the subject is *mechanization*, not drift. |
+| 7 | `USER-GUIDE-CLI-TABLE-SHADOW.7` | `done` | Gated as **pair 7**, and **nothing was behind** — the table measured **10/10**, so the subject was *mechanization*, not drift, and the leaf says so rather than manufacturing a repair. Vacuity is **denser** here than at `.6` (**7 of 10**, from the section's four runnable examples rather than from cross-references) and was probed the same way. The extractor was **refactored, not forked**: pairs 6 and 7 are now two argument lists over one `clap_struct_pair`. **Six controls fired**, including one that *did not actually run* on its first attempt and was caught by asserting the sabotage landed. |
 
 ## Decisions
 
@@ -338,6 +337,51 @@ error from a document that told them it exists.
   because the reverse — reshaping prose purely to satisfy a check — is the inversion this
   script's own comments warn against, and the distinction is whether the reader gains.
 
+- `2026-08-01` (`.7`): **The refactor came before the pair, not after.** The leaf's acceptance
+  required reusing `.6`'s extractor rather than forking a third, and doing it *first* is what
+  made the pair three arguments instead of a hundred lines. The deeper reason is not brevity:
+  a forked copy would have to be re-taught every lesson in this file — the whitespace strip,
+  the doc-comment drop, the charset, the word boundary, the rename guard — one at a time, and
+  the whole history of this tree is that such lessons are learned by *paying* for them again.
+- `2026-08-01` (`.7`): **A leaf that finds nothing wrong says so.** The table measured **10/10**.
+  There was a real pull toward framing this as a repair; the honest description is that the
+  content was already correct and only the *mechanization* was missing. What the pair buys is
+  the next option, not this one. `feedback_never_retire_strategies` has a sibling that is
+  rarely written down: *do not manufacture a finding to justify a leaf.*
+- `2026-08-01` (`.7`): **A negative control must prove its sabotage landed.** Control 5's first
+  attempt used a `perl` substitution that did not match the source text, so nothing changed and
+  the check passed — **which is indistinguishable from a control that failed to fire**. It was
+  caught only because the run asserted the substitution count before reading the verdict. This
+  is the negative-control analogue of the vacuity probe: a control proves the check *can* fire,
+  the vacuity probe proves it fires on the right input, and this proves *the experiment actually
+  ran*. All three are needed and only the third is usually skipped.
+- `2026-08-01` (`.7`): **Own-line fence markers here, inline everywhere else, and the exception
+  is principled.** The script's inline rule exists because a lone HTML comment is a CommonMark
+  HTML *block* that would split a paragraph or a list. This enumeration is a **table**, where
+  the opposite holds: a marker appended to a row puts content after the row's final pipe.
+  Blank-line-separated own-line markers touch neither structure, and `TABLE-RENDER-FIDELITY`
+  re-run confirms the table still renders.
+- `2026-08-01` (`.7`): **The set id avoids a collision rather than classifying one.** Any token
+  shaped `anvil-<name>` is a bank citation under `EVIDENCE-CITATIONS`; `.2` already had to
+  classify a a `hunt`-section heading anchor in `docs/evidence/INVENTORY.md` §2 for exactly this reason.
+  Naming this fence `hunt-flags` rather than prefixing it with the binary name costs nothing and adds no entry
+  to a growable exemption list. **And the gate then fired on this very leaf — for the sentence
+  explaining the choice.** Writing the avoided spelling out, twice, in the task tree, produced two
+  unclassified citation-shaped tokens; the tree file is not exempt (unlike `CHANGES.md` and
+  `DEVELOPMENT_NOTES.md`, which are append-only history the owner has directed stays raw). Repaired
+  by *describing* the shape instead of spelling it. The transferable form: **a prose file governed by
+  a lexical gate cannot quote the thing the gate forbids** — the same trap `.2` hit inside a sentence
+  about being rigorous with sets, and `ENUMERATION-PARITY`'s own §10 cell hit in the sentence warning
+  against copied counts.
+- `2026-08-01` (`.7`): **The registry census was run, not assumed, and its EXEMPTION half is
+  stated.** `grep` over `src/` finds **three** `#[derive(Parser)]` structs — `Cli` and
+  `HuntCommand` in `src/main.rs`, `Cli` in `src/bin/tool_matrix.rs` — and all three are now
+  gated. A **fourth** CLI surface exists and is deliberately out of scope: `anvil-mcp`
+  hand-parses `std::env::args()` and accepts exactly `--http <addr>` plus `-h`/`--help`, with no
+  clap registry to derive from. It is documented in `USER_GUIDE.md`, `book/src/agent-mcp.md` and
+  `book/src/api-reference.md`. Named here because `.4` paid for the lesson that an *unstated*
+  exemption asserts an absence — this one is stated, and it is one option, not a list.
+
 ## Open Questions
 
 - ~~Is the CLI flag table meant to be exhaustive, or a curated core?~~ **Answered by `.2`:**
@@ -404,6 +448,7 @@ error from a document that told them it exists.
 
 | `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `S derived TWICE and identical: the Cli struct in src/bin/tool_matrix.rs (35 #[arg(long)] fields, whitespace-stripped) + clap --help/--version, and the Options: block of tool_matrix --help, command-scoped => 37 both ways, empty diff. Book block, all numbers on the 37-option scope: fence-scoped 21 named / 16 absent; section-scoped 22 / 15, the extra being --diff-sim as a prose cross-reference. On the 35-DECLARED scope the fence named 19. Every number is published with the region AND the denominator it was taken against, because mixing a 37-scope numerator with a 35-scope denominator is this leaf's own defect class and the first draft of the book prose did exactly that before it was caught. CONTRACT DECIDED FIRST and derived, not chosen: .2's knob/mode partition settles it by FAILING — tool_matrix has no Overrides projection and no knobs, so all 37 are mode flags and the knob chapter owes zero rows => R1. LOSSLESSNESS MEASURED BEFORE ANY EDIT and it changed the plan: 4 declared options (--base-seed, --verilator-bin, --yosys-bin, --iverilog-bin) had NO documented home outside the snapshot, unlike .4's 0 of 107. Destination completed first: USER_GUIDE.md §Tool matrix sweeps gains "### Options" + a contract paragraph (exhaustive over the options tool_matrix DECLARES; clap built-ins outside the set, a derivable exclusion; 35 + 2 = 37 total and disjoint) and 7 entries (--out, --base-seed, --resume, --verilator-bin, --yosys-bin, --iverilog-bin, --divergence); re-measured after: 32 -> 35 declared named, 0 missing. Post-cut re-proof over USER_GUIDE.md + book/src/*.md + TOOLBOX.md: 0 of 35 lost a home. --divergence recorded as .1's trap in reverse (one spelling, two registries — documented under anvil hunt, absent as the matrix column). FOR .6, MEASURED: 3 foreign tokens inside the region (--ast-json, --binary, --language) => coverage not exact parity; and the set is NOT substring-free (--slang ⊂ --slang-bin, --sv2v ⊂ --sv2v-bin) => a naive covers_ grep can pass a deleted entry, which .3's set could not. scripts/check_doctrines.sh 10/10 (TABLE-RENDER-FIDELITY 2,528 rows / 442 tables / 259 files; MEMORY-ARCH 30 lines / 6,099 B against caps 50 / 6,144 — and the BYTE cap FIRED on the first MEMORY.md draft at 6,377 B, repaired by routing the next_action detail down into .6's Acceptance rather than trimming prose, which is the routing the failure message asks for); mdbook build exit 0; cargo check --all-targets / clippy -D warnings / fmt --check all exit 0; cargo test under ram_guard exit 0 — 1,087 passed / 0 failed / 19 ignored across 17 targets, UNPIPED` | `done` (docs-only; DUT byte-identical) |
 
+| `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.7` | `MEASURED FIRST with region and denominator published: region = the "### anvil hunt" section, 46 lines; denominator = 10 (HuntCommand's #[arg(long)] fields; clap's --help outside the set on pair 6's derivable rule). Table 10/10 against the struct — nothing behind, so the gap is MECHANIZATION not drift and the leaf says so. Vacuity DENSER than .6: whole-section coverage would be vacuous for 7 of 10 (--tools 5x, --seeds 5x), sourced from the section's four runnable examples rather than from cross-references; counterfactual on one mutated file with the --tools row deleted has coverage PASSING and row-head parity FAILING. Extractor REFACTORED not forked: clap_struct_{body,arg_tokens,arg_pairs,options,long_renames} parameterised by (file, struct), doc_option_heads by (file, set-id, item-prefix), one clap_struct_pair driving both — pairs 6 and 7 are two argument lists. SIX CONTROLS, all fired, src/main.rs byte-identical to HEAD afterwards: delete the --budget row; add probe_hunt_option; remove the fence (hard FAIL); neuter the word boundary (fires BOTH pairs, pair 6 in both directions — every hunt row is flag+value in one span so the naive matcher reads ZERO); long = "cap" rename (hard FAIL); and a REGRESSION proving pair 6 still fires after the refactor. Control 5s FIRST attempt did not match the source and so sabotaged nothing — caught by asserting the substitution count, the leaf's methodological finding. Fence markers on their own lines here (a table, not prose): TABLE-RENDER-FIDELITY 2,530 rows / 442 tables / 259 files. Set id hunt-flags, deliberately NOT prefixed with the binary name, to avoid an EVIDENCE-CITATIONS collision rather than classify one — and note this leaf tripped that very gate by WRITING the forbidden shape while explaining it. Registry census run: 3 clap Parser structs, all gated; anvil-mcp hand-parses one option and is stated out of scope. scripts/check_doctrines.sh 10/10; cargo check/clippy/fmt exit 0; cargo test green` | `done` (docs + one enforcement script; DUT byte-identical) |
 | `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.6` | `pair 6 added to scripts/check_enumeration_parity.sh: extract_tool_matrix_options reads the #[arg(...)]<field> pairs of the Cli struct in src/bin/tool_matrix.rs, doc comments dropped FIRST (its /// prose quotes flags) then whitespace-stripped, long required as a whole attribute => 35 declared options; extract_tool_matrix_doc_heads takes the leading run of backticked flags heading each bullet in USER_GUIDE.md's new <!--enum:tool-matrix-options--> fence => 35; equal_sets, EXACT parity both directions, 0 missing / 0 extra. THE PREDICATE CHOICE WAS MEASURED, NOT ASSUMED: covers_fenced_set is vacuous for 10 of the 35 (gate bullets cross-reference each other; --iverilog-compile 11x), and a two-predicate probe over ONE mutated file with that bullet deleted has coverage PASSING and bullet-head parity FAILING. SIX NEGATIVE CONTROLS, all fired: delete the --resume bullet => FAIL naming it; add cli field probe_control_option => FAIL naming --probe-control-option; remove the fence => hard FAIL with its own message; neuter the word-boundary inner match => FAIL BOTH directions (--out missing AND --out DIR extra), the .1 code-span trap live, walked into by this leaf's own first draft; long = "continue" rename => hard FAIL naming the field; the vacuity probe. total_or_fail scoped to the TOKENIZER (#[arg( occurrences vs tokens matched), deliberately NOT to the long filter, because excluding a future short-only field is correct and gating it would cry wolf. Floor 35, shrink-coupled. src/bin/tool_matrix.rs verified byte-identical to HEAD after the controls; scripts/check_doctrines.sh 10/10; cargo check/clippy/fmt exit 0; cargo test green` | `done` (docs + one enforcement script; DUT byte-identical) |
 
 ## Commit Log
@@ -414,6 +459,7 @@ error from a document that told them it exists.
 | `USER-GUIDE-CLI-TABLE-SHADOW.2` | `USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing` | Docs-only. Also corrects two of `.1`'s five numbers and registers `.4` (the book's second copy of the same shadow). Landed `cd7f24b` + `c793cf3` (hash backfill). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5` | Docs + one enforcement script. No `src/` change (the control's edit to `src/main.rs` was reverted and verified byte-identical to HEAD). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy of the flag list` | Landed `ccfbc23`. Book + docs + one script comment; no `src/` change. Registers `.5` (the `tool_matrix` block, 22 of 37) and surfaces the mdBook dead-link class. |
+| `USER-GUIDE-CLI-TABLE-SHADOW.7` | `USER-GUIDE-CLI-TABLE-SHADOW.7 — gate the anvil hunt flags; close the tree` | Docs + one enforcement script. No `src/` change (the controls' edits to `src/main.rs` were reverted and verified byte-identical to HEAD). Closes the tree: all three clap registries gated. |
 | `USER-GUIDE-CLI-TABLE-SHADOW.6` | `USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the tool_matrix options at exact parity` | Landed `6e95494`. Docs + one enforcement script. No `src/` change (the control's edit to `src/bin/tool_matrix.rs` was reverted and verified byte-identical to HEAD). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `USER-GUIDE-CLI-TABLE-SHADOW.5 — give tool_matrix's options one home` | Landed `9b73e80`. Book + `USER_GUIDE.md` + docs + `DEVELOPMENT_NOTES.md` + the KM card; no `src/` change. Registers `.6` (the mechanism question) with two constraints `.3` did not face, both measured here. |
 

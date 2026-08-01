@@ -5,6 +5,68 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A negative control must prove its sabotage landed — `USER-GUIDE-CLI-TABLE-SHADOW.7`
+
+This leaf gated the last of ANVIL's three clap registries and found **nothing wrong** — the
+`anvil hunt` table measured 10/10 against `HuntCommand`. The durable content is therefore not
+the pair; it is three things the leaf learned on the way.
+
+### 1. A control that does not run looks exactly like a control that passes
+
+Control 5 was meant to prove that a `long = "…"` spelling override is a hard failure. Its first
+`perl` substitution **did not match the source text**, so the tree was unchanged and the check
+passed. Read naively, that reads as *"the control did not fire"* — a finding about the gate.
+It was nothing of the kind: the experiment never ran.
+
+It was caught only because the run asserted the substitution count *before* reading the verdict.
+**That assertion is not optional bookkeeping — it is the control's precondition.** Without it,
+every silently-failed mutation is indistinguishable from a real negative result, and the
+direction of the mistake is always the dangerous one: you conclude the gate is weak, or (worse,
+if the sabotage was meant to *pass*) that it is strong.
+
+The three checks stack, and only the third is routinely skipped:
+
+| what it proves | how |
+|---|---|
+| the check *can* fire | a negative control |
+| it fires on the *right input* | the vacuity probe (delete the subject) |
+| the experiment *ran at all* | assert the mutation applied |
+
+### 2. Do not manufacture a finding to justify a leaf
+
+The table was already correct. There was a real pull toward describing this as a repair —
+leaves that "fix" something read as more valuable than leaves that only mechanize. The accurate
+statement is that the content was right and only the gate was missing, and what the pair buys is
+the **next** option, not this one.
+
+`feedback_never_retire_strategies` has an unwritten sibling: **a leaf that finds nothing wrong
+says so.** Inventing a defect to justify the work corrupts exactly the record that later leaves
+measure against — and this tree has already spent three leaves correcting numbers that earlier
+leaves published confidently.
+
+### 3. Refactor before you extend, or the copy inherits nothing
+
+`.7`'s acceptance required reusing `.6`'s extractor rather than forking a third. Doing it
+**first** made the new pair three arguments instead of a hundred lines — but brevity is the
+small reason. The real one: a forked copy would have to be re-taught every lesson the original
+carries (the whitespace strip, the doc-comment drop, the permissive charset, the word-boundary
+inner match, the rename guard), and this repository's history says those lessons get re-learned
+by **paying for them again**, not by reading them.
+
+The parameterisation that made it possible is worth noting for its shape: the two pairs differ
+in *which struct they read* and *which line prefix opens an entry* (`- ` for a bullet,
+`| ` for a table row). Both are arguments. When two mechanisms differ only in data, the
+difference belongs in an argument list, not in a second file-worth of comments that will drift.
+
+### 4. A recorded "we can't because X" expires silently
+
+`.3` declined to gate this table because `HuntCommand` has no `Overrides` projection to derive
+from. True — of pair 5's extractor. Pair 6's reads a clap struct directly, so `.6` removed that
+reason **one commit before** `.7` acted on it, as a side effect nobody set out to produce.
+Nothing in the repository re-examines a recorded constraint when the world changes underneath
+it; the only defence is to re-read the *reason* rather than the *conclusion* when a neighbouring
+mechanism lands.
+
 ## 2026-08-01 — A fence does not end vacuity; make the predicate stricter, not the fence tighter — `USER-GUIDE-CLI-TABLE-SHADOW.6`
 
 Decision `0037` repaired `ENUMERATION-PARITY`'s vacuity by fencing each site, after measuring

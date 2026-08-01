@@ -1,6 +1,128 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.7 — gate the `anvil hunt` flags; close the tree
+
+**Landed as:** pending. Previous: `702695d`, `6e95494`, `04ef949`.
+**Docs + one enforcement script; no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** `USER_GUIDE.md`'s `anvil hunt` flag table is now `ENUMERATION-PARITY` **pair 7**,
+derived from `HuntCommand` in `src/main.rs` and held at exact parity over a new
+`<!--enum:hunt-flags-->` fence. **The tree closes**: a census of `src/` finds exactly **three**
+clap `#[derive(Parser)]` registries and all three are gated — `anvil`'s knob flags (pair 5),
+`tool_matrix`'s options (pair 6), `anvil hunt`'s flags (pair 7).
+
+### Nothing was behind, and that is the honest headline
+
+Measured first, with **region and denominator both published** because that is this tree's own
+recurring defect: the region is the `### anvil hunt (turnkey CLI bug-hunt)` section, **46
+lines**; the denominator is **10** — `HuntCommand`'s `#[arg(long)]` fields, with clap's built-in
+`--help` outside the set on pair 6's derivable rule. The table is **10/10** against the struct,
+zero missing and zero extra.
+
+So the gap was **mechanization, not drift**. There was a real pull toward framing this as a
+repair; the accurate description is that the content was already correct and only the gate was
+missing. What the pair buys is that the **next** `HuntCommand` option cannot ship undocumented —
+which is exactly how the other two lists fell behind while every gate stayed green.
+
+### Vacuity is denser here than at `.6`, and from a different source
+
+Whole-section coverage would be vacuous for **7 of 10** options (`--tools` 5×, `--seeds` 5×,
+`--seed` / `--out` / `--diff-sim` 3× each) — not because of cross-references this time, but
+because the section opens with **four runnable `anvil hunt …` examples** that name the flags
+they demonstrate. A second, independent source of the same failure. Probed the same way: with
+the `--tools` row deleted, the coverage predicate **passes** and the row-head predicate
+**fails**. **70 %** vacuous against `.6`'s 29 %.
+
+### The extractor was refactored, not forked
+
+`.7`'s acceptance required reusing `.6`'s reader rather than writing a third
+(`feedback_full_factorization`), and doing it **first** is what made the new pair three
+arguments instead of a hundred lines:
+
+- `clap_struct_{body,arg_tokens,arg_pairs,options,options_raw,long_renames}` are now
+  parameterised by **(file, struct)**;
+- `doc_option_heads` by **(file, set-id, item-prefix)** — `- ` for a bullet list, `| ` for a
+  table row, which is the only real difference between the two shadow shapes;
+- one `clap_struct_pair` helper runs the whole pattern, so pairs 6 and 7 are **two argument
+  lists**.
+
+The deeper reason is not brevity: a forked copy would have to be re-taught every lesson in that
+file — the whitespace strip, the doc-comment drop, the charset, the word boundary, the rename
+guard — one at a time, and this tree's whole history is that such lessons get learned by paying
+for them again.
+
+### Six negative controls, all fired
+
+`src/main.rs` verified byte-identical to `HEAD` afterwards.
+
+1. Delete the `--budget` row ⇒ FAIL naming `--budget`.
+2. Add `probe_hunt_option` to `HuntCommand` ⇒ FAIL naming `--probe-hunt-option` (growth).
+3. Remove the fence ⇒ **hard** FAIL with its own message.
+4. Neuter the word-boundary inner match ⇒ FAIL, firing **both** pairs at once (pair 6 in both
+   directions). **Every** row of the hunt table is flag-and-value in one code span (`--seed N`,
+   `--config <path>`), so the naive matcher reads **zero** there — the strongest instance of the
+   `.1` code-span trap in the repo.
+5. `long = "cap"` on `budget` ⇒ **hard** FAIL naming the field.
+6. **Regression:** pair 6 still fires after the refactor (delete a `tool_matrix` bullet ⇒ FAIL
+   naming `--slang-bin`).
+
+### A control that did not actually run — the methodological finding
+
+Control 5's **first** attempt used a `perl` substitution that did not match the source text. So
+nothing was sabotaged, and the check passed — **which is indistinguishable from a control that
+failed to fire.** It was caught only because the run asserted the substitution count before
+reading the verdict.
+
+**The rule: a negative control must prove its sabotage landed.** A control proves the check
+*can* fire; the vacuity probe proves it fires on the *right* input; asserting the mutation
+applied proves *the experiment ran at all*. All three are needed and only the third is routinely
+skipped.
+
+### Two smaller deliberate choices
+
+- **Own-line fence markers here, inline everywhere else.** The script's inline rule exists
+  because a lone HTML comment is a CommonMark HTML *block* that would split a paragraph or a
+  list. This enumeration is a **table**, where the opposite holds — a marker appended to a row
+  puts content after the row's final pipe. Blank-line-separated own-line markers touch neither;
+  `TABLE-RENDER-FIDELITY` re-run confirms the table still renders.
+- **The set id is `hunt-flags`, not `anvil-hunt-flags`** — chosen to *avoid* an
+  `EVIDENCE-CITATIONS` collision rather than to classify one. Any `anvil-<name>` token is a bank
+  citation; `.2` already had to classify a `#anvil-hunt-…` anchor in
+  `docs/evidence/INVENTORY.md` §2 for exactly this reason.
+
+### The tree closes, and its exemption half is stated
+
+Three clap registries, all gated. A **fourth** CLI surface exists and is deliberately out of
+scope: `anvil-mcp` hand-parses `std::env::args()` and accepts exactly `--http <addr>` plus
+`-h`/`--help`, with no clap registry to derive from; it is documented in `USER_GUIDE.md`,
+`book/src/agent-mcp.md` and `book/src/api-reference.md`. Named because `.4` paid for the lesson
+that an **unstated exemption asserts an absence**.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10**; `cargo check --all-targets` /
+`cargo clippy --all-targets -- -D warnings` / `cargo fmt --all --check` all exit **0**;
+`cargo test` under `scripts/ram_guard.sh --threshold 90` exit **0** — **1,087 passed / 0 failed
+/ 19 ignored** across **17** targets including `tests/snapshots.rs`, run **unpiped**;
+`src/main.rs` byte-identical to `HEAD` after the controls; `TABLE-RENDER-FIDELITY` re-run at
+2,530 rows / 443 tables / 259 files (the fence markers do not disturb the table); docs + one
+script ⇒ DUT byte-identical.
+
+**And the gate fired on this leaf's own prose.** `EVIDENCE-CITATIONS` blocked the first commit
+attempt: the task tree **spelled out** the citation-shaped fence id it had deliberately chosen
+*not* to use — twice, in the sentences explaining that choice — and the tree file is not exempt
+(unlike `CHANGES.md` and `DEVELOPMENT_NOTES.md`, which are append-only history the owner has
+directed stays raw). Repaired by *describing* the shape rather than quoting it. That is the
+**third** instance of this trap in the repo, after `.2`'s and `ENUMERATION-PARITY` §10's, and the
+general form is worth the sentence: **a prose file governed by a lexical gate cannot quote what
+the gate forbids.**
+
+**Impact.** Every flag of every clap command in ANVIL is now mechanically required to be
+documented, and none of the three checks can pass with an entry deleted. No behaviour change.
+
+**Files touched.** `USER_GUIDE.md`, `scripts/check_enumeration_parity.sh`,
+`DOCTRINE_ENFORCEMENT.md`, `docs/tasks/USER-GUIDE-CLI-TABLE-SHADOW.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`. No `src/` change.
+
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the `tool_matrix` options, at exact parity
 
 **Landed as:** `6e95494`. Previous: `04ef949`, `9b73e80`, `176c868`.

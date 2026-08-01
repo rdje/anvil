@@ -2362,6 +2362,17 @@ anvil hunt --seeds 16 --tools verilator --diff-sim
 anvil hunt --seeds 16 --tools verilator,yosys --divergence
 ```
 
+**What this table is.** It is the **`anvil hunt` flag reference**, *exhaustive over
+the flags `HuntCommand` declares*: every field of that struct in `src/main.rs`
+**heads a row here**, and it is **mechanically gated** (`ENUMERATION-PARITY` pair 7)
+against the struct, so a new hunt flag cannot ship undocumented. clap's built-in
+`anvil hunt --help` sits outside the set on the same derivable rule the
+`tool_matrix` list uses — a built-in is exactly an option with no struct field.
+`anvil hunt` is its **own clap namespace**: `--out`, `--config`, `--diff-sim` and
+`--divergence` are also spelled on other commands and mean different things there.
+
+<!--enum:hunt-flags-->
+
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--seed N` | `0` | Base seed; the sweep fuzzes `N .. N+seeds`. |
@@ -2374,6 +2385,8 @@ anvil hunt --seeds 16 --tools verilator,yosys --divergence
 | `--diff-sim` | off | Also assert cross-simulator trace agreement on each clean artifact. |
 | `--divergence` | off | Also classify cross-**tool** acceptance divergence on each artifact — a finding where some tool accepted while another warned/rejected becomes a `detection = "acceptance_divergence"` finding (not minimized: the `validate` oracle can't preserve a cross-tool *disagreement*). |
 | `--out <dir>` | (none) | Write a self-contained reproducer bundle directory per finding (`repro.sv`, `knobs.json`, `introspection.json`, `hunt-verdict.json`, `tool-logs/`, a one-command `repro.sh`). |
+
+<!--/enum:hunt-flags-->
 
 Because ANVIL output is valid by construction, a clean sweep (`n_failures = 0`)
 is the **expected** result — a finding is a candidate **downstream-tool** bug

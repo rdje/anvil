@@ -298,96 +298,112 @@ extract_cli_knob_flags_raw() {
   cli_overrides_body | grep -oE 'cli\.[a-z0-9_]+'
 }
 
-# Authoritative: the options `tool_matrix` DECLARES — every field of the clap `Cli`
-# in src/bin/tool_matrix.rs carrying a `long` arg attribute. clap kebab-cases the
-# field name, so the struct IS the flag list and no second list is needed.
+# --- the clap-struct reader (shared by every "docs list vs a clap struct" pair) --
+#
+# ANVIL has THREE clap registries — `Cli` in src/main.rs, `HuntCommand` beside it,
+# and `Cli` in src/bin/tool_matrix.rs — and two of them are mirrored by a hand-kept
+# list in USER_GUIDE.md. These readers are parameterised by (file, struct) rather
+# than copied per pair: `feedback_full_factorization` — the pairs differ only in
+# WHICH struct they read, so that difference belongs in an argument, not in a
+# second copy of the extractor. A copy would also have to be re-taught every
+# lesson below, one at a time, exactly as it was learned.
 #
 # ── WHY THE BODY DROPS DOC COMMENTS BEFORE STRIPPING WHITESPACE ───────────────
 # The whitespace strip is the PARITY-EXTRACTOR-ARM-SHAPE-GAP remedy (rustfmt owns
-# the layout, so never depend on lines). But this struct's doc comments QUOTE
+# the layout, so never depend on lines). But these structs' doc comments QUOTE
 # FLAGS — `--iverilog-compile`, `--diff-sim` and more appear inside `///` prose —
 # and stripping whitespace first would weld that prose to the code around it.
 # `///` is a Rust fact, not a formatting choice, so dropping those lines is safe
 # in a way that depending on indentation would not be.
-tool_matrix_cli_body() {
-  sed -n '/^struct Cli {$/,/^}$/p' src/bin/tool_matrix.rs |
+clap_struct_body() {
+  sed -n "/^struct $2 {\$/,/^}\$/p" "$1" |
     grep -v '^[[:space:]]*///' |
     tr -d '[:space:]'
 }
 
 # Every `#[arg(...)]<field>:` pair in that body, said as loosely as it can be said.
 # Compared against the extraction by `total_or_fail`.
-candidate_tool_matrix_arg_attrs() {
-  tool_matrix_cli_body | grep -oE '#\[arg\([^]]*\)\][A-Za-z0-9_]+:'
+clap_struct_arg_tokens() {
+  clap_struct_body "$1" "$2" | grep -oE '#\[arg\([^]]*\)\][A-Za-z0-9_]+:'
+}
+
+# `<attrs>|<field>` per arg, so the two readers below differ only in their filter.
+clap_struct_arg_pairs() {
+  clap_struct_arg_tokens "$1" "$2" |
+    sed -E 's/^#\[arg\((.*)\)\]([A-Za-z0-9_]+):$/\1|\2/'
 }
 
 # The extraction. `long` must appear as its own attribute, not merely as a
 # substring: a field named `along_x` under `#[arg(short)]` must not qualify.
 #
-# ── THE `long = "name"` RENAME IS A HARD FAILURE, NOT A SILENT MISS ───────────
-# clap lets an attribute override the flag spelling (`#[arg(long = "other")]`),
-# and then the field name is NOT the flag name and this whole derivation is
-# wrong. No field uses it today. Rather than assume that holds, the extractor
-# DIES on it — the alternative is deriving a confident wrong set, which is the
-# failure mode every note in this file is about.
-#
 # The charset is `[A-Za-z0-9_]+` because that is what a Rust field name PERMITS,
 # not what today's members happen to use (PARITY-EXTRACTOR-CHARSET-GAP). Stated
 # limit: a non-snake-case field would kebab-case differently than the lowercase
 # rewrite below, but `cargo clippy -D warnings` already forbids one.
-extract_tool_matrix_options_raw() {
-  candidate_tool_matrix_arg_attrs |
-    sed -E 's/^#\[arg\((.*)\)\]([A-Za-z0-9_]+):$/\1|\2/' |
-    awk -F'|' '$1 ~ /(^|,)long(,|$)/ { print $2 }'
+clap_struct_options_raw() {
+  clap_struct_arg_pairs "$1" "$2" | awk -F'|' '$1 ~ /(^|,)long(,|$)/ { print $2 }'
 }
 
-# The fields whose flag spelling is OVERRIDDEN by `long = "..."`. Non-empty means
-# this pair's derivation does not hold and the check must die rather than publish
-# a set it derived by a rule that no longer applies.
-tool_matrix_long_renames() {
-  candidate_tool_matrix_arg_attrs |
-    sed -E 's/^#\[arg\((.*)\)\]([A-Za-z0-9_]+):$/\1|\2/' |
-    awk -F'|' '$1 ~ /(^|,)long=/ { print $2 }'
+clap_struct_options() {
+  clap_struct_options_raw "$1" "$2" | tr 'A-Z' 'a-z' | tr '_' '-' | sed 's/^/--/' | sort -u
 }
 
-extract_tool_matrix_options() {
-  extract_tool_matrix_options_raw | tr 'A-Z' 'a-z' | tr '_' '-' | sed 's/^/--/' | sort -u
-}
-
-# Shadow: the options that HEAD a bullet in USER_GUIDE.md's fenced option list.
+# The fields whose flag spelling is OVERRIDDEN by `long = "..."`.
 #
-# ── WHY "HEADS A BULLET" AND NOT "APPEARS IN THE FENCE" ───────────────────────
-# `covers_fenced_set` asks "is this id named inside the fence?". MEASURED over
-# this region at USER-GUIDE-CLI-TABLE-SHADOW.6, that predicate is VACUOUS for 10
-# of the 35 options, because the gate bullets legitimately cross-reference each
-# other: `--iverilog-compile` appears ELEVEN times ("(+ Icarus when
-# `--iverilog-compile` is set)"), so deleting its own entry leaves ten matches
-# behind and the check stays green while the reader loses the definition.
+# ── THE RENAME IS A HARD FAILURE, NOT A SILENT MISS ──────────────────────────
+# clap lets an attribute override the flag spelling (`#[arg(long = "other")]`),
+# and then the field name is NOT the flag name and this whole derivation is
+# wrong. No field uses it today. Rather than assume that holds, the caller DIES
+# on it — the alternative is deriving a confident wrong set, which is the failure
+# mode every note in this file is about.
+clap_struct_long_renames() {
+  clap_struct_arg_pairs "$1" "$2" | awk -F'|' '$1 ~ /(^|,)long=/ { print $2 }'
+}
+
+# Shadow: the options that HEAD an item in a fenced docs list.
+# doc_option_heads <file> <set-id> <item-prefix>   — `- ` for a bullet list,
+# `| ` for a table row. Both are "the flag that OPENS the entry"; the prefix is
+# the only difference, so it is an argument rather than a second function.
 #
-# That is decision 0037's vacuity, reproduced at fence scale by a region whose
-# prose is GOOD — the cross-references are correct documentation. So the fence
-# cannot be tightened around them; the PREDICATE has to get stricter instead.
-# Extracting bullet heads makes the shadow side a derived SET rather than a
+# ── WHY "HEADS AN ITEM" AND NOT "APPEARS IN THE FENCE" ───────────────────────
+# `covers_fenced_set` asks "is this id named inside the fence?". MEASURED at
+# USER-GUIDE-CLI-TABLE-SHADOW.6 and again at `.7`, that predicate is VACUOUS for
+# most of both regions, because the entries legitimately cross-reference each
+# other and the surrounding prose repeats them:
+#
+#   * the `tool_matrix` option list — vacuous for 10 of 35. `--iverilog-compile`
+#     appears ELEVEN times ("(+ Icarus when `--iverilog-compile` is set)"), so
+#     deleting its own entry leaves ten matches behind;
+#   * the `anvil hunt` flag table — vacuous for 7 of 10, denser still, because the
+#     section opens with four runnable `anvil hunt …` examples that name the flags
+#     they demonstrate (`--tools` 5x, `--seeds` 5x).
+#
+# That is decision 0037's vacuity reproduced at FENCE scale by regions whose prose
+# is GOOD — the cross-references and the examples are correct documentation. So
+# the fence cannot be tightened around them; the PREDICATE has to get stricter.
+# Extracting item heads makes the shadow side a derived SET rather than a
 # membership question, which is strictly stronger and, measured, admits EXACT
-# parity in both directions: prose cross-references are not bullet heads, so the
-# three foreign tokens in this region (`--ast-json`, `--binary`, `--language` —
-# slang's and verilator's flags, quoted correctly) cannot cry wolf.
+# parity in both directions: prose and examples are never in head position, so the
+# foreign tokens in these regions (`--ast-json`, `--binary`, `--language` — other
+# tools' flags, quoted correctly — and `--dump-config`, an `anvil` flag shown in a
+# `hunt` example) cannot cry wolf.
 #
 # ── WHY THE FLAG IS READ WITH A WORD BOUNDARY INSIDE THE CODE SPAN ────────────
-# USER-GUIDE-CLI-TABLE-SHADOW.1 recorded this exact trap and .6's first draft
-# walked into it again: a bullet writes `` `--out DIR` `` — flag and value share
+# USER-GUIDE-CLI-TABLE-SHADOW.1 recorded this exact trap and `.6`'s first draft
+# walked into it again: an entry writes `` `--out DIR` `` — flag and value share
 # ONE code span — so a whole-span match reads 28 of 35 and the seven it drops are
 # invisible, not wrong. The inner match takes the leading `--[a-z0-9-]+` run of
-# each span, which is the boundary the source actually has.
+# each span, which is the boundary the source actually has. Every row of the
+# `anvil hunt` table has this shape (`--seed N`, `--config <path>`, `--tools
+# <list>`), so there the naive matcher would read ZERO.
 #
 # The leading RUN of spans is walked (` / `-separated), because two options that
-# are always used together share one bullet (`--skip-verilator` / `--skip-yosys`).
-extract_tool_matrix_doc_heads() {
-  fenced_region USER_GUIDE.md 'tool-matrix-options' |
-    awk '
-      /^- `--/ {
-        line = $0
-        sub(/^- /, "", line)
+# are always used together share one entry (`--skip-verilator` / `--skip-yosys`).
+doc_option_heads() {
+  fenced_region "$1" "$2" |
+    awk -v pfx="$3" '
+      index($0, pfx) == 1 && substr($0, length(pfx) + 1, 3) == "`--" {
+        line = substr($0, length(pfx) + 1)
         while (match(line, /^`[^`]*`/)) {
           s = RSTART; l = RLENGTH
           span = substr(line, s + 1, l - 2)
@@ -584,6 +600,61 @@ covers_fenced_set() {
   fi
   ok "${pair} — ${file} (fenced: ${set_id}) names every entry"
   return 0
+}
+
+# clap_struct_pair <n> <src-file> <struct> <floor> <doc-file> <set-id> <prefix> <label>
+# The whole "a fenced docs list mirrors a clap struct" pair, once. Pairs 6 and 7
+# differ only in their arguments — `feedback_full_factorization`, and it is also
+# what stops the two drifting into inconsistent strictness.
+clap_struct_pair() {
+  local n="$1" src="$2" strct="$3" min="$4" doc="$5" set_id="$6" pfx="$7" label="$8"
+  local opts renames region
+
+  renames="$(clap_struct_long_renames "${src}" "${strct}")"
+  if [ -n "${renames}" ]; then
+    note "FAIL: pair ${n} — ${src} overrides a flag spelling with"
+    note "      \`long = \"...\"\` on: $(printf '%s' "${renames}" | tr '\n' ' ')"
+    note "      The field name is then NOT the flag name, so this pair's derivation"
+    note "      does not hold. Teach clap_struct_options_raw the override; do NOT"
+    note "      drop the field."
+    fail=1
+    return 1
+  fi
+
+  # `total_or_fail` here holds the TOKENIZER, not the `long` filter, and the
+  # distinction is what keeps it from crying wolf. Excluding a `#[arg(short)]`-only
+  # or positional field is CORRECT behaviour, so comparing "args seen" against
+  # "options extracted" would fire on a legitimate future field. What must never
+  # differ is `#[arg(` occurrences vs `#[arg(…)]<field>:` tokens matched — a gap
+  # there means the token regex silently dropped an attribute it walked past (an
+  # attr value containing `]` would do it), which is the invisible-skip class.
+  total_or_fail "${label} #[arg] tokenizer" \
+    "$(clap_struct_body "${src}" "${strct}" | grep -o '#\[arg(')" \
+    "$(clap_struct_arg_tokens "${src}" "${strct}")"
+
+  opts="$(clap_struct_options "${src}" "${strct}")"
+  # The floor is measured, tight, and NOT a shadow, by the same asymmetry the
+  # pair-4 and pair-5 floors record: a floor is shrink-coupled, so one more option
+  # never requires touching this number. Only *losing* options would.
+  floor_or_fail "${label} declared options" "${min}" "${opts}" || return 1
+
+  # The fence-presence check is EXPLICIT and a hard failure, exactly as in
+  # `covers_fenced_set`. `equal_sets` alone would survive a deleted fence by
+  # reporting every option as missing — loud, but it would blame the docs for an
+  # instrument failure and send the next author to rewrite a correct list.
+  region="$(fenced_region "${doc}" "${set_id}")"
+  if [ -z "$(printf '%s' "${region}" | tr -d '[:space:]')" ]; then
+    note "FAIL: pair ${n} — ${doc} has no <!--enum:${set_id}--> …"
+    note "      <!--/enum:${set_id}--> fence (or it is empty). Without it this pair"
+    note "      would degrade to matching the whole file, which decision 0037"
+    note "      measured as vacuous."
+    fail=1
+    return 1
+  fi
+
+  equal_sets "${doc} ${label} options <-> the ${strct} struct" \
+    "the ${strct} struct in ${src}" "${opts}" \
+    "${doc} (fenced: ${set_id})" "$(doc_option_heads "${doc}" "${set_id}" "${pfx}")"
 }
 
 # --- PAIRS: the declared (shadow site, authoritative source, extractor) table ---
@@ -806,49 +877,34 @@ fi
 # would cry wolf is not in head position. Exact parity also catches the direction
 # coverage cannot — a bullet naming an option that no longer exists, which is what
 # `.1` wrongly believed it had found twice.
-tm_options="$(extract_tool_matrix_options)"
-tm_renames="$(tool_matrix_long_renames)"
-if [ -n "${tm_renames}" ]; then
-  note "FAIL: pair 6 — src/bin/tool_matrix.rs overrides a flag spelling with"
-  note "      \`long = \"...\"\` on: $(printf '%s' "${tm_renames}" | tr '\n' ' ')"
-  note "      The field name is then NOT the flag name, so this pair's derivation"
-  note "      does not hold. Teach extract_tool_matrix_options_raw the override;"
-  note "      do NOT drop the field."
-  fail=1
-else
-  # `total_or_fail` here holds the TOKENIZER, not the `long` filter, and the
-  # distinction is what keeps it from crying wolf. Excluding a `#[arg(short)]`-only
-  # or positional field is CORRECT behaviour, so comparing "args seen" against
-  # "options extracted" would fire on a legitimate future field. What must never
-  # differ is `#[arg(` occurrences vs `#[arg(…)]<field>:` tokens matched — a gap
-  # there means the token regex silently dropped an attribute it walked past (an
-  # attr value containing `]` would do it), which is the invisible-skip class.
-  total_or_fail 'tool_matrix #[arg] tokenizer' \
-    "$(tool_matrix_cli_body | grep -o '#\[arg(')" \
-    "$(candidate_tool_matrix_arg_attrs)"
-  # Floor at the count measured at `USER-GUIDE-CLI-TABLE-SHADOW.6` (35). Tight on
-  # purpose and NOT a shadow, by the same asymmetry the pair-4 and pair-5 floors
-  # record: a floor is shrink-coupled, so a 36th option never requires touching
-  # this number. Only *losing* options would.
-  if floor_or_fail 'tool_matrix declared options' 35 "${tm_options}"; then
-    # The fence-presence check is EXPLICIT and a hard failure, exactly as in
-    # `covers_fenced_set`. `equal_sets` alone would survive a deleted fence by
-    # reporting all 35 as missing — loud, but it would blame the docs for an
-    # instrument failure and send the next author to rewrite a correct list.
-    tm_region="$(fenced_region USER_GUIDE.md 'tool-matrix-options')"
-    if [ -z "$(printf '%s' "${tm_region}" | tr -d '[:space:]')" ]; then
-      note "FAIL: pair 6 — USER_GUIDE.md has no <!--enum:tool-matrix-options--> …"
-      note "      <!--/enum:tool-matrix-options--> fence (or it is empty). Without it"
-      note "      this pair would degrade to matching the whole file, which decision"
-      note "      0037 measured as vacuous."
-      fail=1
-    else
-      equal_sets 'USER_GUIDE.md tool_matrix options <-> the tool_matrix Cli struct' \
-        'the tool_matrix Cli struct' "${tm_options}" \
-        'USER_GUIDE.md (fenced: tool-matrix-options)' "$(extract_tool_matrix_doc_heads)"
-    fi
-  fi
-fi
+clap_struct_pair 6 'src/bin/tool_matrix.rs' 'Cli' 35 \
+  'USER_GUIDE.md' 'tool-matrix-options' '- ' 'tool_matrix'
+
+
+# Pair 7 — USER_GUIDE.md's `anvil hunt` flag table (shadow) mirrors `HuntCommand`
+# in src/main.rs (authoritative). Added by USER-GUIDE-CLI-TABLE-SHADOW.7.
+#
+# ── WHY THIS ONLY BECAME POSSIBLE AT `.6` ────────────────────────────────────
+# `.3` considered this table and declined, for a reason that was TRUE of pair 5's
+# extractor: `HuntCommand` has no `Overrides` projection to derive from — its
+# flags map to a `HuntRequest` assembled by `build_hunt_request`, which mixes CLI
+# fields with defaults and derived values. Pair 6's reader does not need a
+# projection: it reads `#[arg(…)]<field>` pairs straight off the clap struct, and
+# `HuntCommand` is exactly that shape. So `.6` removed `.3`'s stated reason as a
+# side effect, one commit after writing it — a recorded "we can't because X" goes
+# stale the moment something removes X, and nothing re-examines it on its own.
+#
+# ── WHAT THIS PAIR IS AND IS NOT REPAIRING ───────────────────────────────────
+# Measured at `.7`: the table is 10/10 against the struct, so nothing was behind.
+# The gap was MECHANIZATION, not drift, and the honest framing matters — a leaf
+# that manufactured a repair here would be inventing work. What the pair buys is
+# that the NEXT `HuntCommand` option cannot ship undocumented, which is precisely
+# how the other two lists fell behind while every gate stayed green.
+#
+# The clap built-ins are outside the set on the same derivable rule as pair 6 —
+# `anvil hunt --help` is generated by the framework, not declared by the struct.
+clap_struct_pair 7 'src/main.rs' 'HuntCommand' 10 \
+  'USER_GUIDE.md' 'hunt-flags' '| ' 'anvil hunt'
 
 # --- verdict ----------------------------------------------------------------
 if [ "${fail}" -ne 0 ]; then
