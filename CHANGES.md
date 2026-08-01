@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3
+
+**Landed as:** `pending`. Previous: `425c0ca`, `9ad7385`, `6539c32`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Registration only — nothing repaired.**
+
+**What.** A new tree owns a finding `BOOK-LINK-INTEGRITY.3` surfaced: the rule *"a negative control
+must prove its sabotage landed"* is carried as a **habit**, and in that leaf the habit failed twice
+in one hour.
+
+**The finding.** A negative control needs three legs, and `USER-GUIDE-CLI-TABLE-SHADOW.7` recorded
+that only the third is routinely skipped: (1) the check **can** fire, (2) it fires on the **right
+input** (the §9 vacuity probe), (3) **the experiment ran at all**. Leg 3 fails silently and in the
+dangerous direction — a substitution that does not match leaves the tree unchanged, the check
+passes, and that is *indistinguishable from a control that correctly did not fire*.
+
+`BOOK-LINK-INTEGRITY.3` needed **one** load-bearing control — reverting its extractor to line-wise
+to prove the whole-file version was doing real work — and **it took three attempts to run**. Twice
+the mutating substitution silently failed to apply (a `sed`, then a `perl -pe`, both escaping
+errors) and the check "passed".
+
+**The distribution is the actual finding**, not the anecdote:
+
+| where the probe was written | leg-3 failures |
+| --- | ---: |
+| inside the reusable harness (`probe` asserts its marker before reading any verdict) | **0** of 10 |
+| ad-hoc, inline, outside the harness | **2** of 3 |
+
+Same author, same leaf, same hour, the rule known and recently written into
+`DEVELOPMENT_NOTES.md`. The variable was not diligence — it was whether the assertion was
+**structural or remembered**.
+
+**The honest obstacle, recorded at registration rather than discovered at `.3`.** A control runs
+*during* a leaf and may leave **no artifact in the commit**, while every doctrine in this repo
+checks *repository state*. So this may be **not doctrine-shaped at all**, and the reflex to reach
+for `scripts/check_*.sh` is deliberately deferred to `.2`. A `TOOLBOX.md` instrument, a sourceable
+helper, or **nothing** (`DOCTRINE_ENFORCEMENT.md` §9) are all live answers.
+
+**Ownership search was run, not assumed** (`feedback_full_factorization`). §6.1 — *a box is EARNED,
+not ticked* — is the nearest neighbour and does not cover this: it governs a **gated checklist
+box** citing a re-runnable oracle, whereas a negative control is not a gated box, nothing ticks,
+and its verdict is about the *gate* rather than the change. `grep` over `scripts/` for any
+sabotage/mutation helper returns nothing. First mechanism, not a second.
+
+**Registered rather than fixed in passing.** The working helper already exists at
+`.cache/book_link_controls.sh` and promoting it to `scripts/` was one commit away. Declined,
+deliberately: it would **pre-decide the carrier question `.2` exists to answer**, `COMMIT.md` lands
+one leaf per commit, and a defect is only handled if a tree owns it.
+
+**Validation.** `scripts/check_doctrines.sh` **11/11**. Docs-only ⇒ DUT byte-identical.
+
+**Files touched.** `docs/tasks/NEGATIVE-CONTROL-HARNESS.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine
 
 **Landed as:** `9ad7385`. Previous: `6539c32`, `3a48cc4`, `8ff64cd`.
