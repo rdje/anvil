@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `RESUME-POINTER-CONTRACT`
-- Status: `proposed` — **owner deferred the discussion `2026-08-01`; do not act without a nudge**
+- Status: `closed` (`2026-08-01`) — **the hypothesis was measured and is FALSE. No defect. Do not reopen without new evidence.**
 - Roadmap lane: Live-doc hygiene / memory-architecture
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (registered with the measurement; no change made)
+- Last updated: `2026-08-01` (**closed same day**: the falsification test this file specified was run and killed the hypothesis)
 - Owner: repo-local workflow
 
 ## The owner finding (verbatim, `2026-08-01`)
@@ -115,3 +115,48 @@ and its existence is why this may be a **routing-destination** problem rather th
   the frequency as evidence against the remedy. Nothing is repaired here — this file exists so the
   finding survives a session boundary, per the standing rule that a defect is only handled once a
   task-tree owns it.
+
+## Closure (`2026-08-01`) — the hypothesis is FALSE, measured
+
+This tree specified its own falsification test in *Acceptance Criteria*: *"count how many past
+commits repaired a cap firing and whether the routed content **returned** in a later session. If
+it did not return, the loop hypothesis is wrong and this tree closes."* **The test was run. The
+content does not return.**
+
+| measurement (over the last **40** commits touching `MEMORY.md`) | result |
+| --- | ---: |
+| distinct phrases removed from the file at some point | **185** |
+| phrases removed and later **re-added** | **1** |
+| `MEMORY.md` byte range across those commits | **5,877 – 6,125 B** (95–99.7 % of the 6,144 cap) |
+
+**The single re-add is not a loop:** it is *"a finding is not closed until something MECHANICAL
+fails if it recurs"*, dropped at `ccfbc23` and deliberately restored at `6e95494` as a judgement
+call, not a re-inlining reflex.
+
+**So the diagnosis in this file is wrong, and the owner's reading was right.** The file is not
+oscillating; it is in a **steady state** at the ceiling and has been for 40 commits across many
+sessions, long predating the session that raised this. Routed content stays routed. The gate
+blocks a commit, the author routes, the commit lands, nothing is lost. *That is a binding
+constraint behaving normally at its limit* — high firing frequency is what a cap does to a file
+that lives at 98 % of it, and frequency alone was never evidence about the remedy.
+
+**The real defect was in the raising, not in the doctrine.** The agent observed three firings,
+pattern-matched *"frequent ⇒ the remedy is wrong"*, and escalated it to an owner-facing finding
+**without running the falsification test — which it had already written into this file's own
+acceptance criteria.** That is this repo's recurring failure mode (a plausible narrative published
+ahead of the measurement that would kill it), reproduced one level up: not a wrong *number* this
+time, but a wrong *inference from a number*.
+
+**Transferable rule:** *a gate firing often is not evidence that the gate's remedy is wrong.* It
+is evidence that the constrained thing is at its limit — which is the constraint working. Before
+escalating any "this mechanism misfires" claim, state what observation would prove it wrong and
+**run that first**. Recorded as the fact card [[gate-frequency-is-not-evidence]].
+
+**One honest residual, deliberately NOT inflated into a concern:** a blocked commit leaves no
+trace in git, so "three firings" is knowable only from inside the session. That is an
+observability gap in the *narration*, not a defect in the gate, and nothing depends on counting
+them. Naming it so the next reader does not rediscover it and mistake it for a finding.
+
+**Not reopened by:** the cap firing again. It will, and that is expected. Reopen only on evidence
+that routed content **returns**, or that a firing caused something to be **lost** — neither of
+which has ever been observed.

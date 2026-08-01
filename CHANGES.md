@@ -1,6 +1,63 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — RESUME-POINTER-CONTRACT.1 — the hypothesis is false; close the tree
+
+**Landed as:** pending. Previous: `f8b9603`, `ac05f01`, `cf5deac`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** `RESUME-POINTER-CONTRACT` is **closed the day after it was registered**, because the
+falsification test it had written into its own acceptance criteria was finally run and **killed
+the hypothesis**. The owner's reading was right; the agent's was wrong.
+
+**The claim under test.** That `MEMORY-ARCH`'s byte cap firing three times in one session was
+evidence against the doctrine's *remedy* (*route down, leave a pointer*) — on the theory that a
+pointer is lossy, so each session re-inlines what it fears being ignored and the same content
+returns. **That theory makes one falsifiable prediction: routed content must come back.**
+
+**The measurement.**
+
+| over the last **40** commits touching `MEMORY.md` | |
+| --- | ---: |
+| distinct phrases removed at some point | **185** |
+| phrases removed and later **re-added** | **1** |
+| file size across those commits | **5,877 – 6,125 B** (95–99.7 % of the 6,144 cap) |
+
+One re-add in 185 — and that one deliberate, a judgement call rather than a reflex. **Routed
+content stays routed.** The file has been in a **steady state** at its ceiling for 40 commits
+across many sessions, long predating the session that raised the alarm.
+
+**The rule that survives.** *A gate firing often is evidence the constrained thing lives at its
+limit — which is a binding constraint working.* Frequency is a property of where the subject sits
+relative to the bound, not of what you do when you hit it. A file parked at 98 % of its cap fires
+on nearly every edit, forever, and correctly. Recorded as the fact card
+`docs/knowledge/gate-frequency-is-not-evidence.md`.
+
+**The defect was in the raising, not the doctrine.** The agent observed three firings,
+pattern-matched *"frequent ⇒ remedy wrong"*, and escalated it to an owner-facing finding
+**without running the test it had already specified**. That is this repo's recurring failure mode
+moved up one level: not a wrong *number* this time, but a wrong **inference** from one. Also
+recorded: the agent's *first* answer (*"the doctrine working as designed"*) was correct, and it
+over-corrected under push-back — a plausible narrative published ahead of the measurement that
+would kill it.
+
+**A factual correction the wrong reasoning rested on**, now written into the card: `MEMORY.md` is
+**not a rotating log**. It has no entries and no "oldest" to evict; it is a fixed-shape file
+rewritten in place, with the cap on the whole file's bytes. Nothing is evicted automatically —
+which is why the claim deserved a check rather than a shrug, and also why the check came back
+clean.
+
+**Not reopened by** the cap firing again — it will, and that is expected. Reopen only on evidence
+that routed content **returns**, or that a firing **lost** something. Neither has ever been
+observed.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10**; knowledge map regenerated in sync (118 →
+**119** facts). Docs-only ⇒ DUT byte-identical.
+
+**Files touched.** `docs/tasks/RESUME-POINTER-CONTRACT.md`,
+`docs/knowledge/gate-frequency-is-not-evidence.md` (new), `KNOWLEDGE_MAP.md` (derived),
+`docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — RESUME-POINTER-CONTRACT.0 — register the owner finding on the `MEMORY.md` cap
 
 **Landed as:** `ac05f01`. Previous: `cf5deac`, `4f36cde`, `702695d`.
