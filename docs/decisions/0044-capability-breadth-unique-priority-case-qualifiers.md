@@ -20,7 +20,7 @@ answers:
 date: 2026-08-01
 status: accepted
 tags: [capability, breadth, case-qualifier, unique, priority, case-mux, casez-mux, emission, downstream, valid-by-construction, rules-first, north-star, measurement]
-reverify: "python3 .cache/anvil-sandbox/qual/check_arms.py <emitted .sv files>  — reports FULL / PARALLEL / UNPARSED per case-casez block and exits nonzero on any violation; run it on the hand-written negative control first (it MUST exit 1), because a checker that cannot fail is not evidence"
+reverify: "sed -n '797,806p' src/emit/sv.rs   # the `default:` arm is written unconditionally for every non-projected CaseMux/CasezMux => FULL; then: grep -n 'wildcard_bits = 1' -A 6 src/gen/cone/motifs.rs and grep -rn 'build_casez_patterns' src/ --include='*.rs'   # the SOLE casez pattern source, giving arm i the care-value i with one don't-care LSB => PARALLEL. These two reads re-establish the by-construction claim from tracked source alone. The corpus/runtime numbers below came from a scratch checker under .cache/ (untracked by design, 0031/0043); its DURABLE replacement is the in-crate #[test] required by `.4`'s acceptance, not a tracked shell script."
 evidence: >
   Measured 2026-08-01 with Verilator 5.046, Yosys 0.64 and Icarus Verilog 13.0.
   (a) Emitter reading — src/emit/sv.rs:800-806 writes a `default:` arm for every non-projected

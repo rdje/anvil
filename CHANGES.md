@@ -1,9 +1,45 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.3 (repair) — a `reverify` may not depend on an untracked file
+
+**Landed as:** `pending`. Previous: `832a482`.
+**Docs only** ⇒ **DUT byte-identical**.
+
+**What.** Decision `0044` shipped with a `reverify:` command pointing at
+`.cache/anvil-sandbox/qual/check_arms.py` — the scratch checker that produced its corpus
+measurement. `.cache/` is untracked **by design** (`.gitignore:19`, decisions `0031`/`0043`), so
+that command re-establishes nothing on a fresh clone: the exact rot the Knowledge Map's
+`evidence`/`reverify` requirement exists to prevent
+(`knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md` §4 — *"omit `evidence`/`reverify` and an agent
+re-derives anyway, defeating the purpose"*). Found by re-reading the landed record rather than by
+a gate; no check owns "a reverify path is tracked".
+
+**Fix, in two parts.**
+
+1. **`0044`'s `reverify` now cites tracked source only** — `sed -n '797,806p' src/emit/sv.rs`
+   (the unconditional `default:` arm ⇒ FULL) plus the `build_casez_patterns` reads (the sole
+   casez pattern source, arm `i` → care-value `i` with one don't-care LSB ⇒ PARALLEL). The
+   by-construction claim is fully re-establishable from the repository; the scratch checker's
+   numbers stay in `evidence:` as what was measured, which is what that field is for.
+2. **The durable home is named, not improvised.** `.4`'s acceptance now *requires* an in-crate
+   `#[test]` asserting FULL + PARALLEL over emitted blocks, which must fail on a hand-built
+   overlapping-arm or default-less fixture (`DOCTRINE_ENFORCEMENT.md` §9). A Rust-side invariant
+   belongs in a test already gated by `cargo test` + CI — **not** in a tracked shell script,
+   which would be a second mechanism for a job `cargo test` already does
+   (`feedback_full_factorization`; the same reasoning `ENUMERATION-PARITY` uses to leave its
+   Rust-side pairs to `#[test]`s).
+
+**Why a follow-up commit and not an amend.** `832a482` is landed, and decision `0031` records
+the owner's absolute directive that history is never rewritten — no `--amend` of a landed commit.
+
+**Files touched.** `docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md`,
+`docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`, `KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.3 — `unique`/`priority` case qualifiers: a third breadth strand (decision 0044)
 
-**Landed as:** `pending`. Previous: `9bf2420`.
+**Landed as:** `832a482`, with the `reverify` repair in the follow-up commit below. Previous: `9bf2420`.
 **Docs only** ⇒ **DUT byte-identical**; `tests/snapshots.rs` untouched.
 
 **What.** Decision [`0044`](docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)
