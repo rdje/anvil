@@ -1,6 +1,78 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs
+
+**Landed as:** `pending`. Previous: `9060993`, `0e4654f`, `1dedbd8`.
+**Docs-only; no `src/` and no `book/src/` change** ⇒ **DUT byte-identical**. **Registration only —
+nothing repaired yet.**
+
+**What.** A new tree owns an owner finding: *"Make sure that paragraphs in the book are not stitched
+together as one big blob in sections or chapters… It is really painful to read like this. This visual
+defect appears of course in the rendered HTML version of the book."* The owner reviews the **book**,
+not the code (`COMMIT.md` §9), so a readability defect in the rendered HTML sits in the only surface
+they see.
+
+**Why a tree, given the owner called it not urgent.** *Not urgent* is a priority, not a disposal. The
+standing directive is that a defect is handled only when a tree owns it (`0041`), and an unregistered
+*"I'll tidy that later"* does not survive a session boundary — which is the exact failure the
+task-tree system exists to prevent. Registering costs one commit and makes the finding recoverable
+from the durable layers alone.
+
+**Measured before registering, and with a denominator.** *"Some mdBooks do this"* is an impression;
+a scope is a number. Over `mdbook build book` output, `<main>` only, `print.html` and `404.html`
+excluded as generated chrome (the same exclusion `BOOK-LINK-INTEGRITY.1` made, and for the same
+double-counting reason): **1,244 rendered paragraphs across 30 chapters, of which exactly 6 exceed
+1,500 characters** — `architecture` ×1, `hierarchy` ×1, `ir` ×3, `knobs` ×1.
+
+| Chapter | worst rendered `<p>` | mean `<p>` | `<p>` count |
+| --- | --- | --- | --- |
+| `architecture.html` | **22,908 chars** | 1,234 | 26 |
+| `hierarchy.html` | 4,371 | 420 | 91 |
+| `ir.html` | 3,211 | 402 | 45 |
+| `knobs.html` | 1,655 | 432 | 102 |
+
+The worst case is confirmed at source: `book/src/architecture.md` **lines 658–903 are 246 consecutive
+lines with no blank line between them**, rendering as one `<p>` that is roughly **71 % of that
+chapter's entire prose**. The denominator matters as much as the outlier — **1,238 paragraphs are
+already fine**, and saying so is what stops this becoming a 30-chapter rewrite.
+
+**The cause, read rather than guessed — and it corroborates the rule landed one commit earlier.** The
+blob is an **accretion**. Successive slices each appended one more sentence to a paragraph that
+already existed (*"The dedicated Phase 2 sharing gate is now closed too…"*, *"The dedicated Phase 3
+structured-surface gate is now closed as well…"*) over months. Every one of those edits was correct
+in isolation and its diff was three lines long. **Nothing an author is forced to do reports how long
+the paragraph has become** — not the diff, not `mdbook build` (which exits `0`), not any doctrine.
+That is precisely the refined rule from `UNGATED-PRACTICE-AUDIT.1` (`0e4654f`): *a practice survives
+where its output is a by-product of work the author is already forced to do.* Paragraph length is a
+by-product of nothing. This is the **first independent instance** of that rule, and it arrived from
+the owner rather than from an audit looking for one.
+
+**Scoped tightly at registration, deliberately.** `.1` is a **whitespace-only** repair — blank lines
+inserted at genuine topic boundaries, **no wording changed**, provable by a diff that adds only empty
+lines. The temptation on opening a 246-line paragraph is to rewrite it, which would bury a
+readability fix inside a content change the owner did not ask for and cannot review at a glance.
+`.2` decides whether anything should watch paragraph size, and must state the by-product alternative
+it rejected **before** proposing a gate — *"no gate"* is a legitimate outcome, and
+`DOCTRINE_ENFORCEMENT.md` §9 with decision `0033` test (2) both make over-gating a defect in itself.
+
+**Ownership search run, not assumed** (`feedback_full_factorization`). `BOOK-LINK-INTEGRITY` (closed)
+held link targets; `BOOK-EXAMPLES-RUNNABLE` holds runnable examples; `BOOK-LANE-COVERAGE` holds lane
+coverage; `BOOK-TEST-COUNT-SHADOWS` and `LIVE-DOC-BOOK-ALIGNMENT` hold counts and code alignment;
+`TABLE-RENDER-FIDELITY` is the doctrine for table **well-formedness**. **No tree or doctrine owns
+paragraph structure or rendered readability** — the subject is unowned, so this is a first mechanism.
+
+**Validation.** `scripts/check_doctrines.sh` **11/11**. `mdbook build book` succeeds (v0.5.2, used
+only to produce the census; the book output directory `book/book-out` is gitignored). Docs-only ⇒
+**DUT byte-identical**; no `src/`, no `book/src/`, `tests/snapshots.rs` untouched.
+
+**Impact.** An owner-reported reading defect is now recoverable from the durable layers rather than
+from this conversation, with its scope already bounded to 6 paragraphs so the repair cannot sprawl.
+No book content changed yet.
+
+**Files touched.** `docs/tasks/BOOK-PARAGRAPH-BLOBS.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-02 — UNGATED-PRACTICE-AUDIT.1 — 20 obligations classified; the rule holds only refined
 
 **Landed as:** `0e4654f`. Previous: `1dedbd8`, `ef6413c`, `b536139`.
