@@ -9,6 +9,8 @@ answers:
   - "why did dedenting a markdown list continuation not break the list"
   - "what is a lazy continuation in mdbook"
   - "my control passed but I changed the wrong whitespace"
+  - "my scripted edit asserted the string was present and still edited nothing"
+  - "is `assert needle in text` enough before a scripted replace"
 date: 2026-08-02
 status: current
 tags: [testing, control, evidence, gate-quality, mdbook, markdown, gotcha]
@@ -43,6 +45,21 @@ instrument; the instrument was innocent.
 **The rule.** Before reading a control's verdict, confirm the mutation produced the *state* the
 experiment is about — inspect the rendered artifact, not the diff and not the regex. `applied` means
 the file changed; it never means the intended thing changed.
+
+**The same root cause outside negative controls: `assert needle in text` before a scripted replace.**
+It proves the needle exists *somewhere in the file*, not that it exists *at the site you are about to
+edit*. Twice in `BOOK-PARAGRAPH-BLOBS` a Python edit over `docs/tasks/*.md` passed its assertion and
+changed nothing or changed the wrong block — once writing a commit hash into the **previous leaf's**
+`Commit:` field (it matched the first `` Commit: `pending` ``), once asserting on a sentence that also
+appears in a verification-log row, so the multi-line replace silently found no match.
+
+Two habits remove the class outright:
+
+- **Anchor structurally, not textually.** Locate the record first (`lines[i] == '- ID: \`…3a\`'`),
+  assert the field's line, then assign it. There is no needle to be ambiguous.
+- **Assert the count, then assert the result.** `text.count(needle) == 1` before replacing, and
+  re-read the field afterwards. A silent zero-replacement is the file-edit twin of a
+  zero-count substitution.
 
 **A second, related trap from the same leaf.** Comparing two runs of an instrument, compare the
 **measurement**, not the whole document. `scripts/book_prose_census.py --json` carries both a

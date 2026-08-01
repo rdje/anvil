@@ -107,7 +107,7 @@ independent instance of that rule since it was written, arriving from an owner r
   Goal: `Apply 0048 to the blocks whose content is a VERIFIED lossy copy of a file that already owns it: the two per-bank rN registers and the saw_* coverage roll-call.`
   Acceptance: `Per-block precondition measured, not sampled, BEFORE any deletion: every id/flag removed must be reachable elsewhere, and the exact residue stated rather than discovered later. Links absolute per 0048; zero relative .md escapes; BOOK-LINK-TARGETS green; the target URL returns 200. The <li> count must be UNCHANGED — one of the three sites is inside a list item, and .1's regression was text escaping its <li>. Census re-run and reported.`
   Verification: `Oversized blocks 12 -> 9; worst rendered block 8,704 -> 4,419 chars (-49.2 %); oversized mass 43,092 -> 21,954 (-49.1 %). Precondition, measured exhaustively: 73 of 77 bank ids are glossed in ROADMAP.md (r7, r8, r11, r12 are not - r7 is still mentioned there, r8's lesson is KEPT in both chapters, r11 and r12 survive in CHANGES.md x25/x18 and CODEBASE_ANALYSIS.md); 77 of 77 saw_* flags remain defined in src/, and 62 of 77 are still named elsewhere in the book. Nothing left the repository. Structure: n_li 1,325 UNCHANGED across 31 chapters, only hierarchy.html's content SHA moved - the exact signature of text removed from inside a list item without escaping it. 3 absolute links render with .md intact; 0 relative .md escapes; https://github.com/rdje/anvil/blob/main/ROADMAP.md returns HTTP 200. mdbook build exit 0; scripts/check_doctrines.sh 11/11.`
-  Commit: `pending`
+  Commit: `a385b76`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.3b`
   Status: `pending`

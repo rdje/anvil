@@ -67,8 +67,19 @@ it is the most current one — it runs to `r87`, further than either book copy r
 the book, so it is recorded in `docs/tasks/BOOK-PARAGRAPH-BLOBS.md` under *Surfaced by `.3a`* and
 needs its own tree.
 
+**A follow-up correction, recorded not amended away.** The hash backfill left `.3a`'s own
+`` Commit: `pending` `` untouched: the script asserted on a sentence that also appears in the
+verification-log table, so the assertion passed on a *different occurrence* and the multi-line
+replace silently matched nothing. This is the second instance in this tree of *a match is not the
+match you meant* — the first wrote a hash into the previous leaf's field — so
+[`matched-mutation-is-not-the-intended-mutation`](docs/knowledge/matched-mutation-is-not-the-intended-mutation.md)
+gained the file-edit form of the rule: anchor **structurally** (`lines[i] == '- ID: …'`) rather than
+textually, and assert `count == 1` before replacing.
+
 **Files touched.** `book/src/architecture.md`, `book/src/hierarchy.md`,
-`docs/tasks/BOOK-PARAGRAPH-BLOBS.md`, `CHANGES.md`, `MEMORY.md`.
+`docs/tasks/BOOK-PARAGRAPH-BLOBS.md`,
+`docs/knowledge/matched-mutation-is-not-the-intended-mutation.md`, `KNOWLEDGE_MAP.md`,
+`CHANGES.md`, `MEMORY.md`.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.4 — the instruments that judge this tree become durable
 
