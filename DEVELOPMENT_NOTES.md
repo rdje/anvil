@@ -5,6 +5,46 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A measurement is attached to the command that produced it — `CAPABILITY-BREADTH-EXPANSION.4b.3`
+
+The docs leaf, and the one interesting thing in it is a near-miss.
+
+The book's new case-qualifier section makes the strongest claim in the whole construct:
+*strip the keyword from an ON corpus and the result is byte-identical to OFF*. `.4b.1` had
+measured it — **8 modules, 30 qualified blocks** — and the draft quoted those numbers, correctly
+attributed, directly beneath a runnable command.
+
+**A different command.** `.4b.1`'s probe used its own shape; the book shows the shape a reader
+would plausibly type. Re-running the book's command gives **176** qualified statements, not 30.
+Nothing was misquoted and nothing was invented — the number was simply lifted away from the
+command that produced it, and a reader following the page would have got a result the page did
+not predict.
+
+**The rule: a measured number belongs to the exact invocation that produced it, and moving one
+without the other silently makes it false.** It is a quiet failure mode because every individual
+step is honest: the measurement was real, the citation was accurate, the command was correct.
+Only the *pairing* broke. The remedy is mechanical — re-run the command you are about to print,
+and quote what *it* says — and it costs one command.
+
+Worth noting where this did **not** bite: the `reverify` line on the new Knowledge Map card,
+because a `reverify` is by definition a command plus its expected outcome, so the pairing is
+structural rather than remembered. That is an argument for preferring the `reverify` shape
+wherever a doc wants to state a number.
+
+### Two placement decisions, recorded because they will be re-litigated
+
+- **The section is not called "the tenth surface"**, and it sits **after** "Combining the
+  surfaces" rather than beside the nine. The chapter's mutual-exclusion argument is about
+  *projections competing for one gate graph*; a qualifier competes with nothing. Titling it as a
+  tenth surface would put it inside an argument that does not apply to it — and a reader scanning
+  the table of contents would learn the wrong thing before reading a word of the section.
+- **`knobs.md` gives it its own heading** rather than two more bullets under structured emission,
+  for the same reason one level down: the two knobs do not end in `_emit_prob`, are not in the
+  `emission` steering category, and are not in the `structured_emission` catalog group. Filing
+  them under that heading would contradict three mechanisms at once.
+
+---
+
 ## 2026-08-01 — A non-vacuity probe must reproduce the RUN PLAN, not just the config — `CAPABILITY-BREADTH-EXPANSION.4b.2b`
 
 The case-qualifier gate went in as thirteen scenarios mirroring two sibling gates. Three things

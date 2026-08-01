@@ -335,6 +335,8 @@ as CLI flags or via a JSON config file (`--config knobs.json`).
 | `--task-emit-prob`      | 0.0      | Per-qualifying-gate probability of the `task automatic` emit-projection |
 | `--cone-function-emit-prob` | 0.0  | Per-qualifying-cone probability of the whole-cone `function automatic` emit-projection |
 | `--soft-union-slice-prob` | 0.0    | Per-low-bits-slice probability of the IEEE 1800-2023 `union soft` up-opt (needs `--sv-version 2023`) |
+| `--unique-case-prob`    | 0.0      | Per-qualifying-gate probability of prefixing the emitted `case`/`casez` statement with the IEEE 1800-2017 §12.5.3 `unique` qualifier — asserts FULL **and** PARALLEL. A decoration, not a projection: strip the keyword and the output is byte-identical (decision `0044`) |
+| `--priority-case-prob`  | 0.0      | Per-qualifying-gate probability of the `priority` qualifier — asserts FULL only, first-match semantics. Rolled **after** `--unique-case-prob`, and skipped for a gate `unique` already claimed (decision `0044`) |
 | `--width-parameterization-prob` | 0.0 | Per-module probability of width parameterization (Phase 5) |
 | `--aggregate-prob`      | 0.0      | Per-module probability of packed-`struct` aggregate emission (Phase 5b) |
 | `--aggregate-array-prob` | 0.0     | Per-module probability of packed-array aggregate emission |
@@ -690,6 +692,23 @@ with a matching `--kebab-case` CLI flag since
   via `--casez-mux-if-emit-prob` or a `--config` JSON. The surface is proven downstream-clean by
   `tool_matrix --casez-mux-if-gate` (**metric-keyed** detection — no new identifier token; see the
   matrix section below). Full walk-through: `book/src/structured-emission.md`.
+- `unique_case_prob` / `priority_case_prob` (both default `0.0`) — the **case qualifiers**
+  (decision `0044`). Not emit-projections: they *decorate* a rendering rather than replacing
+  one, prefixing the IEEE 1800-2017 §12.5.3 `unique` / `priority` keyword onto the
+  `case` / `casez` statement a dynamic-selector `CaseMux` / `CasezMux` already emits and leaving
+  every other byte unchanged. `unique` asserts **FULL and PARALLEL**, `priority` asserts **FULL**
+  only. Emittable because both properties are free from the generator — the emitter always writes
+  a `default:` arm (⇒ FULL) and arm labels are distinct by construction (⇒ PARALLEL) — both
+  asserted over real generated output by a property test with firing negative controls. Candidates
+  exclude constant-selector gates (statically collapsed to an `assign`) **and** gates already
+  projected to an `if`/`else if` chain by the eighth/ninth surfaces (no `case` keyword to prefix)
+  — the lane's only **non-vacuous** sibling exclusion. `unique` rolls first and a gate it claims is
+  not rolled for `priority`, so each knob's fires equal its metric exactly. Their `KnobId`s live in
+  their own **`qualifiers`** steering category, not `emission`. Set via `--unique-case-prob` /
+  `--priority-case-prob` or a `--config` JSON; counts surface as `num_emitted_unique_cases` /
+  `num_emitted_priority_cases` in `--introspect` (schema `1.28`). Proven downstream-clean by
+  `tool_matrix --case-qualifier-gate`, whose tool plan is **per qualifier** (see the matrix section
+  below). Full walk-through: `book/src/structured-emission.md`.
 
 The primary data-input draw happens before finalisation. Any data input
 or high input bits that survive only as dead surface area are trimmed

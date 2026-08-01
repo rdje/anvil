@@ -780,6 +780,52 @@ instead of creating fresh logic.
   identifier token). See
   [Structured Emission Surfaces](structured-emission.md) for the full walk-through.
 
+### Case-qualifier knobs
+
+Not emit-projections. These two **decorate** a rendering instead of replacing one: they
+prefix an IEEE 1800-2017 §12.5.3 keyword onto the `case` / `casez` statement a
+dynamic-selector `CaseMux` / `CasezMux` already emits, leaving every other byte unchanged
+(decision `0044`). They live in their own `qualifiers`
+[steering category](#from-measuring-rolls-to-steering-them) rather than `emission`, because a qualifier
+claims only the gates the nine projections *declined* — the two families are
+anti-correlated, so pooling them would make one `--steer` key average a self-cancelling
+mixture.
+
+- `unique_case_prob` — prefix `unique`, which asserts **FULL and PARALLEL** (some
+  `case_item` matches, and no two match).
+- `priority_case_prob` — prefix `priority`, which asserts **FULL** only, with first-match
+  semantics.
+
+Both default `0.0` ⇒ byte-identical, and both are rolled **once per candidate gate** by one
+pass that runs **last**, after every emit-projection. Shared properties worth knowing:
+
+- **A qualifier is an assertion, so it is only emittable because both properties are free
+  from the generator**: the emitter writes a `default:` arm for every `CaseMux`/`CasezMux`
+  that renders as a statement (⇒ FULL), and arm labels are distinct by construction — the
+  sequential integers `0..N-1` for `case`, and `casez` patterns built with one don't-care
+  bit and distinct care-values (⇒ PARALLEL). Both are asserted over real generated output by
+  a property test with firing negative controls.
+- **Candidates exclude two classes**, which is what keeps the metrics exact: a
+  **constant-selector** gate (statically collapsed to a continuous `assign`, so there is no
+  `case` statement to qualify) and a gate already claimed by `case_mux_if` / `casez_mux_if`
+  (it renders as an `if`/`else if` chain, which has **no `case` keyword to prefix**). That
+  second one is the only **non-vacuous** sibling exclusion in the whole lane.
+- **`unique` is rolled first, and a gate it claims is not rolled for `priority`.** So each
+  knob's recorded fires equal its metric exactly, and the two metrics sum to the number of
+  qualified statements. With both at `1.0`, `priority` reports *no attempts* rather than a
+  `0/0` rate — which is why the gate runs one scenario per qualifier.
+- Surfaced via the `num_emitted_unique_cases` / `num_emitted_priority_cases` metrics in
+  `--introspect` (schema `1.28`). Proven downstream-clean by the repo-owned `tool_matrix
+  --case-qualifier-gate`, whose tool plan is **per qualifier**: `priority` runs Verilator +
+  both Yosys modes + Icarus; `unique` runs Verilator + both Yosys, with Icarus a recorded
+  accepting no-op (it exits `0` but prints `vvp.tgt sorry: Case unique/unique0 qualities are
+  ignored.` per block). Yosys reports **identical cell counts** either way — the
+  synthesis-side statement that an assertion which holds gives the synthesizer no new
+  freedom.
+
+See [Structured Emission Surfaces](structured-emission.md#a-different-kind-of-thing-case-qualifiers)
+for the full walk-through, including the strip-the-token-and-`diff` proof.
+
 ### Hierarchy knobs (Phase 4+)
 
 - `hierarchy_depth` — legacy exact hierarchy-depth knob. Today `0`

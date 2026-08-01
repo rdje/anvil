@@ -974,8 +974,15 @@ src/
 │                     `anvil-case-qualifier-gate-r1`: 52 modules / 359
 │                     qualified statements / coverage_gaps = [] / Verilator
 │                     52/0 / Yosys 52/0 both modes / Icarus 28/0 = exactly
-│                     the non-unique modules. `.4b.3` (user docs + the book's
-│                     gate section + the digest commit backfill) pending.
+│                     the non-unique modules. `.4b.3` (done) documents the
+│                     construct: book/src/structured-emission.md "A different
+│                     kind of thing: case qualifiers" (NOT "the tenth
+│                     surface", placed after "Combining the surfaces"),
+│                     book/src/knobs.md "Case-qualifier knobs" as its own
+│                     heading, USER_GUIDE prose + 2 CLI-table rows, and the
+│                     KM card docs/knowledge/case-qualifiers-unique-priority.md.
+│                     THE WHOLE CASE-QUALIFIER STRAND IS CLOSED: live,
+│                     queryable, gated, documented.
 │                     EMIT-SURFACE-INTERACTION-GATE.3 (decision 0032) — the
 │                     first gate over the surfaces' INTERACTION rather than any
 │                     one surface: `ScenarioSet::EmitSurfaceInteraction` + the

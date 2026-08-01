@@ -2879,7 +2879,11 @@ other five remain `active` with a design-first `.1` ADR frontier:
    (`2026-08-01`) shipped the repo-owned **`--case-qualifier-gate`** — 13 scenarios, three
    coverage facts, per-qualifier tool plans — banked clean at `anvil-case-qualifier-gate-r1`
    (52 modules, 359 qualified statements, `coverage_gaps = []`, Verilator + both Yosys 52/0,
-   Icarus 28/0 = exactly the non-`unique` modules). Frontier `.4b.3` (user docs). Each
+   Icarus 28/0 = exactly the non-`unique` modules); and `.4b.3` (`2026-08-01`) shipped the
+   **user docs** — the book's *"A different kind of thing: case qualifiers"* section, the
+   `knobs.md` case-qualifier section, the `USER_GUIDE` rows, and a KM card — **closing `.4`
+   and the whole case-qualifier strand**. The construct is live, queryable, gated and
+   documented; only `.1` (SV up-opt breadth) remains, deferred-not-retired. Each
    default-off / proven /
    API-selectable; the lane stays `active`. Default-off / DUT byte-identical.
 

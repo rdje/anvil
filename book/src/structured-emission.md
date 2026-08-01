@@ -1335,6 +1335,157 @@ That corpus is Verilator-clean under `--language 1800-2023` and is a recorded
 no-op for Yosys and Icarus (see
 [the version target](knobs.md#systemverilog-version-target)).
 
+## A different kind of thing: case qualifiers
+
+Everything above is a **projection** — a pass that changes *how* a gate renders. The
+`unique` / `priority` **case qualifiers** are the first construct in this chapter that
+changes nothing about the rendering at all. They prefix a keyword onto the
+`case` / `casez` statement a dynamic-selector `CaseMux` / `CasezMux` already emits:
+
+```systemverilog
+    always_comb begin
+        unique case (sel)          // or: priority case (sel)
+            2'd0: case_mux_0 = i_2;
+            2'd1: case_mux_0 = i_1;
+            default: case_mux_0 = 4'h0;
+        endcase
+    end
+```
+
+Strip the keyword and you get the default output **byte for byte**. That is the whole
+construct — which is exactly why it is not a tenth surface, and why the
+[mutual-exclusion](#the-surfaces-are-mutually-exclusive-and-that-has-a-consequence)
+argument above does not apply to it. It claims no rendering, so it competes with nothing.
+
+### A qualifier is an assertion, and that changes what "safe" means
+
+The nine surfaces are judged by *does the downstream tool ingest this shape?* A
+qualifier is judged by a harder question, because IEEE 1800-2017 §12.5.3 makes it a
+**claim about the design** that a simulator checks at runtime and a synthesizer may act
+on:
+
+| qualifier | asserts |
+| --- | --- |
+| `priority` | **FULL** — some `case_item` matches (first-match semantics) |
+| `unique` | **FULL and PARALLEL** — some `case_item` matches, and no two match |
+
+Emitting a qualifier that could be **false** would manufacture precisely the
+simulation/synthesis divergence ANVIL exists to *find in tools*, never to inject into its
+own output. So the construct is only admissible because both properties are free from the
+generator, with no analysis pass and no generate-then-filter:
+
+- **FULL** holds because `emit/sv.rs` writes a `default:` arm for **every**
+  `CaseMux`/`CasezMux` that renders as a statement. `default` is itself a `case_item`, so
+  a match always exists. (This is also why the `default:` arm is *not* made conditional on
+  the qualifier — it is the thing that makes the assertion true.)
+- **PARALLEL** holds because a `CaseMux` labels arm `i` with the integer `i` — distinct by
+  construction — and because `build_casez_patterns` is the **sole** `casez` pattern source
+  in the generator and gives arm `i` the care-value `i` with exactly one don't-care bit, so
+  two arms overlap only if two arm indices coincide, which they cannot.
+
+Both halves are asserted over **real generated output** by a property test in
+`src/ir/case_qualifier.rs`, each with its own firing negative control: delete the emitter's
+`default:` arm and the FULL check reddens; widen the `casez` wildcard mask by one bit and
+the PARALLEL check reddens. See [Correctness guarantees](by-construction.md) for why that
+negative control is the load-bearing half.
+
+### The one exclusion in this lane that actually bites
+
+Every sibling exclusion in the nine surfaces is vacuous in practice — no two passes want the
+same gate kind. This pass carries one that is real: a gate claimed by the
+[eighth](#the-eighth-surface-a-procedural-ifelse-if-priority-chain) or
+[ninth](#the-ninth-surface-a-masked-ifelse-if-priority-chain) surface renders as an
+`if`/`else if` chain and has **no `case` keyword to prefix**. So the qualifier pass runs
+**last**, after both, and skips exactly those gates.
+
+That is why the repo-owned gate (below) carries a dedicated **co-occurrence** scenario. A
+predicate that is written, unit-tested, and never fired end-to-end is the hole decision
+`0032` was opened to close; leaving this one unexercised would reproduce it.
+
+### Turning them on
+
+Two knobs, both default `0.0`, each with its own `KnobId` in the **`qualifiers`** steering
+category — deliberately *not* `emission`, which is the nine projections. The two families
+are anti-correlated (a qualifier claims only the gates the projections declined), so
+pooling them would make `--steer emission` average a self-cancelling mixture.
+
+<!-- book-test: skip — a forced-knob comb-only shape, not the default generator one-liner -->
+```bash
+# every eligible case/casez statement gets `unique`
+cargo run --release -- --seed 7 --count 8 \
+  --flop-prob 0.0 --comb-mux-prob 0.0 --case-mux-prob 0.5 --casez-mux-prob 0.5 \
+  --unique-case-prob 1.0 --out ./cq-unique
+
+# ...or `priority`; swap the knob, nothing else changes
+cargo run --release -- --seed 7 --count 8 \
+  --flop-prob 0.0 --comb-mux-prob 0.0 --case-mux-prob 0.5 --casez-mux-prob 0.5 \
+  --priority-case-prob 1.0 --out ./cq-priority
+```
+
+`unique` is rolled first, and a gate it claims is **not** rolled for `priority` — so each
+knob's recorded fires equal its metric exactly, and
+`num_emitted_unique_cases + num_emitted_priority_cases` is the total number of qualified
+statements. With both knobs at `1.0`, `priority` therefore reports *no attempts at all*
+rather than a fire rate of `0/0`.
+
+### How anvil proves it
+
+- The [`num_emitted_unique_cases` / `num_emitted_priority_cases`](agent-mcp.md) metrics are
+  surfaced in `--introspect` at schema `1.28`. They are **exact**: the pass excludes
+  statically-collapsed gates (a constant selector lowers to a continuous `assign`) and
+  chain-projected gates, so every counted gate emits exactly one qualified statement.
+- **Behaviour preservation is proven structurally, not statistically.** The sibling surfaces
+  prove theirs with an ON-vs-OFF Verilator `-Wall` delta of zero — a statement about a
+  warning count. A qualifier admits something stronger: run the same seed with the knob on
+  and off, strip the keyword from the ON corpus with one `sed`, and `diff`.
+
+  <!-- book-test: skip — writes two corpora and diffs them; the harness runs single commands -->
+  ```bash
+  # ...against the ./cq-unique corpus from above
+  cargo run --release -- --seed 7 --count 8 \
+    --flop-prob 0.0 --comb-mux-prob 0.0 --case-mux-prob 0.5 --casez-mux-prob 0.5 \
+    --out ./cq-off
+  mkdir -p ./cq-stripped
+  for f in ./cq-unique/*.sv; do
+    sed 's/unique case/case/; s/unique casez/casez/' "$f" > "./cq-stripped/$(basename "$f")"
+  done
+  diff -r ./cq-off ./cq-stripped --exclude=manifest.json && echo "byte-identical"
+  ```
+
+  Over those **8 modules and 176 qualified statements** the diff is empty, so nothing but
+  the token moved. Where a delta-of-zero says *no new warnings appeared*, this says *there
+  is nothing else to warn about*.
+- The repo-owned `tool_matrix --case-qualifier-gate` runs **13** scenarios —
+  `{unique, priority}` × `{case_mux-biased, casez_mux-biased}` × three construction
+  strategies, plus the co-occurrence scenario — and requires three coverage facts:
+  `saw_unique_case_qualifier`, `saw_priority_case_qualifier`, and
+  `saw_case_qualifier_beside_if_chain`. Detection is **metric-keyed**, not a text scan.
+  Banked clean: 52 modules, **359** qualified statements, `coverage_gaps = []`, Verilator
+  `52/0` and both Yosys modes `52/0`.
+
+### The one tool that says something, and what it means
+
+The gate's tool plan is **per qualifier**, which no earlier gate needed:
+
+| tool | `priority` | `unique` |
+| --- | --- | --- |
+| Verilator `--lint-only` | clean | clean |
+| Yosys, both repo modes | clean, **identical cell counts** | clean, **identical cell counts** |
+| Icarus `-g2012` | silent | exits `0`, prints `vvp.tgt sorry: Case unique/unique0 qualities are ignored.` per block |
+
+The Icarus note is an **accepting no-op**, so `unique` scenarios record it rather than run
+it. Two things are worth reading off this table. First, the reduction drops the Icarus
+column *alone* — not the `union soft` reduction, which also drops Yosys — because Yosys is
+this construct's strongest evidence: **identical synthesized cell counts** with and without
+the qualifier are the synthesis-side statement that an assertion which holds gives the
+synthesizer no new freedom. Second, `sorry:` does not contain the substring `warning:`, so
+the shared warning classifier would have passed this corpus *by lexical accident*. The gate
+splits the tool plan instead of teaching a shared classifier about one construct.
+
+Full rationale — including why `unique0` is deferred and why the `default:` arm is never
+dropped — is in decision `0044`
+(`docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md`).
+
 ## Measuring the surfaces: per-gate fire rates
 
 Every knob above rolls **once per candidate gate**, and since

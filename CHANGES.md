@@ -1,9 +1,61 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.3 — case-qualifier user docs; the strand closes
+
+**Landed as:** `pending`. Previous: `955e387`.
+**Docs-only** ⇒ **DUT byte-identical**; no `src/` change.
+
+**What.** The user-facing documentation for the `unique` / `priority` case qualifiers, which
+closes `.4b`, `.4`, and the whole case-qualifier strand opened at `.3`.
+
+- `book/src/structured-emission.md` — a new section, **"A different kind of thing: case
+  qualifiers"**. Two placement decisions, both deliberate: it is *not* titled "the tenth
+  surface" (a qualifier decorates a rendering rather than replacing one), and it sits
+  **after** "Combining the surfaces" so the projection-vs-decoration boundary is visible in
+  the table of contents rather than only in the prose. Covers the assertion argument (the
+  FULL/PARALLEL table, and why the `default:` arm is never made conditional), the lane's one
+  non-vacuous exclusion, both knobs, the gate, and a per-qualifier tool-plan table.
+- `book/src/knobs.md` — its own **"Case-qualifier knobs"** section, not a tenth bullet under
+  structured emission, explaining why the knobs live in the `qualifiers` steering category
+  and why their names deliberately do not end in `_emit_prob`.
+- `USER_GUIDE.md` — the prose knob entry plus **two CLI-table rows**
+  (`--unique-case-prob`, `--priority-case-prob`).
+- `docs/knowledge/case-qualifiers-unique-priority.md` — a new Knowledge Map card with a
+  `reverify` that was actually run (prints `9`).
+
+**The digest backfill `.4b.2b` handed over.** `docs/evidence/anvil-case-qualifier-gate-r1.md`
+recorded `c1cc6a1ff1f9` — the commit the run executed *against* — because a gate banked by the
+same commit that introduces it cannot know its own hash. `scripts/evidence_digest.sh` warns
+about exactly this and names backfill as the remedy; the field now reads `955e387`, with a
+note recording why, so the re-verification instruction is followable.
+
+**One drafted number was wrong, and re-measuring caught it.** The section first carried
+`.4b.1`'s *"8 modules / 30 qualified blocks"* beside a **different** command — the one the
+book actually shows — which yields **176**. A reader running the book's own command would
+have seen a number the book did not predict. Corrected to 8 modules / 176 statements, with the
+strip-the-token `diff` re-run at that shape (empty diff, byte-identical). **A measurement is
+attached to the command that produced it; moving one without the other silently makes it
+false.**
+
+**Validation.** `mdbook build` clean; `cargo test --test book_examples` 4/4 (including
+`harness_detects_a_broken_command` and `skip_sentinels_have_reasons`); Knowledge Map
+regenerated 113 → 114 facts and in sync; `scripts/check_doctrines.sh` 9/9. Docs-only, so no
+generator change and no snapshot movement.
+
+**Impact.** The case-qualifier construct is now live, queryable, gated, and documented — the
+four-part bar decision `0017` sets for a capability. `CAPABILITY-BREADTH-EXPANSION` stays
+`active` with one remaining child, `.1` (SV up-opt breadth), deferred-not-retired.
+
+**Files touched.** `book/src/{structured-emission,knobs}.md`, `USER_GUIDE.md`,
+`docs/knowledge/case-qualifiers-unique-priority.md` (new), `KNOWLEDGE_MAP.md` (regenerated),
+`docs/evidence/anvil-case-qualifier-gate-r1.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`, `MEMORY.md`, `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `CODEBASE_ANALYSIS.md`,
+`ROADMAP.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4b.2b — the repo-owned `--case-qualifier-gate`
 
-**Landed as:** `pending`. Previous: `c1cc6a1`.
+**Landed as:** `955e387`. Previous: `c1cc6a1`.
 **Default-off** ⇒ **DUT byte-identical**; the gate is the opt-in proof axis.
 
 **What.** `tool_matrix --case-qualifier-gate` + `ScenarioSet::CaseQualifierSweep` — the first
