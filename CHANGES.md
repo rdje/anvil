@@ -1,6 +1,45 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — LOCAL-REFERENCE-CACHE.3 — the LRM cache stays untracked, and why
+
+**Landed as:** `pending`. Previous: `1b1793e`.
+**Docs only** ⇒ **DUT byte-identical**.
+
+**What.** Decision [`0043`](docs/decisions/0043-reference-cache-stays-untracked-public-repo.md):
+the cached IEEE 1800-2017/2023 LRM Markdown under `.cache/local-references/sv/` is **never**
+tracked and never force-added.
+
+**Measured before acting, not after.** `gh` reports `rdje/anvil` is **PUBLIC**
+(`{"isPrivate":false}`); the material is **6,721,089 bytes across 118 files** carrying
+*"Copyright © 2024 IEEE. All rights reserved."*; `.gitignore:19` already excludes `.cache/`.
+Reference-only intent does not change the analysis — committing to a public remote **publishes**
+it.
+
+**Why a record and not just the ignore rule.** `.gitignore` stops the accident but not
+`git add -f`; repo visibility takes a `gh repo view` to learn, which an agent may never think to
+run; and — the load-bearing reason — **decision `0031` forbids rewriting history**, so the standard
+remedy for copyrighted material committed by mistake (`filter-branch`, force-push) is *prohibited by
+the project's own standing directive*. That makes this one of the few genuinely irreversible actions
+available in this repo, and the asymmetry — one file to prevent, permanent to undo — is the entire
+argument for writing it down.
+
+**No new doctrine.** `.gitignore` already mechanises exclusion and `feedback_full_factorization`
+forbids a second mechanism for one job — the same test applied at `OVERFLOW-DESTINATION-INSTRUMENTATION.7`
+before registering `TABLE-RENDER-FIDELITY`, and at `.3` before *declining* to register one. Registry
+stays at **9**. What was missing was never a check; it was the reason.
+
+**Allowed alternatives recorded** so they are not re-invented: clause citations
+(*"IEEE 1800-2023 §7.3.1"*), a `sha256` manifest of the 118 filenames making a refreshed copy
+verifiable rather than assumed, and derived facts about ANVIL's own emission. The manifest was
+offered and not taken up; it remains the recommended fix if the cache's provenance path goes away.
+
+The owner confirmed the reasoning on `2026-08-01` and withdrew the request, so the record states an
+**agreed boundary**, not an agent's refusal.
+
+**Files touched.** `docs/decisions/0043-…md` (new), `docs/decisions/INDEX.md`,
+`docs/tasks/LOCAL-REFERENCE-CACHE.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — IR-TYPES-DECOMPOSITION.3 — extract the canonicalization engine into src/ir/intern.rs
 
 **Landed as:** `pending`. Previous: `dd3aadc`.

@@ -38,6 +38,13 @@ surface.
   Goal: `Per-machine untracked reference cache for agent grounding (SV LRM first).`
   Children: `LOCAL-REFERENCE-CACHE.1`
 
+- ID: `LOCAL-REFERENCE-CACHE.3`
+  Status: `done`
+  Goal: `Record WHY the reference cache is never tracked, after an explicit owner request to copy it into the repo and git-track it.`
+  Acceptance: `The reason recorded in layer C with the measurement, not just the rule; no new doctrine if an existing mechanism already gates it; the allowed alternatives (clause citations, a sha256 manifest, derived facts) named so the durability gap has a recorded answer.`
+  Verification: `done — decision 0043. MEASURED BEFORE ACTING rather than after: gh reported rdje/anvil {"isPrivate":false,"visibility":"PUBLIC"}; the material is 6,721,089 bytes across 118 Markdown files; the 2023 overview section carries "Copyright (c) 2024 IEEE" + "All rights reserved"; .gitignore:19 already excludes .cache/. Reference-only intent does not change the analysis — committing to a public remote PUBLISHES it. THE THIRD REASON IS THE LOAD-BEARING ONE AND IS SPECIFIC TO THIS REPO: decision 0031 forbids rewriting history (no filter-branch, no force-push), so the STANDARD REMEDY for copyrighted material committed by mistake is PROHIBITED BY THE PROJECT OWN STANDING DIRECTIVE, making this one of the few genuinely irreversible actions available here — the asymmetry (one file to prevent, permanent to undo) is the whole argument for recording it. NO NEW DOCTRINE: .gitignore already mechanises exclusion and feedback_full_factorization forbids a second mechanism for one job, the same test applied at ODI.7 before registering TABLE-RENDER-FIDELITY and at ODI.3 before declining to register one; registry stays at 9. What was missing was never a check, it was the REASON — .gitignore stops the accident but not git add -f, and repo visibility takes a gh repo view to learn, which an agent may never think to run. ALLOWED ALTERNATIVES RECORDED so they are not re-invented: clause citations (IEEE 1800-2023 §7.3.1), a sha256 manifest of the 118 filenames making a refreshed copy verifiable rather than assumed, and derived facts about ANVIL own emission. Owner confirmed the reasoning on 2026-08-01 and withdrew the request, so the record states an agreed boundary rather than an agent refusal. check_doctrines.sh 9/9 after git add. Docs-only => DUT byte-identical.`
+  Commit: `pending`
+
 - ID: `LOCAL-REFERENCE-CACHE.1`
   Status: `done`
   Goal: `Gitignore .cache/ and land the owner-provided IEEE 1800-2017/2023 SystemVerilog LRM Markdown under .cache/local-references/sv/ with a provenance README; record it as a reference auto-memory.`
