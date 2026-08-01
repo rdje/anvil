@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / book fidelity
 - Created: `2026-08-02`
-- Last updated: `2026-08-02` (`.1` repaired the splittable blobs; frontier `.3`)
+- Last updated: `2026-08-02` (owner decided `.3`'s repair: link, don't duplicate; frontier `.3`)
 - Owner: repo-local live-doc hygiene
 
 ## Goal
@@ -91,7 +91,7 @@ independent instance of that rule since it was written, arriving from an owner r
 - ID: `BOOK-PARAGRAPH-BLOBS.3`
   Status: `pending`
   Goal: `Decide what to do about the RUN-ON ENUMERATIONS — the residue .1 structurally cannot fix, because a single sentence has no paragraph boundary to insert a break at.`
-  Acceptance: `Registered by .1 as a distinct defect, not a leftover. Every remaining oversized block is one sentence listing dozens of clauses; the natural repair is a markdown list, which changes structure and wording and therefore could not ride inside .1's whitespace-only constraint. States whether the repair is a list conversion, a move to a table, or a deletion of accreted evidence prose that ROADMAP/docs/evidence already own.`
+  Acceptance: `Registered by .1 as a distinct defect, not a leftover. Every remaining oversized block is one sentence listing dozens of clauses. OWNER DECIDED 2026-08-02: replace the duplicated prose with an ABSOLUTE GitHub URL to the .md that already owns it - not a list conversion, and not the deletion the agent proposed. The link MUST be absolute (https://github.com/rdje/anvil/blob/main/...); a relative ../../X.md renders as a dead .html and BOOK-LINK-TARGETS blocks it (decision 0046). Precondition VERIFIED before any content is removed - see Decisions.`
   Verification: `pending`
   Commit: `pending`
 
@@ -215,6 +215,46 @@ Restored with `cmp`-verified identity and rebuilt clean.
   alignment; `TABLE-RENDER-FIDELITY` is the doctrine for table well-formedness. **No tree or doctrine
   owns paragraph structure or rendered readability**, so this is a first mechanism, not a second
   (`feedback_full_factorization`).
+
+## Decisions (continued — `.3`)
+
+- `2026-08-02` (**owner decision**, in answer to `.1`'s surfaced question): **link, do not duplicate
+  and do not delete.** *"There is no need to have the content of an already existing `.md` file in
+  the book if you can just provide a link to that `.md` file from the book."* This overrides the
+  agent's stated instinct (deletion) and is the better call: deletion removes the content from the
+  owner's review surface, whereas a link keeps it one click away.
+
+- `2026-08-02` (**mechanism, corrected against the owner's framing**): **the link must be an
+  ABSOLUTE GitHub URL.** The owner observed that such links work when the book is on GitHub. The
+  precise mechanism, and it matters: mdBook **rewrites a relative `.md` target to `.html`**, so
+  `[ROADMAP.md](../../ROADMAP.md)` renders as `../../ROADMAP.html` — alive on GitHub, **dead in the
+  rendered book**, with `mdbook build` exiting `0`
+  ([`0046`](../decisions/0046-book-never-links-outside-book-src.md),
+  [[mdbook-md-to-html-rewrite-trap]]), and `BOOK-LINK-TARGETS` blocks it at pre-commit. An
+  **absolute** `https://` target is passed through untouched. Verified three ways rather than
+  recalled: the gate skips absolute schemes (`check_book_link_targets.sh:149`); the rendered HTML
+  keeps `href="https://github.com/rdje/anvil/blob/main/docs/AGENT_INTROSPECTION_SCHEMA.md"` with its
+  `.md` intact; and that URL returns **HTTP 200** on the public repo.
+
+- `2026-08-02` (**not a new convention — an existing one**): the book already carries **6** absolute
+  links, **5** of them GitHub blob links to repo `.md` files (`docs/AGENT_INTROSPECTION_SCHEMA.md`
+  ×4, decision `0019`). `.3` extends the established pattern rather than inventing one.
+
+- `2026-08-02` (**precondition verified BEFORE removing anything**, because linking to content that
+  is not actually elsewhere would lose it): of the **111** distinct `saw_*` coverage flags the book
+  names, **0 are book-only** — every one is in `ROADMAP.md` or `src/`. Every sampled bank id
+  (`r51`, `r73`, `r78`, `r83`) appears **2–3×** in `ROADMAP.md` against **1×** in the book, and
+  `ROADMAP.md`'s prose is *strictly richer* (it records `r83`'s **198-scenario** count, which the
+  book omits). The book's register is therefore a **lossy copy** of an authoritative set — decision
+  [`0033`](../decisions/0033-shadow-enumeration-classification.md)'s shadow, whose repair is R1,
+  removal of the copy. Replacing it with a link is that repair, done without losing the content.
+
+- `2026-08-02` (**stated limit, not discovered later**): `BOOK-LINK-TARGETS` **skips** absolute URLs
+  by design, so these links are **not verified by any gate** — a renamed or moved target 404s
+  silently. Pinning to `main` keeps them current at the cost of rot on rename; pinning to a SHA
+  would freeze content that is meant to stay live. `main` is chosen deliberately; whether the gap
+  deserves a checker is `.2`'s question, and per `0047` the by-product route is preferred to a new
+  gate.
 
 ## Open Questions
 
