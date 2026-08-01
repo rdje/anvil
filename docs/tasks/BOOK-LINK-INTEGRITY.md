@@ -299,7 +299,7 @@ rather than an assertion inside another.
 | registration | `USER-GUIDE-CLI-TABLE-SHADOW.4 — backfill the landed commit hash` | Tree registered alongside the hash backfill; no leaf executed yet. |
 | `.1` | `5e3e9a0` — `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
 | `.1` | `8ff64cd` — `BOOK-LINK-INTEGRITY.1 — backfill the landed commit hash` | Hash-only follow-up. |
-| `.3` | `BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine` | Adds `scripts/check_book_link_targets.sh` + one registry line; updates the four `<!--enum:doctrine-ids-->` sites. **Closes the tree.** |
+| `.3` | `9ad7385` — `BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine` | Adds `scripts/check_book_link_targets.sh` + one registry line; updates the four `<!--enum:doctrine-ids-->` sites. **Closes the tree.** |
 | `.2` | `3a48cc4` — `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them` | Adds decision `0046`; repairs `book/src/recipes.md:857` (one line). Rendered book reaches **0** dead local links. |
 
 ## Changelog

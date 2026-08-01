@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine
 
-**Landed as:** `pending`. Previous: `6539c32`, `3a48cc4`, `8ff64cd`.
+**Landed as:** `9ad7385`. Previous: `6539c32`, `3a48cc4`, `8ff64cd`.
 **Docs + book + one check script; no `src/` change** ⇒ **DUT byte-identical**.
 **Closes `BOOK-LINK-INTEGRITY`** — all three leaves done the day the tree was registered.
 
