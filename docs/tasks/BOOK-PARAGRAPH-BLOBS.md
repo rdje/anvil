@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / book fidelity
 - Created: `2026-08-02`
-- Last updated: `2026-08-02` (owner decided `.3`'s repair: link, don't duplicate; frontier `.3`)
+- Last updated: `2026-08-02` (`.4` instruments durable; `.3a` applied `0048` to the three verified duplications; frontier `.3b`)
 - Owner: repo-local live-doc hygiene
 
 ## Goal
@@ -79,7 +79,7 @@ independent instance of that rule since it was written, arriving from an owner r
 - ID: `BOOK-PARAGRAPH-BLOBS`
   Status: `active`
   Goal: `The rendered book has no wall-of-text paragraphs, and the repair is whitespace-only.`
-  Children: `.1` (repair the splittable blobs, **done**), `.4` (make the instruments durable), `.3` (the run-on enumerations `.1` cannot fix), `.2` (decide whether anything watches this)
+  Children: `.1` (repair the splittable blobs, **done**), `.4` (make the instruments durable, **done**), `.3a` (link the verified duplications, **done**), `.3b` (the capability roll-calls, which are *not* duplications), `.2` (decide whether anything watches this)
 
 - ID: `BOOK-PARAGRAPH-BLOBS.4`
   Status: `done`
@@ -96,9 +96,23 @@ independent instance of that rule since it was written, arriving from an owner r
   Commit: `df7bc6e`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.3`
-  Status: `pending`
+  Status: `split at execution into .3a (done) and .3b (pending)`
   Goal: `Decide what to do about the RUN-ON ENUMERATIONS — the residue .1 structurally cannot fix, because a single sentence has no paragraph boundary to insert a break at.`
   Acceptance: `Registered by .1 as a distinct defect, not a leftover. Every remaining oversized block is one sentence listing dozens of clauses. OWNER DECIDED 2026-08-02: replace the duplicated prose with an ABSOLUTE GitHub URL to the .md that already owns it - not a list conversion, and not the deletion the agent proposed. The link MUST be absolute (https://github.com/rdje/anvil/blob/main/...); a relative ../../X.md renders as a dead .html and BOOK-LINK-TARGETS blocks it (decision 0046). Precondition VERIFIED before any content is removed - see Decisions.`
+  Verification: `SPLIT, because the precondition was measured per block rather than assumed for the class — see Findings (.3a). 0048's route applies only where the block is a lossy COPY of an owning file, and that is true of 3 of the 9 blocks, not all of them. Executing one repair across all nine would have deleted book-only prose under a decision that never authorised it.`
+  Commit: `see .3a / .3b`
+
+- ID: `BOOK-PARAGRAPH-BLOBS.3a`
+  Status: `done`
+  Goal: `Apply 0048 to the blocks whose content is a VERIFIED lossy copy of a file that already owns it: the two per-bank rN registers and the saw_* coverage roll-call.`
+  Acceptance: `Per-block precondition measured, not sampled, BEFORE any deletion: every id/flag removed must be reachable elsewhere, and the exact residue stated rather than discovered later. Links absolute per 0048; zero relative .md escapes; BOOK-LINK-TARGETS green; the target URL returns 200. The <li> count must be UNCHANGED — one of the three sites is inside a list item, and .1's regression was text escaping its <li>. Census re-run and reported.`
+  Verification: `Oversized blocks 12 -> 9; worst rendered block 8,704 -> 4,419 chars (-49.2 %); oversized mass 43,092 -> 21,954 (-49.1 %). Precondition, measured exhaustively: 73 of 77 bank ids are glossed in ROADMAP.md (r7, r8, r11, r12 are not - r7 is still mentioned there, r8's lesson is KEPT in both chapters, r11 and r12 survive in CHANGES.md x25/x18 and CODEBASE_ANALYSIS.md); 77 of 77 saw_* flags remain defined in src/, and 62 of 77 are still named elsewhere in the book. Nothing left the repository. Structure: n_li 1,325 UNCHANGED across 31 chapters, only hierarchy.html's content SHA moved - the exact signature of text removed from inside a list item without escaping it. 3 absolute links render with .md intact; 0 relative .md escapes; https://github.com/rdje/anvil/blob/main/ROADMAP.md returns HTTP 200. mdbook build exit 0; scripts/check_doctrines.sh 11/11.`
+  Commit: `pending`
+
+- ID: `BOOK-PARAGRAPH-BLOBS.3b`
+  Status: `pending`
+  Goal: `Repair the CAPABILITY ROLL-CALLS — the run-on sentences that are NOT duplications, so 0048's link route does not apply to them — and give the four non-prose blocks a recorded verdict.`
+  Acceptance: `Measured first: clause-level overlap with ROADMAP/CODEBASE_ANALYSIS/USER_GUIDE/CHANGES is 53-84 %, so a link-and-delete would lose book-only prose. The candidate repair is a MARKDOWN LIST - it changes structure, not wording, and .1 named it as the natural repair while placing it outside its own whitespace-only scope. Clause preservation must be PROVEN (extract the clause set before and after and compare), not asserted, and the <li> census must account for the new items. The two <td> blocks and the two guard-declined splittables get a stated verdict, not silence.`
   Verification: `pending`
   Commit: `pending`
 
@@ -257,12 +271,72 @@ paragraph-merge mutation still **fires** — so the instrument discriminates rat
 able to fire (`DOCTRINE_ENFORCEMENT.md` §9). Anyone diffing two census runs must compare the
 measurement, not the whole document.
 
+## Findings (`.3a`, measured `2026-08-02`)
+
+### `.1` called the residue one defect class. Measured per block, it is two — and `0048` authorises the repair for only one of them
+
+`0048` admits an absolute GitHub link **only where the link is the sole route to content the book
+deliberately removed** — content that demonstrably lives elsewhere. `.1` labelled every surviving
+block a *run-on enumeration* and `0048` was written expecting the whole class to be a lossy copy of
+`ROADMAP.md`. Checking each block instead of the class:
+
+| Block | what it is | lives elsewhere? | route |
+| --- | --- | --- | --- |
+| `hierarchy.md` 8,704 · `architecture.md` 7,043 | the per-bank `rN` **register** | **73 / 77** ids glossed in `ROADMAP.md` | `0048` link ✔ |
+| `architecture.md` 5,391 | the `saw_*` **coverage roll-call** | **77 / 77** flags defined in `src/` | `0048` link ✔ |
+| `architecture.md` 4,419 · `hierarchy.md` 3,763 · 2,076 · `architecture.md` 1,934 | **capability roll-calls** — *what a gate proved* | only **53–84 %** of clauses appear verbatim in any other live doc | **link would delete book-only prose ✘** |
+
+**That 53–84 % is the whole finding.** A link-and-delete across the class would have removed prose
+that exists nowhere else, under a decision whose stated precondition is that it exists somewhere
+else. The first three are genuine shadows and `0033`'s R1 applies; the rest are not shadows, they are
+badly-formatted original content, and their repair is structural. Split into `.3a` / `.3b` on that
+measurement rather than executed as one sweep.
+
+### The copy was not merely redundant — it was already wrong
+
+`architecture.md`'s register closed with *"`r85` is the current hierarchy full bank"* while the same
+chapter names **`r87`** as the closing gate a few lines above; `hierarchy.md` did the same. So the
+duplicate had drifted from its own chapter, not just from `ROADMAP.md`. That is
+[`0033`](../decisions/0033-shadow-enumeration-classification.md)'s failure mode caught in the act,
+and it makes the removal a **correctness** repair, not only a readability one.
+
+### What the book actually lost, stated rather than discovered later
+
+Measured exhaustively after the edit, not sampled before it:
+
+- **Bank ids: 73 of 77 are glossed in `ROADMAP.md`.** The four that are not — `r7`, `r8`, `r11`,
+  `r12` — are not lost: `r7` is still mentioned in `ROADMAP.md`; **`r8`'s gloss was deliberately
+  kept in both chapters**, because it records a *lesson* (the Phase 4 gate must use a
+  hierarchy-focused sequential leaf profile) rather than a breadcrumb; `r11` and `r12` survive in
+  `CHANGES.md` (×25 / ×18) and `CODEBASE_ANALYSIS.md`.
+- **Coverage flags: 77 of 77 remain defined in `src/`**, and 62 of 77 are still named elsewhere in
+  the book.
+
+**Nothing left the repository.** Four one-line glosses no longer appear in `ROADMAP.md` specifically,
+which is the stated cost.
+
+### The `<li>` census is what makes this edit safe to claim
+
+One of the three sites sits **inside a list item**, and `.1`'s shipped regression was a continuation
+losing its indent and escaping its `<li>`. After the edit `n_li` is **1,325 across 31 chapters,
+unchanged**, with only `hierarchy.html`'s content SHA moving — precisely the signature of *text
+removed from inside a list item without escaping it*. Had the indent been dropped, the count would
+have moved and the word proof would not have noticed
+([[matched-mutation-is-not-the-intended-mutation]]).
+
+### `CODEBASE_ANALYSIS.md` carries a third copy of the register, and it is the most current one
+
+Surfaced, not repaired: the same `rN` roll-call sits at `CODEBASE_ANALYSIS.md` as a single wall of
+text, and it runs to **`r87`** — further than either book copy did. Out of scope here (this tree owns
+the **book**), and recorded under *Surfaced by `.3a`* so it is not rediscovered.
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-PARAGRAPH-BLOBS.3` | `pending` | **Next.** The residue is one coherent defect class — run-on enumerations that whitespace cannot touch — and it is now the whole of the remaining oversized mass. |
-| 2 | `BOOK-PARAGRAPH-BLOBS.2` | `pending` | Decide what watches this, against a repaired baseline. Deliberately after `.3`: choosing a threshold while 43,092 characters of known-unfixed enumeration are still in the book would fit the number to the defect. |
+| 1 | `BOOK-PARAGRAPH-BLOBS.3b` | `pending` | **Next.** The four capability roll-calls are 53–84 % book-only, so they need a structural repair (a list), not `0048`'s link. Carries the verdicts for the two `<td>` blocks and the two guard-declined splittables. |
+| 2 | `BOOK-PARAGRAPH-BLOBS.2` | `pending` | Decide what watches this, against a repaired baseline. Deliberately last: choosing a threshold while known-unfixed enumeration is still in the book would fit the number to the defect. `.3a` already halved the mass it would be fitted to (43,092 → 21,954). |
+| — | `BOOK-PARAGRAPH-BLOBS.3a` | `done` | Applied `0048` to the three verified duplications `2026-08-02`; worst block −49.2 %, mass −49.1 %. |
 | — | `BOOK-PARAGRAPH-BLOBS.4` | `done` | Instruments promoted `2026-08-02`; the census reproduces `.1`'s numbers exactly and is now durable. |
 | — | `BOOK-PARAGRAPH-BLOBS.1` | `done` | Repaired `2026-08-02`; worst block −62 %. |
 
@@ -387,6 +461,16 @@ measurement, not the whole document.
   that a cut would leave a sub-300-character orphan. The guard refused, deliberately: a shredded
   paragraph is worse reading than a long one. `.3` decides whether they are enumerations too.
 
+## Surfaced by `.3a`, owned by nobody yet
+
+- **`CODEBASE_ANALYSIS.md` carries a third copy of the per-bank register, and it is the most current
+  one.** The same `rN` roll-call the book just stopped duplicating sits there as a single wall of
+  text running to **`r87`** — further than either book copy reached. This tree owns the **book**, so
+  it is out of scope here, but the shadow it forms is the same one
+  [`0033`](../decisions/0033-shadow-enumeration-classification.md) classifies, and the two book
+  copies proved the failure mode is real by going stale at `r85`. Needs its own tree; not opened
+  here because the repo may not pivot dirty.
+
 ## Surfaced by `.1`, owned by nobody yet
 
 - **`mdbook test book` FAILS on a clean tree, and CI cannot see it.** Root-caused, not classified:
@@ -409,6 +493,7 @@ measurement, not the whole document.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-02` | `.3a` | `Oversized blocks 12 -> 9; worst rendered block 8,704 -> 4,419 chars (-49.2 %); oversized mass 43,092 -> 21,954 (-49.1 %), measured with the promoted scripts/book_prose_census.py. PRECONDITION MEASURED EXHAUSTIVELY BEFORE DELETION, not sampled: 73/77 bank ids glossed in ROADMAP.md (r7 still mentioned there; r8's gloss deliberately KEPT in both chapters as a lesson; r11/r12 survive in CHANGES.md x25/x18 and CODEBASE_ANALYSIS.md), 77/77 saw_* flags still defined in src/ and 62/77 still named elsewhere in the book - nothing left the repository. STRUCTURE: n_li 1,325 across 31 chapters UNCHANGED, only hierarchy.html's content SHA moved, the exact signature of text removed from inside an <li> without escaping it. LINKS: 3 absolute targets render with .md intact, 0 relative .md escapes, target returns HTTP 200, BOOK-LINK-TARGETS ok (186 local of 231). mdbook build exit 0; scripts/check_doctrines.sh 11/11.` | `repaired by link per 0048; the 53-84 %-book-only capability roll-calls moved to .3b rather than being deleted under a decision that does not cover them` (book-only; DUT byte-identical) |
 | `2026-08-02` | `.4` | `Promoted census reproduces the validated instrument EXACTLY: 3,501 prose blocks / 30 chapters / 12 over 1,500 / mass 43,092, all 12 sizes identical — after a first draft that matched both headline numbers while inflating 9 of 12 sizes. book_list_signature.py reproduces .1's 1,325 <li> across 31 chapters. All 12 source anchors resolve. Three controls via scripts/negative_control.sh (every substitution count asserted): paragraph merge -> census FIRES (3,501->3,500 blocks, 12->13, mass 43,092->44,919); source re-wrap -> census SILENT on measurement fields; break inside <li> without continuation indent -> list signature FIRES, word proof OK (90,542 -> 90,542). One control FAILED first and was root-caused to the carrier, not the instrument (it deleted the blank line, so mdBook lazily continued the paragraph inside the same <li>). Restores cmp-verified; mdbook build exit 0; scripts/check_doctrines.sh 11/11.` | `promoted; instruments durable in scripts/ and documented in TOOLBOX.md §7` (docs+scripts only; DUT byte-identical) |
 | `2026-08-02` | `.1` | `24 paragraph breaks across 5 chapters. WORST PROSE BLOCK 22,908 -> 8,704 chars (-62.0 %); architecture.html 22,908 -> 7,043 (-69.3 %); oversized mass 54,897 -> 43,092 (-21.5 %). Two independent proofs, both negative-controlled: whitespace-normalized word identity (passes on the edit, FAILS on a one-character word change) and a rendered <li> census of 1,325 items across 31 chapters (identical after; FIRES on a landed sabotage that strips a list continuation's indent, which the word proof passes). The .0 census was CORRECTED: denominator 1,244 -> 3,467, over-threshold 6 -> 11, after rebuilding the instrument on html.parser with <pre> excluded. mdbook build exit 0; cargo test --test book_examples 4 passed / 0 failed; scripts/check_doctrines.sh 11/11. mdbook test fails identically on HEAD with the edits stashed - pre-existing, root-caused, surfaced.` | `repaired (whitespace-only); the run-on-enumeration residue is registered as .3 rather than claimed as fixed` |
 | `2026-08-02` | `.0` | `registered from an owner finding, measured first at 9060993: mdbook build book, then over book/book-out/*.html (main only, print.html + 404.html excluded) — 1,244 rendered paragraphs across 30 chapters, 6 over 1,500 chars, worst 22,908 in architecture.html. Source confirmed: book/src/architecture.md lines 658-903 are 246 consecutive non-blank lines. Ownership search run against the six book/live-doc trees and TABLE-RENDER-FIDELITY; none owns paragraph structure.` | `registered` (docs-only; DUT byte-identical) |
@@ -419,10 +504,29 @@ measurement, not the whole document.
 | --- | --- | --- |
 | `.0` (registration) | `ebd7869` — `BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 | `.1` | `df7bc6e` — `BOOK-PARAGRAPH-BLOBS.1 — split the wall-of-text paragraphs; worst block down 62 %` | Book-only ⇒ DUT byte-identical. Whitespace-only, proven twice. |
+| `.3a` | `pending` — `BOOK-PARAGRAPH-BLOBS.3a — link the registers the book stopped duplicating` | Book-only ⇒ DUT byte-identical. Three `0048` links; worst block −49.2 %, mass −49.1 %. |
 | `.4` | `d25bbe7` — `BOOK-PARAGRAPH-BLOBS.4 — promote the book-census instruments into scripts/` | Docs + `scripts/` only ⇒ DUT byte-identical. Reproduces the validated census exactly; three controls, one of which failed with the instrument innocent. |
 
 ## Changelog
 
+- `2026-08-02`: `.3a` applied [`0048`](../decisions/0048-book-links-to-the-file-it-stopped-duplicating.md)
+  to the three blocks whose content is a **verified** lossy copy of a file that already owns it — the
+  two per-bank `rN` registers and the `saw_*` coverage roll-call. **Oversized blocks 12 → 9, worst
+  rendered block 8,704 → 4,419 characters (−49.2 %), oversized mass 43,092 → 21,954 (−49.1 %).** The
+  leaf was **split at execution**, and the reason is the finding: `0048` authorises a link only where
+  it is the *sole route* to content that lives elsewhere, and measured per block rather than per
+  class, that is true of **three** of the nine survivors. The four **capability roll-calls** are only
+  **53–84 %** clause-verbatim in any other live doc — deleting them under `0048` would have removed
+  book-only prose, so they moved to `.3b` for a structural repair instead. Two things are recorded
+  rather than smoothed over: **(1)** the removed copy was not merely redundant, it was **already
+  wrong** — both registers still called `r85` "the current bank" a few lines below the sentence
+  naming `r87`, so this is a correctness repair as well as a readability one; **(2)** the exact
+  residue is stated, not discovered later — **73/77** bank ids are glossed in `ROADMAP.md` (`r7` is
+  still mentioned there, **`r8`'s gloss was deliberately kept** in both chapters because it records a
+  lesson, `r11`/`r12` survive in `CHANGES.md` and `CODEBASE_ANALYSIS.md`) and **77/77** coverage
+  flags remain defined in `src/`. **Nothing left the repository.** One of the three sites is inside a
+  list item, so the `<li>` census carries the safety claim: `n_li` **1,325 unchanged** across 31
+  chapters with only `hierarchy.html`'s content SHA moving.
 - `2026-08-02`: `.4` made this tree's instruments durable. The census, the list-structure proof and
   the word-identity proof lived in **gitignored `target/tmp/book-blob/`** — so the apparatus that
   judges `.1`, `.3` and `.2` would have vanished with the next `cargo clean`, and `.2` cannot derive

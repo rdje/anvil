@@ -1,6 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3a — the book links the registers it stopped duplicating
+
+**Landed as:** `pending`. Previous: `c988f77`, `57f5d66`, `d25bbe7`.
+**`book/src/` only; no `src/`, no `tests/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs`
+untouched.
+
+**What.** Decision [`0048`](docs/decisions/0048-book-links-to-the-file-it-stopped-duplicating.md)
+applied to the three blocks whose content is a **verified** lossy copy of a file that already owns
+it: the per-bank `rN` register in `architecture.md` and in `hierarchy.md`, and the `saw_*` coverage
+roll-call in `architecture.md`. Each is replaced by two or three sentences plus one absolute GitHub
+link to `ROADMAP.md` Phase 4.
+
+| Metric | before | after | Δ |
+| --- | --- | --- | --- |
+| blocks over 1,500 chars | 12 | **9** | −3 |
+| worst rendered block | 8,704 | **4,419** | **−49.2 %** |
+| total oversized mass | 43,092 | **21,954** | **−49.1 %** |
+
+**The leaf was split at execution, and the reason is the finding.** `0048` admits an absolute link
+**only where it is the sole route to content the book deliberately removed** — content that
+demonstrably lives elsewhere. `.1` had labelled every survivor a *run-on enumeration* and `0048` was
+written expecting the whole class to be a copy of `ROADMAP.md`. Measured **per block** instead:
+
+| Block | what it is | lives elsewhere? | route |
+| --- | --- | --- | --- |
+| `hierarchy` 8,704 · `architecture` 7,043 | per-bank `rN` **register** | **73 / 77** ids glossed in `ROADMAP.md` | `0048` link ✔ |
+| `architecture` 5,391 | `saw_*` **coverage roll-call** | **77 / 77** flags defined in `src/` | `0048` link ✔ |
+| four **capability roll-calls** (4,419 · 3,763 · 2,076 · 1,934) | *what a gate proved* | only **53–84 %** of clauses verbatim in any other live doc | link would **delete book-only prose** ✘ |
+
+Executing one repair across all nine would have deleted original prose under a decision whose stated
+precondition is that the prose exists somewhere else. The capability roll-calls moved to **`.3b`**
+for a structural repair (a markdown list — changes structure, not wording) instead.
+
+**The copy was not merely redundant; it was already wrong.** Both registers closed with *"`r85` is
+the current hierarchy full bank"* while the same chapter names **`r87`** as the closing gate a few
+lines above. The duplicate had drifted from its own chapter, not just from `ROADMAP.md` — decision
+[`0033`](docs/decisions/0033-shadow-enumeration-classification.md)'s failure mode caught in the act,
+which makes this a **correctness** repair as well as a readability one.
+
+**What the book lost, measured exhaustively after the edit rather than sampled before it.** Bank
+ids: **73 of 77** are glossed in `ROADMAP.md`. The four that are not are not lost — `r7` is still
+mentioned there; **`r8`'s gloss was deliberately kept** in both chapters because it records a
+*lesson* (the Phase 4 gate must use a hierarchy-focused sequential leaf profile) rather than a
+breadcrumb; `r11` and `r12` survive in `CHANGES.md` (×25 / ×18) and `CODEBASE_ANALYSIS.md`. Coverage
+flags: **77 of 77** remain defined in `src/`, and 62 of 77 are still named elsewhere in the book.
+**Nothing left the repository**; four one-line glosses no longer appear in `ROADMAP.md` specifically,
+and that is the stated cost.
+
+**The `<li>` census carries the safety claim.** One of the three sites sits **inside a list item**,
+and `.1`'s shipped regression was a continuation losing its indent and escaping its `<li>`. After the
+edit `n_li` is **1,325 across 31 chapters, unchanged**, with only `hierarchy.html`'s content SHA
+moving — exactly the signature of *text removed from inside a list item without escaping it*. Had the
+indent been dropped, the count would have moved and the word-identity proof would not have noticed
+([[matched-mutation-is-not-the-intended-mutation]]).
+
+**Validation.** `mdbook build` exit `0`. The three absolute targets render with their `.md` **intact**
+(`href="https://github.com/rdje/anvil/blob/main/ROADMAP.md"`), **0** relative `.md` escapes were
+introduced, `BOOK-LINK-TARGETS` ok (186 local targets of 231 resolve inside `book/src`; absolute
+schemes are skipped by design), and the target URL returns **HTTP 200**.
+`scripts/check_doctrines.sh` **11/11**.
+
+**Surfaced, not repaired.** `CODEBASE_ANALYSIS.md` carries a **third** copy of the same register, and
+it is the most current one — it runs to `r87`, further than either book copy reached. This tree owns
+the book, so it is recorded in `docs/tasks/BOOK-PARAGRAPH-BLOBS.md` under *Surfaced by `.3a`* and
+needs its own tree.
+
+**Files touched.** `book/src/architecture.md`, `book/src/hierarchy.md`,
+`docs/tasks/BOOK-PARAGRAPH-BLOBS.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.4 — the instruments that judge this tree become durable
 
 **Landed as:** `d25bbe7`. Previous: `5e52117`, `30a0346`, `a5645c1`.
