@@ -5,6 +5,76 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-02 — The rule from `NEGATIVE-CONTROL-HARNESS.1` was tested and did not hold; what replaces it — `UNGATED-PRACTICE-AUDIT.1`
+
+**The entry below records the rule; this one records that it failed its own test.** *"A practice
+survives where a gate observes it, and erodes where none does"* made a prediction, and the whole
+point of `UNGATED-PRACTICE-AUDIT` was to check it rather than admire it. The check refuted it.
+
+**The refuting case is the cleanest possible one, which is why it is worth this entry.** `COMMIT.md`
+item 2 asks every `CHANGES.md` entry for five sections. **No script reads any of the five** — the
+only match across `scripts/*.sh` is a *comment*, and `check_diagnosis_evidence.sh` asserts
+`CHANGES.md` is **staged**, never what it contains. Five obligations, identical gate coverage
+(none), same authors, same commits. If the rule were right they would decay together. Over the
+newest 50 entries: `Files touched.` **100 %**, `What.` **94 %**, `Validation.` **94 %**, `Why.`
+**64 %**, `Impact.` **50 %**. A 50-point spread at constant gate coverage.
+
+**What the spread tracks is whether the content is a by-product of work already forced.** `Files
+touched.` is `git diff --stat`, which checklist item 10 makes the author run. `Validation.` is the
+four `cargo` runs from item 1. `What.` is the diff. `Why.` and `Impact.` have nothing behind
+them — they must be recalled and composed. So:
+
+> **A practice survives where its output is a by-product of work the author is already forced to do.
+> A gate is one way to force that; it is not the only way, and it was not the operative variable
+> here.**
+
+**This is strictly the stronger rule, not a hedge**, because it also explains the cases the literal
+rule cannot: the five *unobserved-and-healthy* practices measured in the same audit (the landed hash
+at **621/623** and `MEMORY.md`'s previous-commit hash both fall out of the commit that just ran; the
+co-author trailer at **619 consecutive** is emitted by the **authoring harness**, not by any repo
+gate; untracked-ness of `git_message_brief.txt` at **0/811** is forced by `.gitignore`), *and* the
+original 27-to-2 observation — a failed revert leaves a dirty tree as a by-product, a failed mutation
+leaves nothing. It also lines up with decision `0047`'s **R1 over R2**: prefer a form that cannot
+fail silently over a check that watches for the failure. Gating is one rung, not the ladder.
+
+**The finding it produced is not the one it went looking for.** The single eroding candidate is not
+a lapsed practice at all. Six of the non-conforming entries were **read**, not scored, and in all six
+the *Why* and *Impact* content is present under bespoke headings (`**The finding.**`, `**The claim
+under test.**`, `**Docs-only ⇒ DUT byte-identical**`). The practice outgrew the template and the
+template was never updated, because nothing reads it. What eroded is the **specification**. The cost
+is not lost information — it is that item 2 is now **unverifiable short of reading the prose**, so it
+cannot be gated as written, and an auditor scoring the repo against its own document records 32 %.
+*Before calling a metric erosion, read the artifacts:* a label detector measures form.
+
+**Two rules for the next audit of this shape, both earned here.**
+
+- **A source whose selection criterion is the variable under test cannot measure that variable.**
+  `TOOLBOX.md` Part 2 was the obvious denominator — 8 tidy boxes — and every one of them **already
+  cites a named oracle**, so its membership rule pre-selects the gate-observed half. It would have
+  reported a comfortable answer. And the third candidate, the §10 registry's *complement*, is **not
+  derivable at all**: a complement needs a universe and the universe is the unenumerated set the
+  audit was about. Saying so is the result; approximating it manufactures the denominator.
+- **Report a gated control over the same window or the number means nothing.** Leaf-id-in-subject is
+  gated by `.githooks/commit-msg` (landed `2d01e8e`): **0 failures in the 410 commits since**, while
+  the ungated template went 100 % → 32 % over that same span.
+
+**A third class exists and it is the dangerous one: observed by something that cannot see it.**
+`MEMORY-ARCH` is the gate on *"`MEMORY.md` state refreshed"*, and what it asserts is that four field
+**names** are present plus the line/byte caps. Presence is not freshness; a file frozen for fifty
+commits passes every leg. `DOCTRINE_ENFORCEMENT.md` §6.1 predicted the shape — this is a live one in
+our own registry.
+
+**And the strongest single data point was produced by accident, by the auditor.** Decision `0031` §1
+puts **agent scratch** inside the storage obligation, while `check_no_boot_volume_refs.sh` is
+**tracked-only** — its own comment says *"untracked scratch is the author's business"*, narrower than
+the decision it enforces. Proved structurally: the same banned string **untracked** ⇒ exit `0`; the
+identical file **staged** ⇒ the check fails and names it. This session wrote three scratch files to a
+boot-volume path under a fully green driver, twenty minutes after reading `0031`. That is not a gate
+failure — it is a by-product failure. Nothing an agent is forced to do puts scratch on the repo
+volume, so the harness default wins, every time, silently. `.2` owns what to do about it.
+
+---
+
 ## 2026-08-01 — The rule was written down twice and still failed; here is the mechanism it never named — `NEGATIVE-CONTROL-HARNESS.1`
 
 **This entry deliberately does not restate the rule.** *"A negative control must prove its sabotage

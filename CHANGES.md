@@ -1,6 +1,126 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — UNGATED-PRACTICE-AUDIT.1 — 20 obligations classified; the rule holds only refined
+
+**Landed as:** `pending`. Previous: `1dedbd8`, `ef6413c`, `b536139`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** The prediction registered at `.0` was tested and **it does not hold as stated**. A
+denominator of **20 atomic obligations** was derived from `COMMIT.md`'s non-negotiable checklist and
+each one classified on measured evidence: **8** gate-observed, **1** gate-observed-but-blind, **5**
+unobserved-and-healthy, **1** unobserved-and-eroding, **5** reported unmeasured rather than proxied.
+
+**Why.** `NEGATIVE-CONTROL-HARNESS.1` produced a satisfying sentence — *a practice survives where a
+gate observes it, and erodes where none does* — and a satisfying sentence recorded only as narrative
+is never wrong, because it is never checked. This tree existed to check it. The honest outcome was
+declared acceptable in advance: *"the rule predicts nothing here"* was a legitimate result. What
+happened is more useful than either branch — the rule is **wrong in its literal form and right in a
+refined one**, and only a measurement could have told the two apart.
+
+**The derivation, stated because a remembered list is the failure mode.** The candidate set comes
+from a recorded command, not from memory:
+
+```bash
+awk '/^## Non-negotiable pre-commit checklist$/{f=1;next} /^## /{f=0} f && /^[0-9]+\. \*\*/' COMMIT.md
+```
+
+**12 numbered items ⇒ 20 atomic obligations** (items 1, 2, 3 and 11 each bundle more than one). Both
+rejected sources are reported rather than waved off. `TOOLBOX.md` Part 2 gives **8** boxes and was
+rejected for a reason that generalises: it declares itself a *mirror* of the same checklist, and
+**every one of its boxes already cites a named oracle**, so its membership rule pre-selects the
+gate-observed half — *a source whose selection criterion is the variable under test cannot measure
+that variable*. The `DOCTRINE_ENFORCEMENT.md` §10 registry's **complement is not derivable at all**:
+a complement needs a universe, and the universe is exactly the unenumerated set the tree was opened
+about. Saying so is the result; approximating it would have manufactured the denominator.
+
+**The refutation, which is the entry's real content.** `COMMIT.md` item 2 asks every `CHANGES.md`
+entry for five sections, and **no script reads any of the five** — verified, not assumed: the only
+match across `scripts/*.sh` is a *comment*, and `check_diagnosis_evidence.sh` asserts `CHANGES.md` is
+**staged**, never what is in it. Five obligations, identical gate coverage of zero, same authors, same
+commits. The literal rule predicts they decay together. Over the newest 50 entries they did not:
+`Files touched.` **100 %**, `What.` **94 %**, `Validation.` **94 %**, `Why.` **64 %**, `Impact.`
+**50 %** — a 50-point spread at constant gate coverage.
+
+**What the spread does track** is whether the section is a **by-product of work already forced**:
+`Files touched.` is `git diff --stat` (item 10), `Validation.` is the four `cargo` runs (item 1),
+`What.` is the diff itself; `Why.` and `Impact.` have nothing behind them. Hence the replacement:
+
+> **A practice survives where its output is a by-product of work the author is already forced to do.
+> A gate is one way to force that — not the only way, and not the operative variable here.**
+
+It is strictly stronger, not a hedge: it additionally explains all five *unobserved-and-healthy*
+practices (the landed hash at **621/623** and `MEMORY.md`'s previous-commit hash both fall out of the
+commit that just ran; the co-author trailer at **619 consecutive** is emitted by the **authoring
+harness**, not by any repo gate; `git_message_brief.txt` never being tracked, **0 of 811**, is forced
+by `.gitignore`) **and** the original 27-to-2 observation. It also lines up with decision `0047`'s
+**R1 over R2** — prefer a form that cannot fail silently over a check that watches for the failure.
+
+**A correction to the erosion finding, from reading the entries rather than scoring them.** Six of
+the newest non-conforming entries were read in full, and in **all six** the *Why* and *Impact*
+content is present under bespoke headings (`**The finding.**`, `**The claim under test.**`,
+`**Docs-only ⇒ DUT byte-identical**`). The substance did not erode; the **form** did. So the finding
+is **erosion of the specification, not of the practice** — a fourth class the tree did not predict.
+The cost is not lost information: it is that item 2 became **unverifiable short of reading the
+prose**, so it cannot be gated as written, and an auditor scoring the repo against its own document
+records 32 %. *Before calling a metric erosion, read the artifacts.*
+
+**The predicted third class exists, with one member.** `MEMORY-ARCH` is the gate on *"`MEMORY.md`
+state refreshed"*, and what it asserts is that four field **names** are present plus the line/byte
+caps. **Presence is not freshness** — a file frozen for fifty commits passes every leg. Worse than
+unobserved, because it looks observed.
+
+**The gated control group, without which the 32 % means nothing.** Leaf-id-in-subject is gated by
+`.githooks/commit-msg` (landed `2d01e8e`, `2026-06-05`): **0 failures in the 410 commits since**,
+over the same window in which the ungated template fell to 32 %. The ungated task-tree rule *one
+leaf per commit* also measured clean — **0 violations in 811 commits** (a first pass said 8; the
+detector was crying wolf on `MEMORY.md`/`COMMIT.md`, which match a leaf-id shape, and was corrected).
+
+**The instrument failed its own control before its number was published.** The `Landed as:` detector
+was probed against a constructed two-entry fixture — decision `0047` rung **R1**, no match step that
+can silently no-op — and **it failed**, matching the marker inside a code span and false-negativing.
+Anchored to line start the count moved **75 → 77**; both additions are `POINTER STUB` entries that
+legitimately carry no hash, so the verdict stands and the instrument is now sound. Recorded because
+the skipped leg is always this one.
+
+**One live violation, produced by the audit itself.** Decision `0031` §1 puts **agent scratch**
+inside the storage obligation; `scripts/check_no_boot_volume_refs.sh` scopes itself to **tracked
+files**, its own comment reading *"untracked scratch is the author's business"* — narrower than the
+decision it enforces. Proved structurally rather than argued (control C, run on-volume so it does not
+itself breach the doctrine): the same banned string **untracked** ⇒ check exits `0`; the identical
+file **staged** ⇒ check fails and names it. This session wrote three scratch files to a boot-volume
+path under a fully green driver, having read `0031` twenty minutes earlier; they were relocated to
+`target/tmp/` and the boot-volume copies deleted. It is a **by-product failure, not a gate
+failure** — nothing an agent is forced to do puts scratch on the repo volume, so the harness default
+wins silently. Out of the checklist denominator, so it is reported as such; `.2` owns it.
+
+**Honest limits, stated rather than implied.** Obligation 20 (post-commit `truncate`) has **no
+history** — the file is gitignored, so only its present state is knowable, and "healthy" means
+healthy now. Five obligations are **unmeasured, not passed**: their predicate (*"if the slice changed
+X"*) is recorded nowhere, and a co-update-rate proxy would measure frequency and be reported as
+compliance. The **159-commit E4 lag** (`origin/main` is `ecda0e7`, confirmed against the remote) is a
+stated honest limit per `DOCTRINE_ENFORCEMENT.md` §9 and an owner-set risk appetite per `0041` §(d),
+not a finding. And `n = 5` for the newest bucket of `src/`-touching commits is too small to read a
+trend from, so none is read.
+
+**Validation.** `scripts/check_doctrines.sh` **11/11**. `cargo fmt --all --check`, `cargo check
+--all-targets`, `cargo clippy --all-targets -- -D warnings` all exit `0`; `cargo test` **1,087
+passed / 0 failed / 19 ignored across 17 targets**, exit `0`, run **unpiped** (a piped exit status
+reports the pipe's tail, not `cargo`'s). Knowledge map regenerated in sync. Docs-only ⇒ **DUT
+byte-identical**; `tests/snapshots.rs` untouched.
+
+**Impact.** The project's rule about its own process is now **tested rather than believed**, and the
+version that survived changes what `.2` may propose: gating is demoted from *the* remedy to *one*
+remedy, and the first question before any new gate becomes *what forced work already produces this as
+a by-product?* Three concrete items now have a named owner — a stale `COMMIT.md` item 2, a blind
+`MEMORY-ARCH` leg, and a `0031`-versus-check scope gap. No doctrine was added: `.1` was a
+measurement, and `DOCTRINE_ENFORCEMENT.md` §9 plus decision `0033` test (2) both make over-gating a
+defect in its own right.
+
+**Files touched.** `docs/tasks/UNGATED-PRACTICE-AUDIT.md`, `docs/TASK_TREE.md`,
+`docs/knowledge/practice-survives-as-a-by-product-not-by-a-gate.md` (new), `KNOWLEDGE_MAP.md`
+(derived), `DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — UNGATED-PRACTICE-AUDIT.0 — register the generalisation from NEGATIVE-CONTROL-HARNESS.1
 
 **Landed as:** `ef6413c`. Previous: `b536139`, `dbc8d62`, `c5d6580`.
