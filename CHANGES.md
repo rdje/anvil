@@ -1,6 +1,90 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.1 — measure the record: leg 3 is reported in 2 of 39 episodes
+
+**Landed as:** _pending_. Previous: `da73827`, `3b0d2c2`, `425c0ca`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Measurement only — no mechanism written.**
+
+**What.** `.1` of `NEGATIVE-CONTROL-HARNESS` measures how this repository's recorded negative-control
+episodes report **leg 3** — *asserting the mutation landed*, which proves the experiment ran at all —
+and whether any commit-visible artifact exists that a check could ever read.
+
+**Region and denominator, stated before any number.** The region is **all 80 `docs/tasks/*.md`, every
+section** — and that is a **correction** of the leaf's own acceptance, which said *"verification
+logs"*. Of the **180** control mentions in the corpus, only **30 (17 %)** sit inside a
+`## Verification Log`; the rest live in a `## Task Tree` node's `Verification:` field, in
+`## Decisions`, or in `## Changelog`. Following the region as written would have produced a confident
+number over one sixth of the record. `S` was **derived twice** and the second derivation changed it:
+the narrow term set (`negative[- ]control|sabotag`) returns **18** files, the broadened set **19** —
+`PARITY-EXTRACTOR-CHARSET-GAP.md` records **four** controls without ever writing the word *negative*
+— and the widening's single false positive (`SEMANTIC-INTROSPECTION-EXPANSION.md`, *"control ports"*)
+is named too, so the cost of widening is on the record beside its yield. The unit of count is a
+**leaf-episode** (one leaf's recorded control activity, the granularity at which leg 3 is or is not
+reported): **39**, spanning **~240** individual probes as the record itself counts them, **101** of
+which belong to one leaf (`LIVE-DOC-REGISTRY-SHADOWS.3`). The 180 mentions were expanded to **114**
+context windows and classified **by reading every one of them**, not by counting keywords.
+
+**The answer: 2 of 39.** Leg 3 is visibly reported by `BOOK-LINK-INTEGRITY.3` (*"10 controls … each
+asserting its mutation LANDED before reading the verdict"*) and `USER-GUIDE-CLI-TABLE-SHADOW.7`
+(control 5 *"caught by asserting the substitution count"*). Both are dated `2026-08-01`; both are the
+leaves that **produced** the rule. **No leaf recorded leg 3 before the day the rule was written, and
+none has since.** The other **37 are unknowable** — deliberately not called *absent*, because nothing
+in those records distinguishes *asserted and fine* from *never checked*, and reading silence as
+compliance is precisely what the leaf was told not to do.
+
+**Why — and the answer is mechanical, not moral.** The identical primitive, *compare the file against
+a known baseline*, appears **27 times across 6 files** proving the **revert** landed (`restored
+byte-exact`, `verified with cmp`, `sha256 identity`, `byte-identical to HEAD`, `git diff --stat`
+empty, `git checkout-index -f`, on-volume backups) and **twice** proving the **mutation** did. A
+failed *revert* leaves a **dirty** tree, and three mechanisms punish that — the pre-commit driver,
+`COMMIT.md` §10's `git status` review, and the pivot rule forbidding a switch on a dirty repo. A
+failed *mutation* leaves a **clean** tree, which all three read as success. **Diligence tracks the
+gates, not the experiment** — which predicts, testably, that leg 3 stays skipped for exactly as long
+as nothing looks at it, however many documents restate it.
+
+**The subject is narrower than the tree assumed, and this is measured.** On a scratch file:
+`sed -i.bak 's/NOMATCH/x/'` exits **`0`** with the file unchanged; `sed -i.bak 's/alpha/ALPHA/'`
+exits **`0`** with it changed; `perl -pi -e` does the same in both directions. The count-asserting
+form (`BEGIN{$c=0} $c+=s/…/…/g; END{exit($c?0:9)}`) is the whole difference — **exit 9** on no-match,
+**0** on match. All **three** recorded leg-3 failures in this repository are textual substitutions
+(two escaping errors in `BOOK-LINK-INTEGRITY.3`, one non-matching `perl` at
+`USER-GUIDE-CLI-TABLE-SHADOW.7`); **no** in-language, compiler-checked, constructed or
+`git show HEAD:`-derived mutation has ever failed this way, because none of them has a *match* step.
+Recorded because it is the same class one level up: the **first** run of this probe mis-fired
+(`sed -i ''` mis-parsed, exit `2`) and would have supported the same conclusion for the wrong reason;
+it was re-run correctly before any number above was written.
+
+**The commit-visible artifact question.** A control's mutation is reverted before the commit **by
+construction**, so it is never *in* one. What is visible splits three ways and only the first is
+checkable: (1) controls that **ship as code** — measured: **4** `#[test]`s whose doc comment declares
+them a negative control, **1** `--self-test` (`scripts/evidence_digest.sh`), and **2**
+`DOCTRINE_STAGED_OVERRIDE` test seams that feed a check a synthetic input **without touching the
+tree**, so leg 3 does not exist for them; (2) controls that **cannot** ship — a probe that must not
+compile is the clearest case (`src/ir/knob_roll.rs` keeps its `E0624` control as prose), as is any
+gate-neutering probe; (3) the **prose record**, over which a check could assert only that a leaf
+claiming a control also claims a landing assertion — the author writes both, so it is
+`DOCTRINE_ENFORCEMENT.md` §3's weakest archetype and §6.1's self-tick one level up.
+
+**Why.** `.2` decides the carrier, and a carrier chosen against intuition would repeat the failure
+this tree exists to study: the rule was already written down twice and still cost two false results
+in one hour. `.1` replaces intuition with a denominator.
+
+**Validation.** Docs-only. `scripts/check_doctrines.sh` green (11/11). No `src/`, `tests/` or
+`examples/` touched ⇒ **DUT byte-identical** by construction; `tests/snapshots.rs` untouched.
+
+**Impact.** `.2` inherits a **narrower and harder** brief than it was registered with: it must carry
+**one mutation primitive**, not "controls", and it may build on **one** artifact class, not three.
+Two temptations were declined and recorded rather than acted on — no `scripts/` helper (that is
+`.2`'s decision) and **no Knowledge Map card**, because a card is itself a candidate carrier and
+writing one now would pre-decide the question exactly as promoting the helper would have.
+
+**Files touched.** `docs/tasks/NEGATIVE-CONTROL-HARNESS.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`. The `DEVELOPMENT_NOTES.md` entry deliberately
+**does not restate the rule** already recorded there at `USER-GUIDE-CLI-TABLE-SHADOW.7` — it adds
+only the two things the measurement produced that were never written down: the exit-status mechanism
+and the reason the habit fails in one direction.
+
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3
 
 **Landed as:** `3b0d2c2`. Previous: `425c0ca`, `9ad7385`, `6539c32`.

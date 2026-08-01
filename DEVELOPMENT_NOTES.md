@@ -5,6 +5,58 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — The rule was written down twice and still failed; here is the mechanism it never named — `NEGATIVE-CONTROL-HARNESS.1`
+
+**This entry deliberately does not restate the rule.** *"A negative control must prove its sabotage
+landed"* is already recorded below (`USER-GUIDE-CLI-TABLE-SHADOW.7`), and re-recording it is exactly
+the remedy that has already failed twice. What follows is what the measurement added: the
+**mechanism**, and the **reason the habit fails in one direction only**. The census — region,
+denominators, the 39 leaf-episodes — lives in `docs/tasks/NEGATIVE-CONTROL-HARNESS.md`, its
+canonical home; only the operational facts are here.
+
+### The mechanism: a non-matching substitution is indistinguishable from a matching one
+
+Measured, not reasoned, on a scratch file:
+
+| command | matched | exit | file |
+|---|---|---:|---|
+| `sed -i.bak 's/NOMATCH/x/' f` | no | `0` | unchanged |
+| `sed -i.bak 's/alpha/ALPHA/' f` | yes | `0` | changed |
+| `perl -pi -e 's/NOMATCH/x/' f` | no | `0` | unchanged |
+| `perl -pi -e 's/alpha/ALPHA/' f` | yes | `0` | changed |
+| `perl -pi -e 'BEGIN{$c=0} $c+=s/NOMATCH/x/g; END{exit($c?0:9)}' f` | no | `9` | unchanged |
+
+**The editor reports the same success for *"I changed nothing"* and *"I changed exactly what you
+asked"*.** Asserting the substitution count is the whole difference. Prefer the count-asserting form
+above, or `cmp` the file against a pre-mutation copy, before reading any verdict.
+
+**The risk belongs to one primitive, not to controls.** All three leg-3 failures on record are
+textual substitutions. An **in-language** mutation (a Rust line in a `#[test]`), a
+**compiler-checked** probe (`E0624`/`E0616`/`E0004`), a **constructed** fixture, and a
+**`git show HEAD:`-derived** baseline have never failed this way, because none of them has a *match*
+step to miss. When a control can be written in one of those forms, leg 3 stops existing — that is
+strictly better than remembering to assert it.
+
+### Why the habit fails on the way in and never on the way out
+
+The identical check — *compare the file against a known baseline* — appears **27 times across 6
+task trees** proving the **revert** landed, and **twice** proving the **mutation** did. That is not
+inattention to a known rule. A failed **revert** leaves a **dirty** tree, and three mechanisms
+punish it: the pre-commit driver, `COMMIT.md` §10's `git status` review, and the pivot rule that
+forbids switching trees on a dirty repo. A failed **mutation** leaves a **clean** tree, which all
+three read as success.
+
+**Generalisable, and worth more than this instance: a practice survives where a gate observes it and
+erodes where none does — so when a rule keeps failing despite being written down, look for the
+asymmetry in what is watched rather than for a way to say it again.** Re-stating the rule is the
+intervention that measurably did not work here.
+
+*One more, in the same class, one level up:* the first attempt at the probe table above mis-fired
+(`sed -i ''` mis-parsed on this host, exit `2`) and would have supported the same conclusion for the
+wrong reason. Re-run correctly before anything was written down.
+
+---
+
 ## 2026-08-01 — The new gate's own extractor had the silent hole it was built to end — `BOOK-LINK-INTEGRITY.3`
 
 `BOOK-LINK-TARGETS` was written to stop a *silent* miss: a book link that renders dead while
