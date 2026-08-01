@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `NEGATIVE-CONTROL-HARNESS`
-- Status: `active`
+- Status: `closed`
 - Roadmap lane: Workflow / gate quality
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.1` + `.2` **done** — measured, then decision `0047`; frontier `.3`, build it)
+- Last updated: `2026-08-01` (**tree CLOSED** — `.1` measured, `.2` decided (`0047`), `.3` built it)
 - Owner: repo-local workflow
 
 ## Goal
@@ -220,7 +220,7 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 ## Task Tree
 
 - ID: `NEGATIVE-CONTROL-HARNESS`
-  Status: `active`
+  Status: `closed`
   Goal: `Decide whether "prove the sabotage landed" can be carried by something other than the author's attention, and if so by what.`
   Children: `.1` (measure the record), `.2` (decide the carrier), `.3` (build it, or record why not)
 
@@ -242,14 +242,16 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
   Status: `pending`
   Goal: `Implement decision 0047's R2 helper to the contract pinned there — apply asserts the substitution count, restore verifies with cmp, probe runs the whole cycle against a declared expectation, --self-test is the control on the control — plus one TOOLBOX.md discovery row. NOT registered in DOCTRINES: per 0047 candidate C there is nothing for a gate to read.`
   Acceptance: `If a harness lands it is itself negative-controlled: removing its marker assertion must make it fail loudly, not silently pass. If nothing lands, the reason is recorded where a future session will meet it.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `done — scripts/negative_control.sh is live (apply / restore / probe / --self-test), plus TOOLBOX.md Part 1 section 6. NOT registered in DOCTRINES, per 0047 (C). THE CONTROL ON THE CONTROL IS CASE 5 OF --self-test AND IT IS THE POINT: with NEGATIVE_CONTROL_SKIP_COUNT_ASSERT=1 the SAME no-match substitution SUCCEEDS (exit 0) where it otherwise exits 9, so the assertion is demonstrably what does the work rather than asserted to be. That control is a SEAM, not a source edit, and deliberately so — a control on this tool must not use the primitive this tool exists to police, or it inherits the very defect. 10/10 self-test cases pass. TWO DEFECTS FOUND IN ITS OWN FIRST DRAFT, both recorded rather than quietly fixed: (i) a broken expression and a non-matching one BOTH exited 9 — one status for two different failures, which is this tool's own subject reproduced inside the tool; split into 2 (expression broken) vs 9 (matched nothing); (ii) the first --self-test could not observe the failures it checks for — apply_mutation ends in die, which exits, so `\|\| rc=$?` in the same shell never ran and the harness reported 2 passes then stopped at exit 9; each case now runs in a subshell. RUN AGAINST REAL OUTPUT, not only fixtures (the run-a-new-tool-against-real-output lesson): three probes against the live BOOK-LINK-TARGETS gate on tracked book/src/architecture.md — must-FIRE (a real link broken => gate exit 1) PASS, must-be-SILENT (a prose-only edit => gate exit 0) PASS, and a genuine escaping error => refused at exit 9 with the file byte-identical. THE SIDE-BY-SIDE IS THE PROOF: the same mistyped substitution run the old way reports perl exit 0 AND gate exit 0, i.e. a plausible finding about a gate from an experiment that never ran. One prediction of mine was WRONG mid-leaf and is recorded: my first "typo" probe actually matched (architecture.md really does carry that trailing paren) and the tool said so. git status clean after every probe; scripts/check_doctrines.sh 11/11; no src/tests/examples touched => DUT byte-identical.`
+  Commit: `NEGATIVE-CONTROL-HARNESS.3 — the mutation refuses to no-op (tree CLOSED)`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
+**None — the tree is CLOSED (`2026-08-01`).** All three leaves done, same day as registration.
+
+| Order | Leaf | Status | Outcome |
 | --- | --- | --- | --- |
-| 1 | `NEGATIVE-CONTROL-HARNESS.3` | `pending` | **Next, and last.** Build decision `0047`'s **R2** helper to the contract pinned there, plus one `TOOLBOX.md` discovery row. It is **not** a doctrine — `0047` candidate C disqualifies that on structure. The acceptance that matters is the **control on the control**: removing the helper's own count assertion must make its `--self-test` fail loudly, not silently pass. |
+| — | `NEGATIVE-CONTROL-HARNESS.3` | `done` | **`scripts/negative_control.sh` is live**, and it refuses to no-op: `apply` exits `9` when the substitution matched nothing, `2` when the expression itself is broken, and `restore` verifies with `cmp`. **Controlled on itself** — with the assertion disabled through a seam, the same no-match case *succeeds*, so the assertion is proven load-bearing rather than claimed. Its own first draft carried **two** defects, both recorded: one exit code for two different failures, and a self-test that could not observe the failures it checked. **Not** a doctrine. |
 | — | `NEGATIVE-CONTROL-HARNESS.2` | `done` | **The carrier is the *mutation*, not the control** — decision [`0047`](../decisions/0047-negative-control-carrier-is-the-mutation.md), recorded before any code. **R1** prefer a mutation form with no *match* step (five live forms tabled) so leg 3 ceases to exist; **R2** one helper that refuses a zero-count substitution where a textual one is unavoidable. A doctrine check is **structurally disqualified**: the mutation is reverted before the commit by construction, so the only trace is the author's prose — a §6.1 self-tick that would reach *39 of 39* while changing nothing. |
 | — | `NEGATIVE-CONTROL-HARNESS.1` | `done` | Measured, not asserted. **Leg 3 is visibly reported in 2 of 39 leaf-episodes**, both on the day the rule was written; the other 37 are **unknowable**, not absent. The finding is the asymmetry: the same file-versus-baseline check is run **27** times on the *revert* and **twice** on the *mutation*, because only the revert has a gate watching it. |
 
@@ -320,6 +322,7 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-01` | `.3` | `scripts/negative_control.sh live (apply/restore/probe/--self-test) + TOOLBOX.md Part 1 section 6; NOT in DOCTRINES per 0047 (C). --self-test 10/10, and case 5 IS the control on the control: with NEGATIVE_CONTROL_SKIP_COUNT_ASSERT=1 the same no-match substitution SUCCEEDS where it otherwise exits 9, proving the assertion load-bearing — via a SEAM rather than a source edit, because a control on this tool must not use the primitive it polices. TWO first-draft defects recorded, not quietly fixed: a broken expression and a non-matching one both exited 9 (one status for two failures — this tool's own subject, inside the tool), and the first self-test could not observe its own subject because apply_mutation ends in die/exit so `\|\| rc=$?` never ran (each case now runs in a subshell). RUN AGAINST REAL OUTPUT: three probes against the live BOOK-LINK-TARGETS gate on tracked book/src/architecture.md — must-fire PASS, must-be-silent PASS, genuine escaping error refused at exit 9 with the file byte-identical; side-by-side, the same mistake run the old way reports perl exit 0 AND gate exit 0. One of my own predictions was wrong mid-leaf and is recorded rather than hidden. git status clean after every probe; check_doctrines.sh 11/11.` | `done` — **tree CLOSED**; shell instrument only, no `src/` ⇒ DUT byte-identical |
 | `2026-08-01` | `.2` | `decision 0047 written + INDEX row, BEFORE any code. Five candidates, each with its failure mode: (A) easy-probe helper — necessary not sufficient, refuted by this repo's own episode (the helper existed and was known; both failures were written outside it in the same hour); (B) TOOLBOX instrument — section 7 E1 discovery, which that standard states is not enforcement; (C) doctrine check — STRUCTURALLY disqualified (mutation reverted before the commit by construction ⇒ only a prose claim to read ⇒ section 6.1 self-tick, cries wolf on mutation-free controls, satisfiable by typing the words, reaches 39 of 39 while changing nothing); (D) nothing — refused, since the only two episodes that ran leg 3 both ran it with a tool; (E) chosen — carry the MUTATION, R1 prefer a form with no match step, R2 a helper refusing a zero-count substitution. R2 contract pinned for .3; four honest limits stated. check_doctrines.sh 11/11; check_knowledge_map in sync after regen; check_markdown_tables ok.` | `done` — carrier decided and recorded; **no mechanism built** (docs-only ⇒ DUT byte-identical) |
 | `2026-08-01` | `.1` | `region STATED and CORRECTED before counting: all 80 docs/tasks/*.md, every section, because only 30 of 180 control mentions (17 percent) sit in a "## Verification Log" — the acceptance's own region would have measured one sixth of the corpus. S derived TWICE: narrow term set 18 files, broadened 19 (PARITY-EXTRACTOR-CHARSET-GAP.md records four controls without writing "negative"), plus one named false positive from the widening (SEMANTIC-INTROSPECTION-EXPANSION.md, "control ports"). 180 mentions expanded to 114 context windows and classified BY READING all of them, not by keyword. Denominator 39 leaf-episodes / ~240 self-reported probes (101 in one leaf). Mechanism measured on a scratch file: sed -i and perl -pi -e exit 0 on a NON-matching substitution and 0 on a matching one; a count-asserting form exits 9 vs 0. First attempt at that probe mis-fired (sed -i '' mis-parsed, exit 2) and was re-run correctly before anything was recorded. Shipped-control census: 4 self-declared #[test] controls, 1 --self-test, 2 DOCTRINE_STAGED_OVERRIDE test seams.` | **leg 3 visibly reported in 2 of 39** (`BOOK-LINK-INTEGRITY.3`, `USER-GUIDE-CLI-TABLE-SHADOW.7`, both `2026-08-01`, both the leaves that produced the rule); **37 unknowable, not absent**; revert-verified **27** occurrences across 6 files vs mutation-verified **2** leaves; commit-visible artifact exists for the ship-as-code class only. Docs-only ⇒ DUT byte-identical |
 | `2026-08-01` | `.0` | `found while BOOK-LINK-INTEGRITY.3 proved its extractor load-bearing: 3 attempts for 1 control, 2 silently-failed mutations. Distribution: 0 leg-3 failures in 10 harness-written probes, 2 in 3 ad-hoc probes. Ownership search run, not assumed: DOCTRINE_ENFORCEMENT.md 6.1 governs gated checklist boxes (not controls); grep over scripts/ for a sabotage/mutation helper returns nothing.` | `registered` (docs-only; DUT byte-identical) |
@@ -328,12 +331,45 @@ sourceable helper that makes the correct thing the easy thing, may be the honest
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `.3` | `NEGATIVE-CONTROL-HARNESS.3 — the mutation refuses to no-op (tree CLOSED)` | The R2 helper + one `TOOLBOX.md` row. Controlled on itself through a seam; two first-draft defects recorded. Shell instrument only ⇒ DUT byte-identical. **Tree closed.** |
 | `.2` | `46f2af1` — `NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)` | Decision leaf — **nothing built**. Records `0047`: R1 prefer a mutation that cannot no-op, R2 a helper refusing a zero-count substitution, and the doctrine shape rejected on **structure**. `.3`'s contract is pinned in the ADR so it implements rather than re-derives. Docs-only ⇒ DUT byte-identical. |
 | `.1` | `4ad09a4` — `NEGATIVE-CONTROL-HARNESS.1 — leg 3 is reported in 2 of 39 episodes` | Measurement only; **no mechanism, no KM card, no repair** — each deliberately deferred to `.2` with the reason recorded. Docs-only ⇒ DUT byte-identical. |
 | `.0` (registration) | `3b0d2c2` — `NEGATIVE-CONTROL-HARNESS.0 — register the finding from BOOK-LINK-INTEGRITY.3` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention (`RESUME-POINTER-CONTRACT.0`, `EMIT-SURFACE-INTERACTION-GATE.0`), required because `.githooks/commit-msg` rejects a subject that names no leaf. |
 
 ## Changelog
 
+- `2026-08-01`: `.3` done — **`scripts/negative_control.sh` is live, and the tree CLOSES.** `apply`
+  exits **`9`** when the substitution matched nothing and **`2`** when the expression itself is
+  broken; `restore` is verified with `cmp`; `probe` runs the whole cycle against a **declared**
+  expectation, which is what makes a *silent* probe mean anything at all. One `TOOLBOX.md` row for
+  discovery. **Not** a doctrine, per `0047` (C).
+  **The control on the control is the point, and it is a seam rather than a source edit.** With
+  `NEGATIVE_CONTROL_SKIP_COUNT_ASSERT=1` the *same* no-match substitution **succeeds** where it
+  otherwise exits `9` — so the assertion is *demonstrated* load-bearing, not claimed. The seam is
+  deliberate: **a control on this tool must not use the primitive this tool exists to police**, or
+  it inherits the very defect. 10 of 10 self-test cases pass.
+  **Its own first draft carried two defects, both recorded rather than quietly fixed.** (i) A broken
+  expression and a non-matching one **both exited `9`** — one status for two different failures,
+  which is this tool's own subject reproduced *inside the tool*. (ii) The first `--self-test`
+  **could not observe the failures it checks for**: `apply_mutation` ends in `die`, which *exits*,
+  so `\|\| rc=$?` in the same shell never ran and the harness printed two passes and stopped. Each
+  case now runs in a subshell. A harness that cannot fail is the failure mode this whole tree is
+  about, so finding it here is not embarrassing — it is the tree working on itself.
+  **Run against real output, not only fixtures.** Three probes against the **live**
+  `BOOK-LINK-TARGETS` gate on tracked `book/src/architecture.md`: a real link broken ⇒ gate exit `1`
+  (must-fire, PASS); a prose-only edit ⇒ gate exit `0` (must-be-silent, PASS); a genuine escaping
+  error ⇒ **refused at exit `9`** with the file byte-identical. **The side-by-side is the proof:**
+  the same mistyped substitution run the old way reports `perl` exit `0` **and** gate exit `0` — a
+  plausible finding about a gate, from an experiment that never ran.
+  *And one of my own predictions was wrong mid-leaf, recorded rather than hidden:* the first "typo"
+  probe **actually matched**, because `architecture.md` really does carry that trailing paren. The
+  tool said so; I had assumed otherwise. That is the instrument doing its job in the direction
+  nobody plans for.
+  *A second gate fired on this leaf's own writing, and it is worth the line:* `TABLE-RENDER-FIDELITY`
+  **blocked the commit** because the phrase `` `\|\| rc=$?` `` — the shell operator, inside a code
+  span — split two table rows and dropped **939** rendered characters across this file and
+  `docs/TASK_TREE.md`. A code span gives a pipe no protection; that is precisely the fact the ninth
+  doctrine encodes, and it caught its author writing *about* silent losses while causing one.
 - `2026-08-01`: `.2` done — **the carrier is the *mutation*, not the control** (decision
   [`0047`](../decisions/0047-negative-control-carrier-is-the-mutation.md), recorded before any
   code). The answer reframes the question rather than picking from the menu the tree registered,

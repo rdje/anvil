@@ -63,6 +63,23 @@ thread / colour noise, so their output is itself re-checkable evidence.
 | `--max-rss-mb <MiB>` / `--ram-abort-pct <1..=100>` | runaway memory inside ANVIL's own process — abort an `--out` run cleanly (exit `99` + seed+knobs on stderr) once RSS / host RAM% crosses the ceiling | `anvil --seed 42 --count 1000 --out ./g --max-rss-mb 8192` | clean deterministic abort; never changes emitted RTL |
 | `scripts/ram_guard.sh` | runaway memory in an *external* job (a heavy `cargo test` / matrix sweep) — kill it before the host thrashes | `scripts/ram_guard.sh --threshold 90 -- cargo test` | guarded run (note the `--` separator) |
 
+### 6. Gate quality — *"can this check actually fire, and did my experiment run?"*
+
+The instruments above pinpoint issues in ANVIL's **artifacts**. This one pinpoints an issue in
+ANVIL's **gates** — or rather in the experiment used to trust one.
+
+| Instrument | Pinpoints | Invocation | Output |
+|---|---|---|---|
+| `scripts/negative_control.sh` | a negative control whose **mutation never landed** — `sed -i` / `perl -pi -e` exit `0` whether or not the pattern matched, so a mistyped substitution leaves the tree unchanged, the check passes, and that reads exactly like a control that correctly did not fire. `apply` refuses a zero-count substitution *before* any verdict can be read; `restore` is verified with `cmp`; `probe` runs the whole cycle against a **declared** expectation | `scripts/negative_control.sh probe <file> '<perl-subst>' <fires\|silent> <cmd…>` · `--self-test` | per-probe PASS/FAIL; exit `9` means *the experiment did not run* (distinct from `2`, a broken expression) |
+
+**Reach for a mutation that cannot no-op first** (decision
+[`0047`](docs/decisions/0047-negative-control-carrier-is-the-mutation.md), rung R1): an in-language
+mutation inside a `#[test]`, a compiler-checked probe, a constructed fixture, a `git show HEAD:`
+baseline, or a mutation-free test seam has no *match* step, so the failure this instrument catches
+cannot occur. Use the instrument when the subject genuinely **is** file text. It is deliberately
+**not** a registered doctrine: a control's mutation is reverted before the commit by construction,
+so there is nothing for a gate to read.
+
 ---
 
 ## Part 2 — The acceptance checklist a code change must satisfy

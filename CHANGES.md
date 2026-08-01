@@ -1,6 +1,70 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.3 — the mutation refuses to no-op (tree CLOSED)
+
+**Landed as:** _pending_. Previous: `c5d6580`, `46f2af1`, `83a2a5b`.
+**Shell instrument + docs; no `src/`, `tests/` or `examples/` change** ⇒ **DUT byte-identical**.
+**Closes `NEGATIVE-CONTROL-HARNESS`.**
+
+**What.** `scripts/negative_control.sh` implements decision
+[`0047`](docs/decisions/0047-negative-control-carrier-is-the-mutation.md)'s **R2** rung to the
+contract pinned there, plus one `TOOLBOX.md` Part 1 §6 row for discovery. It is deliberately **not**
+registered in `DOCTRINES`: per `0047` (C) a control's mutation is reverted before the commit by
+construction, so there is nothing for a gate to read.
+
+**The tool refuses to no-op.** `apply` exits **`9`** when the substitution matched nothing —
+*before* any verdict can be read — and **`2`** when the expression itself is broken. `restore`
+verifies the revert with `cmp`. `probe` runs apply → check → compare-against-a-**declared**
+expectation → restore → verify, which is what makes a `silent` probe mean anything: without a
+declared expectation, *"the check passed"* is the same sentence whether the mutation landed or not.
+
+**The control on the control is the point, and it is a seam rather than a source edit.** With
+`NEGATIVE_CONTROL_SKIP_COUNT_ASSERT=1` the *same* no-match substitution **succeeds** where it
+otherwise exits `9`, so the assertion is *demonstrated* load-bearing, not claimed. The seam is
+deliberate rather than convenient: **a control on this tool must not use the primitive this tool
+exists to police**, or it inherits the very defect. 10 of 10 `--self-test` cases pass.
+
+**Two defects in its own first draft, both recorded rather than quietly fixed.**
+(i) A broken expression and a non-matching one **both exited `9`** — one status for two different
+failures, which is this tool's own subject reproduced *inside the tool*; split into `2` and `9`.
+(ii) The first `--self-test` **could not observe the failures it checks for**: `apply_mutation` ends
+in `die`, which *exits*, so `\|\| rc=$?` in the same shell never ran — the harness printed two
+passes and stopped. Each case now runs in a subshell. A harness that cannot fail is precisely this
+tree's subject, so finding one here is the tree working on itself.
+
+**Proven on real output, not only fixtures.** Three probes against the **live** `BOOK-LINK-TARGETS`
+gate on tracked `book/src/architecture.md`: a real link broken ⇒ gate exit `1` (must-fire, PASS); a
+prose-only edit ⇒ gate exit `0` (must-be-silent, PASS); a genuine escaping error ⇒ **refused at exit
+`9`** with the file byte-identical and `git status` clean. **The side-by-side is the proof:** the
+same mistyped substitution run the old way reports `perl` exit `0` **and** gate exit `0` — a
+plausible finding about a gate, from an experiment that never ran.
+
+**Why.** `.1` measured the failure into one primitive and `.2` chose to carry that primitive rather
+than the practice around it. This leaf is the smallest thing that makes the measured mistake
+unreachable *through the tool*, with the limit stated in `0047` rather than discovered later: use is
+not compelled, and R1 — a mutation form with no *match* step — remains the preferred answer.
+
+**Two honest notes from the run.** One of my own predictions was **wrong** mid-leaf: the first
+"typo" probe actually *matched*, because `architecture.md` really does carry that trailing paren —
+the tool said so, I had assumed otherwise. And `TABLE-RENDER-FIDELITY` **blocked this commit** over
+the phrase `` `\|\| rc=$?` ``, an unescaped pipe inside a code span that split two table rows and
+dropped **939** rendered characters; the ninth doctrine caught its author writing about silent
+losses while causing one.
+
+**Validation.** `scripts/negative_control.sh --self-test` **10/10**; three real-gate probes as
+above; `scripts/check_doctrines.sh` **11/11** (after the table repair); tree clean after every
+probe. No `src/`, `tests/` or `examples/` touched ⇒ **DUT byte-identical**, `tests/snapshots.rs`
+untouched — the changed artifact is a shell instrument and its oracle is its own controls, the same
+basis `CARGO-TMPDIR-SWEEP-REGRESSION.1` recorded.
+
+**Impact.** `NEGATIVE-CONTROL-HARNESS` **closes**. What it leaves behind is not a rule about
+controls but a transferable one about tools: **never let a tool report the same success for having
+done nothing.**
+
+**Files touched.** `scripts/negative_control.sh` (new), `TOOLBOX.md`,
+`docs/tasks/NEGATIVE-CONTROL-HARNESS.md`, `docs/TASK_TREE.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.2 — the carrier is the mutation (decision 0047)
 
 **Landed as:** `46f2af1`. Previous: `83a2a5b`, `4ad09a4`, `da73827`.
