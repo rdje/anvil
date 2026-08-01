@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the `tool_matrix` options, at exact parity
 
-**Landed as:** pending. Previous: `04ef949`, `9b73e80`, `176c868`.
+**Landed as:** `6e95494`. Previous: `04ef949`, `9b73e80`, `176c868`.
 **Docs + one enforcement script; no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** `.5` gave `USER_GUIDE.md`'s `tool_matrix` option list a recorded contract —

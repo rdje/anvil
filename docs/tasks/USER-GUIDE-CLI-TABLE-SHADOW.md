@@ -414,7 +414,7 @@ error from a document that told them it exists.
 | `USER-GUIDE-CLI-TABLE-SHADOW.2` | `USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing` | Docs-only. Also corrects two of `.1`'s five numbers and registers `.4` (the book's second copy of the same shadow). Landed `cd7f24b` + `c793cf3` (hash backfill). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5` | Docs + one enforcement script. No `src/` change (the control's edit to `src/main.rs` was reverted and verified byte-identical to HEAD). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy of the flag list` | Landed `ccfbc23`. Book + docs + one script comment; no `src/` change. Registers `.5` (the `tool_matrix` block, 22 of 37) and surfaces the mdBook dead-link class. |
-| `USER-GUIDE-CLI-TABLE-SHADOW.6` | `USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the tool_matrix options as ENUMERATION-PARITY pair 6` | Docs + one enforcement script. No `src/` change (the control's edit to `src/bin/tool_matrix.rs` was reverted and verified byte-identical to HEAD). |
+| `USER-GUIDE-CLI-TABLE-SHADOW.6` | `USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the tool_matrix options at exact parity` | Landed `6e95494`. Docs + one enforcement script. No `src/` change (the control's edit to `src/bin/tool_matrix.rs` was reverted and verified byte-identical to HEAD). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `USER-GUIDE-CLI-TABLE-SHADOW.5 — give tool_matrix's options one home` | Landed `9b73e80`. Book + `USER_GUIDE.md` + docs + `DEVELOPMENT_NOTES.md` + the KM card; no `src/` change. Registers `.6` (the mechanism question) with two constraints `.3` did not face, both measured here. |
 
 ## Changelog
