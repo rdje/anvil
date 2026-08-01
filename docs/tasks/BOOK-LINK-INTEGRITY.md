@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / book fidelity
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.1` measured both classes; frontier `.2`)
+- Last updated: `2026-08-01` (`.1` measured both classes, `.2` decided the form and repaired the one site; frontier `.3`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -294,7 +294,7 @@ rather than an assertion inside another.
 | registration | `USER-GUIDE-CLI-TABLE-SHADOW.4 — backfill the landed commit hash` | Tree registered alongside the hash backfill; no leaf executed yet. |
 | `.1` | `5e3e9a0` — `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
 | `.1` | `8ff64cd` — `BOOK-LINK-INTEGRITY.1 — backfill the landed commit hash` | Hash-only follow-up. |
-| `.2` | `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them` | Adds decision `0046`; repairs `book/src/recipes.md:857` (one line). Rendered book reaches **0** dead local links. |
+| `.2` | `3a48cc4` — `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them` | Adds decision `0046`; repairs `book/src/recipes.md:857` (one line). Rendered book reaches **0** dead local links. |
 
 ## Changelog
 

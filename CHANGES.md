@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them
 
-**Landed as:** `pending`. Previous: `8ff64cd`, `5e3e9a0`, `614e977`.
+**Landed as:** `3a48cc4`. Previous: `8ff64cd`, `5e3e9a0`, `614e977`.
 **Docs + mdBook only; no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** The repair form for a book → repo-root reference is decided, recorded as decision
