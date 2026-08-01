@@ -12,6 +12,10 @@ answers:
   - "why is a proximity window not enough to scope a doc check"
   - "how should an enumeration be marked so a check can read it"
   - "why is a check weakest in the document that documents its ids"
+  - "the fence is there and the check is still vacuous"
+  - "coverage or exact parity for an enumeration pair"
+  - "cross-references in a fenced list break my coverage check"
+  - "when can an ENUMERATION-PARITY pair use exact parity"
 date: 2026-07-31
 status: current
 tags: [doctrine, enforcement, enumeration, vacuity, gate-quality, testing, docs]
@@ -27,6 +31,55 @@ whole-file substring grep, can pass **with the enumeration it guards deleted out
 This sits alongside the both-directions negative control (decision `0033` (b)), not
 instead of it: a control proves the check *can* fire, the vacuity probe proves it fires
 on the *right input*.
+
+## The fence does not end this — vacuity survives at fence scale
+
+The inline-fence repair (decision `0037`) fixed *whole-file* vacuity. It does not fix
+vacuity **inside** a well-drawn fence, and `USER-GUIDE-CLI-TABLE-SHADOW.6` measured a
+region where it does not: `USER_GUIDE.md`'s `tool_matrix` option list, where the
+coverage predicate is **vacuous for 10 of its 35 members**.
+
+The cause is not a sloppy fence. It is that the fenced items **legitimately reference
+one another**: gate bullets end with *"(+ Icarus when `--iverilog-compile` is set)"*, so
+that option is named **eleven** times inside the fence. Delete its own entry and ten
+matches remain — check green, definition gone.
+
+**So the rule "a fence must contain the enumeration and nothing that merely mentions its
+ids" is not always satisfiable.** Here the mentions *are* the enumeration's own prose,
+and they are correct documentation. You cannot tighten the fence without deleting good
+content, which inverts the relationship between gate and document.
+
+**The fix is a stricter predicate, not a tighter fence.** Stop asking *"is this id named
+in the region?"* and start **extracting a set from a structural position** — here, the
+options that *head* a bullet (`- \`--flag\` …`). A cross-reference in the middle of a
+sentence is not in head position, so it cannot satisfy the check.
+
+Two things fall out, and both are why this is worth reaching for:
+
+- **Exact parity becomes available.** `covers_fenced_set` is one-directional because
+  harvesting "the ids a prose region names" would also harvest every other backticked
+  token and cry wolf. Harvesting *heads* does not: measured on this region, the three
+  foreign tokens in it (`--ast-json`, `--binary`, `--language` — other tools' flags,
+  quoted correctly) never appear as heads, so the set extracts cleanly and
+  `equal_sets` holds **both** directions. It then catches what coverage never can —
+  the document naming something that no longer exists.
+- **Substring hazards dissolve.** Coverage greps for `--slang` and matches inside
+  `--slang-bin`, so a deleted entry passes on a sibling's text. Set equality over
+  extracted tokens never does substring matching, so the hazard is not mitigated — it
+  stops existing.
+
+**Probe both predicates on one mutated file, not in the abstract.** That is how this was
+settled: with the `--iverilog-compile` bullet deleted, coverage **passed** and bullet-head
+parity **failed**. Same input, opposite verdicts — which is the whole argument, and it is
+two commands rather than a paragraph of reasoning.
+
+**The cost is a constraint on the document's shape**, and you should say so plainly: every
+member must occupy the structural position the extractor reads. Three options that had
+been parentheticals inside other bullets were promoted to their own. Judge that by
+whether the *reader* gains — a reference list where one option hides inside another's
+sentence is worse for them too — and not by whether the gate is satisfied. Reshaping
+prose purely to keep a check happy is the inversion; reshaping it because one entry per
+item is genuinely better, and getting a checkable list for free, is not.
 
 **The predictor is structural, so you can see it before writing the check:** a coverage
 check's strength is inversely proportional to how ordinary its ids are as *words* in the

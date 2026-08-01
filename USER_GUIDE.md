@@ -1124,14 +1124,21 @@ What it does:
 
 **What this list is.** The bullets below are the **`tool_matrix` option
 reference**, and they are *exhaustive over the options `tool_matrix` declares*:
-every field of the clap `Cli` in `src/bin/tool_matrix.rs` has an entry here, so
-a new option that arrives without a bullet is a defect in this document rather
-than something outside its scope. clap's two built-ins sit deliberately outside
-that set — they are supplied by the framework, not declared by the binary, which
-makes the exclusion **derivable** (a built-in is exactly an option with no `Cli`
-field) instead of a matter of taste. The criterion is stated here and the
-members are not counted, for the reason decision `0033` gives: a number written
-beside a list is one more copy of the list.
+every field of the clap `Cli` in `src/bin/tool_matrix.rs` **heads a bullet
+here**, so a new option that arrives without one is a defect in this document
+rather than something outside its scope. clap's two built-ins sit deliberately
+outside that set — they are supplied by the framework, not declared by the
+binary, which makes the exclusion **derivable** (a built-in is exactly an option
+with no `Cli` field) instead of a matter of taste. The criterion is stated here
+and the members are not counted, for the reason decision `0033` gives: a number
+written beside a list is one more copy of the list.
+
+*Heads a bullet*, not merely *appears*, is load-bearing and was measured rather
+than assumed: several options are legitimately cross-referenced inside other
+options' prose — `--iverilog-compile` eleven times — so a check asking only
+"is this option named somewhere below?" would keep passing after its own entry
+was deleted. One option, one bullet, is what makes the list checkable, and it is
+**mechanically gated** (`ENUMERATION-PARITY` pair 6) against the `Cli` struct.
 
 **`tool_matrix` is a separate command with a separate namespace** from `anvil`
 and from `anvil hunt`, so a spelling shared across them is a *different* option.
@@ -1140,7 +1147,7 @@ column over the tools the matrix already ran; `anvil hunt --divergence` is a
 hunt detection axis, documented in its own section below. `tool_matrix --out` is
 a corpus directory, not `anvil --out`. Measuring one command's documentation
 against another command's registry is what produced two wrong numbers in this
-document's own audit history, so the boundary is stated rather than assumed.
+document's own audit history, so the boundary is stated rather than assumed.<!--enum:tool-matrix-options-->
 
 - `--out DIR` to choose the output tree. Each scenario gets its own
   subdirectory under it and the report is written to
@@ -1412,13 +1419,15 @@ document's own audit history, so the boundary is stated rather than assumed.
 - `--yosys-mode <without-abc|with-abc|both>` to choose the current
   stable `synth -noabc` path, the explicit ABC-enabled
   `abc -fast` path, or both as separate sub-runs per generated file.
-- `--iverilog-compile` (with `--iverilog-bin` to override the binary) to add
-  an Icarus Verilog compile/elaboration
+- `--iverilog-compile` to add an Icarus Verilog compile/elaboration
   column. The harness shells `iverilog -g2012` for each emitted module
   or design and records the result under `iverilog_compile` in the
   report. This is warning-clean acceptance evidence only; it does not
   run a testbench or compare traces.
-- `--sv2v` (with `--sv2v-bin` to override the binary) to add an `sv2v`
+- `--iverilog-bin` to override the `iverilog` executable that
+  `--iverilog-compile` shells, as `--verilator-bin` / `--yosys-bin` do for the
+  default-on columns.
+- `--sv2v` to add an `sv2v`
   SystemVerilog→Verilog-2005 **transpile** acceptance column. A clean
   transpile accepts; a non-zero exit or a warning is a finding. Recorded
   under `sv2v` in each report and tallied as `sv2v pass/fail` in the
@@ -1427,7 +1436,8 @@ document's own audit history, so the boundary is stated rather than assumed.
   is a **friendly no-op** — a presence probe means a requested-but-missing
   `sv2v` records no column and never fails the run (`brew install sv2v` to
   light it up). A `union soft` up-opt module skips it alongside Yosys/Icarus.
-- `--slang` (with `--slang-bin` to override the binary) to add a `slang`
+- `--sv2v-bin` to override the `sv2v` executable that `--sv2v` shells.
+- `--slang` to add a `slang`
   SystemVerilog **elaboration** acceptance column. A clean elaboration
   accepts; a non-zero exit or a warning is a finding. Recorded under `slang`
   in each report and tallied as `slang pass/fail` in the summary line.
@@ -1437,6 +1447,7 @@ document's own audit history, so the boundary is stated rather than assumed.
   acceptance gate, not a behavioural
   testbench, and a **friendly no-op** when `slang` is absent (a presence
   probe ⇒ the column records nothing and never fails the run).
+- `--slang-bin` to override the `slang` executable that `--slang` shells.
 - `--fail-on-coverage-gap` to fail when the matrix misses one of the
   intended axes or motif/knob decision sites.
 - `--skip-verilator` / `--skip-yosys` when you want to isolate one
@@ -1486,7 +1497,7 @@ document's own audit history, so the boundary is stated rather than assumed.
   `saw_acceptance_divergence` fact and is never a required coverage gate, since
   all-agree is the valid-by-construction steady state. Distinct from the
   identically-spelled `anvil hunt --divergence` documented below, which is a
-  hunt detection axis on a different command.
+  hunt detection axis on a different command.<!--/enum:tool-matrix-options-->
 
 ### Gate invocations
 

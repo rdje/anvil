@@ -5,6 +5,81 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A fence does not end vacuity; make the predicate stricter, not the fence tighter — `USER-GUIDE-CLI-TABLE-SHADOW.6`
+
+Decision `0037` repaired `ENUMERATION-PARITY`'s vacuity by fencing each site, after measuring
+that 3 of 10 whole-file coverage checks passed with their enumeration **deleted**. `.6` found
+the same failure **inside a correctly-drawn fence**, and the diagnosis matters more than the
+patch.
+
+`USER_GUIDE.md`'s `tool_matrix` option list is fenced, tight, and entirely on-topic. The
+coverage predicate — *"is this id named inside the fence?"* — is nonetheless **vacuous for 10
+of its 35 members**, because the fenced items **cross-reference each other**: gate bullets end
+with *"(+ Icarus when `--iverilog-compile` is set)"*, naming that option **eleven** times.
+Delete its own entry and ten matches remain.
+
+**The rule `0037` left behind — "a fence must contain the enumeration and nothing that merely
+mentions its ids" — is not always satisfiable.** Here the mentions *are* the enumeration's own
+prose and they are correct documentation. Tightening the fence would mean deleting good
+content to keep a gate honest, which inverts the relationship between the two.
+
+### The move: extract a set from a structural position
+
+Stop asking *"is this id named in the region?"*. Start extracting **the ids that occupy a
+structural position** — here, the options that *head* a bullet. A cross-reference mid-sentence
+is not a head, so it cannot satisfy the check.
+
+Two consequences, and they are the reason this is worth reaching past a leaf's stated
+acceptance for:
+
+- **Exact parity becomes available.** `covers_fenced_set` is one-directional because
+  harvesting "the ids a prose region names" would also harvest every other backticked token.
+  Harvesting *heads* does not — measured, the three foreign tokens in this region
+  (`--ast-json`, `--binary`, `--language`) never appear as heads — so `equal_sets` holds both
+  directions and catches what coverage never can: a document naming something that no longer
+  exists.
+- **Substring hazards stop existing rather than being mitigated.** Coverage greps `--slang`
+  and matches inside `--slang-bin`, so a deleted entry passes on a sibling's text. Set
+  equality over extracted tokens does no substring matching at all.
+
+### Probe both predicates on one mutated file
+
+This was settled by two commands, not by argument: with the `--iverilog-compile` bullet
+deleted, the coverage predicate **passes** and the bullet-head predicate **fails**. Same input,
+opposite verdicts. Generalising `DOCTRINE_ENFORCEMENT.md` §9's acceptance test: when choosing
+*between* predicates, do not reason about which is stronger — **run both over the same
+sabotaged input and read the verdicts.**
+
+### The cost, stated rather than hidden
+
+Every member must occupy the position the extractor reads. Three options that had been
+parentheticals inside other bullets (`--iverilog-bin`, `--sv2v-bin`, `--slang-bin`) were
+promoted to their own. **Judge that by whether the reader gains, not by whether the gate is
+satisfied** — a reference list where one option hides inside another's sentence is worse for
+them too. Reshaping prose purely to keep a check happy is the inversion this script's own
+comments warn about; reshaping it because one entry per item is genuinely better, and getting
+a checkable list for free, is not.
+
+### Two scoping choices worth keeping
+
+- **`total_or_fail` holds the tokenizer, not the semantic filter.** Excluding a future
+  `#[arg(short)]`-only field is *correct*, so comparing "args seen" to "options extracted"
+  would cry wolf on a legitimate field. What must never differ is `#[arg(` occurrences vs
+  `#[arg(…)]<field>:` tokens matched — a gap there is the invisible-skip class. **Point the
+  totality check at the fragile mechanical step, not at the deliberate judgement.**
+- **Drop doc comments before stripping whitespace.** The strip is the
+  `PARITY-EXTRACTOR-ARM-SHAPE-GAP` remedy, but this struct's `///` prose *quotes flags*, and
+  welding it to the surrounding code is a fresh injection class. `///` is a Rust fact; the
+  indentation it sits at is not.
+
+### A reason can expire, and nobody re-checks it
+
+`.3` declined to gate the `anvil hunt` table because `HuntCommand` has no `Overrides`
+projection to derive from. True — of *pair 5's* extractor. Pair 6's reads `#[arg(…)]<field>`
+pairs straight off a clap struct, and `HuntCommand` is exactly that shape. **A recorded
+"we can't because X" becomes stale the moment something removes X, and nothing re-examines it
+on its own.** Registered as `.7` rather than quietly closing the tree.
+
 ## 2026-08-01 — A criterion that returns *"neither"* is still an answer, and delete-and-point is not automatically lossless — `USER-GUIDE-CLI-TABLE-SHADOW.5`
 
 `.5` inherited a leaf framed as a three-way choice: make `book/src/knobs.md`'s

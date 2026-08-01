@@ -298,6 +298,108 @@ extract_cli_knob_flags_raw() {
   cli_overrides_body | grep -oE 'cli\.[a-z0-9_]+'
 }
 
+# Authoritative: the options `tool_matrix` DECLARES — every field of the clap `Cli`
+# in src/bin/tool_matrix.rs carrying a `long` arg attribute. clap kebab-cases the
+# field name, so the struct IS the flag list and no second list is needed.
+#
+# ── WHY THE BODY DROPS DOC COMMENTS BEFORE STRIPPING WHITESPACE ───────────────
+# The whitespace strip is the PARITY-EXTRACTOR-ARM-SHAPE-GAP remedy (rustfmt owns
+# the layout, so never depend on lines). But this struct's doc comments QUOTE
+# FLAGS — `--iverilog-compile`, `--diff-sim` and more appear inside `///` prose —
+# and stripping whitespace first would weld that prose to the code around it.
+# `///` is a Rust fact, not a formatting choice, so dropping those lines is safe
+# in a way that depending on indentation would not be.
+tool_matrix_cli_body() {
+  sed -n '/^struct Cli {$/,/^}$/p' src/bin/tool_matrix.rs |
+    grep -v '^[[:space:]]*///' |
+    tr -d '[:space:]'
+}
+
+# Every `#[arg(...)]<field>:` pair in that body, said as loosely as it can be said.
+# Compared against the extraction by `total_or_fail`.
+candidate_tool_matrix_arg_attrs() {
+  tool_matrix_cli_body | grep -oE '#\[arg\([^]]*\)\][A-Za-z0-9_]+:'
+}
+
+# The extraction. `long` must appear as its own attribute, not merely as a
+# substring: a field named `along_x` under `#[arg(short)]` must not qualify.
+#
+# ── THE `long = "name"` RENAME IS A HARD FAILURE, NOT A SILENT MISS ───────────
+# clap lets an attribute override the flag spelling (`#[arg(long = "other")]`),
+# and then the field name is NOT the flag name and this whole derivation is
+# wrong. No field uses it today. Rather than assume that holds, the extractor
+# DIES on it — the alternative is deriving a confident wrong set, which is the
+# failure mode every note in this file is about.
+#
+# The charset is `[A-Za-z0-9_]+` because that is what a Rust field name PERMITS,
+# not what today's members happen to use (PARITY-EXTRACTOR-CHARSET-GAP). Stated
+# limit: a non-snake-case field would kebab-case differently than the lowercase
+# rewrite below, but `cargo clippy -D warnings` already forbids one.
+extract_tool_matrix_options_raw() {
+  candidate_tool_matrix_arg_attrs |
+    sed -E 's/^#\[arg\((.*)\)\]([A-Za-z0-9_]+):$/\1|\2/' |
+    awk -F'|' '$1 ~ /(^|,)long(,|$)/ { print $2 }'
+}
+
+# The fields whose flag spelling is OVERRIDDEN by `long = "..."`. Non-empty means
+# this pair's derivation does not hold and the check must die rather than publish
+# a set it derived by a rule that no longer applies.
+tool_matrix_long_renames() {
+  candidate_tool_matrix_arg_attrs |
+    sed -E 's/^#\[arg\((.*)\)\]([A-Za-z0-9_]+):$/\1|\2/' |
+    awk -F'|' '$1 ~ /(^|,)long=/ { print $2 }'
+}
+
+extract_tool_matrix_options() {
+  extract_tool_matrix_options_raw | tr 'A-Z' 'a-z' | tr '_' '-' | sed 's/^/--/' | sort -u
+}
+
+# Shadow: the options that HEAD a bullet in USER_GUIDE.md's fenced option list.
+#
+# ── WHY "HEADS A BULLET" AND NOT "APPEARS IN THE FENCE" ───────────────────────
+# `covers_fenced_set` asks "is this id named inside the fence?". MEASURED over
+# this region at USER-GUIDE-CLI-TABLE-SHADOW.6, that predicate is VACUOUS for 10
+# of the 35 options, because the gate bullets legitimately cross-reference each
+# other: `--iverilog-compile` appears ELEVEN times ("(+ Icarus when
+# `--iverilog-compile` is set)"), so deleting its own entry leaves ten matches
+# behind and the check stays green while the reader loses the definition.
+#
+# That is decision 0037's vacuity, reproduced at fence scale by a region whose
+# prose is GOOD — the cross-references are correct documentation. So the fence
+# cannot be tightened around them; the PREDICATE has to get stricter instead.
+# Extracting bullet heads makes the shadow side a derived SET rather than a
+# membership question, which is strictly stronger and, measured, admits EXACT
+# parity in both directions: prose cross-references are not bullet heads, so the
+# three foreign tokens in this region (`--ast-json`, `--binary`, `--language` —
+# slang's and verilator's flags, quoted correctly) cannot cry wolf.
+#
+# ── WHY THE FLAG IS READ WITH A WORD BOUNDARY INSIDE THE CODE SPAN ────────────
+# USER-GUIDE-CLI-TABLE-SHADOW.1 recorded this exact trap and .6's first draft
+# walked into it again: a bullet writes `` `--out DIR` `` — flag and value share
+# ONE code span — so a whole-span match reads 28 of 35 and the seven it drops are
+# invisible, not wrong. The inner match takes the leading `--[a-z0-9-]+` run of
+# each span, which is the boundary the source actually has.
+#
+# The leading RUN of spans is walked (` / `-separated), because two options that
+# are always used together share one bullet (`--skip-verilator` / `--skip-yosys`).
+extract_tool_matrix_doc_heads() {
+  fenced_region USER_GUIDE.md 'tool-matrix-options' |
+    awk '
+      /^- `--/ {
+        line = $0
+        sub(/^- /, "", line)
+        while (match(line, /^`[^`]*`/)) {
+          s = RSTART; l = RLENGTH
+          span = substr(line, s + 1, l - 2)
+          if (span !~ /^--[a-z0-9-]/) break
+          if (match(span, /^--[a-z0-9-]+/)) print substr(span, 1, RLENGTH)
+          line = substr(line, s + l)
+          sub(/^ \/ /, "", line)
+        }
+      }' |
+    sort -u
+}
+
 # --- helpers ----------------------------------------------------------------
 
 count_of() { printf '%s\n' "$1" | grep -c . ; }
@@ -673,6 +775,79 @@ total_or_fail 'CLI knob flags' \
 if floor_or_fail 'CLI knob flags' 92 "${cli_knob_flags}"; then
   covers_fenced_set 'USER_GUIDE.md CLI flag table <-> cli_overrides' \
     "${cli_knob_flags}" 'USER_GUIDE.md' 'knob-flags'
+fi
+
+# Pair 6 — USER_GUIDE.md's `tool_matrix` option list (shadow) mirrors the options
+# that binary's clap `Cli` DECLARES (authoritative). Added by
+# USER-GUIDE-CLI-TABLE-SHADOW.6.
+#
+# ── WHY IT IS A SHADOW, TEST BY TEST (decision 0033 rule (a)) ─────────────────
+# (1) derivable — the `Cli` struct in src/bin/tool_matrix.rs enumerates exactly
+#     the options that binary declares, and clap derives each spelling from the
+#     field name;
+# (2) growth-coupled — the list's contract, recorded above it at `.5`, is
+#     *exhaustive over the declared options*, so every new option REQUIRES a bullet;
+# (3) silent — measured at `9b73e80`: the book's copy of this same set was 16
+#     options behind with every gate in the repo green.
+#
+# ── WHY A SECOND PAIR RATHER THAN WIDENING PAIR 5 ────────────────────────────
+# Pair 5 holds a DIFFERENT set from a DIFFERENT registry: `cli_overrides`'s
+# projection of `anvil`'s knob flags onto `config::Overrides`. This binary has no
+# `Overrides` projection at all — that is precisely what `.5` measured, and why
+# the knob chapter owed it zero rows. One pair per (authority, site) is what makes
+# a failure message name the right file; merging them would report a
+# `tool_matrix` omission against `src/main.rs`.
+#
+# ── WHY EXACT PARITY HERE AND COVERAGE THERE ─────────────────────────────────
+# `covers_fenced_set` is one-directional because several fences must enclose list
+# items carrying prose, so harvesting "the ids this region names" would also
+# harvest every other backticked token. This site is the exception, MEASURED: its
+# shadow side is a bullet list, so the heads extract losslessly and the prose that
+# would cry wolf is not in head position. Exact parity also catches the direction
+# coverage cannot — a bullet naming an option that no longer exists, which is what
+# `.1` wrongly believed it had found twice.
+tm_options="$(extract_tool_matrix_options)"
+tm_renames="$(tool_matrix_long_renames)"
+if [ -n "${tm_renames}" ]; then
+  note "FAIL: pair 6 — src/bin/tool_matrix.rs overrides a flag spelling with"
+  note "      \`long = \"...\"\` on: $(printf '%s' "${tm_renames}" | tr '\n' ' ')"
+  note "      The field name is then NOT the flag name, so this pair's derivation"
+  note "      does not hold. Teach extract_tool_matrix_options_raw the override;"
+  note "      do NOT drop the field."
+  fail=1
+else
+  # `total_or_fail` here holds the TOKENIZER, not the `long` filter, and the
+  # distinction is what keeps it from crying wolf. Excluding a `#[arg(short)]`-only
+  # or positional field is CORRECT behaviour, so comparing "args seen" against
+  # "options extracted" would fire on a legitimate future field. What must never
+  # differ is `#[arg(` occurrences vs `#[arg(…)]<field>:` tokens matched — a gap
+  # there means the token regex silently dropped an attribute it walked past (an
+  # attr value containing `]` would do it), which is the invisible-skip class.
+  total_or_fail 'tool_matrix #[arg] tokenizer' \
+    "$(tool_matrix_cli_body | grep -o '#\[arg(')" \
+    "$(candidate_tool_matrix_arg_attrs)"
+  # Floor at the count measured at `USER-GUIDE-CLI-TABLE-SHADOW.6` (35). Tight on
+  # purpose and NOT a shadow, by the same asymmetry the pair-4 and pair-5 floors
+  # record: a floor is shrink-coupled, so a 36th option never requires touching
+  # this number. Only *losing* options would.
+  if floor_or_fail 'tool_matrix declared options' 35 "${tm_options}"; then
+    # The fence-presence check is EXPLICIT and a hard failure, exactly as in
+    # `covers_fenced_set`. `equal_sets` alone would survive a deleted fence by
+    # reporting all 35 as missing — loud, but it would blame the docs for an
+    # instrument failure and send the next author to rewrite a correct list.
+    tm_region="$(fenced_region USER_GUIDE.md 'tool-matrix-options')"
+    if [ -z "$(printf '%s' "${tm_region}" | tr -d '[:space:]')" ]; then
+      note "FAIL: pair 6 — USER_GUIDE.md has no <!--enum:tool-matrix-options--> …"
+      note "      <!--/enum:tool-matrix-options--> fence (or it is empty). Without it"
+      note "      this pair would degrade to matching the whole file, which decision"
+      note "      0037 measured as vacuous."
+      fail=1
+    else
+      equal_sets 'USER_GUIDE.md tool_matrix options <-> the tool_matrix Cli struct' \
+        'the tool_matrix Cli struct' "${tm_options}" \
+        'USER_GUIDE.md (fenced: tool-matrix-options)' "$(extract_tool_matrix_doc_heads)"
+    fi
+  fi
 fi
 
 # --- verdict ----------------------------------------------------------------

@@ -1,6 +1,125 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the `tool_matrix` options, at exact parity
+
+**Landed as:** pending. Previous: `04ef949`, `9b73e80`, `176c868`.
+**Docs + one enforcement script; no `src/` change** ⇒ **DUT byte-identical**.
+
+**What.** `.5` gave `USER_GUIDE.md`'s `tool_matrix` option list a recorded contract —
+*exhaustive over the options that binary declares*. `.6` makes it mechanical:
+`ENUMERATION-PARITY` **pair 6**, derived from the clap `Cli` struct in
+`src/bin/tool_matrix.rs`, held at **exact parity** over a new
+`<!--enum:tool-matrix-options-->` fence.
+
+**A pair, not an eleventh doctrine** (`feedback_full_factorization`, applied rather than
+waved: `ENUMERATION-PARITY` already owns *"a hand-maintained docs list mirroring an
+authoritative set"*). **A second pair rather than widening pair 5**, because pair 5's
+authority is `cli_overrides`' projection onto `config::Overrides` and this binary has no
+such projection at all — merging them would report a `tool_matrix` omission against
+`src/main.rs`.
+
+### The leaf's own acceptance said "coverage, never exact parity". Measurement overturned it.
+
+`.5` had recorded two constraints, both true observations: three foreign tokens sit inside
+the region, and the set is not substring-free. Both pointed at one-directional coverage.
+Probing found a **third fact that dominates them**:
+
+> `covers_fenced_set` — *"is this id named inside the fence?"* — is **vacuous for 10 of the
+> 35 options** here.
+
+Not because the fence is sloppy. Because the fenced items **legitimately cross-reference
+each other**: the gate bullets end with *"(+ Icarus when `--iverilog-compile` is set)"*, so
+that option is named **eleven** times inside the fence. Delete its own entry and ten matches
+remain — check green, definition gone. That is decision `0037`'s vacuity reproduced at
+**fence** scale by prose that is *correct*, so the fence cannot be tightened around it
+without deleting good documentation.
+
+**Probed both ways on one mutated file rather than argued.** With the `--iverilog-compile`
+bullet deleted: the coverage predicate **passes**; the bullet-head predicate **fails**. Same
+input, opposite verdicts.
+
+**So the predicate got stricter instead of the fence tighter.** Extracting the options that
+*head* a bullet turns the shadow side into a derived **set**, and a derived set admits
+**exact parity** — measured **35 = 35**, zero missing, zero extra. Both of `.5`'s stated
+constraints then dissolve rather than being mitigated: prose cross-references are never in
+head position, so the foreign tokens cannot cry wolf; and set equality over extracted tokens
+never does substring matching, so `--slang` ⊂ `--slang-bin` stops being a hazard at all.
+
+### The `.1` code-span trap, walked into again by this leaf's first draft
+
+The first bullet-head extractor matched **whole** code spans and read **28 of 35** — because
+a bullet writes `` `--out DIR` ``, flag and value in one span. That is precisely the matcher
+bug `USER-GUIDE-CLI-TABLE-SHADOW.1` recorded (`` `--artifact dut` ``) and fixed with a
+word-boundary match. Fixed the same way; **control 4 is that trap, live**.
+
+### Six negative controls, all fired
+
+Each restored from an on-volume backup, with `src/bin/tool_matrix.rs` verified
+byte-identical to `HEAD` afterwards.
+
+1. Delete the `--resume` bullet ⇒ FAIL naming `--resume`.
+2. Add a `Cli` field with no bullet (`probe_control_option`) ⇒ FAIL naming
+   `--probe-control-option` — the **growth** direction, the one that actually happens.
+3. Remove the fence ⇒ **hard** FAIL with its own message, never a silent skip.
+4. Neuter the word-boundary inner match ⇒ FAIL in **both** directions at once (`--out`
+   MISSING *and* `--out DIR` EXTRA) — louder than coverage could ever be, and the whole
+   argument for exact parity.
+5. A `long = "continue"` spelling override ⇒ **hard** FAIL naming the field. clap permits
+   the rename; no field uses it today; if one ever does, the field name stops being the flag
+   name and the extractor would publish a confident wrong set. It dies instead.
+6. The vacuity probe above.
+
+### Two deliberate scoping choices
+
+- **`total_or_fail` holds the tokenizer, not the `long` filter.** Excluding a future
+  `#[arg(short)]`-only or positional field is *correct*, so comparing "args seen" against
+  "options extracted" would fire on a legitimate field — and `DOCTRINE_ENFORCEMENT.md` §9
+  records that a gate which cries wolf gets deleted, taking its real coverage with it. What
+  must never differ is `#[arg(` occurrences vs `#[arg(…)]<field>:` tokens matched.
+- **Doc comments are dropped *before* the whitespace strip.** The strip is the
+  `PARITY-EXTRACTOR-ARM-SHAPE-GAP` remedy, but this struct's `///` prose **quotes flags**, and
+  welding it to the surrounding code is a fresh injection class. `///` is a Rust fact, not a
+  formatting assumption.
+
+**One document change the design required, and it is an improvement.** `--iverilog-bin` /
+`--sv2v-bin` / `--slang-bin` were parentheticals inside other options' bullets and now head
+their own — one option, one entry. Recorded because reshaping prose purely to satisfy a check
+is an inversion; the test is whether the *reader* gains, and a reference where one option
+hides inside another's sentence is worse for them too.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10**; `cargo check --all-targets` /
+`cargo clippy --all-targets -- -D warnings` / `cargo fmt --all --check` all exit **0**;
+`cargo test` under `scripts/ram_guard.sh --threshold 90` exit **0** — **1,087 passed / 0 failed
+/ 19 ignored** across **17** targets including `tests/snapshots.rs`, run **unpiped**, and
+identical to the `.5` run as a no-`src/`-change leaf must be; `src/bin/tool_matrix.rs`
+byte-identical to `HEAD` after the controls; docs + one script ⇒ DUT byte-identical,
+`tests/snapshots.rs` untouched.
+
+**One note the gates produced rather than the work.** `MEMORY-ARCH`'s **byte** cap fired twice
+this session — once on `.5`'s draft at 6,377 B and once on `.6`'s at 6,280 B — and both times
+the repair was the routing the failure message asks for (move detail down to the owning leaf's
+Acceptance and to fact cards), never a prose trim. After routing, `MEMORY.md` sits at
+**6,091 / 6,144 B**. That is a **53-byte** margin on a file two leaves' worth of pointers now
+nearly fill, so the resume-pointer contract is effectively saturated. Recorded, not acted on:
+raising the cap requires a new decision record stating the contract expanded (`MEMORY-ARCH`'s
+own rule), which is a judgement for the owner rather than a side effect of a docs leaf.
+
+**`.7` registered; the tree stays `active`.** `.3` declined to gate the **`anvil hunt`** table
+because `HuntCommand` has no `Overrides` projection to derive from — true of *pair 5's*
+extractor. Pair 6's reads a clap struct directly, and `HuntCommand` is exactly that shape
+(**10** `#[arg(long)]` fields, extracted cleanly as a probe; the table measures **10/10**). So
+`.6` **removed `.3`'s stated reason**, and the honest response is a registered leaf rather
+than a closed tree.
+
+**Impact.** Every `tool_matrix` option is now mechanically required to be documented, and the
+check cannot pass with an entry deleted. No behaviour change.
+
+**Files touched.** `USER_GUIDE.md`, `scripts/check_enumeration_parity.sh`,
+`DOCTRINE_ENFORCEMENT.md`, `docs/tasks/USER-GUIDE-CLI-TABLE-SHADOW.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `docs/knowledge/coverage-check-vacuity.md`, `KNOWLEDGE_MAP.md`
+(derived), `CHANGES.md`, `MEMORY.md`. No `src/` change.
+
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.5 — give `tool_matrix`'s options one home
 
 **Landed as:** `9b73e80`. Previous: `176c868`, `ccfbc23`, `5ce2dd3`.

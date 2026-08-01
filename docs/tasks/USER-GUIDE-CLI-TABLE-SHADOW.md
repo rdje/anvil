@@ -6,10 +6,12 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / shadow-enumeration residue
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.5` **done** — the `tool_matrix` block deleted by `0033` rung R1
-  after its destination was completed and losslessness **proven first**; `.2`'s knob/mode
-  criterion settled the contract by *failing* — `tool_matrix` has no knobs; `.6` registered for
-  the mechanism question; frontier `.6`)
+- Last updated: `2026-08-01` (`.6` **done** — the `tool_matrix` option list is gated as
+  `ENUMERATION-PARITY` **pair 6** at **exact** parity, after measurement overturned the leaf's
+  own *"coverage, not parity"* acceptance: `covers_fenced_set` is **vacuous for 10 of 35** here.
+  Six negative controls fired. **`.7` registered and the tree stays `active`:** pair 6's
+  extractor removes the reason `.3` gave for leaving the third clap registry — `anvil hunt` —
+  ungated; frontier `.7`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -128,7 +130,7 @@ error from a document that told them it exists.
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW`
   Status: `active`
   Goal: `Close the gap between the live docs' hand-maintained flag lists and clap's flag registry, after deciding what each list is meant to contain.`
-  Children: `.1` (audit + register), `.2` (decide the table's contract, then repair), `.3` (the mechanism question), `.4` (the book's second copy of the same shadow), `.5` (the book's `tool_matrix` block — a different clap registry), `.6` (the mechanism question for that second set)
+  Children: `.1` (audit + register), `.2` (decide the table's contract, then repair), `.3` (the mechanism question), `.4` (the book's second copy of the same shadow), `.5` (the book's `tool_matrix` block — a different clap registry), `.6` (the mechanism question for that second set), `.7` (the third and last clap registry — `anvil hunt`)
 
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW.1`
   Status: `done`
@@ -166,9 +168,16 @@ error from a document that told them it exists.
   Commit: `USER-GUIDE-CLI-TABLE-SHADOW.5`
 
 - ID: `USER-GUIDE-CLI-TABLE-SHADOW.6`
-  Status: `pending`
+  Status: `done`
   Goal: `The mechanism question for the tool_matrix option set, standing to .5 exactly as .3 stood to .2. .5 recorded a contract making USER_GUIDE.md §Tool matrix sweeps -> Options exhaustive over the options src/bin/tool_matrix.rs declares, so the list is now derivable AND growth-coupled AND silent — decision 0033's three tests, all passing. Decide whether it becomes ENUMERATION-PARITY pair 6.`
   Acceptance: `The decision follows .5's contract, not the other way round. If a pair is written it obeys DOCTRINE_ENFORCEMENT.md section 4, derives the set from SOURCE (the Cli struct in src/bin/tool_matrix.rs) and never from a built binary — .3's reason applies unchanged: a doctrine check reads the repository, and a fresh clone has no binary. It is whitespace-stripped before matching (PARITY-EXTRACTOR-ARM-SHAPE-GAP), charset-captured to what the SOURCE permits rather than to what today's members happen to use (PARITY-EXTRACTOR-CHARSET-GAP), total_or_fail'd against a looser candidate scan, count-floored, and negative-controlled BOTH ways (delete an entry => fails naming it; add a Cli field with no entry => fails naming it). It must be ONE-DIRECTIONAL coverage: .5 measured three foreign tokens inside the region (--ast-json, --binary, --language — other tools' flags in prose), so exact parity would cry wolf. The clap built-ins stay OUTSIDE the checked set, matching the contract. A substring-vacuity probe is required before the pair is trusted, as .3 ran: --sv2v is a proper substring of --sv2v-bin and --slang of --slang-bin, so unlike .3's set this one is NOT substring-free and a naive covers_ grep can pass a deleted entry on another entry's content. Docs + one enforcement script at most; DUT byte-identical.`
+  Verification: `done — A PAIR IS WARRANTED AND IT IS PAIR 6, and the design changed on a measurement the leaf's own acceptance had not anticipated. 0033 rule (a), test by test: derivable (the Cli struct in src/bin/tool_matrix.rs, whose fields clap kebab-cases into flags); growth-coupled (.5's recorded contract makes the list exhaustive over the declared options, so every new option REQUIRES a bullet); silent (the book's copy of this same set was 16 behind at 9b73e80 with every gate green). A PAIR, NOT AN ELEVENTH DOCTRINE: feedback_full_factorization, applied not waved — ENUMERATION-PARITY already owns "a hand-maintained docs list mirroring an authoritative set". A SECOND PAIR rather than widening pair 5, because pair 5's authority is cli_overrides' projection of ANVIL's knob flags onto config::Overrides and this binary has NO Overrides projection at all — merging them would report a tool_matrix omission against src/main.rs. THE ACCEPTANCE SAID "ONE-DIRECTIONAL COVERAGE" AND THE MEASUREMENT OVERTURNED IT — this is the leaf's main finding. covers_fenced_set asks "is this id named inside the fence?", and over this region that predicate is VACUOUS FOR 10 OF THE 35 OPTIONS: the gate bullets legitimately cross-reference each other, --iverilog-compile ELEVEN times ("(+ Icarus when --iverilog-compile is set)"), so deleting its own entry leaves ten matches and the check stays green while the reader loses the definition. That is decision 0037s vacuity reproduced at FENCE scale by prose that is CORRECT — the cross-references are good documentation, so the fence cannot be tightened around them and the PREDICATE had to get stricter instead. PROBED BOTH WAYS ON ONE MUTATED FILE rather than argued: with the --iverilog-compile bullet deleted, the coverage predicate PASSES (vacuous) and the bullet-head predicate FAILS (non-vacuous). Extracting BULLET HEADS makes the shadow side a derived SET, which then admits EXACT PARITY in both directions — measured 35 = 35, zero missing, zero extra — because prose cross-references are not heads, so the three foreign tokens .5 flagged (--ast-json, --binary, --language: slangs and verilators flags, quoted correctly) cannot cry wolf. The substring hazard .5 recorded (--slang inside --slang-bin, --sv2v inside --sv2v-bin) DISSOLVES under set equality on extracted tokens rather than needing a boundary-aware grep — the stricter predicate removed two problems at once. THE .1 CODE-SPAN TRAP WAS WALKED INTO AGAIN AND CAUGHT BY MEASUREMENT: the first bullet-head extractor matched whole code spans and read 28 of 35, because a bullet writes `--out DIR` — flag and value in ONE span — which is precisely the matcher bug .1 recorded and fixed with a word-boundary match. Fixed the same way; control 4 is that trap, live. ONE DOCUMENT CHANGE WAS REQUIRED BY THE DESIGN AND IS AN IMPROVEMENT, NOT A CONCESSION: --iverilog-bin / --sv2v-bin / --slang-bin were parentheticals inside other options bullets and now head their own, so the reference is one-option-one-entry. SIX NEGATIVE CONTROLS, ALL FIRED, each restored from an ON-VOLUME backup and src/bin/tool_matrix.rs verified byte-identical to HEAD afterwards: (1) delete the --resume bullet => FAIL naming --resume; (2) add a Cli field with no bullet (probe_control_option) => FAIL naming --probe-control-option, the GROWTH direction, which is the one that actually happens; (3) remove the fence => hard FAIL with its own message, never a silent skip; (4) neuter the word-boundary inner match => FAIL in BOTH directions at once (--out MISSING and --out DIR EXTRA), which is louder than coverage could ever be and is the whole argument for exact parity; (5) a long = "continue" spelling override => hard FAIL naming the field, because the field name is then NOT the flag name and the derivation would publish a confident wrong set; (6) the vacuity probe above. TOTAL_OR_FAIL HOLDS THE TOKENIZER, NOT THE `long` FILTER, and that distinction is deliberate: excluding a future #[arg(short)]-only or positional field is CORRECT, so comparing "args seen" against "options extracted" would cry wolf on a legitimate field; what must never differ is #[arg( occurrences vs #[arg(…)]<field>: tokens matched, a gap there meaning the regex silently dropped an attribute it walked past. Doc comments are dropped BEFORE the whitespace strip because this struct's /// prose QUOTES FLAGS, and welding that prose to the code is a fresh injection class; /// is a Rust fact, not a formatting assumption. Checks: scripts/check_doctrines.sh 10/10; cargo check --all-targets / clippy -D warnings / fmt --check all exit 0; cargo test under ram_guard exit 0 — 1,087 passed / 0 failed / 19 ignored across 17 targets incl. tests/snapshots.rs, run UNPIPED and identical to .5's run as a no-src/-change leaf must be; docs + one enforcement script, no src/ change => DUT byte-identical. ONE NOTE THE GATES PRODUCED: MEMORY-ARCH's BYTE cap fired twice this session (.5's draft at 6,377 B, .6's at 6,280 B) and both repairs were the routing the failure message asks for, never a prose trim; after routing MEMORY.md sits at 6,091 / 6,144 — a 53-byte margin, so layer A is effectively saturated. Recorded, deliberately NOT acted on: raising the cap requires a new decision record stating the resume-pointer contract expanded, which is an owner judgement and not a side effect of a docs leaf.`
+  Commit: `USER-GUIDE-CLI-TABLE-SHADOW.6`
+
+- ID: `USER-GUIDE-CLI-TABLE-SHADOW.7`
+  Status: `pending`
+  Goal: `The THIRD and last clap registry in this repo: HuntCommand in src/main.rs, whose flags USER_GUIDE.md tables as the anvil hunt table. .3 declined to gate it and gave a reason that was true then and is FALSE NOW — pair 5's extractor reads cli_overrides' projection onto config::Overrides, which HuntCommand has none of; pair 6's reads #[arg(...)]<field> pairs straight off a clap struct, and HuntCommand is exactly that shape. Decide whether to gate it as pair 7.`
+  Acceptance: `Measure FIRST and publish the region and the denominator (the tree's own recurring defect). Probed at .6: HuntCommand declares 10 #[arg(long)] fields and the table is 10/10, so the subject is mechanization, not drift — say so plainly rather than manufacturing a repair. If a pair lands it REUSES pair 6's extractor shape rather than forking a third one (feedback_full_factorization: the two differ only in which struct they read, so the difference belongs in an argument, not in a copy), keeps the long = "..." rename guard, and is negative-controlled both ways. DECIDE THE PREDICATE BY PROBING IT, as .6 did: the anvil hunt table is a TABLE, so its shadow side extracts from row heads and exact parity is likely available — but run the delete-the-subject probe before choosing, because .6's whole finding was that the predicate the acceptance assumed was the wrong one. If the answer is NOT to gate it, the honest state is unmechanized-and-recorded, not fine. Docs + at most one enforcement script; DUT byte-identical.`
   Verification: `pending`
   Commit: `pending`
 
@@ -181,7 +190,8 @@ error from a document that told them it exists.
 | 3 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `done` | A mechanism **is** warranted, and it is **pair 5 of `check_enumeration_parity.sh`** — not an eleventh doctrine, because `ENUMERATION-PARITY` already owns this subject (`feedback_full_factorization`). The set is derived from `cli_overrides` in **source**, never from `anvil --help`. **Four negative controls fired**, including one that caught the `rustfmt`-wrap defect **live** in `cli_overrides` before it shipped. |
 | 4 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `done` | The copy is **deleted** (`0033` rung R1) and the section now points at the gated table. The registered **11** was **14** — an instrument difference, not a file change. And the copy was not merely behind: **9 of the 12** knobs in its *"not yet exposed via CLI"* list **have CLI flags**, 8 of them contradicted inside the same section. Deletion proven lossless first: **0** of the 107 flags lost documentation. |
 | 5 | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `done` | The copy is **deleted** (`0033` rung R1) and the destination now carries the contract. `.2`'s knob/mode criterion **settled it by failing**: `tool_matrix` has no `Overrides` projection and no knobs, so under that partition all 37 options are *mode* flags and a knob chapter owes **zero** rows. Unlike `.4`, R1 was **not lossless as found** — four options were documented nowhere else — so the destination was completed and losslessness **proven first**. The registered **22** is section-scope; the snapshot itself named **21**. |
-| 6 | `USER-GUIDE-CLI-TABLE-SHADOW.6` | `pending` | **Next.** The mechanism question, standing to `.5` as `.3` stood to `.2`. `.5`'s recorded contract makes the destination derivable ∧ growth-coupled ∧ silent, so `0033`'s three tests all pass. Two constraints `.3` did not face, both **measured** by `.5`: the region contains three foreign tokens (other tools' flags in prose) ⇒ **coverage, not exact parity**; and the set is **not substring-free** (`--slang` ⊂ `--slang-bin`, `--sv2v` ⊂ `--sv2v-bin`) ⇒ a naive `covers_` grep can pass a deleted entry. |
+| 6 | `USER-GUIDE-CLI-TABLE-SHADOW.6` | `done` | Gated as **`ENUMERATION-PARITY` pair 6** — and the acceptance's *"one-directional coverage"* was **overturned by measurement**. `covers_fenced_set` is **vacuous for 10 of the 35** options here, because the gate bullets correctly cross-reference each other (`--iverilog-compile` **eleven** times). Probed both ways on one mutated file: coverage **passes** with the entry deleted, bullet-head parity **fails**. Extracting *heads* makes the shadow a derived set ⇒ **exact parity, 35 = 35**, and both of `.5`'s stated constraints dissolve. **Six negative controls fired.** |
+| 7 | `USER-GUIDE-CLI-TABLE-SHADOW.7` | `pending` | **Next.** The third and last clap registry: `HuntCommand`. `.3` declined to gate it for a reason that was true then and **`.6` removed** — pair 5 needs an `Overrides` projection this struct lacks; pair 6's extractor reads a clap struct directly, and `HuntCommand` is that shape (**10** `#[arg(long)]` fields, extracted cleanly as a probe). Table measured **10/10**, so the subject is *mechanization*, not drift. |
 
 ## Decisions
 
@@ -292,6 +302,42 @@ error from a document that told them it exists.
   cut there is no copy — so `.6` asks whether the **canonical home** is gated, which is exactly
   what `.3` decided for the `anvil` table.
 
+- `2026-08-01` (`.6`): **The leaf's own acceptance was wrong, and measuring it is what found
+  that.** It stipulated *"one-directional coverage, never exact parity"* on `.5`'s observation
+  that three foreign tokens sit in the region. True, but not the binding constraint: measured
+  here, `covers_fenced_set` is **vacuous for 10 of the 35 options**, because the gate bullets
+  legitimately cross-reference each other. The fix is not a tighter *fence* — the prose is
+  correct and the cross-references are good documentation — but a stricter **predicate**.
+  Extracting bullet *heads* turns the shadow side into a derived set, and a derived set admits
+  exact parity precisely because prose cross-references are not heads.
+- `2026-08-01` (`.6`): **The vacuity claim was probed, not argued.** Both predicates were run
+  over one mutated file with the `--iverilog-compile` bullet deleted: coverage **passes**,
+  bullet-head parity **fails**. `DOCTRINE_ENFORCEMENT.md` §9's acceptance test for any
+  coverage-shaped check is *delete the subject and re-run it*; this leaf ran it **before**
+  choosing the predicate rather than after registering one.
+- `2026-08-01` (`.6`): **Exact parity dissolved both constraints `.5` recorded**, which is worth
+  stating because it is the argument for reaching past a leaf's stated acceptance rather than
+  satisfying it. The substring hazard (`--slang` ⊂ `--slang-bin`) is a property of *substring
+  matching*; set equality on extracted tokens never does substring matching. The
+  foreign-token cry-wolf risk is a property of *harvesting the whole region*; heads are not
+  prose.
+- `2026-08-01` (`.6`): **`total_or_fail` holds the tokenizer, not the `long` filter.** Excluding
+  a future `#[arg(short)]`-only or positional field is *correct*, so comparing "args seen"
+  against "options extracted" would fire on a legitimate field — and a gate that cries wolf gets
+  deleted, taking its real coverage with it. What must never differ is `#[arg(` occurrences vs
+  `#[arg(…)]<field>:` tokens matched; a gap there is the invisible-skip class the helper exists
+  for.
+- `2026-08-01` (`.6`): **A `long = "…"` override is a hard failure, not a silent exclusion.**
+  clap permits it, no field uses it today, and if one ever does the field name stops being the
+  flag name — so the extractor would publish a confident wrong set, the failure mode every
+  instrument note in this tree is about. It dies instead.
+- `2026-08-01` (`.6`): **Three options were promoted from parentheticals to their own bullets.**
+  `--iverilog-bin` / `--sv2v-bin` / `--slang-bin` sat inside other options' prose. That is a
+  documentation improvement the gate *required* rather than a concession to it: a reference list
+  in which one option hides inside another's sentence is worse for the reader too. Recorded
+  because the reverse — reshaping prose purely to satisfy a check — is the inversion this
+  script's own comments warn against, and the distinction is whether the reader gains.
+
 ## Open Questions
 
 - ~~Is the CLI flag table meant to be exhaustive, or a curated core?~~ **Answered by `.2`:**
@@ -316,11 +362,16 @@ error from a document that told them it exists.
   Unlike `.2` → `.4`'s 11-vs-14 this is not a correction — neither reading is wrong — but it is
   the **seventh** instrument note here, and the rule it repeats is the tree's oldest: an
   enumeration audit must state the region it measured, because "the block" is not a scope.
-- Should `.3`'s check also hold the **`anvil hunt`** table? **`.3` says not yet, and states why:**
-  `HuntCommand` has no `Overrides` projection to derive from — its flags map to a `HuntRequest`
-  built by `build_hunt_request`, which mixes CLI fields with defaults and derived values, so the
-  same one-line extractor does not transfer. The table is 10/10 today and the namespace is small
-  and stable. Left open rather than closed: the honest state is *unmechanized*, not *fine*.
+- ~~Should `.3`'s check also hold the **`anvil hunt`** table?~~ **`.3`'s reason was true and
+  `.6` removed it.** `.3` declined because `HuntCommand` has no `Overrides` projection to derive
+  from, so *pair 5's* extractor — which reads `cli_overrides`' projection onto
+  `config::Overrides` — does not transfer. Pair 6 does not read a projection at all: it reads
+  `#[arg(…)]<field>` pairs straight off a clap struct, and `HuntCommand` is exactly that shape
+  (**10** `#[arg(long)]` fields, extracted cleanly by pair 6's extractor as a probe). Measured
+  `2026-08-01`: the table is still **10/10**, so this is a *gap in mechanization*, not in
+  content. **Registered as `.7`** rather than folded in — one leaf per commit, and pair 6's
+  extractor has existed for one commit, so reusing it is a decision to make deliberately rather
+  than in the same breath as writing it.
 
 ## Blockers
 
@@ -353,6 +404,8 @@ error from a document that told them it exists.
 
 | `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `S derived TWICE and identical: the Cli struct in src/bin/tool_matrix.rs (35 #[arg(long)] fields, whitespace-stripped) + clap --help/--version, and the Options: block of tool_matrix --help, command-scoped => 37 both ways, empty diff. Book block, all numbers on the 37-option scope: fence-scoped 21 named / 16 absent; section-scoped 22 / 15, the extra being --diff-sim as a prose cross-reference. On the 35-DECLARED scope the fence named 19. Every number is published with the region AND the denominator it was taken against, because mixing a 37-scope numerator with a 35-scope denominator is this leaf's own defect class and the first draft of the book prose did exactly that before it was caught. CONTRACT DECIDED FIRST and derived, not chosen: .2's knob/mode partition settles it by FAILING — tool_matrix has no Overrides projection and no knobs, so all 37 are mode flags and the knob chapter owes zero rows => R1. LOSSLESSNESS MEASURED BEFORE ANY EDIT and it changed the plan: 4 declared options (--base-seed, --verilator-bin, --yosys-bin, --iverilog-bin) had NO documented home outside the snapshot, unlike .4's 0 of 107. Destination completed first: USER_GUIDE.md §Tool matrix sweeps gains "### Options" + a contract paragraph (exhaustive over the options tool_matrix DECLARES; clap built-ins outside the set, a derivable exclusion; 35 + 2 = 37 total and disjoint) and 7 entries (--out, --base-seed, --resume, --verilator-bin, --yosys-bin, --iverilog-bin, --divergence); re-measured after: 32 -> 35 declared named, 0 missing. Post-cut re-proof over USER_GUIDE.md + book/src/*.md + TOOLBOX.md: 0 of 35 lost a home. --divergence recorded as .1's trap in reverse (one spelling, two registries — documented under anvil hunt, absent as the matrix column). FOR .6, MEASURED: 3 foreign tokens inside the region (--ast-json, --binary, --language) => coverage not exact parity; and the set is NOT substring-free (--slang ⊂ --slang-bin, --sv2v ⊂ --sv2v-bin) => a naive covers_ grep can pass a deleted entry, which .3's set could not. scripts/check_doctrines.sh 10/10 (TABLE-RENDER-FIDELITY 2,528 rows / 442 tables / 259 files; MEMORY-ARCH 30 lines / 6,099 B against caps 50 / 6,144 — and the BYTE cap FIRED on the first MEMORY.md draft at 6,377 B, repaired by routing the next_action detail down into .6's Acceptance rather than trimming prose, which is the routing the failure message asks for); mdbook build exit 0; cargo check --all-targets / clippy -D warnings / fmt --check all exit 0; cargo test under ram_guard exit 0 — 1,087 passed / 0 failed / 19 ignored across 17 targets, UNPIPED` | `done` (docs-only; DUT byte-identical) |
 
+| `2026-08-01` | `USER-GUIDE-CLI-TABLE-SHADOW.6` | `pair 6 added to scripts/check_enumeration_parity.sh: extract_tool_matrix_options reads the #[arg(...)]<field> pairs of the Cli struct in src/bin/tool_matrix.rs, doc comments dropped FIRST (its /// prose quotes flags) then whitespace-stripped, long required as a whole attribute => 35 declared options; extract_tool_matrix_doc_heads takes the leading run of backticked flags heading each bullet in USER_GUIDE.md's new <!--enum:tool-matrix-options--> fence => 35; equal_sets, EXACT parity both directions, 0 missing / 0 extra. THE PREDICATE CHOICE WAS MEASURED, NOT ASSUMED: covers_fenced_set is vacuous for 10 of the 35 (gate bullets cross-reference each other; --iverilog-compile 11x), and a two-predicate probe over ONE mutated file with that bullet deleted has coverage PASSING and bullet-head parity FAILING. SIX NEGATIVE CONTROLS, all fired: delete the --resume bullet => FAIL naming it; add cli field probe_control_option => FAIL naming --probe-control-option; remove the fence => hard FAIL with its own message; neuter the word-boundary inner match => FAIL BOTH directions (--out missing AND --out DIR extra), the .1 code-span trap live, walked into by this leaf's own first draft; long = "continue" rename => hard FAIL naming the field; the vacuity probe. total_or_fail scoped to the TOKENIZER (#[arg( occurrences vs tokens matched), deliberately NOT to the long filter, because excluding a future short-only field is correct and gating it would cry wolf. Floor 35, shrink-coupled. src/bin/tool_matrix.rs verified byte-identical to HEAD after the controls; scripts/check_doctrines.sh 10/10; cargo check/clippy/fmt exit 0; cargo test green` | `done` (docs + one enforcement script; DUT byte-identical) |
+
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
@@ -361,6 +414,7 @@ error from a document that told them it exists.
 | `USER-GUIDE-CLI-TABLE-SHADOW.2` | `USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing` | Docs-only. Also corrects two of `.1`'s five numbers and registers `.4` (the book's second copy of the same shadow). Landed `cd7f24b` + `c793cf3` (hash backfill). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5` | Docs + one enforcement script. No `src/` change (the control's edit to `src/main.rs` was reverted and verified byte-identical to HEAD). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.4` | `USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy of the flag list` | Landed `ccfbc23`. Book + docs + one script comment; no `src/` change. Registers `.5` (the `tool_matrix` block, 22 of 37) and surfaces the mdBook dead-link class. |
+| `USER-GUIDE-CLI-TABLE-SHADOW.6` | `USER-GUIDE-CLI-TABLE-SHADOW.6 — gate the tool_matrix options as ENUMERATION-PARITY pair 6` | Docs + one enforcement script. No `src/` change (the control's edit to `src/bin/tool_matrix.rs` was reverted and verified byte-identical to HEAD). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.5` | `USER-GUIDE-CLI-TABLE-SHADOW.5 — give tool_matrix's options one home` | Landed `9b73e80`. Book + `USER_GUIDE.md` + docs + `DEVELOPMENT_NOTES.md` + the KM card; no `src/` change. Registers `.6` (the mechanism question) with two constraints `.3` did not face, both measured here. |
 
 ## Changelog
