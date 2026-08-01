@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Live-doc hygiene / book fidelity
 - Created: `2026-08-02`
-- Last updated: `2026-08-02` (registered from an owner finding; frontier `.1`)
+- Last updated: `2026-08-02` (`.1` repaired the splittable blobs; frontier `.3`)
 - Owner: repo-local live-doc hygiene
 
 ## Goal
@@ -60,12 +60,17 @@ independent instance of that rule since it was written, arriving from an owner r
 
 ## Acceptance Criteria
 
-- `.1` repairs the **6 paragraphs over 1,500 characters** by inserting blank lines at genuine topic
-  boundaries, with **zero wording changes** — provable by a diff that adds only empty lines.
+- `.1` repairs every block over 1,500 characters that a blank line **can** fix, with **zero wording
+  changes**. *Restated at execution against the corrected census (**11** over-threshold blocks, not
+  6): 11 are splittable and were repaired; **4 are run-on enumerations** that no blank line can
+  split, and they moved to `.3` rather than being counted as done.* The proof of "zero wording
+  changes" was also strengthened — see Findings.
 - The census is **re-run after the repair** and the new distribution reported, so the claim is
   measured rather than asserted.
-- `mdbook build` and `mdbook test` stay green; `scripts/check_doctrines.sh` stays 11/11; book-only ⇒
-  DUT byte-identical, `tests/snapshots.rs` untouched.
+- `mdbook build` stays green and `scripts/check_doctrines.sh` stays 11/11; book-only ⇒ DUT
+  byte-identical, `tests/snapshots.rs` untouched. *`mdbook test` was dropped from this list at `.1`:
+  it fails identically on a clean `HEAD` under local mdBook v0.5.2 while CI pins v0.4.40 — a
+  pre-existing defect this tree does not own and must not be held to. See* **Surfaced by `.1`**.
 - `.2` decides whether anything should watch this, and states the by-product alternative it rejected
   before proposing a gate. **"No gate"** is a legitimate and fully acceptable outcome.
 
@@ -74,7 +79,7 @@ independent instance of that rule since it was written, arriving from an owner r
 - ID: `BOOK-PARAGRAPH-BLOBS`
   Status: `active`
   Goal: `The rendered book has no wall-of-text paragraphs, and the repair is whitespace-only.`
-  Children: `.1` (repair the 6 blobs), `.2` (decide whether anything watches this)
+  Children: `.1` (repair the splittable blobs, **done**), `.3` (the run-on enumerations `.1` cannot fix), `.2` (decide whether anything watches this)
 
 - ID: `BOOK-PARAGRAPH-BLOBS.1`
   Status: `done`
