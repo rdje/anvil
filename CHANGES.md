@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — UNGATED-PRACTICE-AUDIT.0 — register the generalisation from NEGATIVE-CONTROL-HARNESS.1
+
+**Landed as:** _pending_. Previous: `b536139`, `dbc8d62`, `c5d6580`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Registration only — nothing measured yet.**
+
+**What.** A new tree owns a finding that outgrew the tree that produced it.
+`NEGATIVE-CONTROL-HARNESS.1` set out to measure one practice — *prove the mutation landed* — and the
+explanation it found is not about that practice at all.
+
+**The finding.** The **identical** primitive, *compare a file against a known baseline*, appears
+**27 times across 6 trees** proving a control's **revert** landed and **twice** proving its
+**mutation** did. Same authors, same rule in mind, same files. The cause is structural: a failed
+*revert* leaves a **dirty** tree that the pre-commit driver, `COMMIT.md` §10's `git status` review
+and the pivot rule all punish; a failed *mutation* leaves a **clean** tree that all three read as
+success. Hence the rule: **a practice survives where a gate observes it, and erodes where none
+does.**
+
+**Why a tree and not a paragraph.** The rule makes a **testable prediction** — that other practices
+this project believes it follows are unobserved and therefore eroding right now — and a prediction
+recorded only as narrative is never tested. It is already written in `DEVELOPMENT_NOTES.md` and
+decision `0047`; what is *not* recorded anywhere is an obligation to check whether it is true.
+
+**Registered as a hypothesis under test, not as a defect, and that framing is deliberate.** No
+erosion has been measured. *"The rule predicts nothing here"* is an acceptable and fully reportable
+outcome — a tree that can only confirm its own premise measures nothing, which is the
+`USER-GUIDE-CLI-TABLE-SHADOW.7` rule *do not manufacture a finding to justify a leaf*, applied
+before the leaf rather than after it.
+
+**Two obstacles stated up front.** *"Practices this project believes it follows"* is **not** an
+enumerated set, so `.1` must **derive** its candidates from an authoritative source — `COMMIT.md`'s
+non-negotiable checklist, `TOOLBOX.md` Part 2's eight boxes, or the complement of the
+`DOCTRINE_ENFORCEMENT.md` §10 registry — state which it chose, and report what the others would have
+given. And a likely **third class** is already named: `COMMIT.md`'s boxes are **self-ticked**, and
+§6.1 says a tick is a claim rather than proof — a practice watched by something that cannot see it
+is worse than an unwatched one, because it *looks* observed.
+
+**Ownership search run, not assumed.** `NEGATIVE-CONTROL-HARNESS` is closed and held one practice;
+`DOCTRINE-ENFORCEMENT-ADOPTION` owns turning a doctrine into a check, not deciding whether a
+practice needs one; `SHADOW-ENUMERATION-SWEEP` is the nearest shape and is closed, and its subject
+was hand-maintained lists.
+
+**Validation.** Docs-only. `scripts/check_doctrines.sh` **11/11**. No `src/`, `tests/` or
+`examples/` touched ⇒ **DUT byte-identical**; `tests/snapshots.rs` untouched.
+
+**Impact.** One registered tree with frontier `.1`; **no repair attempted and none implied.** If
+`.1` finds unobserved-but-healthy practices, the interesting output is what distinguishes them — a
+plausible answer being that they leave a visible artifact anyway, in which case the real rule is
+about *observability* rather than gates, and the tree should say so.
+
+**Files touched.** `docs/tasks/UNGATED-PRACTICE-AUDIT.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-01 — NEGATIVE-CONTROL-HARNESS.3 — the mutation refuses to no-op (tree CLOSED)
 
 **Landed as:** `dbc8d62`. Previous: `c5d6580`, `46f2af1`, `83a2a5b`.
