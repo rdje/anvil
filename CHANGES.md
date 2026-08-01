@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty
 
-**Landed as:** `pending`. Previous: `614e977`, `f8b9603`, `ac05f01`.
+**Landed as:** `5e3e9a0`. Previous: `614e977`, `f8b9603`, `ac05f01`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **No book edit.**
 
 **What.** `BOOK-LINK-INTEGRITY.1` measures the mdBook for **both** dead-link classes — dead file

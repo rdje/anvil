@@ -278,7 +278,7 @@ rather than an assertion inside another.
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
 | registration | `USER-GUIDE-CLI-TABLE-SHADOW.4 — backfill the landed commit hash` | Tree registered alongside the hash backfill; no leaf executed yet. |
-| `.1` | `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; the anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
+| `.1` | `5e3e9a0` — `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
 
 ## Changelog
 
