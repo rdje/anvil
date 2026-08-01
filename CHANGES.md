@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — RESUME-POINTER-CONTRACT.1 — the hypothesis is false; close the tree
 
-**Landed as:** pending. Previous: `f8b9603`, `ac05f01`, `cf5deac`.
+**Landed as:** `614e977`. Previous: `f8b9603`, `ac05f01`, `cf5deac`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** `RESUME-POINTER-CONTRACT` is **closed the day after it was registered**, because the
