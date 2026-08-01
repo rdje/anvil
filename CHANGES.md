@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.5 — the authoring-path check, registered
 
-**Landed as:** `pending`. Previous: `6ca3c29`.
+**Landed as:** `1cd46c3`. Previous: `6ca3c29`.
 **Docs, scripts and hooks only** ⇒ **DUT byte-identical**; no `src/`, `tests/` or `examples/`
 change. Implements decision
 [`0045`](docs/decisions/0045-changes-entry-placement-authoring-path-check.md); the
