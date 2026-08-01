@@ -309,7 +309,7 @@ error from a document that told them it exists.
 | `USER-GUIDE-CLI-TABLE-SHADOW.1` | `USER-GUIDE-CLI-TABLE-SHADOW.1 — audit + register the CLI-table shadow` | Docs-only; no `USER_GUIDE.md` edit. |
 | `USER-GUIDE-CLI-TABLE-SHADOW.2` | `USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing` | Docs-only. Also corrects two of `.1`'s five numbers and registers `.4` (the book's second copy of the same shadow). Landed `cd7f24b` + `c793cf3` (hash backfill). |
 | `USER-GUIDE-CLI-TABLE-SHADOW.3` | `USER-GUIDE-CLI-TABLE-SHADOW.3 — gate the table as ENUMERATION-PARITY pair 5` | Docs + one enforcement script. No `src/` change (the control's edit to `src/main.rs` was reverted and verified byte-identical to HEAD). |
-| `USER-GUIDE-CLI-TABLE-SHADOW.4` | `USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy; 9 of its 12 exemptions were false` | Book-only (`knobs.md`, `architecture.md`). Net −92 lines. Registers `.5` (the `tool_matrix` block, 22 of 37). |
+| `USER-GUIDE-CLI-TABLE-SHADOW.4` | `USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy of the flag list` | Landed `ccfbc23`. Book + docs + one script comment; no `src/` change. Registers `.5` (the `tool_matrix` block, 22 of 37) and surfaces the mdBook dead-link class. |
 
 ## Changelog
 

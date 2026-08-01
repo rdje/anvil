@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.4 — delete the book's copy; 9 of its 12 exemptions were false
 
-**Landed as:** *(backfilled next slice)*. Previous: `5ce2dd3`, `9a7772b`, `c793cf3`.
+**Landed as:** `ccfbc23`. Previous: `5ce2dd3`, `9a7772b`, `c793cf3`.
 **Book-only (`knobs.md`, `architecture.md`); no `src/` change** ⇒ **DUT byte-identical**.
 
 **What.** `book/src/knobs.md` §*CLI coverage* carried a second, hand-maintained copy of the
