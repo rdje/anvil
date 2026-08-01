@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.5 — card the seam rule, and the missing entry for it
 
-**Landed as:** `pending`. Previous: `beb1ebb`, `8c93d1e`, `1cd46c3`.
+**Landed as:** `2203574`. Previous: `beb1ebb`, `8c93d1e`, `1cd46c3`.
 **Docs-only** ⇒ **DUT byte-identical**. This entry covers **two** commits, and says so rather
 than pretending otherwise: `beb1ebb` (the fact card) and this one (the entry `beb1ebb` should
 have carried).
