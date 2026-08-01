@@ -1,6 +1,50 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — RESUME-POINTER-CONTRACT.0 — register the owner finding on the `MEMORY.md` cap
+
+**Landed as:** pending. Previous: `cf5deac`, `4f36cde`, `702695d`.
+**Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Nothing is repaired.**
+
+**What.** A task tree registering an owner finding so it survives a session boundary. The agent
+reported `MEMORY-ARCH`'s **byte** cap firing **three times in one session** and framed it as
+*"the doctrine working as designed"*. The owner rejected that: *"firing so often it not normal to
+me. Maybe the solution offered by the doctrine is not the most appropriate one."* **The frequency
+of a gate firing is evidence about its remedy, and nothing in the repo was treating it as such.**
+
+**Measured at `cf5deac`.** `MEMORY.md` is **30 lines / 6,043 bytes** — the **line** cap **60 %**
+used, the **byte** cap **98 %** used. That is **201 B/line** against the **122** the cap was
+budgeted for and the **64** decision `0040` called demonstrated-achievable. The three largest
+lines are not pointer content: **995 B** of lane invariants, **812 B** under a field whose value
+is `blockers: none`, and **570 B** summarising what three leaves did.
+
+**The hypothesis to test — stated as a hypothesis, not a finding.** The prescribed remedy
+(*route down, leave a pointer*) may be **lossy in a way the standard does not acknowledge**: a
+pointer converts *"the next session will see this"* into *"the next session may look this up"*.
+Each session then re-inlines the rules it most fears being ignored, and the cap re-fires — three
+firings would be **one loop running three times**, not three independent overflows. The candidate
+missing piece is a category the four-layer model has no home for: **rules that must be RE-READ,
+not merely retrievable** — for which the repo already has an uncapped guaranteed-read surface
+(`SESSION_BOOTSTRAP.md`, re-injected by a `PostCompact` hook).
+
+**Deliberately not done:** no cap raised (decision `0040` and the check's own message forbid it as
+a fix), no `MEMORY.md` content restructured (that is the loop), no direction chosen.
+
+**Blocked twice:** the owner deferred the discussion; and the overlap with
+`OVERFLOW-DESTINATION-INSTRUMENTATION` — which owns *"a cap that redirects overflow must also
+check where the overflow lands"* and whose `.2` **produced this very cap** — must be settled
+before either moves (`feedback_full_factorization`).
+
+**Note on the `MEMORY.md` edit in this commit.** Adding the pointer to a file at 98 % of its cap
+was done by **routing the closed tree's summary out to layer B**, not by trimming prose — the
+remedy applied correctly, on content that genuinely belonged elsewhere. It landed at **6,079 B**.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10**; `TABLE-RENDER-FIDELITY` 2,531 rows / 443
+tables / 259 files. Docs-only ⇒ DUT byte-identical.
+
+**Files touched.** `docs/tasks/RESUME-POINTER-CONTRACT.md` (new), `docs/TASK_TREE.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.7 — gate the `anvil hunt` flags; close the tree
 
 **Landed as:** `4f36cde`. Previous: `702695d`, `6e95494`, `04ef949`.
