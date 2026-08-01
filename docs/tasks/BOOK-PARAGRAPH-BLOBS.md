@@ -144,7 +144,7 @@ independent instance of that rule since it was written, arriving from an owner r
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.0` (registration) | `BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
+| `.0` (registration) | `ebd7869` — `BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 
 ## Changelog
 

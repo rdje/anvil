@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.0 — register the owner finding on wall-of-text paragraphs
 
-**Landed as:** `pending`. Previous: `9060993`, `0e4654f`, `1dedbd8`.
+**Landed as:** `ebd7869`. Previous: `9060993`, `0e4654f`, `1dedbd8`.
 **Docs-only; no `src/` and no `book/src/` change** ⇒ **DUT byte-identical**. **Registration only —
 nothing repaired yet.**
 
