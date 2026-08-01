@@ -129,8 +129,9 @@ requires reading it.
   single registry+driver, run by the git hook and by CI. Live registry:
   <!--enum:doctrine-ids-->`MEMORY-ARCH`, `KNOWLEDGE-MAP`, `CODE-CHANGE-EVIDENCE`,
   `TASK-TREE-OWNERSHIP`, `NO-BOOT-VOLUME-REFS`, `EVIDENCE-CITATIONS`,
-  `ENUMERATION-PARITY`, `README-GROWTH`, and `TABLE-RENDER-FIDELITY`<!--/enum:doctrine-ids--> (the former keeps *this* file a
-  landing page) — a list itself gated by `ENUMERATION-PARITY`.
+  `ENUMERATION-PARITY`, `README-GROWTH`, `TABLE-RENDER-FIDELITY`, and
+  `CHANGES-ENTRY-PLACEMENT`<!--/enum:doctrine-ids--> (`README-GROWTH` keeps *this*
+  file a landing page) — a list itself gated by `ENUMERATION-PARITY`.
 
 ## Where content goes
 This README is a landing page under [`README_POLICY.md`](README_POLICY.md),

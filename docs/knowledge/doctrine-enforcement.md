@@ -55,7 +55,16 @@ beside a list is a second copy of it):
   excess cells and that content never reaches a rendered page —
   `OVERFLOW-DESTINATION-INSTRUMENTATION.6` measured **36** such rows dropping
   **57,283** characters. Escape-aware and fence-aware; deliberately silent on
-  rows with FEWER cells, which the spec pads without losing anything).<!--/enum:doctrine-ids-->
+  rows with FEWER cells, which the spec pads without losing anything).
+- `CHANGES-ENTRY-PLACEMENT` → `scripts/check_changes_entry_placement.sh`
+  (structural: if the staged `CHANGES.md` diff adds a `## ` heading, the
+  resulting file's first heading must be one of the added lines — decision
+  `0045`. Keyed on the **authoring path**, needing no date and no hash, because
+  a date-keyed scan cries wolf and a hash-keyed one is vacuous: *a detector must
+  not depend on a field that the defect it detects also destroys*. Measured
+  **3 fires / 0 false alarms** over 766 commits. **Not** scope-aware — both
+  original offenders were docs-only, which is the exemption that let them
+  through).<!--/enum:doctrine-ids-->
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
 `src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`). `.githooks/pre-commit`

@@ -36,6 +36,7 @@ DOCTRINES=(
   "ENUMERATION-PARITY|every declared docs/script enumeration pair is in parity with the set it mirrors (decision 0033); classified pairs only — this is not a shadow detector|scripts/check_enumeration_parity.sh"
   "README-GROWTH|README.md stays a landing page within its reviewed line and byte caps, and the project-owned README_POLICY.md exists beside it (decision 0036; owner directive 2026-07-30, recorded in README_POLICY.md)|scripts/check_readme_growth.sh"
   "TABLE-RENDER-FIDELITY|no tracked *.md table row over-splits past its header, since GFM drops the excess cells and that content never reaches a rendered page (OVERFLOW-DESTINATION-INSTRUMENTATION.6 measured 36 such rows dropping 57,283 characters); escape-aware and fence-aware, silent on short rows|scripts/check_markdown_tables.sh"
+  "CHANGES-ENTRY-PLACEMENT|if the staged CHANGES.md diff adds a '## ' heading, the resulting file's first heading must be one of the added lines — the authoring-path check of decision 0045, measured 3 fires / 0 false alarms over 766 commits; NOT scope-aware, since both original offenders were docs-only|scripts/check_changes_entry_placement.sh"
 )
 
 fail=0

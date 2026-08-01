@@ -514,7 +514,21 @@ Knowledge Map. The live registry:
   cells that were a row's own link to its detail file. Escape-aware and
   fence-aware; deliberately silent on rows with *fewer* cells, which the spec
   pads without losing anything — this gate is about content loss, not
-  tidiness.<!--/enum:doctrine-ids-->
+  tidiness.
+- **`CHANGES-ENTRY-PLACEMENT`** — a newly added `CHANGES.md` entry is at the
+  **top** of the file: *if the staged `CHANGES.md` diff adds at least one
+  `## ` heading, the first `## ` heading in the resulting file must be one of
+  those added lines* (decision `0045`). It needs **no date and no commit
+  hash**, which is the whole reason it works: both content-keyed designs were
+  measured dead first — a date-keyed ordering scan **cries wolf** (2 false
+  findings of 3), and a hash-keyed one is **vacuous** (0 of 3 real offenders
+  visible), because *the stale entry template that misplaces an entry is the
+  same one that omits its provenance line*. Measured over **766** commits
+  before it was registered: 664 ok, 99 correctly skipped, **3 fires, all true
+  positives, 0 false alarms** — and it found a third offender that three prior
+  leaves had missed. Deliberately **not** scope-aware: both original offenders
+  were docs-only commits, and that exemption is exactly what let them
+  through.<!--/enum:doctrine-ids-->
 
 **How that list is checked, and what it took to make the check real**
 (decision `0037`). Each site that publishes a registry marks its

@@ -5,6 +5,61 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — A test seam that bypasses the extraction under test is a tautology — `CHANGES-ENTRY-PLACEMENT.5`
+
+Implementing decision `0045` as the tenth registered doctrine raised exactly one design
+question worth writing down, and the obvious answer to it was wrong.
+
+**The seam question.** ANVIL's two scope-aware checks —
+`scripts/check_diagnosis_evidence.sh` and `scripts/check_task_tree_ownership.sh` — both carry
+a `DOCTRINE_STAGED_OVERRIDE` env seam so their self-tests can hand them a synthetic staged
+file list. Copying that pattern into `check_changes_entry_placement.sh` is the path of least
+resistance, and it would have produced controls that pass while proving nothing.
+
+The reason is structural, not stylistic. For those two checks the staged list is *input*: the
+assertion under test is "does this list contain `CHANGES.md`", and a synthetic list exercises
+that assertion faithfully. For **this** check the staged state is not input, it is the
+**subject**. The entire predicate is a relation between two git extractions —
+
+```sh
+git diff --cached -U0 -- CHANGES.md   # which `## ` headings does this commit ADD?
+git show :CHANGES.md                  # what is the FIRST `## ` heading in the result?
+```
+
+— and those two commands are the only places the check can be wrong. A seam that supplies
+their answers tests the comparison, which is one line of `grep -qxF`, and skips everything
+that could actually break: the `-U0` choice that makes every `+`-leading line an added line,
+the `+++ b/…` header not being mistaken for content, and the deliberate read of the **index**
+rather than the worktree.
+
+So the controls run in a throwaway git repository under `.cache/anvil-sandbox/` with a copy of
+the script in it, and the real plumbing executes. The general rule, worth carrying to the next
+check: **a test seam that bypasses the extraction under test converts an oracle into a
+tautology.** Reach for a seam when the bypassed thing is *input*; refuse it when the bypassed
+thing is the *subject*.
+
+**A gate whose every path is an exemption needs a floor.** This check is silent on a
+provenance backfill, on a typo fix, and on any commit that does not stage `CHANGES.md` — 99 of
+768 commits in history, and correctly so. That shape is comfortable right up to the moment it
+becomes the failure mode: a gate made entirely of exemptions goes green forever, and reports
+`ok` while doing it, the instant its subject stops existing. Hence the untracked-`CHANGES.md`
+hard failure, on the same reasoning as `check_enumeration_parity.sh`'s count floors.
+
+**The interaction that would have made the sanctioned repair unlandable.** Decision `0038`'s
+repair for a *past* misplacement is an additive **pointer stub** inserted mid-file — and a stub
+carries a `## ` heading of its own. A naive reading of the predicate says such a commit fires.
+It does not, because `COMMIT.md` §2 requires a top entry on every commit regardless, so the stub
+always lands beside one; measured against `80edd42`, which added three headings and is not among
+the three historical fires. This was verified as a control rather than reasoned about, because
+the failure mode — a new doctrine that quietly forbids an older doctrine's repair — is the kind
+that surfaces months later in the one commit that needs it.
+
+**What was deliberately not built.** Heading *depth* is not policed. An entry mis-written as
+`###` is invisible to this check, and extending it would cry wolf on every commit that adds a
+subsection to a landed entry — 86 such in-body `###` subheadings exist today. `## ` is the
+convention all 680 headings use and the one `COMMIT.md`'s template produces. The limit is
+written into the script's header rather than left for a future author to rediscover as a bug.
+
 ## 2026-08-01 — A detector must not depend on a field the defect also destroys — `CHANGES-ENTRY-PLACEMENT.4`
 
 Three candidate mechanisms for *"was the `CHANGES.md` entry added at the top?"*. Two were

@@ -1,9 +1,121 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.5 — the authoring-path check, registered
+
+**Landed as:** `pending`. Previous: `6ca3c29`.
+**Docs, scripts and hooks only** ⇒ **DUT byte-identical**; no `src/`, `tests/` or `examples/`
+change. Implements decision
+[`0045`](docs/decisions/0045-changes-entry-placement-authoring-path-check.md); the
+`CHANGES-ENTRY-PLACEMENT` tree **closes**.
+
+**What.** `CHANGES-ENTRY-PLACEMENT` is live as the **tenth** registered doctrine —
+`scripts/check_changes_entry_placement.sh`, one `DOCTRINES` registry row, one
+`DOCTRINE_ENFORCEMENT.md` §10 row, and the `ENUMERATION-PARITY`-gated doctrine-id list updated
+at **all four** fenced sites (`README.md`, `book/src/architecture.md`,
+`docs/knowledge/doctrine-enforcement.md`, `CODEBASE_ANALYSIS.md`). The predicate is `0045`'s,
+unchanged and unextended:
+
+> If a commit's staged `CHANGES.md` diff adds at least one `## ` heading, the first `## `
+> heading in the resulting file must be one of those added lines.
+
+**Why it is keyed on the authoring path and not on the file.** Both content-keyed designs were
+measured dead before this one was written: a **date**-keyed ordering scan *cries wolf* (3
+findings, **2 false**), and a **hash**-keyed one is *vacuous* (**0 of 3** real offenders
+visible). The hash failure is the deep one — the stale entry template that misplaces an entry
+is the same one that omits its `Landed as:` line — and it yields the transferable rule `0045`
+records: **a detector must not depend on a field that the defect it detects also destroys.**
+
+**The evidence was REPRODUCED, not re-derived.** That was the acceptance, and it is the more
+interesting half of this leaf. The historical replay uses the *same two extractions* the
+shipped script uses — added headings by `sed` over the `-U0` staged diff, first heading by
+`sed` over the resulting file — so it re-runs the predicate rather than an approximation of
+it:
+
+| commit point | commits | ok | skipped | fires |
+| --- | ---: | ---: | ---: | ---: |
+| `928817f` (decision `0045`) | 766 | 664 | 99 | **3** |
+| `6ca3c29` (this leaf) | 768 | 666 | 99 | **3** |
+
+The **fire set is identical** — `f9cf50a`, `715019b`, `abf7090` — and the delta is accounted
+for line by line rather than waved at: `6ca3c29` is exactly two commits later, both of which
+added an entry at the top, so `ok` rose by two while `skipped` and `fires` did not move.
+
+**All three of `0045`'s controls ran on the real staged path**, in a throwaway git repository
+under `.cache/anvil-sandbox/` holding a copy of the script, so `git diff --cached -U0` and
+`git show :CHANGES.md` are exercised for real:
+
+| control | staged state | verdict |
+| --- | --- | --- |
+| 1 | the same new entry placed at the **top** | **silent**, exit 0 |
+| 2 | the same new entry appended at the **bottom** | **FIRES**, exit 1 |
+| 3 | provenance-only hash backfill, no new heading | **skips**, exit 0 |
+
+*Same content, different placement, opposite verdict.*
+
+**Why not the existing `DOCTRINE_STAGED_OVERRIDE` env seam.** `check_diagnosis_evidence.sh`
+and `check_task_tree_ownership.sh` both carry one for their self-tests, and copying that
+pattern was the obvious move — and the wrong one. The two things that can actually be wrong in
+*this* check **are** the two git extractions; a seam handing the script a pre-computed staged
+set would have tested everything except them. **A test seam that bypasses the extraction under
+test converts an oracle into a tautology.**
+
+**Three controls beyond the required three**, each closing a real hole rather than padding the
+list:
+
+| control | staged state | verdict | what it protects |
+| --- | --- | --- | --- |
+| 4 | some *other* file staged, `CHANGES.md` untouched | silent, exit 0 | the gate never blocks unrelated work |
+| 5 | a `0038` **mid-file pointer stub** + a top entry | passes (2 headings added, first is one of them) | this tree's own sanctioned repair mechanism stays landable |
+| 6 | `CHANGES.md` **untracked** | **FAILS**, exit 1 | the anti-vacuity floor |
+
+Control 6 is the one the design owed. Every other path through this check is an *exemption* —
+a backfill, a typo fix, a commit that never touches the file, which is 99 of 768 commits and is
+correct — so without a floor the gate would go green forever the moment its subject stopped
+existing. Same reasoning as `check_enumeration_parity.sh`'s count floors: *a check that matches
+nothing must die loudly rather than pass vacuously.*
+
+**Vacuity-probed per decision `0037`, and the probe was proven capable of failing before it
+was believed.** The comparison was neutered to `if true` and the *same breached tree* re-checked
+— it **passed**, so control 2 fires from **this** assertion and nothing else. The neutered
+script was `diff`ed against its backup (1 line changed) rather than assumed to have applied —
+the standing gotcha that *a probe that cannot fail proves nothing* — and restoration was proven
+by `sha256` identity against the repo copy, not by re-reading.
+
+**Not scope-aware, as the acceptance required.** There is no code-path glob anywhere in the
+script: it triggers on the staged `CHANGES.md` diff regardless of what else the commit touches.
+Both original offenders were **docs-only** commits, and that exemption is exactly what let them
+through. Its one exemption is intrinsic rather than declared — a commit that adds no `## `
+heading has no subject.
+
+**Two honest limits are written into the script rather than left to be discovered.** It governs
+the `## ` convention only: a gate that also policed heading *depth* would cry wolf on every
+commit that adds a subsection to a landed entry, and 86 such in-body `###` subheadings exist
+today. And the control-5 interaction passes only because `COMMIT.md` §2 mandates a top entry on
+every commit anyway — measured against `80edd42`, the leaf that inserted the two pointer stubs,
+which added three headings and is not among the three fires.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10** after `git add`; `mdbook build` clean;
+`cargo check --all-targets` clean. Historical replay and six controls as tabulated above, plus
+the `0037` vacuity probe. The gate **passed its own registration commit** — this entry is the
+first `## ` heading in the file and the check reports `ok` naming it.
+
+**Impact.** The class this tree opened on — *a check that can only see the file, never the
+authoring act* — is now covered at both E3 (the git hook) and E4 (CI). Two `pending` leaf
+commit hashes in the tree were backfilled to `e85ec03` and `1df0071` under `0038`'s Amendment,
+which licenses supplying a value the record itself left explicitly pending. `0038`'s ruling is
+untouched: a **landed** entry is still never moved, and what the failure message asks an author
+to move is the entry still sitting in their index.
+
+**Files touched.** `scripts/check_changes_entry_placement.sh` (new),
+`scripts/check_doctrines.sh`, `DOCTRINE_ENFORCEMENT.md`, `README.md`,
+`book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md`, `CODEBASE_ANALYSIS.md`,
+`docs/tasks/CHANGES-ENTRY-PLACEMENT.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`,
+`CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.1 — audit + register the CLI-table shadow
 
-**Landed as:** `pending`. Previous: `1df0071`.
+**Landed as:** `6ca3c29`. Previous: `1df0071`.
 **Docs-only** ⇒ **DUT byte-identical**; no `src/` and **no `USER_GUIDE.md`** change — this
 leaf audits and registers, it does not repair.
 
