@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — UNGATED-PRACTICE-AUDIT.0 — register the generalisation from NEGATIVE-CONTROL-HARNESS.1
 
-**Landed as:** _pending_. Previous: `b536139`, `dbc8d62`, `c5d6580`.
+**Landed as:** `ef6413c`. Previous: `b536139`, `dbc8d62`, `c5d6580`.
 **Docs-only; no `src/` change** ⇒ **DUT byte-identical**. **Registration only — nothing measured yet.**
 
 **What.** A new tree owns a finding that outgrew the tree that produced it.

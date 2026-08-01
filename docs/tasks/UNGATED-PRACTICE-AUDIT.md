@@ -141,7 +141,7 @@ Part 2's boxes, the `DOCTRINE_ENFORCEMENT.md` §10 registry's complement — and
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.0` (registration) | `UNGATED-PRACTICE-AUDIT.0 — register the generalisation from NEGATIVE-CONTROL-HARNESS.1` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
+| `.0` (registration) | `ef6413c` — `UNGATED-PRACTICE-AUDIT.0 — register the generalisation from NEGATIVE-CONTROL-HARNESS.1` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 
 ## Changelog
 
