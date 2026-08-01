@@ -2819,7 +2819,8 @@ In `ir::validate::validate_design`:
   `ENUMERATION-PARITY` → `scripts/check_enumeration_parity.sh`;
   `README-GROWTH` → `scripts/check_readme_growth.sh`;
   `TABLE-RENDER-FIDELITY` → `scripts/check_markdown_tables.sh`;
-  `CHANGES-ENTRY-PLACEMENT` → `scripts/check_changes_entry_placement.sh`<!--/enum:doctrine-ids-->). The driver
+  `CHANGES-ENTRY-PLACEMENT` → `scripts/check_changes_entry_placement.sh`;
+  `BOOK-LINK-TARGETS` → `scripts/check_book_link_targets.sh`<!--/enum:doctrine-ids-->). The driver
   collects all results, meta-checks each registered check exists+executable,
   and exits nonzero on any breach. `.githooks/pre-commit` (E3) and
   `.github/workflows/ci.yml` (E4) both run it; the two code-scoped checks are

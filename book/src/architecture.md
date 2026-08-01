@@ -528,7 +528,21 @@ Knowledge Map. The live registry:
   positives, 0 false alarms** — and it found a third offender that three prior
   leaves had missed. Deliberately **not** scope-aware: both original offenders
   were docs-only commits, and that exemption is exactly what let them
-  through.<!--/enum:doctrine-ids-->
+  through.
+- **`BOOK-LINK-TARGETS`** — every markdown link target in `book/src`
+  resolves to a real file **inside** `book/src` (decision `0046`). mdBook
+  rewrites every `.md` target to `.html`, so a link from a chapter out to a
+  repo-root file renders as a path that does not exist: it works when the
+  Markdown source is read on GitHub and is **dead in this book**, and
+  `mdbook build` exits `0` on it. The fix is to **name** the file in
+  backticks rather than link to it. The check is **source-level**, so it
+  needs no `mdbook` — a rendered-output check would simply *skip* on a clone
+  that lacks the tool, which is where a backstop is needed most. It tests
+  **escape before existence**, because the obvious *"does the target
+  exist?"* test passes the very defect it was written for: the repo-root
+  file *does* exist. `#fragments` are deliberately out of scope — the
+  anchor class was measured empty, and a home-grown slug model would cry
+  wolf.<!--/enum:doctrine-ids-->
 
 **How that list is checked, and what it took to make the check real**
 (decision `0037`). Each site that publishes a registry marks its

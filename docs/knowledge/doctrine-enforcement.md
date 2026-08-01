@@ -64,7 +64,17 @@ beside a list is a second copy of it):
   not depend on a field that the defect it detects also destroys*. Measured
   **3 fires / 0 false alarms** over 766 commits. **Not** scope-aware — both
   original offenders were docs-only, which is the exemption that let them
-  through).<!--/enum:doctrine-ids-->
+  through).
+- `BOOK-LINK-TARGETS` → `scripts/check_book_link_targets.sh` (structural: every
+  markdown link target in `book/src` resolves to a real file **inside**
+  `book/src` — decision `0046`. mdBook rewrites `.md` → `.html`, so a link out
+  of the book renders dead while resolving on GitHub, and `mdbook build` exits
+  `0`. **Escape is tested before existence**, because *"does the target exist?"*
+  passes the defect: the repo-root file *does* exist. Source-level, so no
+  `mdbook` is required; count-floored on a **derived** floor (`SUMMARY.md` must
+  link every chapter); whole-file rather than line-wise, because a link's text
+  may wrap across a newline; fence-aware. Anchors deliberately out of
+  scope).<!--/enum:doctrine-ids-->
 
 The two code-scoped checks exempt pure docs / workflow commits (they govern only
 `src/`/`tests/`/`examples/`/`build.rs`/`Cargo.toml`/`Cargo.lock`). `.githooks/pre-commit`

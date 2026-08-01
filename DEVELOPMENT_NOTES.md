@@ -5,6 +5,51 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — The new gate's own extractor had the silent hole it was built to end — `BOOK-LINK-INTEGRITY.3`
+
+`BOOK-LINK-TARGETS` was written to stop a *silent* miss: a book link that renders dead while
+`mdbook build` exits 0. Its **first draft carried a silent miss of its own**, and how it was
+caught is the durable part.
+
+### Found by arithmetic, not by review
+
+The draft reported **226** links. `.1`'s independent instrument had reported **228** over the
+same tree. Two is a rounding error to the eye, and the draft passed every functional control
+written at that point. Chasing the difference turned up markdown links whose **text wraps across
+a newline**:
+
+```markdown
+[Introspection & Analysis
+Schemas](api-introspection.md)
+```
+
+A line-wise scanner never sees them. Both happen to resolve today, so nothing was broken — but a
+wrapped link that **escaped** `book/src` would have passed the new gate silently. That is
+[[extractor-charset-narrower-than-source]] arriving *inside the check written to end a class of
+silent misses*.
+
+**The general rule:** the number a check reports is itself a claim, and it must be reconciled
+against an independently-derived count. Had `.1` produced only a verdict instead of a
+denominator, the hole would have shipped inside the gate. This is the concrete payoff of "derive
+`S` twice", and the reason a measurement leaf should publish its denominators even when the
+verdict is what everyone wants.
+
+### The countermeasure that failed was a habit
+
+Proving the fix load-bearing meant reverting to line-wise and confirming the gate then *misses*
+the wrapped escape. **That control took three attempts to actually run.** Twice the mutating
+substitution silently failed to match, the tree was unchanged, and the check "passed" — which is
+indistinguishable from a control that correctly did not fire, the exact trap recorded at
+`USER-GUIDE-CLI-TABLE-SHADOW.7`.
+
+The lesson had already been learned and written down, and it still cost two false results,
+because it was carried as a **habit**. Where it *was* mechanised — the `probe` helper in
+`.cache/book_link_controls.sh` asserts its marker appears before reading any verdict — it did not
+fail once. Both failures were in ad-hoc probes written outside the harness. A discipline that
+lives in a helper survives; a discipline that lives in the author's attention does not.
+
+---
+
 ## 2026-08-01 — A check can be vacuous against the very defect it was written for — `BOOK-LINK-INTEGRITY.1`
 
 The reusable lesson from this leaf is not the counts. It is that the **obvious** check for a

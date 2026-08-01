@@ -1,6 +1,97 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine
+
+**Landed as:** `pending`. Previous: `6539c32`, `3a48cc4`, `8ff64cd`.
+**Docs + book + one check script; no `src/` change** ⇒ **DUT byte-identical**.
+**Closes `BOOK-LINK-INTEGRITY`** — all three leaves done the day the tree was registered.
+
+**What.** The mechanism question is answered **yes**. `BOOK-LINK-TARGETS`
+(`scripts/check_book_link_targets.sh`) is registered as the **11th** doctrine: *every markdown
+link target in `book/src` resolves to a real file inside `book/src`.*
+
+**The obstacle the tree was opened with is dissolved, not tolerated.** Registration recorded an
+honest blocker: link-checking the *rendered* book needs `mdbook`, which ANVIL does not vendor, so
+such a check would **skip on a fresh clone** — exactly the failure `USER-GUIDE-CLI-TABLE-SHADOW.3`
+rejected for `anvil --help`. `.2`'s convention removed the need to render at all. The gate is
+**source-level**, needs no `mdbook`, and has no skip path.
+
+**It tests escape before existence, and that order is the point.** The portable check anyone
+would write — *"does the link target exist?"* — **passes this doctrine's founding defect**,
+because `../../USER_GUIDE.md` *does* exist. What is broken is a rendered target that leaves the
+build directory. A check modelling only existence would have been ceremony.
+
+**Negative-controlled both ways — 10 probes, 10 as specified**, each asserting its mutation
+**landed** before any verdict was read:
+
+| must FIRE | must STAY SILENT |
+| --- | --- |
+| escape to a repo-root file | dead link inside a ``` fence (an example, not a link) |
+| escape carrying a `#fragment` | a valid in-book chapter link |
+| missing in-book chapter | an external `http` link |
+| escape whose link **text wraps a newline** | an in-page `#anchor` |
+| *(count-floor: extractor neutered ⇒ fails on the floor, not a vacuous pass)* | an image `![alt](…)` |
+
+Two implementation choices were **proven load-bearing by neutering them**, not asserted: fence
+handling (intact ⇒ silent on a fenced example; neutered ⇒ fires) and the whole-file extractor
+(whole-file catches a wrapped escape; line-wise **misses** it).
+
+**The leaf's real finding is a defect in its own first draft.** The check's line-wise scan
+extracted **226** links where `.1`'s instrument found **228**. Chasing that difference of 2
+surfaced markdown links whose *text wraps across a newline* — `api-tools.md:104`,
+`faq.md:4` — which a line-wise scan cannot see. Both resolve today, so nothing was broken. But
+**a wrapped link that escaped `book/src` would have passed the new gate silently**: the
+`extractor-charset-narrower-than-source` class, arriving **inside the very check written to end a
+class of silent misses**. It was caught only because two independent derivations existed to
+disagree — which is the argument for building the second one at `.1`.
+
+**A process note worth more than the fix.** The load-bearing probe for that extractor took
+**three attempts to actually run**. Twice the mutation silently failed to apply and the check
+"passed" — indistinguishable from a control that correctly did not fire, which is precisely the
+trap `USER-GUIDE-CLI-TABLE-SHADOW.7` recorded. The countermeasure exists as a *habit*, and a
+habit is what failed here; the reusable harness at `.cache/book_link_controls.sh` asserts the
+marker mechanically, and the two failures happened in the ad-hoc probes written *outside* it.
+
+**The floor is derived, not fitted.** `SUMMARY.md` must link every chapter for mdBook to render
+it, so the book structurally cannot hold fewer than *(chapters − 1)* links. The floor
+self-adjusts as chapters are added, and today's real count clears it ~8×. Neuter the extractor
+and the gate fails with `BROKEN EXTRACTOR` rather than passing vacuously.
+
+**What it deliberately does not check, stated rather than implied** (`DOCTRINE_ENFORCEMENT.md`
+§9): `#fragments`. Resolving an anchor at source level means reimplementing mdBook's heading
+slugifier, and a wrong slug model cries wolf — and a gate that cries wolf gets deleted, taking
+its real coverage with it. The anchor class was **measured** empty at `.1` (0 dead of 71 authored
+/ 1136 rendered, negative-controlled), so this is a claim about **present risk, not permanent
+immunity**.
+
+**Not scope-aware, deliberately** — the same reasoning `README-GROWTH` uses. Link integrity is a
+property of the *tree*: a dead link can arrive by revert, by merge, or by a rename in a commit
+that never touches the linking file.
+
+**A doctrine, not an assertion inside an existing one.** `feedback_full_factorization` forbids a
+*second* mechanism for one job. `TABLE-RENDER-FIDELITY` owns table well-formedness;
+`ENUMERATION-PARITY` owns declared list pairs — its book pair holds `SUMMARY.md` against the
+chapter files, i.e. which chapters are **linked**, never whether a link **resolves**; the rest
+own file size, staging, paths and citations. The subject is unowned, so this is the first
+mechanism, not a second.
+
+**Registration made `ENUMERATION-PARITY` fire, correctly.** Three further sites carry the
+`<!--enum:doctrine-ids-->` fence and had to name the new id: `book/src/architecture.md`,
+`docs/knowledge/doctrine-enforcement.md`, and `CODEBASE_ANALYSIS.md`. The gate that holds the
+registry's mirrors did its job on the commit that grew the registry.
+
+**Validation.** `scripts/check_doctrines.sh` **11/11**; controls 10/10; knowledge map regenerated
+(120 → **121** facts); `mdbook build book` exit 0 and the rendered book still at **0** dead local
+links. `cargo check --all-targets` clean. Docs + book + one check script ⇒ DUT byte-identical.
+
+**Files touched.** `scripts/check_book_link_targets.sh` (new), `scripts/check_doctrines.sh`,
+`DOCTRINE_ENFORCEMENT.md`, `README.md`, `CODEBASE_ANALYSIS.md`, `book/src/architecture.md`,
+`docs/knowledge/doctrine-enforcement.md`, `docs/knowledge/mdbook-md-to-html-rewrite-trap.md`,
+`docs/decisions/0046-book-never-links-outside-book-src.md`, `KNOWLEDGE_MAP.md` (derived),
+`docs/tasks/BOOK-LINK-INTEGRITY.md`, `docs/TASK_TREE.md`, `DEVELOPMENT_NOTES.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-01 — BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them
 
 **Landed as:** `3a48cc4`. Previous: `8ff64cd`, `5e3e9a0`, `614e977`.

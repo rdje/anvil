@@ -12,6 +12,8 @@ answers:
   - "why would a source-level link check miss a dead book link"
   - "how many links does the anvil book have"
   - "does print.html double-count a bad book link"
+  - "what stops a dead book link from being committed"
+  - "why does the book link check ignore anchors"
 date: 2026-08-01
 status: current
 tags: [mdbook, docs, book, link-integrity, gotcha, measurement, gate-quality]
@@ -30,6 +32,12 @@ target leaves `book/src`: the natural-looking
 renders as `../../USER_GUIDE.html`, **which does not exist**. The link resolves when the Markdown
 *source* is read on GitHub and is dead in the rendered book — the surface the owner actually
 reviews. `mdbook build` exits **`0`**, and no doctrine looks at links at all.
+
+**This is now mechanically gated.** The `BOOK-LINK-TARGETS` doctrine
+(`scripts/check_book_link_targets.sh`, decision
+[`0046`](../decisions/0046-book-never-links-outside-book-src.md)) blocks the commit. It is
+source-level, so it needs no `mdbook`; it checks **escape before existence**; and it does **not**
+resolve `#fragments` — see the honest limit at the end.
 
 ## The part that defeats the obvious check
 
@@ -75,3 +83,21 @@ All four were caught by both derivations and **`mdbook build` still exited `0` w
 present**. One "live" control (`ir.md#node`) flagged too, and checking it showed `ir.html` has no
 such anchor: the guess was wrong, the instrument was right. The positive control is the 71
 authored anchors that resolved — see [[negative-control-must-be-able-to-fail]].
+
+## The gate's honest limit, so nobody assumes more than it proves
+
+`BOOK-LINK-TARGETS` checks **link targets**, not `#fragments`. Resolving an anchor at source
+level means reimplementing mdBook's heading slugifier, and a wrong slug model cries wolf — which
+gets a gate deleted, taking its real coverage with it. The anchor class was *measured* empty, so
+that is a statement about **present risk, not permanent immunity**. If anchors ever rot, that is
+a new leaf, not a silent gap.
+
+Two things the gate had to get right, both discovered by control rather than by design:
+
+- **Whole-file, not line-wise.** A link's *text* may wrap across a newline (2 do, in this book).
+  The first draft scanned line by line and silently skipped them — a wrapped link that escaped
+  would have sailed through. Proven by reverting the fix: line-wise misses it, whole-file catches
+  it.
+- **Count-floored on a derived floor.** `SUMMARY.md` must link every chapter, so the book cannot
+  hold fewer than *(chapters − 1)* links. Neuter the extractor and the gate fails on the floor
+  instead of passing vacuously.

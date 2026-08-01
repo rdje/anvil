@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `BOOK-LINK-INTEGRITY`
-- Status: `active`
+- Status: `closed`
 - Roadmap lane: Live-doc hygiene / book fidelity
 - Created: `2026-08-01`
-- Last updated: `2026-08-01` (`.1` measured both classes, `.2` decided the form and repaired the one site; frontier `.3`)
+- Last updated: `2026-08-01` (**CLOSED**: `.1` measured both classes, `.2` decided the form and repaired the one site, `.3` registered `BOOK-LINK-TARGETS`)
 - Owner: repo-local workflow
 
 ## Goal
@@ -187,7 +187,7 @@ rather than an assertion inside another.
 ## Task Tree
 
 - ID: `BOOK-LINK-INTEGRITY`
-  Status: `active`
+  Status: `closed`
   Goal: `Make the rendered book's links resolve, and decide whether the class warrants a mechanism.`
   Children: `.1` (measure both classes + register), `.2` (decide the repair, then repair), `.3` (the mechanism question)
 
@@ -206,19 +206,21 @@ rather than an assertion inside another.
   Commit: `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them`
 
 - ID: `BOOK-LINK-INTEGRITY.3`
-  Status: `pending`
+  Status: `done`
   Goal: `Decide whether the class warrants a mechanism, given that the honest obstacle is tooling: link-checking the rendered book needs mdbook, which ANVIL does not vendor and a fresh clone may not have.`
   Acceptance: `The decision follows .2's repair form. If a check is written it obeys DOCTRINE_ENFORCEMENT.md section 4, is negative-controlled both ways, and states plainly whether it checks SOURCE (portable, approximate — it must model mdBook's .md -> .html rewrite) or RENDERED output (exact, but skipped wherever mdbook is absent, which is exactly where a backstop is needed). If no mechanism is warranted, say so and say why, per section 9's honest-limits discipline — do not register a check that silently skips.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `MET, and the answer is YES. Registered as BOOK-LINK-TARGETS (scripts/check_book_link_targets.sh), the 11th doctrine; driver 11/11 green. It checks SOURCE and says so — .2's convention removed the need to render, so the tooling obstacle is dissolved rather than tolerated: no mdbook, no skip-on-fresh-clone. Negative-controlled BOTH ways, 10/10 probes: 4 must-fire (escape, escape+fragment, missing chapter, escape whose link text WRAPS a newline), 5 must-stay-silent (fenced example, valid chapter, external http, in-page anchor, image), 1 count-floor (neutered extractor FAILS on the floor rather than passing vacuously). Fence handling and the whole-file extractor were each proven LOAD-BEARING by neutering them and re-running. Anchors are stated out of scope, not silently skipped.`
+  Commit: `BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
+**None — the tree is CLOSED (`2026-08-01`).** All three leaves done, same day as registration.
+
+| Order | Leaf | Status | Outcome |
 | --- | --- | --- | --- |
-| 1 | `BOOK-LINK-INTEGRITY.3` | `pending` | **Next, and last.** The mechanism question. `.2` changed its shape for the better: the rule to gate is no longer *"is this link dead?"* (which needs `mdbook`, unvendored) but *"does a `book/src` markdown link escape `book/src`?"* — greppable, portable, no build required. `.3` must still weigh what that predicate does **not** cover and decide honestly, per `DOCTRINE_ENFORCEMENT.md` §9; "no mechanism, and here is why" remains a legitimate outcome. |
-| — | `BOOK-LINK-INTEGRITY.1` | `done` | Both classes measured, offenders named, negative-controlled. **The anchor class is empty** (0 of 71 authored / 1136 rendered). |
+| — | `BOOK-LINK-INTEGRITY.1` | `done` | Both classes measured, offenders named, negative-controlled. **The anchor class is empty** (0 of 71 authored / 1136 rendered) — the tree's own central prediction, refuted. |
 | — | `BOOK-LINK-INTEGRITY.2` | `done` | Decision [`0046`](../decisions/0046-book-never-links-outside-book-src.md) recorded before the edit; the single site repaired. **Rendered book: 0 dead local links.** Convention now unanimous, 32/32. |
+| — | `BOOK-LINK-INTEGRITY.3` | `done` | **Yes to a mechanism.** `BOOK-LINK-TARGETS` registered as the **11th** doctrine, source-level, 10/10 controls, fence handling and the whole-file extractor each proven load-bearing. |
 
 ## Decisions
 
@@ -285,6 +287,9 @@ rather than an assertion inside another.
 | `2026-08-01` | `.1` | `scripts/check_doctrines.sh; knowledge-map/scripts/check_knowledge_map.sh` | `10/10 doctrines PASS; knowledge map in sync (119 -> 120 facts)`. Docs-only ⇒ DUT byte-identical; no `src/` change, so `cargo` gates are not the discriminator for this leaf (decision `0003`). |
 | `2026-08-01` | `.2` | `convention census before choosing: every repo-root live-doc filename occurrence in book/src/*.md — 33 total = 31 plain-backtick + 2 from the single markdown link (its TEXT and its TARGET both name the file). 31 of 32 distinct references already used the chosen form.` | `the repair form was already the de-facto convention; recorded as 0046 rather than invented` |
 | `2026-08-01` | `.2` | `after the one-line repair: mdbook build book (exit 0), then BOTH derivations re-run` | **`0` dead-file + `0` dead-anchor**, rendered and authored alike (was 2 + 0). Census now **32/32** backticked, **0** markdown links to a repo-root file. `0046`'s reverify one-liner returns **no matches**. |
+| `2026-08-01` | `.3` | `10 controls over scripts/check_book_link_targets.sh, each asserting its mutation LANDED before reading the verdict (.cache/book_link_controls.sh). MUST-FIRE: escape to a repo-root file; escape carrying a #fragment; missing in-book chapter; escape whose link TEXT WRAPS a newline. MUST-STAY-SILENT: dead link inside a fence; valid chapter link; external http; in-page anchor; image. Plus a count-floor probe with the inline-link regex neutered.` | **10/10 as specified**, 0 unexpected. The floor probe FAILS with `BROKEN EXTRACTOR` rather than passing vacuously. Book restored; `git status` clean. |
+| `2026-08-01` | `.3` | `load-bearing probes: neuter fence handling, and revert the whole-file extractor to line-wise` | fence INTACT ⇒ silent / NEUTERED ⇒ fires. Whole-file ⇒ **catches** a wrapped escape / line-wise ⇒ **misses** it (exit 0). **It took three attempts to run the second probe** — the first two mutations silently failed to apply and the check "passed", the exact `.7` trap of a control that never ran. |
+| `2026-08-01` | `.3` | `scripts/check_doctrines.sh with BOOK-LINK-TARGETS registered` | `11/11 doctrines PASS`. `ENUMERATION-PARITY` **fired first** and correctly: three further sites carry the `<!--enum:doctrine-ids-->` fence (`book/src/architecture.md`, `docs/knowledge/doctrine-enforcement.md`, `CODEBASE_ANALYSIS.md`) and had to name the new id. Knowledge map regenerated (120 → 121). |
 | `2026-08-01` | `.2` | `scripts/check_doctrines.sh; knowledge-map/scripts/check_knowledge_map.sh; cargo check --all-targets` | `10/10 doctrines PASS` — **after one true fire**: the first staged run failed `KNOWLEDGE-MAP`, because `docs/decisions/*.md` carry `answers:` frontmatter and so are **fact sources**; adding `0046` desynchronised the derived map (120 → **121** facts). Regenerated, green. `cargo check` clean; docs+book only ⇒ DUT byte-identical. |
 
 ## Commit Log
@@ -294,10 +299,28 @@ rather than an assertion inside another.
 | registration | `USER-GUIDE-CLI-TABLE-SHADOW.4 — backfill the landed commit hash` | Tree registered alongside the hash backfill; no leaf executed yet. |
 | `.1` | `5e3e9a0` — `BOOK-LINK-INTEGRITY.1 — measure both dead-link classes; anchor class is empty` | Docs-only. Adds the fact card `docs/knowledge/mdbook-md-to-html-rewrite-trap.md` (map 119 → 120). No book edit. |
 | `.1` | `8ff64cd` — `BOOK-LINK-INTEGRITY.1 — backfill the landed commit hash` | Hash-only follow-up. |
+| `.3` | `BOOK-LINK-INTEGRITY.3 — register BOOK-LINK-TARGETS, the 11th doctrine` | Adds `scripts/check_book_link_targets.sh` + one registry line; updates the four `<!--enum:doctrine-ids-->` sites. **Closes the tree.** |
 | `.2` | `3a48cc4` — `BOOK-LINK-INTEGRITY.2 — the book names repo-root files, it does not link to them` | Adds decision `0046`; repairs `book/src/recipes.md:857` (one line). Rendered book reaches **0** dead local links. |
 
 ## Changelog
 
+- `2026-08-01` (`.3`, **tree CLOSED**): **Yes to a mechanism** — `BOOK-LINK-TARGETS`,
+  the **11th** doctrine. The obstacle the tree was registered with is *dissolved rather than
+  tolerated*: `.2`'s convention made the rule checkable at **source** level, so the gate needs no
+  `mdbook` and cannot skip on a fresh clone. It tests **escape before existence**, since the
+  obvious existence test passes the very defect. Negative-controlled **both ways, 10/10**, and
+  two implementation choices were proven load-bearing by neutering them rather than asserted:
+  fence handling (intact ⇒ silent on a fenced example, neutered ⇒ fires) and the **whole-file**
+  extractor (line-wise **misses** a wrapped escape). That second one is the leaf's real finding —
+  see below. Anchors are **stated** out of scope, not silently skipped.
+- `2026-08-01` (`.3`, finding): **The first draft of the check had a silent recall hole, found by
+  arithmetic, not by review.** Its line-wise scan extracted **226** links where the `.1`
+  instrument found **228**. Chasing the difference of 2 turned up markdown links whose *text
+  wraps across a newline* (`api-tools.md`, `faq.md`) — invisible to a line-wise scan. Both happen
+  to resolve today, so nothing was broken; but **a wrapped link that escaped `book/src` would
+  have passed the gate silently**, which is the [[extractor-charset-narrower-than-source]] class
+  arriving inside the very check written to end a class of silent misses. It was caught only
+  because two independent derivations existed to disagree.
 - `2026-08-01` (`.2`): **The rendered book now has zero dead local links.** Decision
   [`0046`](../decisions/0046-book-never-links-outside-book-src.md) recorded *before* the edit:
   a book chapter **names** a repo-root file in backticks, with any section named in parentheses

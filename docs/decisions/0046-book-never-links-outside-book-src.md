@@ -126,3 +126,10 @@ That is greppable, portable, and exact for this class. Whether it is *registered
 is deliberately left to `BOOK-LINK-INTEGRITY.3`, which must also weigh the classes this
 predicate does **not** cover (intra-book dead files, dead anchors — both measured at **zero** by
 `.1`, which is an argument about *current* risk, not about permanent immunity).
+
+## Outcome (added by `.3`, same day — this record is not otherwise amended)
+
+`.3` answered **yes**: registered as the `BOOK-LINK-TARGETS` doctrine
+(`scripts/check_book_link_targets.sh`), the eleventh in the registry. It enforces **both** halves
+that are exact at source level — *escape* (tested first, because it is the one the obvious check
+misses) and *existence* — and leaves `#fragments` out of scope for the reason stated above.
