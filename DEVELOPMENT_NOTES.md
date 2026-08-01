@@ -5,6 +5,259 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-01 — `unique` / `priority` case qualifiers — impl design-detail — `CAPABILITY-BREADTH-EXPANSION.4a`
+
+Grounds decision [`0044`](docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)
+(the first **case-qualifier** construct: a default-off `unique` / `priority` prefix on the
+`case` / `casez` statement a dynamic-selector `CaseMux` / `CasezMux` already emits) in a fresh
+read of the real code, and resolves that record's five Open Questions. The pattern is the eighth
+and ninth surfaces' (`src/ir/case_mux_if_emit.rs` / `casez_mux_if_emit.rs`) almost exactly —
+collect-then-roll annotation pass, `param_env` skip, emitter-surface-only mark, no IR node — with
+**two** substantive differences, both of which turned out to have consequences:
+
+- the qualifier is **not a projection**. Every sibling pass *replaces* how a gate renders; this
+  one *decorates* a rendering it leaves intact. So it claims nothing any other pass could want,
+  and it is the one pass whose exclusion against its predecessors is **non-vacuous** — a gate
+  claimed by `case_mux_if` / `casez_mux_if` emits an `if`/`else if` chain and has **no `case`
+  keyword to prefix**;
+- its two knobs deliberately do **not** end in `_emit_prob`, and that name shape is load-bearing
+  (point 3 below).
+
+**Grounding reads (current HEAD).** `src/ir/case_mux_if_emit.rs` (the whole pass — the template
+to mirror: `gate_qualifies` + collect-then-`roll_knob_into` `annotate_*` + `param_env` skip + the
+9-proof block); `src/emit/sv.rs` the structured-case `always_comb` loop (`:667`–`:809`: the
+`render_static_structured_gate(...).is_some() → continue` static collapse `:685`, the
+`GateOp::CaseMux` arm's unprojected `writeln!("        case ({sel})")` `:712`, the
+`GateOp::CasezMux` arm's unprojected `writeln!("        casez ({sel})")` `:755`, and the shared
+trailing-`default`/`endcase` tail `:800`–`:806` gated on neither chain set containing the gate);
+`src/gen/cone/motifs.rs:832-841` (`build_casez_patterns` — `wildcard_bits = 1`, arm `idx →
+(idx << 1, width_mask(1))`, the SOLE casez pattern source ⇒ arms pairwise disjoint);
+`src/gen/mod.rs` (the nine-pass guarded roll chain: `case_mux_if` `:257`/`:564`, `casez_mux_if`
+`:274`/`:580`, each `if self.cfg.<knob> > 0.0`); `src/ir/types.rs` (`#[derive(Debug, Clone,
+Default)] pub struct Module` `:166` — **not** `Serialize`, so a new field needs no serde
+attribute; `casez_mux_if_gates` `:576`); `src/ir/mod.rs` (the `pub mod` list + `pub use
+types::*`); `src/ir/knob_id.rs:220-253` (the `emission` category block); `src/config.rs`
+(`default_casez_mux_if_emit_prob` `:126`, the `#[serde(default)]` field `:1084`, the
+Default-construction entry `:1335`, the validate-probs list `:1720`, `apply` `:1955`, the
+`Overrides` `Option<f64>` `:2082`, the `structured-emission-max` preset `:2197`–`:2204`,
+`knob_group` `:2303`–`:2364`, `knob_catalog` `:2401`); `src/main.rs` (the clap flag `:555`–`:557`
++ the overlay `:1157`); `src/metrics.rs` (the sibling metric `:398`–`:411` + `compute` `:1031`);
+`src/introspect/mod.rs:70` (`SCHEMA_VERSION = "1.27"`); `src/bin/tool_matrix.rs`
+(`ScenarioSet::CasezMuxIfSweep` `:1083`, the gate registry row `:1677`, the scenario builder
+`:4288`, `casez_mux_if_focus_config` `:4326`, `scenario_emits_soft_union_overlay` `:5498` and its
+`verilator_only` threading `:5550`/`:6432`/`:6469`/`:6475`, the metric-keyed detection `:6141`,
+the coverage fact `:7235`–`:7244`, the merge `:8794`).
+
+### The five Open Questions, resolved
+
+**1. Carrier and enum.** `Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>` with
+`pub enum CaseQualifier { Unique, Priority }`, iterated in `NodeId` order (a `BTreeMap`, so
+determinism is structural). A **map**, not two sets: a gate receives **at most one** qualifier,
+and a map makes that unrepresentable-otherwise rather than merely asserted — two sets would admit
+a gate in both, and the emitter would then have to pick a winner at render time. `Module` derives
+only `Debug, Clone, Default`, so the field needs no serde attribute (the `#[serde(default)]` on
+the sibling *metrics* is a different type). `CaseQualifier` lives in the new
+`src/ir/case_qualifier.rs` beside the pass that owns it, re-exported through `src/ir/mod.rs`'s
+existing `pub use` surface — the direction `IR-TYPES-DECOMPOSITION` is already moving `types.rs`
+in, rather than adding a fourth tenant to it.
+
+**2. `KnobId` category: `emission`, as proposed.** The category doc (`knob_id.rs:220-225`)
+distinguishes `motifs` from `emission` by **resolution** — `motifs` rolls at most once per
+module, `emission` once per candidate gate. The qualifier rolls once per candidate gate, at
+post-construction annotation time, over an already-built cone. That is `emission` on both axes
+(pipeline position and resolution). `selectors` — where `case_mux_prob` / `casez_mux_prob` live —
+is where the gate's *shape* is chosen; this knob chooses nothing about shape. Note for the
+reader: `emission` stops being "the nine structured-emission surfaces" and becomes "the per-gate
+render-time decisions", of which nine are projections and two are qualifiers. The category
+**membership** of the six pre-`0035` categories is untouched, so a steering config written before
+`.4b` still means what it meant.
+
+**3. The knob names force a `knob_group` arm, and that is the right outcome.**
+`unique_case_prob` / `priority_case_prob` (as `0044` proposes) do **not** end in `_emit_prob`, so
+`knob_group` (`config.rs:2338`) does not route them to `"structured_emission"`; they would fall
+through to `"other"`, which `knob_catalog_classifies_every_field` (`:2901`) forbids. `.4b.1`
+therefore adds one explicit arm: `"unique_case_prob" | "priority_case_prob" => return
+"case_qualifier"`.
+
+That is not a chore — it is the anti-drift gate doing its job, and the *alternative* is a trap.
+Naming the knobs `*_emit_prob` to ride the existing arm would have put them in the
+`structured_emission` catalog group, and
+`structured_emission_max_preset_covers_every_non_version_gated_surface` (`:2806`) derives its
+expected set **from that group**. The two qualifiers would have been conscripted into
+`--profile structured-emission-max` by a passing test — silently costing that preset its Icarus
+column (the `unique` `sorry:` note), for a construct that is not a projection and adds no
+diversity to the count the preset exists to maximise (decision `0032`). **A test that would have
+failed if the knobs were named differently was the only thing standing between the right name and
+a wrong preset.** The qualifiers therefore stay out of every preset; a dedicated preset, if ever
+wanted, is a separate decision.
+
+**4. Roll precedence: independent knobs, fixed order, second roll SKIPPED on a hit — and each
+roll skipped entirely at probability `0.0`.** Per candidate gate: if `unique_case_prob > 0.0`,
+roll it; on a hit insert `Unique` and **do not roll** `priority_case_prob` for that gate.
+Otherwise, if `priority_case_prob > 0.0`, roll it and insert `Priority` on a hit. Both rolls go
+through the one steering-aware `roll_knob_into` primitive (decision `0034`) with their own
+`KnobId`s.
+
+The hit-skip is the load-bearing half. Rolling both and letting `unique` win would record a
+`priority` *fire* that emits no `priority` qualifier — telemetry diverging from emitted reality,
+which is the exact defect class decision `0034` was written to remove. With the skip,
+`fires(PriorityCaseProb) == num_emitted_priority_cases` and
+`fires(UniqueCaseProb) == num_emitted_unique_cases` **exactly**, each knob's `coverage_readout`
+rate stays directly interpretable (fires over the attempts it actually had), and
+`num_emitted_unique_cases + num_emitted_priority_cases == case_qualifiers.len()`. `unique` first
+because it is the stronger assertion and the one that exercises a new tool code path
+(`0044`'s rejected `priority`-only alternative); the consequence — both knobs at `1.0` gives
+`priority` a rate of `0/0` — is why the gate runs **one scenario per qualifier** rather than one
+scenario with both on.
+
+The zero-skip is smaller but not cosmetic, and it is the one place this pass cannot follow the
+sibling convention. Every sibling guards its single knob at the **call site**
+(`if self.cfg.<knob> > 0.0` in `gen/mod.rs`); one pass with two knobs must additionally guard each
+knob **inside**. `gen_bool` consumes a draw even at `p == 0.0`: `rand` `0.8.5`'s
+`distributions::bernoulli` builds `p_int = (p * SCALE) as u64` and its `Distribution<bool>::sample`
+short-circuits **only** on `p_int == ALWAYS_TRUE` (i.e. `p == 1.0`), otherwise always evaluating
+`rng.gen::<u64>() < p_int` — so `p == 0.0` draws a `u64` and returns `false`. (Read from the
+pinned dependency's own source, read-only, under the toolchain's registry; cited by crate + module
++ symbol rather than by an absolute `$CARGO_HOME` path, which is neither portable nor on the
+project volume.) `SteeringConfig::effective_prob` multiplies, so a `0.0` knob can never fire —
+meaning an unguarded roll changes **no outcome** and only (a) shifts the RNG stream for the *other*
+knob's scenario and (b) records `attempts` against a knob the user set to `0.0`, i.e. a readout
+row for a disabled capability. Guarding makes a `priority`-only run draw exactly what a
+single-knob pass would, which is what the sibling gates' focus-config calibration assumes.
+
+**5. Decision `0032`'s emit-surface interaction gate does NOT gain the two knobs as a tenth and
+eleventh axis.** That gate's subject is the **mutual-exclusion invariant** over the nine
+projections, projected as `distinct_emit_surfaces` — a count of *renderings replaced*. A
+qualifier replaces no rendering, so it does not belong in that count, and it applies no exclusion
+pressure to the chain (it claims a gate only *after* every projection has declined it). Folding
+`unique_case_prob` into the universal scenarios would additionally cost them their Icarus column
+— precisely the trade `0032` §(c) rejected for `soft_union`, and for the same reason.
+
+But the interaction is real and must not be left vacuous, which is the trap this question exists
+to catch: **if `--case-qualifier-gate` leaves `case_mux_if_emit_prob` at `0.0`, the one
+non-vacuous exclusion in the pass is exercised by nothing** — the identical "the predicate is
+written, unit-tested, and never fires end-to-end" hole that `0032` itself was opened to close. So
+the co-occurrence lands **inside** `--case-qualifier-gate` as one dedicated scenario (below),
+where the exclusion bites and the full three-tool plan still applies.
+
+### The impl points, resolved
+
+0. **Candidate predicate** (new `src/ir/case_qualifier.rs`, mirroring `case_mux_if_emit.rs`): a
+   `Node::Gate` whose op is `GateOp::CaseMux` **or** `GateOp::CasezMux`, with a **non-constant
+   (dynamic) selector** (`operands[0]` is not a `Node::Constant` — a constant selector lowers to a
+   continuous `assign` via `render_static_structured_gate` and has no `case` statement to
+   qualify), enough operands for at least one arm (`>= 2` for `CaseMux`, `>= 4` for `CasezMux`),
+   and **not** in `m.case_mux_if_gates` / `m.casez_mux_if_gates` — the exclusion that actually
+   bites. The remaining sibling marks (`function_emit` / `generate_loop` / `task_emit` /
+   `multi_output_task` / `cone_function` / `mux_if` / `soft_union`) are excluded too, for the
+   established "later pass excludes earlier marks" convention, and are **vacuous by target type**:
+   `CaseMux`/`CasezMux` are explicitly non-admissible for the function/task/cone passes
+   (`multi_output_task_emit.rs:99-105`, and decision `0032` §6 for cone absorption), `mux_if`
+   targets `Mux`, `generate_loop` targets `Concat`, `soft_union` targets `Slice`. `ForFold` is not
+   a selector and is not a candidate. `param_env` modules skipped (the param/structured
+   cross-product is out of scope, mirroring every sibling pass). **FSM `case (state_q)` /
+   `case (sel)` blocks are not candidates** — they are emitted from `m.fsms`, not from a
+   `Node::Gate`, and are a recorded `.5`+ follow-up (already *measured* full+parallel at `.3`, so
+   their safety question is closed in advance).
+1. **Carrier:** `Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>` beside
+   `casez_mux_if_gates` (`types.rs:576`); `pub mod case_qualifier;` in `ir/mod.rs`.
+2. **Emitter integration (in place, minimal):** in the structured-case `always_comb` loop, the
+   **unprojected** branches only — `:712` becomes
+   `writeln!(out, "        {}case ({sel})", qualifier_prefix)` and `:755` the `casez` equivalent,
+   where `qualifier_prefix` is `""` / `"unique "` / `"priority "` from
+   `m.case_qualifiers.get(&(idx as NodeId))`. An empty map yields `""` and therefore the same
+   bytes — byte-identical by construction, not by test. The projected branches are untouched (a
+   chain has no `case` keyword), and the shared trailing-`default`/`endcase` tail (`:800`–`:806`)
+   is untouched — **the `default:` arm is what makes the assertion true, so it must not become
+   conditional on the qualifier** (`0044` rejects dropping it explicitly).
+3. **Run last:** a **tenth** guarded call site
+   `if self.cfg.unique_case_prob > 0.0 || self.cfg.priority_case_prob > 0.0 {
+   annotate_case_qualifiers(…) }` after `casez_mux_if` in **both** `gen/mod.rs` paths, with the
+   per-knob `> 0.0` guards *inside* the pass (point 4). Ordering here *is* load-bearing (unlike
+   the ninth pass's): the two chain sets must be populated before the exclusion reads them. One
+   guard over the OR of both knobs, one pass, one carrier — two knobs into one mechanism is not
+   two mechanisms (`feedback_full_factorization`).
+4. **Knobs:** `Config::unique_case_prob` / `Config::priority_case_prob` (both default `0.0`)
+   at all six `config.rs` touch points + the `knob_group` arm (point 3 above) + the
+   `--unique-case-prob` / `--priority-case-prob` clap flags + `Overrides` wiring.
+5. **Metrics:** `Metrics::num_emitted_unique_cases` / `num_emitted_priority_cases`
+   (`= m.case_qualifiers.values().filter(…).count()`, `#[serde(default)]`) ⇒ introspection schema
+   `1.27 → 1.28` at `.4b.2`. Exact for the same reason as the sibling chain metrics: the predicate
+   excludes statically-collapsed gates, so every counted gate emits exactly one qualified block.
+6. **Gate:** `tool_matrix --case-qualifier-gate` + `ScenarioSet::CaseQualifierSweep`, **13
+   scenarios**: `{unique, priority} × {case_mux_prob-biased, casez_mux_prob-biased} × 3
+   strategies` (12), plus **one co-occurrence scenario** (Interleaved, both selector kinds live,
+   `case_mux_if_emit_prob = casez_mux_if_emit_prob = 0.25`, `priority_case_prob = 1.0`) so the
+   non-vacuous exclusion fires end-to-end. Focus configs template on `casez_mux_if_focus_config`
+   (`:4326`) with the **chain projections off** for the 12 (the `case`/`casez` statement form must
+   survive to be qualified) and the same short-circuit-chain calibration the eighth/ninth surfaces
+   needed — zero the earlier-rolling selector knobs so the targeted block always gets its draw.
+   Detection is **metric-keyed** (decision `0028`), not a text scan: `emitted_unique_case_qualifier
+   = num_emitted_unique_cases > 0`, likewise `priority`. Three coverage facts —
+   `saw_unique_case_qualifier`, `saw_priority_case_qualifier`, and
+   `saw_case_qualifier_beside_if_chain` (a module with a qualifier **and** a chain).
+7. **Tool plans (`0044`'s pin), as a second pure function of the scenario config.** A `unique`
+   scenario runs Verilator + both Yosys with **Icarus a recorded accepting no-op** (it exits 0 but
+   prints `vvp.tgt sorry: Case unique/unique0 qualities are ignored.` per block); `priority` and
+   the co-occurrence scenario run the full three-tool plan. Mechanically this is a new
+   `scenario_emits_unique_case_qualifier(scenario) = scenario.config.unique_case_prob > 0.0`
+   mirroring `scenario_emits_soft_union_overlay` (`:5498`), threaded as a **separate** boolean
+   beside `verilator_only` down to `run_module_tools` (`:6432`) and gating **only** the Icarus
+   column (`:6475`). Deliberately not a widening of `verilator_only`: that flag drops Yosys *and*
+   Icarus, this one drops Icarus only, and collapsing two different reductions into one boolean
+   would silently cost the `unique` scenarios their two strongest columns.
+   `downstream::first_tool_warning` is **not** widened to catch `sorry:` — it is a shared
+   classifier every gate depends on, and re-classifying it repo-wide to serve one scenario is a
+   change to the wrong mechanism (`feedback_full_factorization`).
+8. **Byte-identical / RNG:** both knobs default `0.0` ⇒ the guard skips the pass ⇒ zero draws ⇒
+   byte-identical stream *and* output (`tests/snapshots.rs` untouched); the mark is an
+   emitter-surface annotation only — flat IR body, validators, CSE keys and
+   `canonical_module_signature` untouched (the sibling
+   `marking_leaves_identity_and_node_count_untouched` proof, replicated).
+
+### The FULL + PARALLEL property test — the durable home for `.3`'s corpus measurement
+
+`.4`'s acceptance requires an in-crate `#[test]`, because `.3`'s checker was scratch under
+`.cache/` (untracked by design — decisions `0031`/`0043`) and a Rust-side invariant belongs in a
+test `cargo test` + CI already gate, not in a tracked shell script. Shape, pinned here so `.4b.1`
+does not improvise it:
+
+- **two `#[cfg(test)]` predicates, not one**, because the two properties have different sources.
+  `parallel_violations(&Module) -> Vec<String>` reads the **IR**: for a `CaseMux`, arm labels are
+  the sequential integers `0..N-1` (distinct); for a `CasezMux`, arms `i`/`j` overlap iff
+  `((p_i ^ p_j) & c_i & c_j) == 0` where `c = !wildcard_mask & sel_mask` — a pairwise check over
+  the real `(pattern, mask)` constants, not an assumption about `build_casez_patterns`.
+  `full_violations(&str) -> Vec<String>` reads the **emitted text**, because FULL is an emitter
+  property: a nesting-aware line scan over `case`/`casez` … `endcase` asserting every opened
+  block sees a `default:` at its own depth before it closes.
+- **both must fail on a fixture**, per `DOCTRINE_ENFORCEMENT.md` §9: a hand-built `CasezMux` with
+  two deliberately overlapping arms trips `parallel_violations`; a hand-written default-less
+  `case` string trips `full_violations`. Without those, "zero violations" is indistinguishable
+  from "the checker never ran" — the failure mode `.3`'s first checker actually exhibited.
+- **the nesting tracker is scoped to ANVIL-emitted SV**, and says so. It is not a SystemVerilog
+  parser; it is sound for the emitter's one-statement-per-line output, and the negative control is
+  what proves it looks.
+- the positive side drives the **real `Generator`** over a selector-biased config across a few
+  seeds and asserts zero violations from both predicates — the durable, re-runnable form of `.3`'s
+  50,761-block corpus result.
+
+### `.4b` proof plan (pre-split `.4b.1` live / `.4b.2` metric+gate / `.4b.3` docs)
+
+`.4b.1`: the new `src/ir/case_qualifier.rs` (pass + `CaseQualifier` + proofs) +
+`Module.case_qualifiers` + `ir/mod.rs` registration + the two knobs/flags/`knob_group` arm + the
+two `gen/mod.rs` rolls + the `emit/sv.rs` prefix on the two unprojected branches. Proofs mirror
+the sibling passes' nine and add the two this surface earns: `prob_one_marks_a_dynamic_case_mux`
+and `…_casez_mux`; `constant_selector_gate_is_excluded`; `both_probs_zero_marks_nothing`;
+`chain_projected_gate_is_never_qualified` (**the non-vacuous exclusion, both directions**);
+`unique_wins_and_priority_is_not_rolled` (precedence + the telemetry identity);
+`param_env_module_is_skipped`; `marking_leaves_identity_and_node_count_untouched`; the end-to-end
+emit proof (a marked gate emits `unique case (`/`priority casez (`, an unmarked one emits the
+bare form, and the `default:` arm survives in both); plus the two FULL/PARALLEL property tests
+and their two negative controls. No metric/schema bump at `.4b.1` (the knobs ride the version;
+`.4b.2` bumps `1.27 → 1.28`). Default-off / DUT byte-identical (snapshots untouched).
+
+---
+
 ## 2026-08-01 — What the IR can represent is not what the generator constructs — `CAPABILITY-BREADTH-EXPANSION.3`
 
 Three things from picking the `unique` / `priority` case qualifiers as the next breadth

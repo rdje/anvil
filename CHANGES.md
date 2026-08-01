@@ -1,9 +1,126 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.4a — case-qualifier impl design-detail (decision `0044`'s five Open Questions resolved)
+
+**Landed as:** `pending`. Previous: `eb79534`.
+**Docs only** ⇒ **DUT byte-identical**.
+
+**What.** `DEVELOPMENT_NOTES.md` gains the `.4a` impl design-detail for the `unique` / `priority`
+case-qualifier construct, grounded in a fresh read of current HEAD and resolving all five of
+decision [`0044`](docs/decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)'s
+Open Questions. `.4` is split into `.4a` (design-detail, done) + `.4b` (impl, pre-split `.4b.1`
+live / `.4b.2` metric+gate / `.4b.3` docs); the frontier advances to `.4b.1`. No `src/` change.
+
+**The five resolutions.**
+
+1. **Carrier** — `Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>`, with
+   `enum CaseQualifier { Unique, Priority }` in the new `src/ir/case_qualifier.rs` beside the pass
+   that owns it (the direction `IR-TYPES-DECOMPOSITION` is already moving `types.rs`, rather than
+   adding a fourth tenant to it). A **map**, not two sets: "a gate receives at most one qualifier"
+   becomes unrepresentable-otherwise instead of merely asserted. `Module` derives only
+   `Debug, Clone, Default`, so the field needs no serde attribute.
+2. **`KnobId` category** — `emission`, on both of decision `0035`'s axes: post-construction
+   pipeline position, and per-candidate-gate resolution (`motifs` rolls once per *module*).
+3. **Metrics** — `num_emitted_unique_cases` / `num_emitted_priority_cases`, introspection schema
+   `1.27 → 1.28` at `.4b.2`.
+4. **Roll precedence** — roll `unique_case_prob` first; **skip** the `priority_case_prob` roll on
+   a hit. The skip is the load-bearing half: rolling both and letting `unique` win would record a
+   `priority` *fire* that emits no `priority` qualifier — the exact telemetry-vs-emitted-reality
+   divergence decision `0034` was written to remove. With it,
+   `fires(knob) == the knob's metric` exactly, and the two metrics sum to `case_qualifiers.len()`.
+   Each roll is additionally skipped at probability `0.0`, *inside* the pass — the one place this
+   surface cannot follow the sibling convention, since every sibling guards its single knob at the
+   `gen/mod.rs` call site and one pass with two knobs must also guard each knob internally.
+   `gen_bool` consumes a draw at `p == 0.0` and a `0.0` knob can never fire, so the guard changes
+   no outcome; it stops a `priority`-only run from shifting its RNG stream and from reporting
+   `attempts` against a capability the user disabled.
+5. **Decision `0032`'s emit-surface interaction gate does NOT gain the two knobs.** That gate's
+   subject is the mutual-exclusion invariant over nine **projections**, counted as
+   `distinct_emit_surfaces` — a count of *renderings replaced*. A qualifier replaces no rendering
+   and applies no exclusion pressure (it claims a gate only after every projection has declined
+   it), and folding `unique` into the universal scenarios would cost them their Icarus column —
+   the trade `0032` §(c) already rejected for `soft_union`.
+
+**Why (5) is not simply a "no".** The qualifier pass carries the lane's first **non-vacuous**
+exclusion: a gate already claimed by `case_mux_if` / `casez_mux_if` renders as an `if`/`else if`
+chain and has no `case` keyword to prefix. If `--case-qualifier-gate` left those two knobs at
+`0.0`, that exclusion would be written, unit-tested and **never fired end-to-end** — precisely the
+hole decision `0032` was opened to close, reproduced one tree later. So the co-occurrence lands
+**inside** `--case-qualifier-gate` as a dedicated thirteenth scenario (`case_mux_if_emit_prob =
+casez_mux_if_emit_prob = 0.25`, `priority_case_prob = 1.0`, so the full three-tool plan still
+applies), lighting `saw_case_qualifier_beside_if_chain`.
+
+**Two non-obvious findings, both from reading rather than from a gate.**
+
+- **The knob names are load-bearing.** `unique_case_prob` / `priority_case_prob` do not end in
+  `_emit_prob`, so `config.rs`'s `knob_group` falls through to `"other"` — which
+  `knob_catalog_classifies_every_field` forbids — and `.4b.1` must add an explicit
+  `"case_qualifier"` arm. That is the anti-drift gate working. The *alternative* is the trap:
+  naming them `*_emit_prob` to ride the existing arm would have placed them in the
+  `structured_emission` catalog group, and
+  `structured_emission_max_preset_covers_every_non_version_gated_surface` derives its expected set
+  **from that group** — so a passing test would have conscripted both qualifiers into
+  `--profile structured-emission-max`, silently costing that preset its Icarus column for a
+  construct that adds nothing to the surface-diversity count the preset exists to maximise.
+- **The `unique` tool plan needs a second predicate, not a wider one.** `tool_matrix` already
+  reduces a scenario's tool plan by `verilator_only` (a pure function of the config, decision
+  `0010`), but that flag drops Yosys **and** Icarus. The `unique` plan drops Icarus **only**.
+  Collapsing the two reductions into one boolean would quietly cost the `unique` scenarios their
+  two strongest columns, so `.4b.2` adds a separate `scenario_emits_unique_case_qualifier`
+  mirroring `scenario_emits_soft_union_overlay`. `downstream::first_tool_warning` is **not**
+  widened to catch Icarus's `sorry:` — a shared classifier every gate depends on is the wrong
+  mechanism to change for one scenario (`feedback_full_factorization`).
+
+**The FULL + PARALLEL property test is shaped, not left to improvisation.** `.4`'s acceptance
+requires an in-crate `#[test]` as the durable home for `.3`'s corpus measurement (whose checker
+was scratch under untracked `.cache/`). `.4a` pins **two** `#[cfg(test)]` predicates, because the
+two properties have different sources: `parallel_violations(&Module)` reads the **IR** (a pairwise
+`((p_i ^ p_j) & c_i & c_j) == 0` check over the real arm constants — not an assumption about
+`build_casez_patterns`), and `full_violations(&str)` reads the **emitted text** (a nesting-aware
+scan asserting every opened `case`/`casez` block sees a `default:` at its own depth). Each gets
+its **own firing negative control** — a hand-built overlapping-arm module and a hand-written
+default-less `case` string — per `DOCTRINE_ENFORCEMENT.md` §9, because without them "zero
+violations" is indistinguishable from "the checker never ran", which is the failure `.3`'s first
+checker actually exhibited.
+
+**One finding is promoted to a Knowledge Map card, because it is not about this construct.** The
+knob-name coupling is a standing property of `src/config.rs`: `knob_group` classifies partly by
+*suffix rule*, and `structured-emission-max`'s drift test derives its expected set from the
+resulting catalog group — so **landing in the group is joining the preset**, enforced by a test
+that goes red if you don't. That is right for the nine projections it was built for and a trap for
+anything else, and the next agent adding a knob will meet it. New card
+`docs/knowledge/knob-name-suffix-enrolls-a-preset.md`, with a `reverify` that cites tracked source
+only (the suffix arm, the classify-every-field test, and the group filter the preset test uses).
+
+**Validation.** All 9 doctrines pass (`scripts/check_doctrines.sh`), including
+`TABLE-RENDER-FIDELITY` after the `docs/TASK_TREE.md` frontier-row edit (the first edit of that row
+produced a duplicated final cell — a 6-cell row against a 5-column header — which the doctrine
+caught before commit); `MEMORY.md` 30 lines / 5,893 bytes against the 50 / 6,144 caps; Knowledge
+Map regenerated and in sync at **111** facts / **1,078** question keys; the card's `reverify`
+re-run and confirmed. `cargo check --all-targets` green. **No full `cargo test` is claimed for this
+leaf and none is required** — it stages no `src/`, `tests/` or `examples/` file, and decision
+[`0003`](docs/decisions/0003-resource-safe-validation.md) admits focused functional checks for
+doc-only leaves. The session's full-suite baseline is running separately under
+`scripts/ram_guard.sh` and gates the **next** leaf, `.4b.1`, which is a code change; it is not
+evidence for this one, and is not recorded as such.
+
+**One claim in the `.4a` note was verified against source rather than asserted.** The
+per-knob zero-probability guard rests on `gen_bool` consuming a draw at `p == 0.0`. Read from the
+pinned dependency: `rand` `0.8.5`'s `distributions::bernoulli` computes `p_int = (p * SCALE) as
+u64` and its `Distribution<bool>::sample` short-circuits **only** on `p_int == ALWAYS_TRUE`
+(`p == 1.0`), otherwise always evaluating `rng.gen::<u64>() < p_int`. Cited by crate + module +
+symbol, not by an absolute `$CARGO_HOME` path — that path is neither portable nor on the project
+volume (policy §13; the read was read-only, one-off, and is a required-toolchain dependency).
+
+**Files touched.** `DEVELOPMENT_NOTES.md`, `docs/tasks/CAPABILITY-BREADTH-EXPANSION.md`,
+`docs/TASK_TREE.md`, `ROADMAP.md` (the lane's `.4` status line — `.4` is now *in progress*, not
+*pending*; no phase label changed), `docs/knowledge/knob-name-suffix-enrolls-a-preset.md` (new),
+`KNOWLEDGE_MAP.md` (regenerated), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — CAPABILITY-BREADTH-EXPANSION.3 — record the owner's `2026-08-01` ruling: §(b) binds at disclosure time too
 
-**Landed as:** `pending`. Previous: `b9b26b4`.
+**Landed as:** `eb79534`. Previous: `b9b26b4`.
 **Docs only** ⇒ **DUT byte-identical**.
 
 **What.** Decision [`0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md)

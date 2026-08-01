@@ -66,7 +66,7 @@ the MCP/config API) and introspectable (its emission counted/queryable).
 - ID: `CAPABILITY-BREADTH-EXPANSION`
   Status: `active`
   Goal: `Three breadth strands — more SV-2017/2023 up-opts (continuing the union soft / SV-VERSION-TARGETING pattern), Mealy FSM outputs (extending the Phase-6 Moore-only Fsm), and 2012-legal synthesizable breadth constructs the emitter does not produce at all (added 2026-08-01, decision 0044) — each default-off, proven, API-selectable + introspectable.`
-  Children: `CAPABILITY-BREADTH-EXPANSION.1`, `CAPABILITY-BREADTH-EXPANSION.2`, `CAPABILITY-BREADTH-EXPANSION.3`, `CAPABILITY-BREADTH-EXPANSION.4`
+  Children: `CAPABILITY-BREADTH-EXPANSION.1`, `CAPABILITY-BREADTH-EXPANSION.2`, `CAPABILITY-BREADTH-EXPANSION.3`, `CAPABILITY-BREADTH-EXPANSION.4` (itself `.4a` design-detail + `.4b` impl)
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.1`
   Status: `pending`
@@ -133,18 +133,31 @@ the MCP/config API) and introspectable (its emission counted/queryable).
   Commit: `CAPABILITY-BREADTH-EXPANSION.3`
 
 - ID: `CAPABILITY-BREADTH-EXPANSION.4`
-  Status: `pending`
+  Status: `active` (container — `.4a` design-detail **done**; `.4b` impl pending)
   Goal: `Case-qualifier impl — the default-off unique_case_prob / priority_case_prob knobs (config + CLI + dump-config + KnobId rows in the emission category) + a src/ir/case_qualifier.rs gen-time annotation pass writing Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>, excluding gates already claimed by case_mux_if_gates / casez_mux_if_gates and constant-selector gates + the emitter keyword prefix on the case/casez line + num_emitted_unique_cases / num_emitted_priority_cases at introspection schema 1.27 → 1.28 + the repo-owned tool_matrix --case-qualifier-gate (unique: Verilator + both Yosys, Icarus a recorded accepting no-op; priority: the full three-tool plan) + book/USER_GUIDE/KM. Default-off / DUT byte-identical, snapshots untouched.`
   Acceptance: `cargo check/test/clippy/fmt green; snapshots 6/6 byte-identical with both knobs at 0.0; each knob at 1.0 emits the qualifier on every eligible gate and is downstream-clean on its pinned tool plan; the gate lights saw_unique_case_qualifier / saw_priority_case_qualifier with coverage_gaps = []. PLUS an in-crate #[test] asserting the FULL + PARALLEL property over emitted CaseMux/CasezMux blocks — this is the DURABLE home for the .3 corpus measurement, which was taken with a scratch checker under .cache/ (untracked by design). Rust-side invariants belong in a #[test] already gated by cargo test + CI, not in a tracked shell script (the decision-0033 reasoning ENUMERATION-PARITY applies to its own Rust-side pairs). The test must fail on a hand-built overlapping-arm or default-less fixture, per DOCTRINE_ENFORCEMENT.md section 9.`
+  Children: `CAPABILITY-BREADTH-EXPANSION.4a`, `CAPABILITY-BREADTH-EXPANSION.4b`
+
+- ID: `CAPABILITY-BREADTH-EXPANSION.4a`
+  Status: `done`
+  Goal: `Case-qualifier impl design-detail (docs-only, no code): ground decision 0044 in a fresh read of the real code and resolve its five Open Questions — the Module carrier + enum and where the enum lives, the two knobs' KnobId category, the metric names + schema bump, the per-gate roll precedence, and whether decision 0032's emit-surface interaction gate gains the two knobs as a tenth/eleventh axis. Pin every .4b impl point (predicate, carrier, emitter integration, pass ordering, knobs, metrics, gate scenarios + per-qualifier tool plans, byte-identical argument) and the shape of the FULL + PARALLEL property test that is .4's acceptance requirement.`
+  Acceptance: `A DEVELOPMENT_NOTES.md design-detail entry resolving all five Open Questions with grounding line references to current HEAD; the tree + docs/TASK_TREE.md updated; docs-only ⇒ DUT byte-identical.`
+  Verification: `done — DEVELOPMENT_NOTES.md "2026-08-01 — unique / priority case qualifiers — impl design-detail — CAPABILITY-BREADTH-EXPANSION.4a". All five Open Questions resolved: (1) carrier = Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier> (a MAP, so "at most one qualifier per gate" is unrepresentable-otherwise rather than asserted), enum in the new src/ir/case_qualifier.rs beside its pass (the direction IR-TYPES-DECOMPOSITION is moving types.rs, and Module derives only Debug/Clone/Default so no serde attribute is needed); (2) KnobId category = emission, on both of decision 0035's axes (post-construction pipeline position + per-candidate-gate resolution); (3) metrics num_emitted_unique_cases / num_emitted_priority_cases at schema 1.27 → 1.28; (4) precedence = roll unique first and SKIP the priority roll on a hit — the skip is load-bearing, because rolling both and letting unique win would record a priority fire that emits nothing, the exact telemetry-vs-reality divergence decision 0034 removed; with it, fires(knob) == the knob's metric exactly and the two metrics sum to case_qualifiers.len(); (5) decision 0032's interaction gate does NOT gain the knobs — a qualifier replaces no rendering, so it is not a distinct_emit_surfaces member and applies no exclusion pressure, and folding unique in would cost the universal scenarios their Icarus column (the trade 0032 §(c) already rejected for soft_union) — the co-occurrence instead lands INSIDE --case-qualifier-gate as a dedicated scenario, so the pass's one non-vacuous exclusion is not left unexercised end-to-end. TWO non-obvious findings recorded: (a) unique_case_prob / priority_case_prob do not end in _emit_prob, so config.rs knob_group falls through to "other" which knob_catalog_classifies_every_field forbids ⇒ .4b.1 adds an explicit "case_qualifier" arm — and the alternative (naming them *_emit_prob to ride the existing arm) would have CONSCRIPTED them into --profile structured-emission-max via the decision-0032 preset drift test, which derives its expected set from that catalog group, silently costing the preset its Icarus column; (b) the unique tool plan needs a SECOND pure-function-of-config predicate beside scenario_emits_soft_union_overlay, not a widening of verilator_only — that flag drops Yosys AND Icarus, this reduction drops Icarus only. FULL + PARALLEL test shape pinned as two separate #[cfg(test)] predicates (PARALLEL from the IR by pairwise ((p_i^p_j) & c_i & c_j) == 0; FULL from the emitted text by a nesting-aware default:-per-block scan) each with its own firing negative control, per DOCTRINE_ENFORCEMENT.md §9. Docs-only; no src/ change.`
+  Commit: `CAPABILITY-BREADTH-EXPANSION.4a`
+
+- ID: `CAPABILITY-BREADTH-EXPANSION.4b`
+  Status: `pending`
+  Goal: `Case-qualifier impl — default-off / DUT byte-identical, snapshots untouched. Pre-split into .4b.1 (live: the pass + carrier + enum + two knobs + knob_group arm + two gen/mod.rs rolls + the emitter prefix on the two unprojected branches + the lib proofs incl. the FULL/PARALLEL property tests and their negative controls), .4b.2 (metrics num_emitted_unique_cases / num_emitted_priority_cases @ introspection schema 1.27 → 1.28 + the repo-owned tool_matrix --case-qualifier-gate: 13 scenarios, metric-keyed detection, three coverage facts, per-qualifier tool plans), and .4b.3 (book/src/structured-emission.md + knobs.md + USER_GUIDE + a KM card).`
+  Acceptance: `As .4's acceptance, per leaf.`
   Verification: `pending`
   Commit: `pending`
-  Notes: `Pre-split into .4a (design-detail, resolving the ADR's Open Questions) + .4b (impl: .4b.1 live / .4b.2 metric+gate / .4b.3 docs) when picked.`
+  Notes: `Every impl point is pinned in the .4a DEVELOPMENT_NOTES entry; .4b implements it rather than re-deriving it.`
 
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `CAPABILITY-BREADTH-EXPANSION.4` | `pending` | Case-qualifier **impl**, design-complete: `.3` (decision [`0044`](../decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)) pinned the construct, the candidate set, the two knobs, the metrics, the gate and the per-qualifier tool plans, and banked the probe. Emission-level only — `CaseMux`/`CasezMux` already exist in `GateOp`, so no IR change and no new node kind. Start at `.4a` (design-detail: the `Module` carrier, the `KnobId` category, the roll precedence, and whether decision `0032`'s interaction gate gains the two knobs as axes). |
+| 1 | `CAPABILITY-BREADTH-EXPANSION.4b.1` | `pending` | The case-qualifier **live source change**, and every impl point is already pinned: `.3` (decision [`0044`](../decisions/0044-capability-breadth-unique-priority-case-qualifiers.md)) fixed the construct, the candidate set, the knobs, the metrics, the gate and the per-qualifier tool plans; `.4a` resolved the five Open Questions and pinned the predicate, the carrier, the emitter integration, the pass ordering, the `knob_group` arm, the gate's 13 scenarios, and the shape of the FULL/PARALLEL property test. Emission-level only — `CaseMux`/`CasezMux` already exist in `GateOp`, so no IR change and no new node kind. Read the `.4a` entry in `DEVELOPMENT_NOTES.md` first; do not re-derive it. |
 | 2 | `CAPABILITY-BREADTH-EXPANSION.1` | `pending` | SV up-opt breadth — **deferred-not-retired**, and deferred on evidence twice (the `.2a` and pre-`.1` probes): the named candidates (enum/typedef, packed multidim arrays) are accepted at every Verilator `--language` mode + Yosys + Icarus ⇒ not version-distinctive, no down-gating teeth, and post-2012 SV additions are overwhelmingly verification features a synthesizable generator cannot emit. The genuinely-2023 clean space with the installed tools is essentially `union soft`, shipped. Unblocks when a tool gains real 2023 synthesizable coverage. Its question was **not** folded into `.3` — see decision `0044` Context. |
 
 ## Decisions
@@ -277,12 +290,28 @@ control. Point 3 was withdrawn, above.
 - Exact `Fsm` IR field layout for the Mealy table + the `FsmOut` virtual-deps
   construction folding `sel`'s support + the Mealy FSM identity/dedup keying.
   *(Resolves at `.2b` / `.2b.1`.)*
-- The `Module` carrier + enum for the qualifier marks, the two knobs' `KnobId`
+- ~~The `Module` carrier + enum for the qualifier marks, the two knobs' `KnobId`
   **category** (`emission` vs `selectors`), the per-gate roll precedence, and
   whether decision `0032`'s emit-surface **interaction** gate gains the two knobs
-  as a tenth/eleventh axis — the qualifier pass carries the lane's first
-  **non-vacuous** exclusion (against `case_mux_if_gates` / `casez_mux_if_gates`,
-  which leave no `case` keyword to prefix). *(Resolves at `.4a`.)*
+  as a tenth/eleventh axis~~ — **resolved at `.4a`** (`DEVELOPMENT_NOTES.md`,
+  `2026-08-01`): carrier `Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>`
+  with the enum in the new `src/ir/case_qualifier.rs`; category `emission`;
+  precedence *roll `unique` first and **skip** the `priority` roll on a hit*, so
+  each knob's recorded fires equal its metric exactly; and **no** — a qualifier
+  replaces no rendering, so it is not a `distinct_emit_surfaces` member, and
+  folding `unique` into `0032`'s universal scenarios would cost them their Icarus
+  column. The lane's first **non-vacuous** exclusion (against `case_mux_if_gates`
+  / `casez_mux_if_gates`, which leave no `case` keyword to prefix) is therefore
+  exercised end-to-end by a dedicated co-occurrence scenario **inside**
+  `--case-qualifier-gate`, rather than being left written-but-never-fired.
+- Whether the two qualifier knobs should ever join a `--profile`. **Not at `.4`**:
+  `.4a` found that naming them `*_emit_prob` would have conscripted them into
+  `structured-emission-max` through decision `0032`'s preset drift test (which
+  derives its expected set from the `structured_emission` *catalog group*),
+  costing that preset its Icarus column for a construct that adds no surface
+  diversity. They take their own `case_qualifier` catalog group and no preset. A
+  dedicated qualifier preset is a separate decision, recorded not retired.
+  *(Resolves at `.5`+, if ever.)*
 - Whether `unique0`, the `unique if` / `priority if` variants on the eighth/ninth-surface
   chains, and the FSM `case (state_q)` / `case (sel)` blocks each become their own
   `.5`+ leaf. All three are recorded, none retired; the FSM blocks are already
@@ -304,6 +333,7 @@ control. Point 3 was withdrawn, above.
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `num_mealy_fsm_modules DesignMetrics field + schema 1.12→1.13 (const + comment + all schema_version assertions in introspect/mod.rs + mcp/mod.rs + the schema-doc §6.3/§7); cargo test green (lib 589/0 + full); snapshots 6/6; clippy -D warnings + fmt clean; live --introspect (hierarchy, fsm_mealy_prob=1.0) → num_mealy_fsm_modules: 2 at schema 1.13` | `done` (metric queryable; default-off byte-identical) |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `saw_mealy_fsm_design coverage fact + phase6_mealy_fsm scenario (= phase6_fsm + fsm_mealy_prob=1.0) + detection/merge/Phase4Hierarchy gap + phase6_mealy_fsm_scenario_is_non_vacuous test (count 222→225, gate designs 888→900) in src/bin/tool_matrix.rs; cargo test green (tool_matrix bin 79/0, lib 589/0, snapshots 6/6 byte-identical); clippy --all-targets -D warnings + fmt clean; PRIMARY proof — focused harness-faithful downstream run (seed 7, the exact phase6_mealy_fsm shape) ACCEPT warning-clean across verilator --top-module + Yosys both modes + iverilog -g2012 -s top; the --phase4-hierarchy-gate run enforces coverage_gaps=[] incl. saw_mealy_fsm_design (gap-enforcement + non-vacuity unit-proven; 224 non-Mealy scenarios unchanged from the r87/phase6-fsm-p1 banks)` | `done` (Mealy gate; default-off DUT byte-identical) |
 | `2026-08-01` | `CAPABILITY-BREADTH-EXPANSION.3` | `decision 0044 written (KM answers: front-matter); by-construction argument read off src/emit/sv.rs:800-806 + :712-721 + src/gen/cone/motifs.rs:832-841; corpus measurement 50,761 case/casez blocks (120 modules × 3 strategies) 100 % FULL + PARALLEL with 0 nested / 0 unparsed / 0 violations, plus 130 FSM blocks (106 nested) 100 % FULL + PARALLEL; checker proven non-vacuous on a hand-written overlapping casez + default-less case (exit 1) AFTER v1 of the checker failed that same test and was rewritten; downstream ON-vs-OFF over 24 modules / 169 qualified blocks — verilator --lint-only 0/0, verilator -Wall × 2012/2017/2023 Δ=0 (68 vs 68), Yosys both modes 0 fail / 0 msg, cell counts identical 24/24, iverilog -g2012 exit 0; runtime verilator --binary --assert ZERO violations on a real CaseMux (exhaustive) and a real CasezMux with unique casez (20,000 vectors), negative control DOES fire; LRM §12.5.3 grounded against the local 2017 cache; INDEX + tree + docs/TASK_TREE.md + ROADMAP.md updated; mem-arch + KM + doctrine self-checks` | `done` (docs-only; no code; DUT byte-identical) — **one prior finding corrected**: `CasezMux` is parallel by construction; the pre-`.1` overlap claim is withdrawn |
+| `2026-08-01` | `CAPABILITY-BREADTH-EXPANSION.4a` | `impl design-detail written to DEVELOPMENT_NOTES.md, grounded in a fresh read of current HEAD (src/ir/case_mux_if_emit.rs, src/emit/sv.rs:667-809, src/gen/cone/motifs.rs:832-841, src/gen/mod.rs:257/274/564/580, src/ir/types.rs:166/576, src/ir/knob_id.rs:220-253, src/config.rs:126/1084/1335/1720/1955/2082/2197-2204/2303-2364/2401/2806/2901, src/main.rs:555-557/1157, src/metrics.rs:398-411/1031, src/introspect/mod.rs:70, src/bin/tool_matrix.rs:1083/1677/4288/4326/5498/5550/6141/6432/6469/6475/7235-7244/8794); all five decision-0044 Open Questions resolved; the .4b impl points and the FULL/PARALLEL property-test shape pinned; tree + docs/TASK_TREE.md updated; mem-arch + KM + doctrine self-checks` | `done` (docs-only; no code; DUT byte-identical) — **two non-obvious findings**: the knob names force an explicit `knob_group` arm, and the `*_emit_prob` alternative would have silently conscripted the qualifiers into `--profile structured-emission-max`; and the `unique` tool plan needs a second pure-function-of-config predicate, not a widening of `verilator_only` |
 | `2026-06-22` | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `book sequential.md "FSM outputs: Moore vs Mealy" + byte-verified runnable example (passing in tests/book_examples; emitted module Verilator -Wall 2012/2017/2023 + Yosys both + Icarus clean); knobs.md fsm_mealy_prob entry + metric-table row + corrected stale line; USER_GUIDE --fsm-mealy-prob row; README --fsm-mealy-prob bullet; new KM card docs/knowledge/fsm-mealy-outputs.md (working reverify, cross-linked to 0024); deferred schema 1.12→1.13 book-example refresh (api-tools/agent-mcp/api-introspection/api-reference; provenance kept at 1.12); mdbook build clean; KM regen+check green (60 facts)` | `done` (docs-only; book back in sync; DUT byte-identical) |
 
 ## Commit Log
@@ -316,6 +346,7 @@ control. Point 3 was withdrawn, above.
 | `CAPABILITY-BREADTH-EXPANSION.2b.2a` | `CAPABILITY-BREADTH-EXPANSION.2b.2a — Mealy metric num_mealy_fsm_modules + introspection schema 1.13` | The `num_mealy_fsm_modules` `DesignMetrics` field (serde-projected into `--introspect`) + the additive schema bump `1.12 → 1.13` (const + comment + all `schema_version` assertions + the schema-doc contract). Queryable (decision `0017`); default-off byte-identical. `.2b.2` split into `.2b.2a` (done) + `.2b.2b` (gate). |
 | `CAPABILITY-BREADTH-EXPANSION.2b.2b` | `CAPABILITY-BREADTH-EXPANSION.2b.2b — Mealy FSM tool_matrix gate (saw_mealy_fsm_design + phase6_mealy_fsm scenario)` | The repo-owned Mealy gate in `src/bin/tool_matrix.rs`: `saw_mealy_fsm_design` coverage fact + `phase6_mealy_fsm` scenario (`fsm_mealy_prob=1.0`) + detection/merge/`Phase4Hierarchy` gap + a non-vacuity test (count 222→225, gate designs 888→900), mirroring the `phase6_fsm`/`phase6_inferrable_memory` motif gates. Banked downstream-clean; default-off DUT byte-identical. `.2b.2` done; `.2b` frontier → `.2b.3` (docs). |
 | `CAPABILITY-BREADTH-EXPANSION.3` | `CAPABILITY-BREADTH-EXPANSION.3 — unique/priority case qualifiers: a third breadth strand (decision 0044)` | Design ADR (docs-only). Opens a **third** strand rather than reframing `.1`. Pins the `unique`/`priority` case-qualifier projection of `CaseMux`/`CasezMux`, the two default-off knobs, the metrics (schema `1.27 → 1.28`), the `--case-qualifier-gate` with **per-qualifier** tool plans, and the MCP surface. Banks a 50,761-block corpus measurement + a runtime `--assert` proof with a firing negative control. **Withdraws** the pre-`.1` `CasezMux`-can-overlap claim. `.3` split the strand into `.3` (done) + `.4` (impl). |
+| `CAPABILITY-BREADTH-EXPANSION.4a` | `CAPABILITY-BREADTH-EXPANSION.4a — case-qualifier impl design-detail (decision 0044's five Open Questions resolved)` | Docs-only. Resolves the carrier (`Module.case_qualifiers: BTreeMap<NodeId, CaseQualifier>`, the enum in a new `src/ir/case_qualifier.rs`), the `KnobId` category (`emission`), the metric names + schema `1.27 → 1.28`, the roll precedence (`unique` first, `priority` roll **skipped** on a hit so recorded fires equal the metric), and decision `0032`'s interaction gate (**no** — a qualifier replaces no rendering; the co-occurrence lands inside `--case-qualifier-gate` instead, so the one non-vacuous exclusion is not left unexercised). Pins every `.4b` impl point and the FULL/PARALLEL property-test shape. `.4` split into `.4a` (done) + `.4b` (impl); frontier → `.4b.1`. |
 | `CAPABILITY-BREADTH-EXPANSION.2b.3` | `CAPABILITY-BREADTH-EXPANSION.2b.3 — Mealy user-facing docs (book + USER_GUIDE + README + KM card + schema 1.13 refresh)` | Docs-only: `book/src/sequential.md` "FSM outputs: Moore vs Mealy" + a byte-verified runnable example; `knobs.md` `fsm_mealy_prob` entry + table row + corrected stale line; `USER_GUIDE`/`README` `--fsm-mealy-prob`; new KM card `docs/knowledge/fsm-mealy-outputs.md`; the deferred introspection schema `1.12→1.13` book-example refresh. Closes `.2b` and the whole Mealy strand `.2`. Book back in sync; DUT byte-identical. Tree frontier → `.1` (SV up-opt, deferred). |
 
 ## Changelog
@@ -365,3 +396,24 @@ control. Point 3 was withdrawn, above.
   delete-the-subject test and was rewritten before any number from it was trusted. `.1` stays
   `pending`/deferred with its question intact. Frontier → `.4` (impl). Docs-only; DUT
   byte-identical.
+- `2026-08-01`: `.4a` done — the case-qualifier **impl design-detail**
+  (`DEVELOPMENT_NOTES.md`), resolving all five of decision `0044`'s Open Questions
+  against a fresh read of current HEAD. `.4` split into `.4a` (design-detail, done)
+  + `.4b` (impl, pre-split `.4b.1` live / `.4b.2` metric+gate / `.4b.3` docs);
+  frontier → `.4b.1`. The load-bearing resolutions: the carrier is a **map**
+  (`case_qualifiers: BTreeMap<NodeId, CaseQualifier>`), so "at most one qualifier
+  per gate" is unrepresentable-otherwise rather than asserted; the precedence
+  **skips** the second roll on a hit, so each knob's recorded fires equal its
+  metric exactly instead of counting a `priority` fire that emits nothing; and
+  decision `0032`'s interaction gate does **not** absorb the two knobs — a
+  qualifier replaces no rendering, so the co-occurrence proof lands inside
+  `--case-qualifier-gate` as a dedicated scenario, which is also the only thing
+  that stops this pass's one **non-vacuous** exclusion from being written,
+  unit-tested and never fired end-to-end (the exact hole `0032` itself was opened
+  to close). Two non-obvious findings recorded: the knob names force an explicit
+  `knob_group` arm — and the `*_emit_prob` alternative would have conscripted the
+  qualifiers into `--profile structured-emission-max` through `0032`'s preset
+  drift test, costing that preset its Icarus column; and the `unique` tool plan
+  needs a **second** pure-function-of-config predicate rather than a widening of
+  `verilator_only`, which drops a different pair of columns. Docs-only; no `src/`
+  change; DUT byte-identical.

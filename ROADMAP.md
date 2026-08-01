@@ -2870,8 +2870,10 @@ other five remain `active` with a design-first `.1` ADR frontier:
    because both asserted properties are free from the emitter — the always-present
    `default:` arm gives FULL and the sequential arm indices give PARALLEL — measured over
    **50,761** emitted `case`/`casez` blocks (100 % both, 0 violations) and runtime-proven
-   by `verilator --assert` (zero violations; the negative control fires). `.3` design done,
-   `.4` impl pending. Each default-off / proven /
+   by `verilator --assert` (zero violations; the negative control fires). `.3` design done;
+   **`.4` in progress** — `.4a` (impl design-detail, `2026-08-01`) resolved `0044`'s five Open
+   Questions and pinned every impl point, and `.4b` (the live surface + metric/gate + docs) is the
+   frontier. Each default-off / proven /
    API-selectable; the lane stays `active`. Default-off / DUT byte-identical.
 
 Nothing is retired; the default `anvil` build and `--artifact dut` stay
