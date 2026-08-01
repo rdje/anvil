@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-01 — USER-GUIDE-CLI-TABLE-SHADOW.2 — the table is exhaustive over the knobs, and 18 were missing
 
-**Landed as:** `pending`. Previous: `f2d282e`, `2203574`, `beb1ebb`.
+**Landed as:** `cd7f24b`. Previous: `f2d282e`, `2203574`, `beb1ebb`.
 **Docs-only** ⇒ **DUT byte-identical**.
 
 **What.** `USER_GUIDE.md`'s CLI flag table now carries a stated contract and **93** rows, up
