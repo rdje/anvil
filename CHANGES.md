@@ -1,6 +1,58 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.5 — card the seam rule, and the missing entry for it
+
+**Landed as:** `pending`. Previous: `beb1ebb`, `8c93d1e`, `1cd46c3`.
+**Docs-only** ⇒ **DUT byte-identical**. This entry covers **two** commits, and says so rather
+than pretending otherwise: `beb1ebb` (the fact card) and this one (the entry `beb1ebb` should
+have carried).
+
+**What.** A Knowledge Map fact card,
+`docs/knowledge/test-seam-bypassing-the-extraction-under-test.md`, for the durable rule
+`CHANGES-ENTRY-PLACEMENT.5` established: **use a test seam when the thing it bypasses is
+*input* to the assertion; refuse one when it is the *subject*.** For
+`check_diagnosis_evidence.sh` and `check_task_tree_ownership.sh` the staged list is input, so
+`DOCTRINE_STAGED_OVERRIDE` is sound. For `check_changes_entry_placement.sh` the two git
+extractions **are** the assertion, so a seam would have tested one line of `grep -qxF` and
+skipped everything that could break. The card carries the corollary too — a gate whose every
+path is an exemption needs an anti-vacuity floor — and links
+[[extractor-charset-narrower-than-source]] and [[doctrine-enforcement]]. Map regenerated
+**115 → 116** facts, in sync.
+
+**Why the card at all.** The rule was already written in `DEVELOPMENT_NOTES.md`, which is
+~5,300 lines and **not question-indexed**. `KNOWLEDGE_MAP_ARCHITECTURE.md` §4's write path is
+explicit that a durable structural/causal fact gets a card *when it is established*, so the
+next author registering a doctrine check retrieves it in one lookup instead of re-deriving it.
+
+**And the workflow defect this entry repairs.** `beb1ebb` landed **without a `CHANGES.md`
+entry**, which `COMMIT.md` §2 makes mandatory *without exception*. It was caught by checking
+the precedent rather than by reasoning about it: of the **last 30 commits touching
+`docs/knowledge/`, 29 carried a `CHANGES.md` amendment and exactly one did not — `beb1ebb`**.
+The precedent was unanimous, not ambiguous.
+
+**Repaired additively, not by amending**, which is this tree's own rule applied to itself:
+*when history is wrong about itself, add a record — do not edit one* (`.2` changelog,
+decision `0038`). An `--amend` would have produced a repository in which the omission never
+happened, and `0031`'s *"keep it raw, keep honest"* is precisely the objection to that. So
+`beb1ebb` stands unmodified and this entry names it.
+
+**Note what did *not* catch it.** `CODE-CHANGE-EVIDENCE` is scope-aware and exempts
+docs-only commits, so it passed. `CHANGES-ENTRY-PLACEMENT` — registered hours earlier — asks
+whether a *newly added* entry is at the top, and `beb1ebb` added none, so it correctly
+skipped. Neither is a gap in either check: **no registered doctrine asserts that a non-code
+commit carries an entry at all**, and widening one to do so would fire on every
+hash-backfill commit, which `0045` established is the false-alarm population that gets a gate
+deleted. Recorded as an observation, deliberately **not** repaired here — a new assertion
+needs a task-tree leaf and a measurement first, not a reflex.
+
+**Validation.** `scripts/check_doctrines.sh` **10/10** after `git add`;
+`knowledge-map/scripts/check_knowledge_map.sh` OK (facts valid, ids unique, map in sync).
+Docs-only ⇒ DUT byte-identical.
+
+**Files touched.** `docs/knowledge/test-seam-bypassing-the-extraction-under-test.md` (new, in
+`beb1ebb`), `KNOWLEDGE_MAP.md` (regenerated, in `beb1ebb`), `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-01 — CHANGES-ENTRY-PLACEMENT.5 — the authoring-path check, registered
 
 **Landed as:** `1cd46c3`. Previous: `6ca3c29`.
