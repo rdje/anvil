@@ -1,6 +1,69 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — TASK-LEAF-COMMIT-SHADOW.0 — register the twice-recorded leaf commit hash
+
+**Landed as:** `pending`. Previous: `7b2d472`, `443438d`, `a385b76`.
+**Docs-only; no `src/`, no `book/src/`** ⇒ **DUT byte-identical**.
+
+**What.** A new tree, registered from a measurement rather than from the incident that exposed it.
+Every task-tree leaf records its completing commit **twice** — in the leaf record's `Commit:` field
+and in the same file's `## Commit Log` row — and both are maintained by hand.
+
+| Measured across all 82 trees | count |
+| --- | --- |
+| leaf records | **625** |
+| carrying a `Commit:` field | **424** |
+| trees carrying a `## Commit Log` table | **81 of 82** |
+| leaves marked `done` | **411** |
+| `done` leaves still reading `Commit: pending` | **7** |
+| leaf field contradicting its own Commit Log row | **1** (live) |
+
+**The finding is that it is a class, not carelessness.** The seven stale leaves —
+`COVERAGE-STEERED-GENERATION.4`, `LOCAL-REFERENCE-CACHE.3`,
+`OVERFLOW-DESTINATION-INSTRUMENTATION.6/.7/.8/.10`, `UNGATED-PRACTICE-AUDIT.1` — sit in **four
+unrelated trees** across many weeks, and **none was authored by the session that found them**. The
+last contradicts its own Commit Log row, which reads `0e4654f`.
+
+**Why it is a shadow.** [`0033`](docs/decisions/0033-shadow-enumeration-classification.md) classifies
+a hand-kept copy of a derivable fact as a shadow whose repair is **R1 — delete the copy**. Two
+derivations exist: the **Commit Log table** (strictly richer — hash, subject *and* a notes column),
+and **git history itself**, because `.githooks/commit-msg` **rejects a subject that names no leaf**,
+making `git log --grep=<leaf id>` a total derivation rather than a search. `COMMIT.md` task-tree rule
+1 already states the asymmetry: *"hashes can be backfilled into the tree later, but the leaf ID
+cannot"* — the leaf ID is the durable join key; the hash is a convenience cache.
+`feedback_full_factorization` (one mechanism, never two) is already decided against the second copy,
+and the seven stale fields are that decision's predicted consequence arriving on schedule.
+
+**A gate was considered FIRST and rejected FIRST, and that is recorded rather than left implicit.**
+The obvious repair — fail the commit when a `done` leaf carries `Commit: pending` — is rejected on
+two independent grounds. It **watches a hand-maintained duplicate instead of removing it**, which is
+the precedence [`0047`](docs/decisions/0047-negative-control-carrier-is-the-mutation.md) sets and
+which `DOCTRINE_ENFORCEMENT.md` §9 counts as a defect in its own right. And it would **cry wolf**:
+`done` + `pending` is the *legitimate* state of a leaf between its work commit and its backfill
+commit, which is exactly the false-alarm failure decisions
+[`0038`](docs/decisions/0038-changes-md-position-repair-by-pointer.md) and
+[`0045`](docs/decisions/0045-changes-entry-placement-authoring-path-check.md) measured and
+disqualified. If `.1` concludes the field must stay, a gate becomes arguable again — and only then.
+
+**How it surfaced.** A hash backfill wrote `d25bbe7` into `BOOK-PARAGRAPH-BLOBS.1`'s field instead of
+`.4`'s, because a scripted replace matched the **first** `` Commit: `pending` `` in the file — and
+`.1`'s field was `pending` **even though its Commit Log row already named `df7bc6e`**. The mis-target
+was possible *because the shadow was already stale*. The operating rule from that episode is
+[`matched-mutation-is-not-the-intended-mutation`](docs/knowledge/matched-mutation-is-not-the-intended-mutation.md);
+this tree is the structural repair underneath it. Fixing the typing does not remove the class.
+
+**Ownership search run, not assumed.** `MEMORY-ARCH` checks decision indexing and `MEMORY.md`'s
+caps; `TASK-TREE-OWNERSHIP` checks co-staging; `CHANGES-ENTRY-PLACEMENT` checks entry position. None
+owns task-leaf field integrity, so this is a **first** mechanism, not a second.
+
+**Deliberately registered rather than repaired in passing.** Fixing the seven fields is a two-minute
+edit that leaves the mechanism producing them intact — the repo would have looked clean while the
+class stayed live.
+
+**Files touched.** `docs/tasks/TASK-LEAF-COMMIT-SHADOW.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3a — the book links the registers it stopped duplicating
 
 **Landed as:** `a385b76`. Previous: `c988f77`, `57f5d66`, `d25bbe7`.
