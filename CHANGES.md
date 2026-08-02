@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3c — lift the fourteen-query roll-call out of its table cell
 
-**Landed as:** `pending`. Previous: `85a6993`, `afb9847`, `cd83e3c`, `aaeb01c`.
+**Landed as:** `d825eb4`. Previous: `85a6993`, `afb9847`, `cd83e3c`, `aaeb01c`.
 **Book + `scripts/` + docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** The `analyze` row of `book/src/agent-mcp.md`'s tools table held **fourteen sentences** — one
