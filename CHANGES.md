@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3b — convert the capability roll-calls to lists; oversized mass down 63 %
 
-**Landed as:** `pending`. Previous: `cd83e3c`, `aaeb01c`, `7b2d472`, `443438d`.
+**Landed as:** `afb9847`. Previous: `cd83e3c`, `aaeb01c`, `7b2d472`, `443438d`.
 **Book + `scripts/` + docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** The four **capability roll-calls** — single sentences listing dozens of clauses about what
