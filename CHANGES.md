@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — BOOTSTRAP-READ-CONTRACT.0 — register the unsatisfiable session-bootstrap read contract
 
-**Landed as:** `pending`. Previous: `089566b`, `d825eb4`, `85a6993`.
+**Landed as:** `cb24484`. Previous: `089566b`, `d825eb4`, `85a6993`.
 **Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** A new task tree registering a defect in `SESSION_BOOTSTRAP.md` itself: the read it

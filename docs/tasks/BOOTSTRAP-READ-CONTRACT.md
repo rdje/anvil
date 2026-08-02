@@ -161,7 +161,7 @@ the contract further out of reach. `SESSION_BOOTSTRAP.md` already hedges for exa
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.0` (registration) | `pending` — `BOOTSTRAP-READ-CONTRACT.0 — register the unsatisfiable session-bootstrap read contract` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
+| `.0` (registration) | `cb24484` — `BOOTSTRAP-READ-CONTRACT.0 — register the unsatisfiable session-bootstrap read contract` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 
 ## Changelog
 
