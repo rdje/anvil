@@ -23,6 +23,19 @@ It is order-sensitive by construction, which is what makes it stronger than
 the clause *set* comparison it replaces: a set is blind to reordering, and a
 reordered capability register is a changed claim about what a gate proved.
 
+**`--allow-move`, for a LIFT.** Moving a run of clauses out of a container it
+does not fit — a GFM table cell, which cannot hold a block-level list — is a
+*reordering* of the file by construction, so the default mode fires on it and
+reports nothing useful. This mode answers the question a lift actually raises:
+**was any word dropped or invented?** It compares *word multisets* and prints
+the exact words added and removed. The unit is the word, not the clause,
+because a list conversion deletes the separators that define a clause
+boundary — so a clause multiset cries wolf on the very edit this mode exists
+to permit. It is therefore **blind to reordering** — the very property the
+default mode exists to have — so it is opt-in, never the default, and a lift
+must pair it with a separate proof that the moved run's own internal sequence
+is unchanged. Cite the mode you ran.
+
 **Stated blind spot.** Because standalone `and`/`plus`/`or`/`including`/
 `then`/`also` are dropped from both sides, an edit that consists *only* of
 adding or removing one of those words is invisible here. That is the exact
@@ -30,8 +43,9 @@ token class a list conversion legitimately edits, which is why it is dropped;
 it means this proof must not be cited as evidence that no word changed. For
 that claim, use `prove_words_unchanged.py`, which permits nothing.
 
-Exit 0 when every file's normalized sequence is identical, 1 when one is not,
-2 on a usage or git error.
+Exit 0 when every file's normalized sequence is identical (or, under
+`--allow-move`, its word multiset), 1 when one is not, 2 on a usage or git
+error.
 """
 from __future__ import annotations
 
@@ -73,6 +87,36 @@ def normalize(text: str) -> str:
     return re.sub(r"\x00(\d+)\x00", lambda m: spans[int(m.group(1))], text)
 
 
+def words(text: str) -> list[str]:
+    """`normalize` split on whitespace — the unit a LIFT actually preserves.
+
+    A clause is the wrong unit here, measured rather than assumed: a list
+    conversion *deletes the separators that define a clause boundary*, so
+    N run-on clauses become one list-item clause and a clause multiset
+    reports a spurious N-removed / 1-added. The word multiset is invariant
+    under both the separator removal and the move.
+    """
+    return normalize(text).split()
+
+
+def report_multiset(before: list[str], after: list[str]) -> bool:
+    """Print the units added and removed. True when the multisets match."""
+    from collections import Counter
+
+    cb, ca = Counter(before), Counter(after)
+    removed = sorted((cb - ca).elements())
+    added = sorted((ca - cb).elements())
+    if not removed and not added:
+        return True
+    for c in removed[:40]:
+        print(f"      REMOVED: {c[:150]}")
+    for c in added[:40]:
+        print(f"      ADDED:   {c[:150]}")
+    if len(removed) > 40 or len(added) > 40:
+        print(f"      … {len(removed)} removed / {len(added)} added in total")
+    return False
+
+
 def at_ref(ref: str, path: Path, root: Path) -> str:
     rel = path.resolve().relative_to(root)
     proc = subprocess.run(
@@ -107,6 +151,10 @@ def main() -> int:
     ap.add_argument("--ref", default="HEAD", help="git ref to compare against")
     ap.add_argument("--context", type=int, default=90,
                     help="characters of context around a divergence")
+    ap.add_argument("--allow-move", action="store_true",
+                    help="compare WORD MULTISETS, so a lift passes. Blind to "
+                         "reordering by construction — pair it with a proof of "
+                         "the moved run's own internal sequence")
     ap.add_argument("paths", nargs="+", help="files to prove")
     args = ap.parse_args()
 
@@ -119,9 +167,19 @@ def main() -> int:
     for raw in args.paths:
         path = Path(raw).resolve()
         rel = path.relative_to(root)
-        before = normalize(at_ref(args.ref, path, root))
-        after = normalize(path.read_text(encoding="utf-8"))
+        raw_before = at_ref(args.ref, path, root)
+        raw_after = path.read_text(encoding="utf-8")
 
+        if args.allow_move:
+            wb, wa = words(raw_before), words(raw_after)
+            if report_multiset(wb, wa):
+                print(f"{rel}: OK ({len(wb)} words, multiset identical)")
+                continue
+            ok = False
+            print(f"{rel}: WORDS DIFFER ({len(wb)} -> {len(wa)} words)")
+            continue
+
+        before, after = normalize(raw_before), normalize(raw_after)
         if before == after:
             print(f"{rel}: OK ({len(before)} normalized chars)")
             continue
@@ -131,8 +189,12 @@ def main() -> int:
         print(locate(before, after, args.context))
 
     print()
-    print("PROOF: every clause preserved, in order" if ok
-          else "PROOF FAILED: a clause was dropped, invented, reworded, or moved")
+    if args.allow_move:
+        print("PROOF: no word dropped or invented (ORDER NOT CHECKED — --allow-move)"
+              if ok else "PROOF FAILED: a word was dropped or invented")
+    else:
+        print("PROOF: every clause preserved, in order" if ok
+              else "PROOF FAILED: a clause was dropped, invented, reworded, or moved")
     return 0 if ok else 1
 
 

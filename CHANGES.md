@@ -1,6 +1,94 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3c — lift the fourteen-query roll-call out of its table cell
+
+**Landed as:** `pending`. Previous: `85a6993`, `afb9847`, `cd83e3c`, `aaeb01c`.
+**Book + `scripts/` + docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** The `analyze` row of `book/src/agent-mcp.md`'s tools table held **fourteen sentences** — one
+per derived-relation query — inside a single GFM pipe-table cell, rendering as a 3,071-character
+`<td>`, the book's worst remaining block. A cell cannot hold a block-level list, so there was no
+in-place repair: the fourteen descriptions were **lifted** into a markdown list at the head of
+`### Derived-relation queries: analyze`, the section that already owns one `####` subsection per
+query, and the cell now carries its own opening and closing sentences plus a link to that section.
+The same enumeration's second copy — the schema-bump register in `book/src/api-introspection.md` —
+became **eleven bullets** in place.
+
+| Metric | `.3b` | `.3c` | Δ |
+| --- | --- | --- | --- |
+| blocks over 1,500 chars | 4 | **2** | −2 |
+| worst rendered block | 3,071 | **1,901** | **−38.2 %** |
+| total mass in oversized blocks | 8,210 | **3,519** | **−57.1 %** |
+| `agent-mcp.html` worst block | 3,071 | **1,343** | −56.3 % |
+
+**Both survivors are `.3b`'s recorded acceptances** (a knob → metrics lookup row and a metric-name
+list item, each a scan target rather than prose), so the book now holds **no unaccepted oversized
+block**. That is the end of the repair work this tree registered; `.2` — decide whether anything
+should *watch* paragraph size — is now the only open leaf, and it faces a fully repaired baseline
+rather than a threshold it could fit to a known defect.
+
+**Why a lift and not `0048`'s link.** `.3b` had established for a *different* block that the book's
+glosses are book-only; that is a claim about other prose, so it was re-measured **per gloss**. Ten of
+the fourteen editorial glosses (*"what does this output depend on?"*) exist **nowhere else in the
+repository**; four recur once, in `agent-mcp.md`'s own per-query sections. A link-and-delete would
+therefore have destroyed ten pieces of prose, and the route was declined on that measurement rather
+than on inheritance.
+
+**The first measurement of that was wrong, and the reason recurred three times.** A line-wise `grep`
+reported a gloss as unique to the cell while it also sits at `agent-mcp.md:937` — **split across two
+source lines** by the book's hard wrap. Redone whole-file and whitespace-normalized. The same wrap
+later defeated a negative-control carrier, which `scripts/negative_control.sh` correctly refused with
+exit `9` rather than reporting a verdict. This is the failure `BOOK-LINK-TARGETS` already records for
+wrapped link text, met twice more.
+
+**Validation.** A lift is a *reordering* of the file by construction, so no existing instrument could
+express it and it is proven in **two halves**: the fourteen items extracted from the before-`<td>`
+and from the after-list are **byte-identical in sequence** (14/14), and the file with that run
+excised on both sides is identical (**54,791 = 54,791** normalized chars) modulo two stated
+additions totalling 136 characters. `api-introspection.md` needs no such split and passes the plain
+`prove_clauses_unchanged.py` **outright** — 11,593 normalized chars, byte-identical sequence.
+
+`scripts/prove_clauses_unchanged.py` gained an opt-in **`--allow-move`** mode as the cheap re-runnable
+summary of both halves, and **its first design cried wolf**: comparing clause multisets, it reported
+ten clauses destroyed and one created on a correct edit. Root-caused rather than reclassified — **a
+list conversion deletes the separators that define a clause boundary**, so `A, B, C` is three clauses
+before and one after, and the clause multiset is not invariant under the very edit the mode exists to
+permit. Rebuilt on the **word** multiset, which `normalize()` already makes separator-free: `+15
+words, 0 removed` on `agent-mcp.md` with every added word printed, and **multiset identical** (1,648
+words) on `api-introspection.md`. Recorded as
+[`clause-boundary-is-destroyed-by-the-list-conversion`](docs/knowledge/clause-boundary-is-destroyed-by-the-list-conversion.md).
+
+Four negative controls through `scripts/negative_control.sh`, every substitution count asserted: drop
+a query → **FIRES**; reword → **FIRES**; invent a word → **FIRES**; **reorder two adjacent bullets →
+SILENT** under `--allow-move` and **FIRES** under the default mode — the complementarity proven on one
+carrier. That control had to be moved first: run on `agent-mcp.md` it fired, but that file already
+diverges by this leaf's fifteen added words, so the instrument was **saturated** and could not
+discriminate — the same trap `.3b` recorded for `prove_words_unchanged.py`.
+
+Structure reconciled term by term: prose blocks **3,671 → 3,698 (+27)** = 14 lifted `<li>` + 11 schema
+`<li>` + 1 lead-in `<p>` + 1 section-split `<p>`; `book_list_signature.py` **1,493 → 1,518 (+25 = 14 +
+11)**, moving in exactly the 2 edited chapters of 31 and no others. **Zero mid-sentence paragraph
+breaks book-wide** (0 of 2,190), so `.1`'s defect was not reintroduced. The `#derived-relation-queries-analyze`
+anchor is present in the rendered HTML. `mdbook build` exit 0; `scripts/check_doctrines.sh` **11/11**;
+`cargo test --test book_examples` 4 passed / 0 failed.
+
+**The third copy was measured and deliberately left alone.** `.3c`'s acceptance left open whether
+`TOOLBOX.md`'s `analyze` row should link rather than duplicate. It shares **0 of 15** parenthesised
+glosses with the book's, because the two are written in different registers — a terse capability
+descriptor versus the question the query answers. It is therefore **not** a lossy copy of an
+authoritative set, `0033`'s first test fails, and linking would point at prose that says something
+different. Surfaced as a live-doc readability question, which this tree does not own — the same
+boundary `.3a` drew for `CODEBASE_ANALYSIS.md`.
+
+**Impact.** Book-only plus one instrument mode and one gitignore line; no generator, IR or emitter
+change ⇒ DUT byte-identical.
+
+**Files touched.** `book/src/agent-mcp.md`, `book/src/api-introspection.md`,
+`scripts/prove_clauses_unchanged.py`, `docs/knowledge/clause-boundary-is-destroyed-by-the-list-conversion.md`,
+`KNOWLEDGE_MAP.md`, `TOOLBOX.md`, `docs/tasks/BOOK-PARAGRAPH-BLOBS.md`, `docs/TASK_TREE.md`,
+`.gitignore`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3b — convert the capability roll-calls to lists; oversized mass down 63 %
 
 **Landed as:** `afb9847`. Previous: `cd83e3c`, `aaeb01c`, `7b2d472`, `443438d`.

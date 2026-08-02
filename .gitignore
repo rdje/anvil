@@ -17,3 +17,8 @@ git_message_brief.txt
 # under .cache/local-references/sv/). Untracked grounding material for agents;
 # never part of the repo's signoff surface.
 .cache/
+
+# Python bytecode from scripts/*.py. Created whenever one of the book-proof
+# instruments is imported as a module (rather than run as a program) — which is
+# how a leaf reuses another proof's normalizer instead of forking it.
+__pycache__/

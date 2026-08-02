@@ -79,7 +79,7 @@ independent instance of that rule since it was written, arriving from an owner r
 - ID: `BOOK-PARAGRAPH-BLOBS`
   Status: `active`
   Goal: `The rendered book has no wall-of-text paragraphs, and the repair is whitespace-only.`
-  Children: `.1` (repair the splittable blobs, **done**), `.4` (make the instruments durable, **done**), `.3a` (link the verified duplications, **done**), `.3b` (the capability roll-calls, which are *not* duplications, **done**), `.3c` (the twice-carried fourteen-query `analyze` roll-call), `.2` (decide whether anything watches this)
+  Children: `.1` (repair the splittable blobs, **done**), `.4` (make the instruments durable, **done**), `.3a` (link the verified duplications, **done**), `.3b` (the capability roll-calls, which are *not* duplications, **done**), `.3c` (the twice-carried fourteen-query `analyze` roll-call, **done**), `.2` (decide whether anything watches this)
 
 - ID: `BOOK-PARAGRAPH-BLOBS.4`
   Status: `done`
@@ -117,10 +117,10 @@ independent instance of that rule since it was written, arriving from an owner r
   Commit: `afb9847`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.3c`
-  Status: `pending`
+  Status: `done`
   Goal: `Repair the FOURTEEN-QUERY analyze roll-call, which the book carries TWICE and which is now the whole of the book's remaining oversized mass above the recorded acceptances.`
-  Acceptance: `Measured at .3b before registering: all fourteen query names appear in agent-mcp.md, api-introspection.md, TOOLBOX.md and docs/AGENT_INTROSPECTION_SCHEMA.md, and the book itself already names the SCHEMA file as canonical - so this is 0033's shadow shape. But the two book copies carry book-only editorial glosses ("what does this output depend on?") that the canonical file does not, so 0048's link-and-delete would lose prose, exactly as .3a measured for the capability roll-calls. The repair is therefore STRUCTURAL: lift the fourteen descriptions out of the <td> (a GFM pipe-table cell cannot hold a block-level list, so no list conversion is possible in place). Whether the third copy should link rather than duplicate is part of this leaf, not assumed.`
-  Verification: `pending`
+  Acceptance: `Measured at .3b before registering: all fourteen query names appear in agent-mcp.md, api-introspection.md, TOOLBOX.md and docs/AGENT_INTROSPECTION_SCHEMA.md, and the book itself already names the SCHEMA file as canonical - so this is 0033's shadow shape. But the two book copies carry book-only editorial glosses ("what does this output depend on?") that the canonical file does not, so 0048's link-and-delete would lose prose, exactly as .3a measured for the capability roll-calls. The repair is therefore STRUCTURAL: lift the fourteen descriptions out of the <td> (a GFM pipe-table cell cannot hold a block-level list, so no list conversion is possible in place). Whether the third copy should link rather than duplicate is part of this leaf, not assumed. STRENGTHENED at execution: the book-only precondition was re-measured PER GLOSS rather than inherited from .3b's per-class claim, and the first measurement of it was WRONG - a line-wise grep over a hard-wrapped book undercounts, so it was redone whole-file and whitespace-normalized.`
+  Verification: `Oversized blocks 4 -> 2; worst rendered block 3,071 -> 1,901 chars (-38.2 %); oversized mass 8,210 -> 3,519 (-57.1 %). BOTH remaining blocks are .3b's RECORDED ACCEPTANCES, so the book now holds zero unaccepted oversized blocks. Precondition measured per gloss, whole-file and whitespace-normalized: 10 of the <td>'s 14 editorial glosses exist NOWHERE else in the repository (4 recur once each, in agent-mcp.md's own per-query sections), so 0048's link-and-delete would have destroyed 10 pieces of book-only prose - the route was declined on measurement, not on inheritance. THE LIFT IS PROVEN IN TWO HALVES because no single existing instrument can express it: (1) CONTENT - the fourteen items extracted from the before-<td> and from the after-list are byte-identical in sequence, 14/14; (2) REMAINDER - the file with that run excised on both sides is identical, 54,791 = 54,791 normalized chars, modulo two stated additions (136 chars). api-introspection.md's 11-bullet conversion needs no such split and passes the plain clause proof OUTRIGHT: 11,593 normalized chars, byte-identical sequence. New --allow-move mode on scripts/prove_clauses_unchanged.py reports agent-mcp.md +15 words and ZERO REMOVED, every added word named, and api-introspection.md word-multiset IDENTICAL (1,648). FOUR negative controls, each with its substitution count asserted: drop a query -> FIRES; reword -> FIRES; invent a word -> FIRES; REORDER two adjacent bullets -> SILENT under --allow-move and FIRES under the default mode, the complementarity proven on ONE unsaturated carrier. STRUCTURE RECONCILED TERM BY TERM: prose blocks 3,671 -> 3,698 (+27) = +14 <li> (the lifted items) +11 <li> (the schema bullets) +1 <p> (the list lead-in) +1 <p> (the section opening split); book_list_signature.py 1,493 -> 1,518 <li> = +25 = 14 + 11, moving in exactly the 2 edited chapters of 31 and no others. Zero mid-sentence paragraph breaks book-wide (0 of 2,190), so .1's defect was not reintroduced. Anchor #derived-relation-queries-analyze verified present in the rendered HTML. mdbook build exit 0; scripts/check_doctrines.sh 11/11; cargo test --test book_examples 4 passed / 0 failed.`
   Commit: `pending`
 
 - ID: `BOOK-PARAGRAPH-BLOBS.2`
@@ -447,12 +447,95 @@ it twice. That is [`0033`](../decisions/0033-shadow-enumeration-classification.m
 on?"*) the canonical file does not, so a link-and-delete would lose book-only prose — the identical
 finding `.3a` measured for the capability roll-calls, arriving a second time.
 
+## Findings (`.3c`, measured `2026-08-02`)
+
+### The book-only precondition was inherited from a per-class claim, and the first attempt to re-measure it was **wrong**
+
+`.3b` established for the *capability roll-calls* that a `0048` link-and-delete would lose book-only
+prose, and registered `.3c` expecting the same. That is a claim about a different block, so it was
+re-measured per gloss. **The first measurement was line-wise `grep`, and it was wrong**: the book is
+hard-wrapped, so `show me the deepest thing this node drives, gate by gate` reported *"appears only
+in the `<td>`"* while it also sits at `agent-mcp.md:937` — **split across two source lines**. Redone
+whole-file and whitespace-normalized:
+
+| | count |
+| --- | --- |
+| glosses that exist **nowhere else in the repository** | **10 of 14** |
+| glosses that recur once, in `agent-mcp.md`'s own per-query sections | 4 of 14 |
+
+So `0048`'s route is declined **on measurement**, not on inheritance, and the cost of taking it is
+stated as a number: 10 pieces of prose destroyed. This is the third time in one session that a
+line-wise pattern lost to the hard wrap — the same failure `BOOK-LINK-TARGETS` records for wrapped
+link text, and it cost a negative-control carrier here too (control 3 refused to apply until it was
+retargeted at an unwrapped span).
+
+### No instrument in the kit can express a LIFT, and the first one built for it **cried wolf**
+
+A lift moves a run of clauses to a different part of the file. `prove_clauses_unchanged.py` is
+**order-sensitive by construction** — that is the property `.3b` built it for — so it fires on any
+lift and reports nothing useful. The obvious fix, a move-tolerant `--allow-move` mode comparing
+clause **multisets**, was built and **failed on the real edit**:
+
+```
+REMOVED: `memory_provenance` (`1.18 → 1.19`)          <- 10 clauses reported destroyed
+ADDED:   `module_reachability` (…) `flop_dependencies` (…) `memory_provenance` (…) …   <- 1 created
+```
+
+**Root-caused rather than reclassified: a list conversion deletes the separators that *define* a
+clause boundary.** `A, B, C` is three clauses; `- A` / `- B` / `- C` is one, because the commas are
+gone — which is the entire point of the conversion. So the clause multiset is **not invariant under
+the very edit the mode exists to permit**, and the mode does not merely miss things, it manufactures
+findings. The stable unit is the **word**: `normalize()` already strips separators before splitting,
+so the word multiset survives both the separator removal and the move. Rebuilt on words, and the
+result is sharp — `+15 words, 0 removed`, with every added word printed.
+
+This is the same family as `.3b`'s *"a clause **set** is blind to reordering"*, arriving from the
+other side: there the unit was too coarse to see a real change, here it is destroyed by a permitted
+one. Recorded as [[clause-boundary-is-destroyed-by-the-list-conversion]].
+
+### The lift needed two proofs, because one instrument answers only half the question
+
+| Half | Proof | Result |
+| --- | --- | --- |
+| **content** — did the moved run change? | the 14 items extracted from the before-`<td>` and the after-list, compared in order | **14/14 byte-identical** |
+| **remainder** — did anything else change? | the file with that run excised on both sides | **54,791 = 54,791** normalized chars, modulo 2 stated additions (136 chars) |
+
+Neither alone is sufficient: the first is blind to everything outside the run, the second to
+everything inside it. `--allow-move` is the cheap re-runnable summary of both, and is **opt-in and
+never the default** precisely because it is order-blind — the property the default mode exists to
+have. Proven complementary on **one unsaturated carrier**: reordering two `api-introspection.md`
+bullets is **SILENT** under `--allow-move` and **FIRES** under the default mode.
+
+**The first attempt at that control was saturated and had to be moved.** Run on `agent-mcp.md`, it
+fired — but that file already diverges by the 15 added words, so it fires on *anything*. A saturated
+instrument cannot discriminate, exactly as `.3b` recorded for `prove_words_unchanged.py`; the carrier
+was moved to the file that still passes cleanly.
+
+### The third copy should **not** link — measured, not assumed
+
+`.3c`'s acceptance left open whether `TOOLBOX.md`'s row should link rather than duplicate. Measured:
+**0 of its 15 parenthesised glosses are shared verbatim with the book's**, because the two are
+written in different registers — `TOOLBOX.md` gives a terse capability descriptor (*"an output's
+transitive support cone"*), the book gives the question the query answers (*"what does this output
+depend on?"*). It is therefore **not** a lossy copy of an authoritative set, so `0033`'s first test
+fails and R1 does not apply: replacing it with a link would substitute a pointer to prose that says
+something *different*. Verdict: **not a shadow of the book**; its 1,594-character cell is a live-doc
+readability question, which this tree does not own — the same boundary `.3a` drew for
+`CODEBASE_ANALYSIS.md`. Recorded under *Surfaced by `.3c`*.
+
+**`.3b`'s "carried three times" is right for the prose and needs one qualification**, measured here:
+the fourteen *names* appear in **six** files, but only **three** carry descriptive prose
+(`agent-mcp.md`'s `<td>`, `api-introspection.md`'s bullet, `TOOLBOX.md`'s row). The other three carry
+them in framings that are **not duplicate prose and must not be swept in** — a JSON-schema `enum` row
+(`api-tools.md`), a `query → producer function` mapping (`docs/AGENT_INTROSPECTION_SCHEMA.md`), and a
+resource-URI line (`agent-mcp.md:255`).
+
 ## Current Frontier
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `BOOK-PARAGRAPH-BLOBS.3c` | `pending` | **Next.** The fourteen-query `analyze` roll-call is now the book's worst block (3,071) *and* its third-worst (1,620), and it is the same content twice. Measured as a `0033` shadow whose glosses are book-only, so the repair is structural, not `0048`'s link. |
-| 2 | `BOOK-PARAGRAPH-BLOBS.2` | `pending` | Decide what watches this, against a repaired baseline. Deliberately last: choosing a threshold while known-unfixed enumeration is still in the book would fit the number to the defect. `.3a` then `.3b` cut the mass it would be fitted to from 43,092 → 21,954 → **8,210**. |
+| 1 | `BOOK-PARAGRAPH-BLOBS.2` | `pending` | **Next, and now against a fully repaired baseline.** Every oversized block that any repair can reach is gone: the **2** that remain are both `.3b` **recorded acceptances**. `.3a`→`.3b`→`.3c` cut the mass a threshold would be fitted to from 43,092 → 21,954 → 8,210 → **3,519**. `.2` must still derive a threshold rather than fit one, and must not treat the census as a quality metric — [[paragraph-split-can-cut-a-sentence-in-half]] is the companion predicate. |
+| — | `BOOK-PARAGRAPH-BLOBS.3c` | `done` | Lifted the fourteen-query roll-call out of its table cell `2026-08-02`; oversized blocks 4 → 2, mass −57.1 %, and **no unaccepted oversized block remains in the book**. |
 | — | `BOOK-PARAGRAPH-BLOBS.3b` | `done` | Converted the four capability roll-calls to lists `2026-08-02`; oversized blocks 9 → 4, mass −62.6 %. Repaired four **mid-sentence** breaks `.1` had shipped, and gave all nine blocks a verdict. |
 | — | `BOOK-PARAGRAPH-BLOBS.3a` | `done` | Applied `0048` to the three verified duplications `2026-08-02`; worst block −49.2 %, mass −49.1 %. |
 | — | `BOOK-PARAGRAPH-BLOBS.4` | `done` | Instruments promoted `2026-08-02`; the census reproduces `.1`'s numbers exactly and is now durable. |
@@ -589,6 +672,16 @@ finding `.3a` measured for the capability roll-calls, arriving a second time.
   the census as a quality metric without a companion predicate; the source-level one is recorded in
   [[paragraph-split-can-cut-a-sentence-in-half]].
 
+## Surfaced by `.3c`, owned by nobody yet
+
+- **`TOOLBOX.md`'s `analyze` row is a 1,594-character table cell.** Measured **not** to be a copy of
+  the book's (0 of 15 glosses shared verbatim — see Findings), so it is original prose with the same
+  wall-of-text shape the owner objected to, in a live doc rather than the book. This tree owns the
+  **book**; the same boundary `.3a` drew for `CODEBASE_ANALYSIS.md`. **The census cannot even see
+  it** — `scripts/book_prose_census.py` reads rendered `book/book-out/*.html`, so every live doc
+  outside the book is unmeasured by construction. Whether the live docs deserve their own census is
+  a question for a live-doc hygiene tree, not for `.2`, whose subject is the book.
+
 ## Surfaced by `.3b`, owned by nobody yet
 
 - **`MEMORY.md` is saturated against its own hard cap — it was `6,138` of `6,144` bytes at `cd83e3c`,
@@ -643,6 +736,7 @@ may not pivot dirty; `RESUME-POINTER-CONTRACT` is the nearest existing owner.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-02` | `.3c` | `Oversized blocks 4 -> 2; worst rendered block 3,071 -> 1,901 chars (-38.2 %); oversized mass 8,210 -> 3,519 (-57.1 %). BOTH survivors are .3b's recorded acceptances, so no UNACCEPTED oversized block remains. PRECONDITION RE-MEASURED PER GLOSS, and the first attempt was WRONG: a line-wise grep over a hard-wrapped book reported a gloss as unique that sits at agent-mcp.md:937 split across two lines. Redone whole-file and whitespace-normalized: 10 of 14 glosses exist NOWHERE else in the repository, so 0048's link-and-delete would have destroyed 10 pieces of book-only prose - the route declined on measurement, not inheritance. THE LIFT IS PROVEN IN TWO HALVES because no single instrument expresses it: content (the 14 items extracted from the before-<td> and the after-list, byte-identical in sequence, 14/14) and remainder (the file with that run excised on both sides, 54,791 = 54,791 normalized chars, modulo two stated additions of 136 chars). api-introspection.md needs no split and passes the PLAIN clause proof outright: 11,593 normalized chars, byte-identical sequence. NEW --allow-move MODE, and its first design CRIED WOLF: a clause multiset reported 10 clauses destroyed and 1 created on a correct edit, because a list conversion deletes the separators that DEFINE a clause boundary. Rebuilt on the word multiset, which is invariant under both the separator removal and the move: agent-mcp.md +15 words / ZERO REMOVED with every added word printed, api-introspection.md multiset IDENTICAL (1,648 words). FOUR controls, every substitution count asserted: drop a query -> FIRES; reword -> FIRES; invent a word -> FIRES (after its first carrier REFUSED to apply, defeated by the same hard wrap); REORDER two adjacent bullets -> SILENT under --allow-move and FIRES under the default, the complementarity proven on ONE UNSATURATED carrier after the first attempt was saturated by this leaf's own additions. STRUCTURE RECONCILED TERM BY TERM: prose blocks 3,671 -> 3,698 (+27) = 14 lifted <li> + 11 schema <li> + 1 lead-in <p> + 1 section-split <p>; book_list_signature.py 1,493 -> 1,518 (+25 = 14 + 11) moving in exactly the 2 edited chapters of 31. Zero mid-sentence breaks book-wide (0 of 2,190). Anchor #derived-relation-queries-analyze present in the rendered HTML. mdbook build exit 0; scripts/check_doctrines.sh 11/11; cargo test --test book_examples 4 passed / 0 failed.` | `lifted, not deleted; the third copy measured NOT to be a shadow and left alone with a recorded verdict` (book + `scripts/` + docs only; DUT byte-identical) |
 | `2026-08-02` | `.3b` | `Oversized blocks 9 -> 4; worst rendered block 4,419 -> 3,071 chars (-30.5 %); oversized mass 21,954 -> 8,210 (-62.6 %). All four capability roll-calls left the over-threshold set. CLAUSE PRESERVATION PROVEN by the new scripts/prove_clauses_unchanged.py: architecture.md 43,542 -> 43,542 and hierarchy.md 101,051 -> 101,051 normalized chars, byte-identical SEQUENCES (order-sensitive, so a reorder cannot pass - the clause SET the acceptance named would have been blind to it). FOUR controls via scripts/negative_control.sh, every substitution count asserted: drop a clause -> FIRES; reword -> FIRES; reorder two adjacent clauses -> FIRES; add a connective -> SILENT (the stated blind spot), its carrier verified by READING the mutated file because prove_words_unchanged.py is saturated by the conversion and cannot discriminate. STRUCTURE RECONCILED TERM BY TERM: prose blocks 3,501 -> 3,671 (+170) = 168 new <li> + 2 new <p>; book_list_signature.py moved in exactly the 2 edited chapters of 31 and no others; the ir.md split left <li> UNCHANGED, proving its continuation stayed inside its item. NEW FINDING, measured with a denominator: .1 shipped FOUR paragraph breaks INSIDE a sentence (4 of 2,181 breaks book-wide, all in architecture.md, all from df7bc6e) - invisible to both of .1's proofs and REWARDED by the census, which reports the smaller block as progress. Repaired by moving each break to the true sentence boundary; ir.md whitespace-only, prove_words_unchanged.py OK (30,768 -> 30,768). mdbook build exit 0; scripts/check_doctrines.sh 11/11; knowledge-map check OK.` | `repaired; all 9 blocks carry a verdict (2 repaired classes, 2 recorded acceptances, 2 moved to the new .3c) and the acceptance's own list was 2 blocks short` (book + scripts + docs only; DUT byte-identical) |
 | `2026-08-02` | `.3a` | `Oversized blocks 12 -> 9; worst rendered block 8,704 -> 4,419 chars (-49.2 %); oversized mass 43,092 -> 21,954 (-49.1 %), measured with the promoted scripts/book_prose_census.py. PRECONDITION MEASURED EXHAUSTIVELY BEFORE DELETION, not sampled: 73/77 bank ids glossed in ROADMAP.md (r7 still mentioned there; r8's gloss deliberately KEPT in both chapters as a lesson; r11/r12 survive in CHANGES.md x25/x18 and CODEBASE_ANALYSIS.md), 77/77 saw_* flags still defined in src/ and 62/77 still named elsewhere in the book - nothing left the repository. STRUCTURE: n_li 1,325 across 31 chapters UNCHANGED, only hierarchy.html's content SHA moved, the exact signature of text removed from inside an <li> without escaping it. LINKS: 3 absolute targets render with .md intact, 0 relative .md escapes, target returns HTTP 200, BOOK-LINK-TARGETS ok (186 local of 231). mdbook build exit 0; scripts/check_doctrines.sh 11/11.` | `repaired by link per 0048; the 53-84 %-book-only capability roll-calls moved to .3b rather than being deleted under a decision that does not cover them` (book-only; DUT byte-identical) |
 | `2026-08-02` | `.4` | `Promoted census reproduces the validated instrument EXACTLY: 3,501 prose blocks / 30 chapters / 12 over 1,500 / mass 43,092, all 12 sizes identical — after a first draft that matched both headline numbers while inflating 9 of 12 sizes. book_list_signature.py reproduces .1's 1,325 <li> across 31 chapters. All 12 source anchors resolve. Three controls via scripts/negative_control.sh (every substitution count asserted): paragraph merge -> census FIRES (3,501->3,500 blocks, 12->13, mass 43,092->44,919); source re-wrap -> census SILENT on measurement fields; break inside <li> without continuation indent -> list signature FIRES, word proof OK (90,542 -> 90,542). One control FAILED first and was root-caused to the carrier, not the instrument (it deleted the blank line, so mdBook lazily continued the paragraph inside the same <li>). Restores cmp-verified; mdbook build exit 0; scripts/check_doctrines.sh 11/11.` | `promoted; instruments durable in scripts/ and documented in TOOLBOX.md §7` (docs+scripts only; DUT byte-identical) |
@@ -658,8 +752,31 @@ may not pivot dirty; `RESUME-POINTER-CONTRACT` is the nearest existing owner.
 | `.3a` | `a385b76` — `BOOK-PARAGRAPH-BLOBS.3a — link the registers the book stopped duplicating` | Book-only ⇒ DUT byte-identical. Three `0048` links; worst block −49.2 %, mass −49.1 %. |
 | `.4` | `d25bbe7` — `BOOK-PARAGRAPH-BLOBS.4 — promote the book-census instruments into scripts/` | Docs + `scripts/` only ⇒ DUT byte-identical. Reproduces the validated census exactly; three controls, one of which failed with the instrument innocent. |
 | `.3b` | `afb9847` — `BOOK-PARAGRAPH-BLOBS.3b — convert the capability roll-calls to lists; oversized mass down 63 %` | Book + `scripts/` + docs only ⇒ DUT byte-identical. Clause sequence proven identical; four controls. Also repaired four **mid-sentence** breaks `.1` shipped. |
+| `.3c` | `pending` — `BOOK-PARAGRAPH-BLOBS.3c — lift the fourteen-query roll-call out of its table cell` | Book + `scripts/` + docs only ⇒ DUT byte-identical. Lift proven in two halves; `--allow-move` added after its clause-unit first draft cried wolf. |
 
 ## Changelog
+
+- `2026-08-02`: `.3c` **lifted** the fourteen-query `analyze` roll-call out of the GFM table cell it
+  could not fit in, and converted its second copy — the schema-bump enumeration — into eleven
+  bullets. **Oversized blocks 4 → 2, worst rendered block 3,071 → 1,901 characters (−38.2 %),
+  oversized mass 8,210 → 3,519 (−57.1 %)**, and the two survivors are both `.3b`'s **recorded
+  acceptances**, so the book now holds **no unaccepted oversized block**. Four things are recorded
+  rather than smoothed over. **(1) The book-only precondition was inherited, and re-measuring it
+  went wrong first.** `.3b` established it for a *different* block; measured per gloss, **10 of 14**
+  exist nowhere else in the repository, so `0048`'s link-and-delete would have destroyed ten pieces
+  of prose. The first measurement said otherwise because it was **line-wise over a hard-wrapped
+  book** — the third time in one session a line-wise pattern lost to the wrap, and it cost a
+  negative-control carrier as well. **(2) The move-tolerant proof built for this leaf CRIED WOLF**,
+  reporting ten clauses destroyed and one created on a correct edit. Root-caused, not reclassified:
+  **a list conversion deletes the separators that define a clause boundary**, so the clause multiset
+  is not invariant under the very edit the mode exists to permit. Rebuilt on the **word** multiset —
+  `+15 words, 0 removed`, every added word printed. **(3) A lift needs two proofs**, because content
+  and remainder are separate questions and each instrument is blind to the other's half: the
+  fourteen items moved **byte-identically in sequence**, and the file with that run excised is
+  identical on both sides (54,791 = 54,791) modulo two stated additions. **(4) The third copy was
+  measured and left alone** — `TOOLBOX.md` shares **0 of 15** glosses with the book's, so it is
+  original prose in a different register, not a shadow, and linking would point at prose that says
+  something else.
 
 - `2026-08-02`: `.3b` converted the **four capability roll-calls** — the run-on sentences `.3a`
   measured as **53–84 % book-only**, so `0048`'s link would have deleted prose that exists nowhere
