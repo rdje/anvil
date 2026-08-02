@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-02 — TASK-LEAF-COMMIT-SHADOW.0 — register the twice-recorded leaf commit hash
 
-**Landed as:** `pending`. Previous: `7b2d472`, `443438d`, `a385b76`.
+**Landed as:** `aaeb01c`. Previous: `7b2d472`, `443438d`, `a385b76`.
 **Docs-only; no `src/`, no `book/src/`** ⇒ **DUT byte-identical**.
 
 **What.** A new tree, registered from a measurement rather than from the incident that exposed it.

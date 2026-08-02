@@ -101,7 +101,7 @@ This tree is the structural repair underneath it.
   Goal: `Register the finding with a denominator, before proposing any repair.`
   Acceptance: `Measured across every tree, not sampled: the denominator, the stale count, and the divergence count. States why a gate is NOT the first move, so a later session does not re-derive that.`
   Verification: `625 leaf records / 424 with a Commit: field / 411 done / 7 done-but-pending / 1 live leaf-vs-row divergence, across 82 trees. Ownership search run: MEMORY-ARCH checks decision indexing, TASK-TREE-OWNERSHIP checks co-staging, CHANGES-ENTRY-PLACEMENT checks entry position — none owns task-leaf field integrity, so this is a first mechanism, not a second.`
-  Commit: `pending`
+  Commit: `aaeb01c`
 
 - ID: `TASK-LEAF-COMMIT-SHADOW.1`
   Status: `pending`
@@ -165,7 +165,7 @@ This tree is the structural repair underneath it.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.0` (registration) | `TASK-LEAF-COMMIT-SHADOW.0 — register the twice-recorded leaf commit hash` | Docs-only. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
+| `.0` (registration) | `aaeb01c` — `TASK-LEAF-COMMIT-SHADOW.0 — register the twice-recorded leaf commit hash` | Docs-only. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 
 ## Changelog
 
