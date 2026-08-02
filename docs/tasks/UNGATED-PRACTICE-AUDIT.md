@@ -265,7 +265,7 @@ record. It is not a `COMMIT.md` checklist item, so it is reported outside the de
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `UNGATED-PRACTICE-AUDIT.2` | `pending` | **Next.** `.1` produced exactly one eroding candidate and it is a **stale specification**, not a lapsed practice — so the repair is almost certainly to fix `COMMIT.md` item 2, not to gate it. Two further items need a verdict: obligation 9's blind gate, and the `0031`-versus-`check_no_boot_volume_refs.sh` scope gap. Per `0047`, *removing the need* outranks *watching harder*. |
+| 1 | `UNGATED-PRACTICE-AUDIT.2` | `pending` | **Next.** `.1` produced exactly one eroding candidate and it is a **stale specification**, not a lapsed practice — so the repair is almost certainly to fix `COMMIT.md` item 2, not to gate it. Two further items need a verdict: obligation 9's blind gate, and the `0031`-versus-`check_no_boot_volume_refs.sh` scope gap (`0031` §1 governs **agent scratch files**, while the check reads **tracked files only** — routed down from `MEMORY.md` at `BOOTSTRAP-READ-CONTRACT.0`, where it was the sole copy). Per `0047`, *removing the need* outranks *watching harder*. |
 | — | `UNGATED-PRACTICE-AUDIT.1` | `done` | Measured `2026-08-02`. The rule failed as stated and was refined; see Findings. |
 
 ## Decisions

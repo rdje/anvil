@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOTSTRAP-READ-CONTRACT.0 — register the unsatisfiable session-bootstrap read contract
+
+**Landed as:** `pending`. Previous: `089566b`, `d825eb4`, `85a6993`.
+**Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** A new task tree registering a defect in `SESSION_BOOTSTRAP.md` itself: the read it
+mandates as a **precondition on any change** cannot be performed.
+
+| Mandate | bytes | ≈ tokens |
+| --- | --- | --- |
+| §1 live docs (9 files) + `book/src/*.md` (31 chapters) | 5,499,811 | ~1.37 M |
+| §1's "read the linked file too" for every `active` tree — `docs/tasks/*.md` | 3,238,704 | ~0.81 M |
+| §2 walk every `.rs` (95,473 lines) | 3,933,732 | ~0.98 M |
+| **total** | **12,672,247** | **~3.17 M** |
+
+A 1 M-token context holds roughly 4 MiB, so the mandate is about **3.2×** a full context window —
+and **§1 alone exceeds one** before a single task tree or source file is opened.
+
+**Why it is a defect and not a workload.** Nothing observes bootstrap completeness. No commit is
+blocked by it, no gate reads it, and the only evidence a session produces is its own claim to have
+read — the self-ticked box `DOCTRINE_ENFORCEMENT.md` §6.1 says must never be the proof. That makes
+it a fresh instance of the rule `UNGATED-PRACTICE-AUDIT.1` measured at `0e4654f`: *a practice
+survives where its output is a by-product of work the author is already forced to do*, and
+bootstrap-read completeness is a by-product of nothing.
+
+**It widens with every commit.** `CHANGES.md` (2.64 MB) and `DEVELOPMENT_NOTES.md` (1.13 MB) are
+**append-only by explicit design** and are **68 %** of §1's live-doc mass, so the contract recedes
+monotonically. `SESSION_BOOTSTRAP.md` already hedges for exactly one of them (*"most recent entries
+at minimum"*) and for none of the others.
+
+**The reconciliation `.1` must make.** `MEMORY_ARCHITECTURE.md` §5 already prescribes a **bounded**
+read — *"A resume reads A + one unit of B + a few C records — never a monolith"* — which is the
+correct answer, and `SESSION_BOOTSTRAP.md` contradicts it. Two mechanisms for one job is what
+`feedback_full_factorization` forbids.
+
+**Scope, drawn explicitly rather than discovered later.** This tree does **not** own file size:
+[`OVERFLOW-DESTINATION-INSTRUMENTATION`](docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md) already
+does, already names all five of these files, and is **PAUSED pending an owner nudge** — it was not
+resumed. `RESUME-POINTER-CONTRACT` is `closed` with its hypothesis measured **false** and was not
+reopened. Ownership search run over the four trees naming `SESSION_BOOTSTRAP.md` and the four whose
+subject is document size; **none owns the read contract**, so this is a first mechanism, not a
+second. It is explicitly **not** a mandate to gate, and **not** a proposal to truncate append-only
+history.
+
+**Validation.** Measurement by `wc -c` over the exact file set the two sections name, recorded in the
+tree's Verification Log with the command's scope stated. `scripts/check_doctrines.sh` **11/11**;
+`scripts/check_markdown_tables.sh` ok (2,797 data rows across 510 tables).
+
+**Impact.** Docs only; no generator, IR or emitter change ⇒ DUT byte-identical.
+
+**Files touched.** `docs/tasks/BOOTSTRAP-READ-CONTRACT.md` (new), `docs/TASK_TREE.md`, `CHANGES.md`,
+`MEMORY.md`.
+
 ## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3c — lift the fourteen-query roll-call out of its table cell
 
 **Landed as:** `d825eb4`. Previous: `85a6993`, `afb9847`, `cd83e3c`, `aaeb01c`.
