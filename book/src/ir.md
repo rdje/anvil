@@ -601,7 +601,9 @@ sessions.
   ChildModuleMismatch, BindingMissingInTool,
   BindingMissingInManifest, BindingMismatch}` — keyed
   by `(inst_name, binding_name)` for order-independent
-  hierarchy-aware compares). **Cross-tree reuse** of
+  hierarchy-aware compares).
+
+  **Cross-tree reuse** of
   Phase 7's `ConstExpr`/`eval`/`expr_to_sv` at the
   expression layer keeps the full-factorization
   doctrine satisfied and carried Phase 7's hard-won

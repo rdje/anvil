@@ -1095,62 +1095,64 @@ support. The coverage-only reports remain focused
 policy breadcrumbs.
 
 That gate proves the current representative hierarchy surface directly
-from saved report facts: multifile hierarchy designs, correct
-top-module tool invocation, real child instances, real
-`Node::InstanceOutput` use, wrapper exact / reuse / under-instantiation
-profiles, recursive depth `2`, mixed recursive depth range `2:3`,
-explicit child-sourcing modes `library` and `on-demand`,
-child-instance profiles `2`, `4`, `2:3` and `1:3`, the per-depth
-override profile `0=4:4,1=2:2`, real per-depth branching metrics, real
-mixed shallow/deep recursive realization, real on-demand child
-sourcing, exact profiled child-interface synthesis in the on-demand
-lane, real sibling-routed hierarchy child inputs, real parent-side
-composition above instance outputs, mixed parent-port / child-output
-parent outputs, real parent-composed child-input bindings, registered
-sibling-routed child-input bindings, direct registered sibling
-mixed-support child-input bindings, recursive non-top direct registered
-sibling mixed-support child-input bindings, registered parent-composed
-child-input bindings, registered mixed-support child-input bindings
-that mix parent ports with child outputs, recursive non-top registered
-mixed-support child-input bindings below the top parent, multi-stage registered
-parent-composed child-input bindings that chain through earlier
-parent-local Qs, recursive non-top multi-stage registered
-parent-composed child-input bindings that chain through earlier
-parent-local Qs below the top parent without helper instances,
-multi-stage registered sibling-routed child-input
-bindings that chain through earlier parent-local Qs without
-parent-composed logic, recursive non-top multi-stage registered
-sibling-routed child-input bindings that chain through earlier
-parent-local Qs below the top parent without helper instances,
-recursive non-top multi-stage registered mixed-support child-input
-bindings that combine parent ports, child outputs, and earlier
-parent-local Qs below the top parent without helper instances,
-real local parent flops, parent-cone helper instances
-sourcing parent-composed child-input bindings, parent-output helper
-instance composition, recursive non-top parent-output helper routing,
-recursive non-top parent-output multi-helper budget evidence,
-recursive non-top child-input multi-helper budget evidence,
-recursive non-top stateful multi-helper budget evidence,
-stateful parent-output helper routing through parent-local flops,
-stateful parent-output helper routing through parent-local flops with
-mixed parent-port support, stateful parent-composed helper child-input routing
-through parent-local flops, stateful parent-composed helper child-input
-mixed-support routing through parent-local flops, recursive non-top direct sibling helper
-routing, budgeted multi-helper allocation, registered
-parent-composed helper-sourced child-input D cones, direct sibling
-helper routing, direct registered sibling helper routing, and
-multi-stage direct registered sibling helper routing, plus unregistered
-parent-composed mixed-support child-input bindings without helpers, plus
-multi-stage registered parent-composed helper routing, recursive non-top
-multi-stage direct registered sibling helper routing, recursive non-top
-multi-stage registered parent-composed helper routing, and recursive non-top
-registered parent-composed helper mixed-support routing, unregistered
-parent-composed helper child-input mixed-support routing, and recursive non-top
-stateful parent-composed helper child-input routing through
-parent-local flops, plus recursive non-top multi-stage registered
-parent-composed no-helper routing, plus recursive non-top multi-stage
-registered sibling no-helper routing, plus recursive non-top
-multi-stage registered mixed-support no-helper routing.
+from saved report facts:
+
+- multifile hierarchy designs
+- correct top-module tool invocation
+- real child instances
+- real `Node::InstanceOutput` use
+- wrapper exact / reuse / under-instantiation profiles
+- recursive depth `2`
+- mixed recursive depth range `2:3`
+- explicit child-sourcing modes `library` and `on-demand`
+- child-instance profiles `2`, `4`, `2:3` and `1:3`
+- the per-depth override profile `0=4:4,1=2:2`
+- real per-depth branching metrics
+- real mixed shallow/deep recursive realization
+- real on-demand child sourcing
+- exact profiled child-interface synthesis in the on-demand lane
+- real sibling-routed hierarchy child inputs
+- real parent-side composition above instance outputs
+- mixed parent-port / child-output parent outputs
+- real parent-composed child-input bindings
+- registered sibling-routed child-input bindings
+- direct registered sibling mixed-support child-input bindings
+- recursive non-top direct registered sibling mixed-support child-input bindings
+- registered parent-composed child-input bindings
+- registered mixed-support child-input bindings that mix parent ports with child outputs
+- recursive non-top registered mixed-support child-input bindings below the top parent
+- multi-stage registered parent-composed child-input bindings that chain through earlier parent-local Qs
+- recursive non-top multi-stage registered parent-composed child-input bindings that chain through earlier parent-local Qs below the top parent without helper instances
+- multi-stage registered sibling-routed child-input bindings that chain through earlier parent-local Qs without parent-composed logic
+- recursive non-top multi-stage registered sibling-routed child-input bindings that chain through earlier parent-local Qs below the top parent without helper instances
+- recursive non-top multi-stage registered mixed-support child-input bindings that combine parent ports, child outputs, and earlier parent-local Qs below the top parent without helper instances
+- real local parent flops
+- parent-cone helper instances sourcing parent-composed child-input bindings
+- parent-output helper instance composition
+- recursive non-top parent-output helper routing
+- recursive non-top parent-output multi-helper budget evidence
+- recursive non-top child-input multi-helper budget evidence
+- recursive non-top stateful multi-helper budget evidence
+- stateful parent-output helper routing through parent-local flops
+- stateful parent-output helper routing through parent-local flops with mixed parent-port support
+- stateful parent-composed helper child-input routing through parent-local flops
+- stateful parent-composed helper child-input mixed-support routing through parent-local flops
+- recursive non-top direct sibling helper routing
+- budgeted multi-helper allocation
+- registered parent-composed helper-sourced child-input D cones
+- direct sibling helper routing
+- direct registered sibling helper routing
+- multi-stage direct registered sibling helper routing
+- unregistered parent-composed mixed-support child-input bindings without helpers
+- multi-stage registered parent-composed helper routing
+- recursive non-top multi-stage direct registered sibling helper routing
+- recursive non-top multi-stage registered parent-composed helper routing
+- recursive non-top registered parent-composed helper mixed-support routing
+- unregistered parent-composed helper child-input mixed-support routing
+- recursive non-top stateful parent-composed helper child-input routing through parent-local flops
+- recursive non-top multi-stage registered parent-composed no-helper routing
+- recursive non-top multi-stage registered sibling no-helper routing
+- recursive non-top multi-stage registered mixed-support no-helper routing
 
 The earlier coverage-only proofs at
 `anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
@@ -1636,35 +1638,36 @@ local proofs remain useful:
   targets wrapper and recursive hierarchy profiles, and the fresh rerun
   at `anvil-tool-matrix-phase4-hierarchy-r87` closes them cleanly
   with `coverage_gaps = []` and `840/0` pass-fail in Verilator plus both
-  repo-owned Yosys modes, including the direct sibling helper, direct
-  registered sibling helper, direct registered sibling mixed-support,
-  recursive non-top direct registered sibling mixed-support,
-  multi-stage registered sibling,
-  multi-stage direct registered sibling helper, multi-stage registered
-  parent-composed helper, stateful parent-output helper routes, and
-  stateful parent-composed helper child-input routes, plus recursive
-  non-top stateful parent-composed helper child-input routes,
-  recursive non-top direct sibling helper routes, and recursive non-top
-  direct registered sibling helper routes, and recursive non-top
-  multi-stage direct registered sibling helper routes, recursive non-top
-  multi-stage registered parent-composed helper routes, and recursive
-  non-top registered parent-composed helper routes, and recursive non-top
-  parent-output helper routes, and recursive non-top parent-output
-  helper mixed-support routes, and recursive non-top stateful
-  parent-output helper routes, and recursive non-top stateful
-  multi-helper budget routes, and recursive non-top registered
-  mixed-support child-input routes, and recursive non-top registered
-  parent-composed helper mixed-support routes, and recursive non-top multi-stage
-  registered parent-composed child-input routes without helper
-  instances, and recursive non-top multi-stage registered
-  sibling-routed child-input routes without helper instances, and
-  recursive non-top multi-stage registered mixed-support child-input
-  routes without helper instances, plus stateful helper-backed
-  parent-output mixed-support routes, unregistered parent-composed helper
-  child-input mixed-support routes, stateful helper-through-flop
-  child-input mixed-support routes, direct registered sibling
-  mixed-support routes, and recursive non-top parent-port-composed
-  parent-output routes.
+  repo-owned Yosys modes, including:
+  - the direct sibling helper
+  - direct registered sibling helper
+  - direct registered sibling mixed-support
+  - recursive non-top direct registered sibling mixed-support
+  - multi-stage registered sibling
+  - multi-stage direct registered sibling helper
+  - multi-stage registered parent-composed helper
+  - stateful parent-output helper routes
+  - stateful parent-composed helper child-input routes
+  - recursive non-top stateful parent-composed helper child-input routes
+  - recursive non-top direct sibling helper routes
+  - recursive non-top direct registered sibling helper routes
+  - recursive non-top multi-stage direct registered sibling helper routes
+  - recursive non-top multi-stage registered parent-composed helper routes
+  - recursive non-top registered parent-composed helper routes
+  - recursive non-top parent-output helper routes
+  - recursive non-top parent-output helper mixed-support routes
+  - recursive non-top stateful parent-output helper routes
+  - recursive non-top stateful multi-helper budget routes
+  - recursive non-top registered mixed-support child-input routes
+  - recursive non-top registered parent-composed helper mixed-support routes
+  - recursive non-top multi-stage registered parent-composed child-input routes without helper instances
+  - recursive non-top multi-stage registered sibling-routed child-input routes without helper instances
+  - recursive non-top multi-stage registered mixed-support child-input routes without helper instances
+  - stateful helper-backed parent-output mixed-support routes
+  - unregistered parent-composed helper child-input mixed-support routes
+  - stateful helper-through-flop child-input mixed-support routes
+  - direct registered sibling mixed-support routes
+  - recursive non-top parent-port-composed parent-output routes
 
   The per-bank register — what each earlier `rN` bank proved and why it was
   superseded — is **not** repeated here; it lives in

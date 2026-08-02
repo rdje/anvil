@@ -5,6 +5,60 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-02 — An instrument that *rewards* the defect it should catch, and picking a proof that is neither vacuous nor saturated — `BOOK-PARAGRAPH-BLOBS.3b`
+
+**The sharpest finding here is not a bug, it is a metric that points the wrong way.**
+`BOOK-PARAGRAPH-BLOBS.1` split wall-of-text paragraphs by promoting a line break to a blank line. In
+hard-wrapped source the sentence boundary is rarely at a line boundary, so the splitter has to pick
+*which* break to promote — and four times it picked the one **before** the sentence-final token,
+leaving a paragraph ending `…plus both repo-owned Yosys` and the next beginning `modes). That report
+banks…`.
+
+Every instrument in the kit failed on it, in three different ways, and the third is the one worth
+carrying forward:
+
+- `prove_words_unchanged.py` **passes** — a newline and a blank line both normalize to one space.
+- `book_list_signature.py` **passes** — it watches `<li>`; these were `<p>`. `mdbook build` exits `0`.
+- `book_prose_census.py` **improves** — the block got smaller, which is precisely the number the leaf
+  was trying to move.
+
+A blind instrument is a gap. **An instrument that reports the defect as progress is a trap**, because
+the author reads confirmation. Any future check on "block size" must be paired with a predicate on
+*whether the split was legal*; the source-level one (at every blank line, the text before must end a
+sentence or the text after must begin one) found **4 of 2,181** breaks book-wide — a bounded,
+closable finding rather than a vague suspicion. The census's own number cannot be the acceptance
+criterion for the edit that moves it.
+
+**Choosing a proof: vacuity and saturation are both failure modes, and they sit at opposite ends.**
+Converting a run-on enumeration into a markdown list removes the separating commas and the
+`and`/`plus` connectives, so `prove_words_unchanged.py` — which permits nothing — fires by
+construction. It is not wrong; it is **saturated**, and a proof that always fires carries no
+information, exactly as a check that can never fire carries none (`DOCTRINE_ENFORCEMENT.md` §9 owns
+the other end). The proof has to permit precisely what the edit is licensed to change and nothing
+more: `scripts/prove_clauses_unchanged.py` strips list markers, clause separators and standalone
+connectives, then requires the remaining word **sequence** to be byte-identical.
+
+Three design notes on it, all earned by a *passing* proof that should not have passed:
+
+- **Order-sensitivity is not a nicety.** The leaf's acceptance said "extract the clause *set* and
+  compare". A multiset comparison passes on a shuffled capability register — which is a changed claim
+  about what a gate proved. A sequence comparison does not, and the negative control that reorders
+  two adjacent clauses is the one that demonstrates the difference.
+- **A stripped list marker is itself a clause boundary.** Removing `- ` and collapsing whitespace
+  turns `- A` / `- B` into `A B`, so dropping a separating comma would compare equal. The marker must
+  be *replaced* by a boundary, not deleted.
+- **Lift inline code spans out before splitting.** Otherwise `` `0=4:4,1=2:2` `` manufactures clause
+  boundaries and `manifest.json` is shredded — symmetric, so not unsound, but it buries the signal.
+
+**Saturation also breaks the complementary-proof habit.** `BOOK-PARAGRAPH-BLOBS.1` established that
+the word proof and the `<li>` proof are complementary. That claim holds only while one of the pair is
+*expected to be silent*. Verifying this leaf's stated blind spot (a lone added `and`) could not use
+the word proof as the partner, because it was already firing on the conversion; the carrier had to be
+verified by reading the mutated file directly. **A proof pair complements only where one of the pair
+is quiet.**
+
+---
+
 ## 2026-08-02 — Two gotchas from promoting an instrument, and why the promotion needed an exactness criterion — `BOOK-PARAGRAPH-BLOBS.4`
 
 **A promotion is only a promotion if the numbers are identical, and the headline numbers are the

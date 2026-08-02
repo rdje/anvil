@@ -687,65 +687,67 @@ The Phase 4 hierarchy slice now has
 its latest full downstream-clean repo-owned gate via
 `anvil-tool-matrix-phase4-hierarchy-r87/tool_matrix_report.json`
 (840 designs, `artifact_kind = "design"`, `coverage_gaps = []`, and
-840/0 pass-fail in Verilator plus both repo-owned Yosys
+840/0 pass-fail in Verilator plus both repo-owned Yosys modes).
 
-modes). That
-report banks wrapper exact / reuse / under-instantiation, the current
-representative recursive depth-2 profiles, the mixed recursive
-depth-range profile `2:3`, the explicit child-sourcing modes
-`library` and `on-demand`, exact profiled child-interface synthesis in
-the on-demand lane, the per-depth override profile `0=4:4,1=2:2`, real
-sibling-routed child inputs, real parent-side composition above
-instance outputs, parent-composed child input bindings through
-`hierarchy_child_input_cone_prob`, local parent flops through
-`hierarchy_parent_flop_prob`, parent-cone helper-instance child-input
-bindings through `hierarchy_parent_cone_instance_prob`, registered
-sibling-routed child inputs through `hierarchy_registered_sibling_route_prob`,
-direct registered sibling mixed-support bindings through
-`hierarchy_registered_sibling_mixed_support_prob`, recursive non-top
-direct registered sibling mixed-support bindings through the same parent
-generation path,
-registered parent-composed child-input bindings through
-`hierarchy_registered_child_input_cone_prob`, registered mixed-support
-child-input bindings, recursive non-top registered mixed-support
-child-input bindings, multi-stage registered parent-composed
-child-input bindings, recursive non-top multi-stage registered
-parent-composed child-input bindings without helper instances,
-multi-stage registered sibling-routed child-input
-bindings, recursive non-top multi-stage registered sibling-routed
-child-input bindings without helper instances, recursive non-top
-multi-stage registered mixed-support child-input bindings without
-helper instances, mixed parent-port / child-output parent outputs,
-parent-output helper-instance composition, budgeted multi-helper
-allocation, stateful parent-output helper routing through parent-local
-flops, stateful parent-composed helper child-input routing through
-parent-local flops, recursive non-top stateful parent-composed helper
-child-input routing through parent-local flops, recursive non-top
-direct sibling helper routing, recursive non-top direct registered
-sibling helper routing, recursive non-top multi-stage direct registered
-sibling helper routing, recursive non-top registered parent-composed
-helper routing, recursive non-top multi-stage registered parent-composed
-helper routing, recursive non-top parent-output helper routing,
-recursive non-top stateful parent-output helper routing,
-recursive non-top parent-output multi-helper budget evidence,
-recursive non-top child-input multi-helper budget evidence,
-recursive non-top stateful multi-helper budget evidence,
-registered parent-composed helper-sourced child-input D cones,
-recursive non-top registered parent-composed helper D-cone routing with
-mixed parent-port support, direct sibling
-helper routing, direct registered sibling helper routing, recursive
-non-top direct registered sibling helper routing, multi-stage direct
-registered sibling helper routing, and multi-stage registered
-parent-composed helper routing and recursive non-top parent-output
-helper routing that mixes parent-port support in the same output cone,
-stateful helper-backed parent outputs that mix parent-port support,
-unregistered helper-backed child-input bindings that mix parent-port
-support, stateful helper-through-flop child-input bindings that mix
-parent-port support, direct registered sibling mixed-support routes, recursive non-top
-direct registered sibling mixed-support routes, and recursive non-top
-unregistered parent-composed mixed-support child-input routes without
-helper instances, and recursive non-top parent-port-composed parent-output
-routes without helper instances or parent-local state, and recursive non-top stateful parent-port-composed parent-output routes without helper instances, and recursive non-top stateful unregistered parent-composed mixed-support child-input routes through parent-local Qs without helper instances at exact hierarchy depth 7 (2,2 calibrated) — closing the depth-7 sweep, recursive non-top registered parent-composed child-input bindings that chain through at least three parent-local flop stages without helpers — opening a chain-depth axis above the closed depth-3..7 sweeps, a recursive non-top internal parent saturating a parent-cone helper budget of 5 helpers — extending the helper-budget axis above the previous budget-3 baseline, and per-module canonical signatures as the first slice of hierarchy-aware identity instrumentation.
+That report banks:
+
+- wrapper exact / reuse / under-instantiation
+- the current representative recursive depth-2 profiles
+- the mixed recursive depth-range profile `2:3`
+- the explicit child-sourcing modes `library` and `on-demand`
+- exact profiled child-interface synthesis in the on-demand lane
+- the per-depth override profile `0=4:4,1=2:2`
+- real sibling-routed child inputs
+- real parent-side composition above instance outputs
+- parent-composed child input bindings through `hierarchy_child_input_cone_prob`
+- local parent flops through `hierarchy_parent_flop_prob`
+- parent-cone helper-instance child-input bindings through `hierarchy_parent_cone_instance_prob`
+- registered sibling-routed child inputs through `hierarchy_registered_sibling_route_prob`
+- direct registered sibling mixed-support bindings through `hierarchy_registered_sibling_mixed_support_prob`
+- recursive non-top direct registered sibling mixed-support bindings through the same parent generation path
+- registered parent-composed child-input bindings through `hierarchy_registered_child_input_cone_prob`
+- registered mixed-support child-input bindings
+- recursive non-top registered mixed-support child-input bindings
+- multi-stage registered parent-composed child-input bindings
+- recursive non-top multi-stage registered parent-composed child-input bindings without helper instances
+- multi-stage registered sibling-routed child-input bindings
+- recursive non-top multi-stage registered sibling-routed child-input bindings without helper instances
+- recursive non-top multi-stage registered mixed-support child-input bindings without helper instances
+- mixed parent-port / child-output parent outputs
+- parent-output helper-instance composition
+- budgeted multi-helper allocation
+- stateful parent-output helper routing through parent-local flops
+- stateful parent-composed helper child-input routing through parent-local flops
+- recursive non-top stateful parent-composed helper child-input routing through parent-local flops
+- recursive non-top direct sibling helper routing
+- recursive non-top direct registered sibling helper routing
+- recursive non-top multi-stage direct registered sibling helper routing
+- recursive non-top registered parent-composed helper routing
+- recursive non-top multi-stage registered parent-composed helper routing
+- recursive non-top parent-output helper routing
+- recursive non-top stateful parent-output helper routing
+- recursive non-top parent-output multi-helper budget evidence
+- recursive non-top child-input multi-helper budget evidence
+- recursive non-top stateful multi-helper budget evidence
+- registered parent-composed helper-sourced child-input D cones
+- recursive non-top registered parent-composed helper D-cone routing with mixed parent-port support
+- direct sibling helper routing
+- direct registered sibling helper routing
+- recursive non-top direct registered sibling helper routing
+- multi-stage direct registered sibling helper routing
+- multi-stage registered parent-composed helper routing and recursive non-top parent-output helper routing that mixes parent-port support in the same output cone
+- stateful helper-backed parent outputs that mix parent-port support
+- unregistered helper-backed child-input bindings that mix parent-port support
+- stateful helper-through-flop child-input bindings that mix parent-port support
+- direct registered sibling mixed-support routes
+- recursive non-top direct registered sibling mixed-support routes
+- recursive non-top unregistered parent-composed mixed-support child-input routes without helper instances
+- recursive non-top parent-port-composed parent-output routes without helper instances or parent-local state
+- recursive non-top stateful parent-port-composed parent-output routes without helper instances
+- recursive non-top stateful unregistered parent-composed mixed-support child-input routes through parent-local Qs without helper instances at exact hierarchy depth 7 (2,2 calibrated) — closing the depth-7 sweep
+- recursive non-top registered parent-composed child-input bindings that chain through at least three parent-local flop stages without helpers — opening a chain-depth axis above the closed depth-3..7 sweeps
+- a recursive non-top internal parent saturating a parent-cone helper budget of 5 helpers — extending the helper-budget axis above the previous budget-3 baseline
+- per-module canonical signatures as the first slice of hierarchy-aware identity instrumentation
 
 That report's per-flag coverage roll-call is **not** reproduced here. The flag
 *set* is defined in `src/bin/tool_matrix.rs` — the authority, because the gate
@@ -767,21 +769,19 @@ parent-composed helper child-input routing, plus recursive non-top
 parent-output helper routing and recursive non-top stateful
 parent-output helper routing, and recursive non-top parent-port-composed
 parent-output routing without helpers or parent-local state, through the full
-downstream tool
+downstream tool bank.
 
-bank. It
-also proves recursive non-top parent-output multi-helper budget evidence,
+It also proves recursive non-top parent-output multi-helper budget evidence,
 recursive non-top child-input multi-helper budget evidence, and recursive
 non-top stateful multi-helper budget evidence through the same full
-downstream tool
+downstream tool bank.
 
-bank. It also proves recursive non-top multi-stage
+It also proves recursive non-top multi-stage
 registered parent-composed no-helper routing and recursive non-top
 multi-stage registered sibling no-helper routing through the same full
-downstream tool
+downstream tool bank.
 
-bank. The
-earlier coverage-only proofs at
+The earlier coverage-only proofs at
 `anvil-tool-matrix-phase4-recursive-direct-helper-r32/tool_matrix_report.json`
 and
 `anvil-tool-matrix-phase4-recursive-helper-state-r31/tool_matrix_report.json`
@@ -804,35 +804,35 @@ The old hierarchy smoke at
 remains clean in Verilator, Yosys `synth -noabc`, and the repo-owned
 ABC path.
 
-The focused clean proofs at `anvil-hier-reuse-smoke-r1`,
-`anvil-hier-under-smoke-r2`,
-`anvil-hier-parent-compose-smoke-r1/manifest.json`,
-`anvil-hier-range-smoke-r1/manifest.json`, and
-`anvil-hier-depth-profile-smoke-r1/manifest.json`, and
-`anvil-hier-profiled-ondemand-smoke-r1/manifest.json`,
-`anvil-hier-registered-sibling-smoke-r1/manifest.json`, and
-`anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`,
-`anvil-hier-parent-output-mix-smoke-r1/manifest.json`, and
-`anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`,
-and
-`anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`,
-and
-`anvil-parent-cone-instance-smoke-r1/manifest.json`, and
-`cargo test hierarchy_sibling_routes_can_use_helper_instances`, and
-`cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`, and
-`cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`, and
-`cargo test hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops`,
-`cargo test recursive_hierarchy_registered_sibling_routes_can_chain_helper_instances_below_top`,
-`cargo test recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`,
-`cargo test recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`,
-`cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`,
-`cargo test recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`,
-`cargo test recursive_hierarchy_parent_outputs_can_spend_helper_budget_below_top`,
-`cargo test recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top`,
-`cargo test recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`,
-`cargo test recursive_hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops_below_top`,
-and
-`cargo test hierarchy_parent_composed_helper_routes_can_use_parent_flops`
+The focused clean proofs at
+
+- `anvil-hier-reuse-smoke-r1`
+- `anvil-hier-under-smoke-r2`
+- `anvil-hier-parent-compose-smoke-r1/manifest.json`
+- `anvil-hier-range-smoke-r1/manifest.json`
+- `anvil-hier-depth-profile-smoke-r1/manifest.json`
+- `anvil-hier-profiled-ondemand-smoke-r1/manifest.json`
+- `anvil-hier-registered-sibling-smoke-r1/manifest.json`
+- `anvil-hier-registered-child-input-cone-smoke-r2/manifest.json`
+- `anvil-hier-parent-output-mix-smoke-r1/manifest.json`
+- `anvil-hier-registered-mixed-child-input-smoke-r1/manifest.json`
+- `anvil-hier-registered-multistage-child-input-smoke-r1/manifest.json`
+- `anvil-parent-cone-instance-smoke-r1/manifest.json`
+- `cargo test hierarchy_sibling_routes_can_use_helper_instances`
+- `cargo test recursive_hierarchy_sibling_routes_can_use_helper_instances_below_top`
+- `cargo test hierarchy_registered_sibling_routes_can_use_helper_instances`
+- `cargo test hierarchy_registered_sibling_routes_can_chain_helper_instances_through_parent_flops`
+- `cargo test recursive_hierarchy_registered_sibling_routes_can_chain_helper_instances_below_top`
+- `cargo test recursive_hierarchy_registered_sibling_routes_can_mix_parent_port_support_below_top`
+- `cargo test recursive_hierarchy_registered_sibling_routes_can_chain_without_helpers_below_top`
+- `cargo test recursive_hierarchy_registered_parent_composed_routes_can_chain_helper_instances_below_top`
+- `cargo test recursive_hierarchy_parent_outputs_can_depend_on_helper_instances_below_top`
+- `cargo test recursive_hierarchy_parent_outputs_can_spend_helper_budget_below_top`
+- `cargo test recursive_hierarchy_parent_cone_helper_budget_allows_multiple_helpers_below_top`
+- `cargo test recursive_hierarchy_parent_outputs_can_spend_stateful_helper_budget_below_top`
+- `cargo test recursive_hierarchy_parent_outputs_can_route_helper_instances_through_parent_flops_below_top`
+- `cargo test hierarchy_parent_composed_helper_routes_can_use_parent_flops`
+
 remain useful targeted evidence.
 
 The per-bank register — what each earlier `rN` hierarchy bank proved and why

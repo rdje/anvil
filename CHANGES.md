@@ -1,6 +1,102 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-02 — BOOK-PARAGRAPH-BLOBS.3b — convert the capability roll-calls to lists; oversized mass down 63 %
+
+**Landed as:** `pending`. Previous: `cd83e3c`, `aaeb01c`, `7b2d472`, `443438d`.
+**Book + `scripts/` + docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** The four **capability roll-calls** — single sentences listing dozens of clauses about what
+a gate proved — became markdown lists. These are the residue
+[`0048`](docs/decisions/0048-book-links-to-the-file-it-stopped-duplicating.md) deliberately could not
+touch: `.3a` measured only **53–84 %** of their clauses as verbatim-present in any other live doc, so
+the link-and-delete that repaired the `rN` registers would have removed prose that exists nowhere
+else.
+
+| Metric | `.3a` | `.3b` | Δ |
+| --- | --- | --- | --- |
+| blocks over 1,500 chars | 9 | **4** | −5 |
+| worst rendered block | 4,419 | **3,071** | **−30.5 %** |
+| total mass in oversized blocks | 21,954 | **8,210** | **−62.6 %** |
+| `architecture.html` worst block | 4,419 | **1,362** | −69.2 % |
+
+All four roll-calls left the over-threshold set. What remains above the line is **no longer a
+paragraph defect**: two recorded acceptances and two copies of one enumeration, now owned by `.3c`.
+
+**Why the proof had to be built rather than borrowed.** A run-on → list conversion is not a
+whitespace edit — it removes the separating commas and the `and`/`plus` connectives — so
+`prove_words_unchanged.py` fires by construction. It is not wrong, it is **saturated**, and a proof
+that always fires carries as little information as one that can never fire. New instrument
+`scripts/prove_clauses_unchanged.py` permits exactly what a list conversion may change (list markers,
+clause separators, standalone connectives) and requires the remaining word **sequence** to be
+byte-identical. Result: `architecture.md` **43,542 → 43,542** and `hierarchy.md` **101,051 →
+101,051** normalized characters, identical sequences.
+
+The leaf's acceptance had asked for a clause **set** comparison. That was **strengthened, not
+satisfied**: a set is blind to **reordering**, and a reordered capability register makes a different
+claim about what a gate proved. Two defects in the instrument were caught while building it, and both
+produced a *passing* proof — adjacent list items re-merging into one clause (a dropped comma would
+have compared equal), and splitting inside `manifest.json`.
+
+**Four negative controls, every substitution count asserted** (`scripts/negative_control.sh`):
+
+| Control | expectation | observed |
+| --- | --- | --- |
+| drop a list item | fires | **fires** |
+| reword a clause | fires | **fires** |
+| **reorder two adjacent clauses** | fires | **fires** — the property a clause *set* would have missed |
+| insert a standalone `and` | silent | **silent** — the stated blind spot |
+
+The `silent` verdict's carrier was verified **by reading the mutated file**, not by a partner
+instrument, because the word proof is saturated by the conversion itself and cannot discriminate —
+a stated limit on `.1`'s complementarity claim ([[matched-mutation-is-not-the-intended-mutation]]).
+
+**A defect `.1` shipped, found by opening the block it was supposed to have fixed.** The 4,419-char
+block *began mid-clause*: `.1` had inserted the blank line **before** the sentence-final token rather
+than after it — `…plus both repo-owned Yosys` ⟶ blank ⟶ `modes). That report banks…`, and three more
+of `…downstream tool` ⟶ blank ⟶ `bank.`. Measured with a denominator rather than reported as a
+sighting: **4 of 2,181** paragraph breaks book-wide fall inside a sentence, all four in
+`architecture.md`, all four from `df7bc6e`.
+
+**Nothing could have reported it, and one thing actively rewarded it.** Both of `.1`'s proofs are
+blind by construction (a newline and a blank line normalize identically; the `<li>` proof watches
+lists, these were `<p>`), `mdbook build` exits `0`, and `book_prose_census.py` **improves** — because
+half a sentence is a smaller block, which is the exact number `.1` was moving. An instrument that
+reports a defect as progress is worse than one merely blind to it; recorded as Knowledge Map card
+[`paragraph-split-can-cut-a-sentence-in-half`](docs/knowledge/paragraph-split-can-cut-a-sentence-in-half.md)
+with the source-level predicate that does catch it. Repaired by **moving** each break to the true
+boundary, not deleting it — deleting restores the wall of text.
+
+**The acceptance's own verdict list was two blocks short.** It named *"the two `<td>` blocks and the
+two guard-declined splittables"* — 7 distinct blocks of the **9** that existed. `hierarchy.md:456`
+and `ir.md:579` appear nowhere in this tree. Found by enumerating the census instead of the plan; all
+nine now carry a verdict:
+
+- **repaired** — the four roll-calls, plus `ir.md` 1,552 (one blank line at its only top-level
+  sentence boundary that leaves both halves under threshold; inside a list item, so the continuation
+  indent was preserved and the unchanged `<li>` count proves it did not escape);
+- **recorded acceptance** — `knobs.md` 1,901 and `hierarchy.md` 1,618, both metric-name lists that
+  are *scan targets* rather than prose, and a GFM pipe-table cell cannot hold a block-level list;
+- **moved to the new `.3c`** — `agent-mcp.md` 3,071 and `api-introspection.md` 1,620, which are the
+  **same** fourteen-query `analyze` roll-call carried twice. Measured before registering: all
+  fourteen names appear in `TOOLBOX.md`, both book chapters *and* `docs/AGENT_INTROSPECTION_SCHEMA.md`
+  — which the book already calls "the canonical §7" — so it is
+  [`0033`](docs/decisions/0033-shadow-enumeration-classification.md)'s shadow. But the book copies
+  carry editorial glosses the canonical file lacks, so `0048`'s link route again does not apply, and
+  the repair is structural.
+
+**Validation.** Structure reconciled term by term: prose blocks **3,501 → 3,671 (+170) = 168 new
+`<li>` + 2 new `<p>`** (57+26+56+29 items; one `<p>` for the sandwich tail that keeps *"remain useful
+targeted evidence."* verbatim, one for the `ir.md` split). `book_list_signature.py` moved in exactly
+**2 of 31** chapters — the two edited — and no others. `prove_words_unchanged.py` **OK** on `ir.md`
+(30,768 → 30,768). `mdbook build` exit `0`; `scripts/check_doctrines.sh` **11/11**; knowledge-map
+check OK.
+
+**Files touched.** `book/src/architecture.md`, `book/src/hierarchy.md`, `book/src/ir.md`,
+`scripts/prove_clauses_unchanged.py` (new), `TOOLBOX.md`, `docs/knowledge/paragraph-split-can-cut-a-sentence-in-half.md`
+(new), `KNOWLEDGE_MAP.md` (regenerated), `docs/tasks/BOOK-PARAGRAPH-BLOBS.md`, `docs/TASK_TREE.md`,
+`DEVELOPMENT_NOTES.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — TASK-LEAF-COMMIT-SHADOW.0 — register the twice-recorded leaf commit hash
 
 **Landed as:** `aaeb01c`. Previous: `7b2d472`, `443438d`, `a385b76`.

@@ -91,8 +91,18 @@ defect in the only surface they see. These instruments measure that surface. All
 | `scripts/book_prose_census.py` | wall-of-text blocks: every rendered prose block over a threshold, with its source anchor and **what could actually repair it** (`SPLITTABLE` / `RUN-ON` / `LIST-ITEM` / `TABLE-CELL`). Code (`<pre>`) is excluded and `<li>`/`<td>`/`<blockquote>` are counted, because a `<p>`-only regex census was blind to 5 of 11 oversized blocks | `scripts/book_prose_census.py --threshold 1500` · `--json` | per-block table + denominator, over-threshold count, worst block, oversized mass |
 | `scripts/book_list_signature.py` | a book edit that silently **changed list structure** — dropping a list item's continuation indent promotes the continuation out of its `<li>` and ends the list, with `mdbook build` exiting `0` | `--save F` before the edit, `--compare F` after | per-chapter `<li>` count + content SHA; exit `1` on any change |
 | `scripts/prove_words_unchanged.py` | that an edit was **whitespace-only** — collapses all whitespace and requires byte-identity against a git ref. Strictly stronger than `git diff --ignore-blank-lines`, which cannot permit a break at a sentence that begins mid-line | `scripts/prove_words_unchanged.py --ref HEAD book/src/*.md` | per-file `OK`/`DIFF` + the located divergence |
+| `scripts/prove_clauses_unchanged.py` | that a **run-on → markdown-list** conversion dropped, invented, reworded or **reordered** no clause. That edit is not whitespace-only — it removes the separating commas and the `and`/`plus` connectives — so the word proof necessarily fires and proves nothing; this one removes exactly what a list conversion may change and requires the remaining word *sequence* to be identical | `scripts/prove_clauses_unchanged.py --ref HEAD book/src/*.md` | per-file `OK`/`CLAUSES DIFFER` + the located divergence |
 
-**Use the last two together — each is blind exactly where the other fires.** Measured on one carrier
+**Pick the proof that matches the edit, and know what it cannot see.** `prove_words_unchanged.py`
+permits nothing, so it is the proof for a whitespace-only split and it is *useless* on a list
+conversion (it fires by construction). `prove_clauses_unchanged.py` permits exactly the separators
+and connectives a list conversion removes — and is therefore **blind to an edit that only adds or
+removes an `and`/`plus`/`or`**, measured rather than assumed (`BOOK-PARAGRAPH-BLOBS.3b`). Neither
+sees a **paragraph break inserted inside a sentence**, and the census *rewards* one by reporting a
+smaller block — see [[paragraph-split-can-cut-a-sentence-in-half]] for the source-level predicate
+that does catch it.
+
+**Use the list signature with either of them — each is blind exactly where the other fires.** Measured on one carrier
 (a paragraph break inside a list item, given no continuation indent): the word proof reports `OK`
 (90,542 → 90,542 normalized chars — it collapses the very whitespace that carries list nesting) while
 the list signature **FIRES** on the changed content SHA. That blindness is by construction, not a bug;
