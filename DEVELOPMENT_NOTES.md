@@ -5,6 +5,55 @@ For the canonical statement of the algorithm and load-bearing decisions, see `bo
 
 ---
 
+## 2026-08-07 — A precondition nobody can satisfy is an unowned defect, not a high standard — `BOOTSTRAP-READ-CONTRACT.1`
+
+**The rule worth carrying out of this leaf is about the shape of a requirement, not about reading.**
+`SESSION_BOOTSTRAP.md` demanded a 12.7 MB read — **3.03×** a full context window, with its live-doc
+section exceeding one on its own — as a *precondition* on any change. A precondition that cannot be
+met does not raise the bar. It does three things, all bad, and they are worth naming because the
+shape recurs anywhere a rule is written aspirationally:
+
+1. **It makes every actor a silent violator.** No session has ever satisfied it, so "did you comply?"
+   has had the same answer for as long as the rule existed, and that answer carries no information.
+2. **It destroys the signal it was meant to create.** A rule everyone breaks cannot distinguish a
+   careful session from a careless one; the compliant and the negligent are indistinguishable.
+3. **It hides the real requirement.** The thing that actually matters here — *understand the subject
+   you are changing* — was never stated, because the corpus stood in for it.
+
+**The reframing came from the owner and it settles the axis, so do not re-derive it:** *"read
+whatever is necessary … I find it dangerous to fix something you don't understand."* The mandatory
+tier is therefore whatever grounds **this** change, which varies per leaf and so **cannot be a static
+list at all**. That is why the repair is not "shorten the list": a shorter universal list is the same
+error at a smaller size, and it is still asserting that comprehension is a function of the corpus.
+
+**Three method notes earned in-leaf.**
+
+- **Derive a cap from what was demonstrated, then check it landed with headroom.** The budget is the
+  invariant part of what a session that *shipped a correct leaf* had actually read (114,689 B),
+  doubled, rounded to the next binary round number ⇒ 256 KiB — filled to **43.8 %**. The headroom is
+  the test, not a comfort: a cap fitted to today's file set sits at ~100 % of itself on day one and
+  can only ever be raised, which is exactly how `MEMORY.md`'s line cap failed for two months (`0040`).
+- **Read the harness configuration before designing a workflow rule.** `.claude/settings.json`
+  re-injects `SESSION_BOOTSTRAP.md` **verbatim** on every compaction, which converts the fixed tier
+  from a per-session cost into a **per-compaction** one. That single fact is what makes tiering
+  structural rather than a matter of taste, and no amount of reasoning about the documents would have
+  produced it.
+- **The document often already contains its own answer.** §1 mandated all thirty book chapters; four
+  headings later, the *same file* named exactly three as too load-bearing to edit casually. The
+  invariant core was identified in the file that failed to use it — so before importing a judgement,
+  check whether the artifact has already made it somewhere else.
+
+**A note on scope discipline, because the temptation was real.** Classifying the §1/§2 items surfaced
+a *second* mandatory-read contract — the six harness bootstrap pointers, mandating a different list
+whose intersection with §1 is **exactly two files**. Fixing it in the same leaf would have been a few
+minutes' work and wrong: `COMMIT.md` requires one completed leaf per commit, the six bodies are under
+an identical-body constraint, and a check asserts content in each of them. It is registered as `.3`
+with the residue stated out loud — *until `.3` lands, one contract is correct and the other still
+names a list* — because an unstated residue is indistinguishable from an oversight to the next
+session.
+
+---
+
 ## 2026-08-02 — An instrument that *rewards* the defect it should catch, and picking a proof that is neither vacuous nor saturated — `BOOK-PARAGRAPH-BLOBS.3b`
 
 **The sharpest finding here is not a bug, it is a metric that points the wrong way.**

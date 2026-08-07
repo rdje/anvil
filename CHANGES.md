@@ -1,6 +1,114 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-07 — BOOTSTRAP-READ-CONTRACT.1 — replace the unsatisfiable bootstrap read with a work-scoped tiered contract
+
+**Landed as:** `this commit`. Previous: `13c9cdf`, `8101dbb`, `f2c8623`, `cb24484`.
+**Docs / workflow only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** `SESSION_BOOTSTRAP.md` §1 (*"Read every live doc, in this order, **in full**"*) and §2
+(*"Walk **every** source file under `src/`…"*) are replaced by a three-tier contract **scoped to the
+change in hand**. Tier 1 **fixed** — the reads invariant *of the work*, because a session cannot know
+in advance whether it needs them: `README.md`, `MEMORY.md`, `MEMORY_ARCHITECTURE.md`,
+`DOCTRINE_ENFORCEMENT.md`, `TOOLBOX.md`, `COMMIT.md`, and `docs/TASK_TREE.md`'s **rule** sections.
+Tier 2 **subject** — derived per leaf and deliberately *not a list*: the owning tree in full, its one
+index row, the touched source at source level, the book chapters documenting the concept, the
+decision records the leaf cites. Tier 3 **queried** — reached by lookup on a question, never read
+through. Design, budget derivation and every demotion's measured loss recorded in
+`docs/decisions/0049-the-bootstrap-read-is-scoped-to-the-work.md`, which also promotes the owner
+directive of `2026-08-07` into layer C.
+
+**Why.** The owner directive settles the tier axis, verbatim: *"read whatever is necessary for the
+new session. The idea is to be knowledgable about what need to be worked on, that is, because I find
+it dangerous to fix something you don't understand."* So the defect is one of **shape**, not length —
+the **3.03×**-a-window arithmetic dissolves rather than needing to be negotiated down, because an
+exhaustive read was never the goal and a session that read all 12.7 MB without understanding its
+subject would still be doing the dangerous thing. Shortening the list (candidate A) answers the
+arithmetic and not the directive: any static list short enough to fit is, for most leaves, both too
+much and too little.
+
+**The budget is derived, not fitted, and the test is that it lands with headroom.** By the
+`0036` §(c) / `0040` §(c) method: take the **demonstrated-sufficient** fixed read — **114,689 B**,
+the invariant part of what `.0`'s session had actually read when it shipped a correct leaf, i.e.
+**2.73 %** of a 4 MiB window — double it and round up to the next binary round number ⇒ **256 KiB =
+262,144 B**, which that tier filled to **43.8 %**. A cap fitted to what already exists sits at
+~100 % of itself on the day it lands and can only be raised; that is exactly how `MEMORY.md`'s line
+cap failed for two months. The number worth quoting is the complement: **≥ 93.75 %** of the window
+left for the work — an axis the old contract had none of, since at 3.03× there was no complement.
+
+**The circularity is reported, not absorbed.** `SESSION_BOOTSTRAP.md` is *itself* in Tier 1 and this
+commit rewrites it, so the number the budget derives from is one this change moves. Handled by
+deriving from the **pre-change** state at `13c9cdf` (**114,689 B**, 43.8 % of budget) and then
+stating the cost: **after** this commit the tier is **120,178 B — 2.87 %** of a window, **45.8 %** of
+budget, the file having grown **4,277 → 9,709 B** to carry the tiers. That **+4.7 %** is the price of
+the contract, and quoting only the smaller figure would be fitting the evidence to the conclusion.
+Decision `0049`'s `reverify` line deliberately expects the **post-landing** number, because that is
+what a future reader's run prints — a dated claim whose own re-check contradicts it is the
+self-refuting shape `0039` rule (a) exists to catch.
+
+**The `PostCompact` hook is what makes the tiering structural rather than stylistic.**
+`.claude/settings.json` re-injects `SESSION_BOOTSTRAP.md` **verbatim** after every compaction and the
+file's own text says the protocol is *freshly in force* — so a session that compacts *N* times pays
+Tier 1 *N+1* times. At **2.73 %** that is sustainable; at the replaced **1.31×** it was not
+survivable even once. Found by reading the repository's own configuration, not by preference.
+
+**Two of the tree's three open questions were answered from the repo's own text.** (a)
+`CODEBASE_ANALYSIS.md` is a **complete map and a stale substitute**: it names **55 of 55** `src/*.rs`
+files in **7.44 %** of the source mass (13.4× compression), so §2's walk was a second mechanism — but
+`0039` measured **9 of 13** of its per-file claims stale, every error an under-count, so Tier 2
+requires the touched source **in full, at source level**. (b) The book's invariant core is the
+**three chapters `SESSION_BOOTSTRAP.md` itself already forbade editing casually** —
+`core-idea.md`, `non-goals.md`, `why-not-grammar.md` — which with `SUMMARY.md` cost **20,391 B,
+2.7 %** of the book and **0.49 %** of a window. §1 mandated all thirty while the same file, four
+headings later, already knew which three mattered.
+
+**Reconciled with `MEMORY_ARCHITECTURE.md` §5 by subordination, not balance.** §5 already prescribes
+*"a resume reads A + one unit of B + a few C records — never a monolith"* — the directive expressed
+as a read path before the directive was given. Deleting `SESSION_BOOTSTRAP.md` outright (the
+tempting `0033` R1 repair) was **rejected on what it destroys**: §5 is deliberately project-agnostic
+and names no file, so deletion would leave nothing saying which file is layer A *here*, what the
+sanity checks are, or that the task-tree doctrine binds immediately on recovery — and it would empty
+the `PostCompact` hook. §5 therefore owns the **shape**; `SESSION_BOOTSTRAP.md` owns only the
+**binding to this repository's filenames**.
+
+**A second read contract was measured and deliberately not absorbed.** The six harness bootstrap
+pointers (identical bodies) mandate a *different* 7-item list totalling **801,434 B**, whose
+intersection with §1 is **exactly two files** (`README.md`, `MEMORY.md`); **none of them routes to
+`SESSION_BOOTSTRAP.md` at all** — it is reachable only from `README.md`'s closing line — and the list
+mandates the **694,469 B** *derived* `KNOWLEDGE_MAP.md` in full, against its own standard's §7 lookup
+contract and §1 statement that the map may be skipped entirely in favour of grepping the fact files.
+Registered as new leaf **`.3`** rather than repaired in-leaf: `COMMIT.md` requires one completed leaf
+per commit, the six files are under a `DOCTRINE_ENFORCEMENT.md` §8 Group-C identical-body
+constraint, and `scripts/check_memory_architecture.sh` asserts content in each. The residue is
+**stated, not hidden**: until `.3` lands, one contract is correct and the other still names a list.
+
+**Validation.** Docs / workflow only — no `src/`, `tests/`, `examples/`, or build logic touched, so
+generator output is **byte-identical by construction** and `tests/snapshots.rs` is untouched.
+`bash scripts/check_doctrines.sh` green across the registry (the pre-commit driver, incl.
+`MEMORY-ARCH`, `KNOWLEDGE-MAP`, `README-GROWTH`, `ENUMERATION-PARITY`, `TABLE-RENDER-FIDELITY`,
+`CHANGES-ENTRY-PLACEMENT`, `BOOK-LINK-TARGETS`, `NO-BOOT-VOLUME-REFS`, `EVIDENCE-CITATIONS`, and the
+two scope-aware code checks, which exempt this commit). Every figure quoted above was measured at
+`13c9cdf` and is reproducible from the `reverify` line in decision `0049`.
+
+**Impact.** The mandatory read shrinks from **12.7 MB (3.03× a window)** to **114,689 B (2.73 %)**
+plus whatever the change itself requires — and the subject tier gets **stricter**, not looser: the
+old §2 asked for 3.9 MB and secured nothing because nobody completed it, while the new contract asks
+for the touched files in full and will be felt. A session that reads less than its subject is now
+visibly out of contract rather than invisibly so. Nothing verifies comprehension and nothing here
+pretends to; whether anything should *watch* bootstrap conduct is `.2`'s question, which now inherits
+two inputs it did not have — the `0040` **class-B1** classification of `SESSION_BOOTSTRAP.md` (paid
+again on every compaction, so a legitimate cap subject that `.1` deliberately did not cap), and the
+observation that the only readable trace of a bootstrap is a self-report, which
+`DOCTRINE_ENFORCEMENT.md` §6.1 disqualifies before the question is asked.
+
+**Files touched.** `SESSION_BOOTSTRAP.md` (rewritten to the three tiers),
+`docs/decisions/0049-the-bootstrap-read-is-scoped-to-the-work.md` (new; carries Knowledge Map
+front-matter so it folds into the retrieval index), `docs/decisions/INDEX.md`,
+`docs/tasks/BOOTSTRAP-READ-CONTRACT.md` (`.1` done, `.3` registered, three open questions closed),
+`docs/TASK_TREE.md` (frontier `.1` → `.3`; the row is rewritten to **one frontier** per `0042`'s row
+contract — **2,192 → 1,305 B** — with the registration narrative left where it belongs, in the tree
+file), `CHANGES.md`, `DEVELOPMENT_NOTES.md`, `MEMORY.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-08-07 — BOOTSTRAP-READ-CONTRACT.0 — record the owner directive that answers the tree's central question
 
 **Landed as:** `8101dbb`. Previous: `f2c8623`, `cb24484`, `089566b`.
