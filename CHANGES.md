@@ -1,6 +1,37 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-07 — BOOTSTRAP-READ-CONTRACT.0 — record the owner directive that answers the tree's central question
+
+**Landed as:** `pending`. Previous: `f2c8623`, `cb24484`, `089566b`.
+**Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** The owner answered `BOOTSTRAP-READ-CONTRACT`'s open question directly, verbatim: *"read
+whatever is necessary for the new session. The idea is to be knowledgable about what need to be
+worked on, that is, because I find it dangerous to fix something you don't understand."* Recorded in
+the tree's Decisions and folded into `.1`'s acceptance.
+
+**Why this is a resolution and not a note.** `.0` framed the defect as a **size** problem — 12.7 MB
+against a ~4 MiB context, ~3.2× — and the implied repair was to *shorten the list*. The directive
+reframes it: the contract is **scoped to the work in hand**, and the sufficiency test is
+**understanding the subject of the change**, not covering a corpus. So the current §1/§2 enumeration
+is the wrong **shape**, not merely the wrong **length**, and the 3.2× arithmetic dissolves rather
+than needing to be negotiated down. A session that read all 12.7 MB and still did not understand its
+subject would remain in breach of the thing the owner actually cares about.
+
+**It also confirms a reconciliation `.0` only suspected.** `MEMORY_ARCHITECTURE.md` §5 — *"A resume
+reads A + one unit of B + a few C records — never a monolith"* — is this directive already expressed
+as a read path, so the two mechanisms must be **merged**, not balanced (`feedback_full_factorization`).
+
+**Recorded before the session ended, deliberately.** The directive existed only in the live
+conversation, which `MEMORY_ARCHITECTURE.md` §0 names as the one state that is *not yet saved*. An
+owner directive lost at a session boundary is the exact failure the four-layer system exists to
+prevent, so it was routed and committed ahead of any further work.
+
+**Impact.** Docs only ⇒ DUT byte-identical. `.1` gains its design principle; no leaf executed.
+
+**Files touched.** `docs/tasks/BOOTSTRAP-READ-CONTRACT.md`, `CHANGES.md`, `MEMORY.md`.
+
 ## 2026-08-02 — BOOTSTRAP-READ-CONTRACT.0 — register the unsatisfiable session-bootstrap read contract
 
 **Landed as:** `cb24484`. Previous: `089566b`, `d825eb4`, `85a6993`.

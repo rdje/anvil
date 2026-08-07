@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / gate quality — session recovery
 - Created: `2026-08-02`
-- Last updated: `2026-08-02` (registered from a measurement taken while executing an unrelated leaf)
+- Last updated: `2026-08-07` (owner directive recorded — it answers the tree's central question)
 - Owner: repo-local workflow
 
 ## Goal
@@ -88,7 +88,7 @@ the contract further out of reach. `SESSION_BOOTSTRAP.md` already hedges for exa
 - ID: `BOOTSTRAP-READ-CONTRACT.1`
   Status: `pending`
   Goal: `Replace the unsatisfiable "read everything in full" precondition with a tiered contract that is achievable in a real session budget, without losing recovery fidelity.`
-  Acceptance: `States the working budget it designs against and where that number comes from. Classifies EVERY item currently mandated by SESSION_BOOTSTRAP.md §1/§2 into mandatory / on-demand / derived, and for each demotion states what a session loses, measured. Must reconcile with MEMORY_ARCHITECTURE.md §5, which already prescribes a bounded read and is the mechanism this contract duplicates and contradicts. Must NOT resume OVERFLOW-DESTINATION-INSTRUMENTATION.`
+  Acceptance: `Encodes the 2026-08-07 owner directive as its design principle: the contract is SCOPED TO THE WORK IN HAND, not a shortened universal list, and its sufficiency test is understanding the subject of the change rather than covering a corpus. States the working budget it designs against and where that number comes from. Classifies EVERY item currently mandated by SESSION_BOOTSTRAP.md §1/§2 into mandatory / on-demand / derived, and for each demotion states what a session loses, measured. Must reconcile with MEMORY_ARCHITECTURE.md §5, which already prescribes a bounded read and is the mechanism this contract duplicates and contradicts. Must NOT resume OVERFLOW-DESTINATION-INSTRUMENTATION.`
   Verification: `pending`
   Commit: `pending`
 
@@ -130,6 +130,29 @@ the contract further out of reach. `SESSION_BOOTSTRAP.md` already hedges for exa
   of the 95,473 lines of Rust, in full. It shipped a correct leaf anyway, which is the useful
   datum: the *effective* contract that produces good work is much smaller than the written one, and
   `.1`'s job is to write down the effective one.
+
+- `2026-08-07` (**OWNER DIRECTIVE — this answers the tree's central question**), verbatim: *"read
+  whatever is necessary for the new session. The idea is to be knowledgable about what need to be
+  worked on, that is, because I find it dangerous to fix something you don't understand."*
+
+  **This is the design principle `.1` must encode, and it settles the tier axis.** The contract is
+  **not** a fixed reading list to be shortened; it is **scoped to the work in hand** — a session
+  reads what it needs to *understand what it is about to change*, and the sufficiency test is
+  comprehension of the subject, not coverage of a corpus. That reframing dissolves the 3.2×
+  arithmetic rather than negotiating it: an exhaustive read was never the goal the owner wanted, and
+  a session that read all 12.7 MB but did not understand its subject would still be doing the
+  dangerous thing this directive forbids.
+
+  **Two consequences `.1` must carry rather than re-derive.** (a) The **danger** named is *fixing
+  what you do not understand*, so the mandatory tier is whatever grounds the **specific change**,
+  which varies per leaf and therefore cannot be a static list — the current §1/§2 enumeration is the
+  wrong *shape*, not merely the wrong *length*. (b) `MEMORY_ARCHITECTURE.md` §5's *"A resume reads A
+  + one unit of B + a few C records — never a monolith"* is **already** this directive expressed as a
+  read path, which confirms the two mechanisms must be reconciled into one, not balanced.
+
+  **Recorded here rather than only in layer C because it is the acceptance input for `.1`.** It is
+  also a standing directive of general scope and should be promoted to a `docs/decisions/` record by
+  `.1`, alongside [`0041`](../decisions/0041-owner-standing-directives-recorded-in-layer-c.md).
 
 ## Open Questions
 
