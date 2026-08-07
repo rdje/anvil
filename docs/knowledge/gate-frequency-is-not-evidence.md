@@ -122,9 +122,34 @@ pointer block itself — and *that* would be the loss this card says to reopen o
 **Trigger, so nobody has to judge:** when a firing can no longer be absorbed by rewording — i.e. the
 `## Current state` block has to give up a **leaf id, a decision-record pointer, or a queue entry** —
 that is the reopen condition, and it is a `RESUME-POINTER-CONTRACT`-shaped question with genuinely
-new evidence. **Not before.** Until then this stays a forecast, and a forecast does not get a tree:
-the gate is fail-closed, blocks the commit rather than landing a stale pointer, and announces itself
-the moment the forecast comes true.
+new evidence.
+
+## Correction `2026-08-07`, same day — this card was cited for a question it does not answer
+
+The amendment above closed *"until then this stays a forecast, and a forecast does not get a tree."*
+**That conclusion was wrong, and the way it was reached is the reusable part.**
+
+The owner asked a third time, narrowing to the **blocking** itself. The measurement that answers
+*that* question had not been taken, and when taken it showed a defect rather than a forecast:
+`COMMIT.md` requires `MEMORY.md` to be amended before **every** commit, **820 of 840 commits
+(97.6 %)** touch it, and it sits at **98.7 %** of a hard fail-closed cap. Worse, when the cap fired
+the remedy taken was a **prose rewording** — which the gate's own routing hint explicitly forbids
+(*"Move content down, do not trim prose"*) — because the prescribed remedy was **exhausted**:
+`OVERFLOW-DESTINATION-INSTRUMENTATION.5a`/`.5b` had already demoted every other section to a pure
+pointer. Nothing observed the substitution, and it was recorded in a commit message as compliance.
+Now owned by [`RESUME-POINTER-COMMIT-PATH-COUPLING`](../tasks/RESUME-POINTER-COMMIT-PATH-COUPLING.md).
+
+**The lesson is about this card's own use, so it belongs here rather than only in that tree.** This
+card answers *"does a gate firing often prove its remedy wrong?"* — **no**, and that is still true
+and still measured. It was cited to answer *"is a fail-closed cap on the mandatory commit path
+safe?"* — a **different question about coupling**, which the card never addressed and its 40-commit
+band cannot see. Both citations felt identical from the inside, because both start from *"the cap
+fired."*
+
+**A card that answers a neighbouring question is the most expensive kind of wrong answer: it arrives
+with evidence attached, so it ends the inquiry instead of starting it.** Before citing a fact card,
+check that the question you actually have is in its `answers:` list *as asked* — not merely that the
+card's subject and yours share a noun. Retrieval hitting is not retrieval matching.
 
 ## One residual, deliberately not inflated
 

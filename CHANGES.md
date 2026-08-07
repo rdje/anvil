@@ -1,6 +1,77 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-07 — RESUME-POINTER-COMMIT-PATH-COUPLING.0 — register the resume-pointer commit-path coupling
+
+**Landed as:** `this commit`. Previous: `3589d31`, `4925847`, `f9e1c61`.
+**Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** New tree registering a defect an owner challenge surfaced, plus the two live-doc repairs it
+forced: a new `saturated-instrument-cannot-discriminate` fact card, and the demotion of four inline
+gotcha summaries out of `MEMORY.md` behind the derivation that already reaches them.
+
+**Why — and this is a defect, not a forecast.** `MEMORY-ARCH`'s byte cap on `MEMORY.md` is
+**fail-closed on the mandatory commit path**. Measured at `4925847`: `COMMIT.md` requires that file
+amended *"before every git commit, without exception"*; **820 of 840 commits (97.6 %)** touch it; and
+it sat at **6,064 of 6,144 B — 98.7 %**, drifting **+2.7 B/commit**. So a hard cap with **79 bytes**
+of slack sits astride the path almost every commit must take.
+
+**The finding is what happens when it fires.** The gate's own routing hint reads *"Layer A is a
+POINTER, not a summary. **Move content down, do not trim prose**."* At `4925847` it fired and the
+remedy taken was **a prose rewording** — three words, 17 bytes — because the prescribed remedy was
+**exhausted**: `OVERFLOW-DESTINATION-INSTRUMENTATION.5a`/`.5b` had already demoted `Standing
+directives` (953 B), `Operating gotchas` (610 B) and `Validation policy` (421 B) to pure pointers,
+leaving no third demotion. **Nothing observed the substitution** — the hint is stderr prose, no check
+compares remedy-taken against remedy-prescribed, and the commit message recorded it as compliance.
+The author was, in the same session, the gate's own maintainer, which is the strongest available
+evidence that the substitution is a property of the mechanism rather than of one careless author.
+
+**How it was found is worth as much as the finding.** The agent reported the firing as *"working as
+designed"*; challenged, it measured the *direction* of the squeeze (the pointer block **grows** — it
+went 2,250 → 2,359 B while the file stayed flat — so ballast is what gives) and concluded *"not a
+problem today"*; challenged **again**, specifically on the blocking, it took the coupling measurement
+that had never been taken. The `gate-frequency-is-not-evidence` card was **correctly cited and
+wrongly applied**: it answers *"does frequent firing prove the remedy wrong?"* (no — still true, and
+still measured) and was used to answer *"is a fail-closed cap on the mandatory commit path safe?"*,
+which it never addressed. **A card that answers a neighbouring question is the most expensive kind of
+wrong answer, because it arrives with evidence attached and so ends the inquiry instead of starting
+it.** That card gains a same-day `Correction` section saying so; its original claim is not rewritten.
+
+**This commit demonstrates the prescribed remedy rather than repeating the forbidden one.** Adding
+the new tree to `MEMORY.md` pushed it to **6,326 B — 182 over cap**. Instead of trimming prose again:
+(a) the `saturated instrument` gotcha, which had **no card** and was live layer-C content inlined in
+layer A, became `docs/knowledge/saturated-instrument-cannot-discriminate.md` (−44 B); and (b) the
+`blockers` field's four accreted gotcha summaries were deleted in favour of the derivation the
+`Operating gotchas` section already prescribes — **after verifying** that
+`grep -l 'gotcha' docs/knowledge/*.md` reaches all three cited cards (27 cards enumerated, 3 of 3
+reachable), because a pointer that cannot be followed is a deletion (`0048`). Result **6,071 B**,
+73 B headroom, all four required fields intact.
+
+**Candidates recorded at registration so `.1` measures rather than re-derives.** **A** — *derive* the
+`## Current state` block from `git log` + tree frontier rows: `MEMORY_ARCHITECTURE.md` §6 **and**
+§11.7 already prescribe it, §12 lists hand-maintained current-state as an anti-pattern, and the repo
+already runs exactly this pattern for `KNOWLEDGE_MAP.md` (hook regenerates + stages, agent spends
+zero time). **B** — relax `COMMIT.md`'s *"without exception"* for state-free commits, attacking the
+coupling instead of the cap. **C** — make the prescribed remedy checkable. **D** — recorded
+acceptance. Each carries its failure mode.
+
+**Validation.** Docs-only; no `src/`, `tests/`, `examples/` or build logic ⇒ generator output
+byte-identical by construction. `bash scripts/check_doctrines.sh` green across all 11 registered
+doctrines, including `MEMORY-ARCH` re-passing at 6,071 B after the demotion. Pointer reachability
+verified before deletion rather than assumed.
+
+**Impact.** Three explicit non-goals keep the tree honest: it is **not** a cap raise (`0040`
+non-license 3), **not** a resumption of the **PAUSED** `OVERFLOW-DESTINATION-INSTRUMENTATION` — the
+boundary is *temporal*, its remedy leaves are `done` and this tree starts where they ended — and
+**not** a reopening of `RESUME-POINTER-CONTRACT`'s loop hypothesis, which stays falsified (1 re-add
+in 185, re-confirmed). Runway if nothing is done: **~29 commits**, after which the only compressible
+surface left is the pointer block itself.
+
+**Files touched.** `docs/tasks/RESUME-POINTER-COMMIT-PATH-COUPLING.md` (new),
+`docs/knowledge/saturated-instrument-cannot-discriminate.md` (new),
+`docs/knowledge/gate-frequency-is-not-evidence.md` (same-day `Correction`), `docs/TASK_TREE.md`,
+`MEMORY.md`, `CHANGES.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-08-07 — BOOTSTRAP-READ-CONTRACT.1 — replace the unsatisfiable bootstrap read with a work-scoped tiered contract
 
 **Landed as:** `f9e1c61`. Previous: `13c9cdf`, `8101dbb`, `f2c8623`, `cb24484`.
