@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-07 — BOOTSTRAP-READ-CONTRACT.1 — replace the unsatisfiable bootstrap read with a work-scoped tiered contract
 
-**Landed as:** `this commit`. Previous: `13c9cdf`, `8101dbb`, `f2c8623`, `cb24484`.
+**Landed as:** `f9e1c61`. Previous: `13c9cdf`, `8101dbb`, `f2c8623`, `cb24484`.
 **Docs / workflow only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** `SESSION_BOOTSTRAP.md` §1 (*"Read every live doc, in this order, **in full**"*) and §2

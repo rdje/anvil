@@ -92,7 +92,7 @@ the contract further out of reach. `SESSION_BOOTSTRAP.md` already hedges for exa
   Goal: `Replace the unsatisfiable "read everything in full" precondition with a tiered contract that is achievable in a real session budget, without losing recovery fidelity.`
   Acceptance: `Encodes the 2026-08-07 owner directive as its design principle: the contract is SCOPED TO THE WORK IN HAND, not a shortened universal list, and its sufficiency test is understanding the subject of the change rather than covering a corpus. States the working budget it designs against and where that number comes from. Classifies EVERY item currently mandated by SESSION_BOOTSTRAP.md §1/§2 into mandatory / on-demand / derived, and for each demotion states what a session loses, measured. Must reconcile with MEMORY_ARCHITECTURE.md §5, which already prescribes a bounded read and is the mechanism this contract duplicates and contradicts. Must NOT resume OVERFLOW-DESTINATION-INSTRUMENTATION.`
   Verification: `Contract rewritten to three tiers in SESSION_BOOTSTRAP.md; design recorded in docs/decisions/0049. Budget DERIVED (0036 §(c) / 0040 §(c) method): demonstrated-sufficient fixed read 114,689 B = 2.73% of a 4 MiB window at 13c9cdf, doubled and rounded to the next binary round number => 256 KiB = 262,144 B, which that tier filled to 43.8% — a cap that lands with ~55% headroom is a bound, not a description. After this commit the tier is 120,178 B = 2.87%, 45.8% of budget, and the record's reverify expects that post-landing figure rather than the flattering one. Every §1/§2 item classified with its demotion loss measured at 13c9cdf; see the Verification Log row for the full set.`
-  Commit: `this commit`
+  Commit: `f9e1c61`
 
 - ID: `BOOTSTRAP-READ-CONTRACT.2`
   Status: `pending`
@@ -242,7 +242,7 @@ the contract further out of reach. `SESSION_BOOTSTRAP.md` already hedges for exa
 | --- | --- | --- |
 | `.0` (registration) | `cb24484` — `BOOTSTRAP-READ-CONTRACT.0 — register the unsatisfiable session-bootstrap read contract` | Docs-only; no work leaf executed yet. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 | `.0` (owner directive) | `8101dbb` — `BOOTSTRAP-READ-CONTRACT.0 — record the owner directive answering the tree's question` | Recorded the `2026-08-07` directive verbatim and folded it into `.1`'s acceptance. Hash backfilled by `13c9cdf`. |
-| `.1` | `this commit` — `BOOTSTRAP-READ-CONTRACT.1 — replace the unsatisfiable bootstrap read with a work-scoped tiered contract` | Rewrote `SESSION_BOOTSTRAP.md` to three tiers; recorded the design and the owner directive in [`0049`](../decisions/0049-the-bootstrap-read-is-scoped-to-the-work.md); registered `.3`. Docs/workflow only. |
+| `.1` | `f9e1c61` — `BOOTSTRAP-READ-CONTRACT.1 — replace the unsatisfiable bootstrap read with a work-scoped tiered contract` | Rewrote `SESSION_BOOTSTRAP.md` to three tiers; recorded the design and the owner directive in [`0049`](../decisions/0049-the-bootstrap-read-is-scoped-to-the-work.md); registered `.3`. Docs/workflow only. |
 
 ## Changelog
 
