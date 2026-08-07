@@ -3,7 +3,7 @@ Fully detailed change history. Newest entries at the top. One entry per commit.
 
 ## 2026-08-07 — BOOTSTRAP-READ-CONTRACT.0 — record the owner directive that answers the tree's central question
 
-**Landed as:** `pending`. Previous: `f2c8623`, `cb24484`, `089566b`.
+**Landed as:** `8101dbb`. Previous: `f2c8623`, `cb24484`, `089566b`.
 **Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** The owner answered `BOOTSTRAP-READ-CONTRACT`'s open question directly, verbatim: *"read
