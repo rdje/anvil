@@ -3,7 +3,16 @@
 ## Metadata
 
 - Tree ID: `OVERFLOW-DESTINATION-INSTRUMENTATION`
-- Status: `active`
+- Status: `deferred`
+- **PAUSE (owner directive) — do not resume without an owner nudge.** Recorded here `2026-08-07` by
+  `RESUME-POINTER-COMMIT-PATH-COUPLING.1`, which found the pause was held **only** in `MEMORY.md` —
+  an overwrite-only file with a hard cap — and in other trees' prose, while this file said
+  `Status: active` and contained the word *paused* **zero** times. That is decision
+  [`0041`](../decisions/0041-owner-standing-directives-recorded-in-layer-c.md)'s lesson recurring: a
+  directive parked in layer A is queued for deletion. `deferred` is the vocabulary's own status for
+  *"deliberately postponed with an explicit consequence"*, and the consequence is stated: PNT
+  selection must skip this tree. **Recording the pause is not resuming it** — no leaf was executed,
+  measured, or re-decided; `.9` and `.4` stay `pending` exactly as they were.
 - Roadmap lane: Live-doc hygiene / doctrine-policy completeness
 - Created: `2026-07-31`
 - Last updated: `2026-07-31` (`.6` **done** — the long-line class measured tree-wide and the answer is **"no, reflow is not the repair"**, because for the lines that motivated the leaf it is **structurally unavailable**: they are table rows, and a table row cannot carry a newline. The same sweep found a **different and worse defect** — **36 malformed table rows silently drop 57,283 rendered characters**, and **97.0 % of the headline 24,990-byte line never renders at all**. New leaves **`.7`** (repair + gate) and **`.8`** (classify the unclassified index) registered; frontier **`.7`**)

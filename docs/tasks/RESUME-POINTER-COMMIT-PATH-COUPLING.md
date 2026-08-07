@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / gate quality — commit path
 - Created: `2026-08-07`
-- Last updated: `2026-08-07` (registered)
+- Last updated: `2026-08-07` (`.1` **done** — root cause found and repaired; frontier `.2`)
 - Owner: repo-local workflow — **opened on an owner challenge**, not on an agent's own noticing
 
 ## Goal
@@ -90,11 +90,11 @@ substitution is a property of the mechanism rather than of one careless author.
   Children: `.1` (measure the candidates and decide), `.2` (implement whatever `.1` chooses)
 
 - ID: `RESUME-POINTER-COMMIT-PATH-COUPLING.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Decide between candidates A-D, measured rather than argued.`
   Acceptance: `Measures candidate A against the real question that kills it or not: how much of the current Current-state block is DERIVABLE from git log + tree frontier rows, and how much is irreducible editorial judgement. That ratio decides A, and it is measurable today by attempting the derivation over the last N commits and diffing against what was actually written. States what is lost by the chosen candidate. Must NOT raise the cap (0040 non-license 3) and must NOT resume OVERFLOW-DESTINATION-INSTRUMENTATION. Recorded acceptance is a legitimate outcome.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `The question was reframed by measurement: not "how much is derivable" but "what term GROWS". One field answered it. MEMORY.md's active_work_unit named 7 trees; 16 carry Status: active on disk; 0 named-not-active, 9 active-not-named. It is a 0033 shadow of docs/TASK_TREE.md's Active Task Trees table, and test (3) silence is DEMONSTRATED not argued — it had drifted to 7 of 16 with nothing failing, because MEMORY-ARCH asserts the field NAME exists and has never had an opinion about its contents. Candidate A (derive the block) REJECTED: docs/TASK_TREE.md already is the derived roster, so generating a second one keeps the copy and automates its upkeep — R4 where R1 is available, and feedback_full_factorization forbids the second mechanism. Repaired by R1 deletion: one work unit + pointer, per MEMORY_ARCHITECTURE.md §6's own singular template. Effect: MEMORY.md 6,071 -> 5,235 B, headroom 73 -> 909 B (12.5x), growth term per new tree 40-60 B -> 0. PRECONDITION FOUND AND FIXED FIRST: the deleted text carried OVERFLOW-DESTINATION-INSTRUMENTATION's pause, which had NO other durable home — its own file said Status: active and said "paused" zero times — so deleting the shadow would have silently un-paused a tree the owner stopped. Recorded there as deferred (the vocabulary's own status) before anything was deleted. All 11 doctrines green.`
+  Commit: `this commit`
 
 - ID: `RESUME-POINTER-COMMIT-PATH-COUPLING.2`
   Status: `pending`
@@ -107,8 +107,8 @@ substitution is a property of the mechanism rather than of one careless author.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `RESUME-POINTER-COMMIT-PATH-COUPLING.1` | `pending` | **Next.** The measurement that decides candidate A — the derivable-vs-editorial ratio of the current-state block — is cheap and has never been taken. |
-| 2 | `RESUME-POINTER-COMMIT-PATH-COUPLING.2` | `pending` | After `.1`, and only if `.1` chooses a mechanism. |
+| 1 | `RESUME-POINTER-COMMIT-PATH-COUPLING.2` | `pending` | **Next.** `.1` removed the growth term that scaled with the project; what remains is `next_action`'s priority queue (accretion, but **not** a shadow — a priority ordering is derivable from no set) and the still-undecided candidate **B**, relaxing `COMMIT.md`'s *"without exception"* for state-free commits. Not urgent: headroom is **909 B**. |
+| — | `RESUME-POINTER-COMMIT-PATH-COUPLING.1` | `done` | Root cause was one shadow field, not prose bloat. Recorded in [`0050`](../decisions/0050-resume-pointer-holds-one-work-unit-not-a-roster.md). |
 
 ## Decisions
 
@@ -134,6 +134,7 @@ substitution is a property of the mechanism rather than of one careless author.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-07` | `.1` | `Shadow test at 339722b: 7 named in MEMORY.md vs 16 Status: active on disk, 9 silently missing, 561 B for that one line. 0033 three-part test passes with (3) demonstrated by the live miss rather than by grep. Repair R1 deletion, candidate A rejected as R4-where-R1-exists. Effect 6,071 -> 5,235 B, headroom 73 -> 909 B, growth-per-tree -> 0. Orphan check run BEFORE deleting: ODI pause had no home outside MEMORY.md (own file said Status: active, zero occurrences of "paused"), recorded as deferred first. bash scripts/check_doctrines.sh green on all 11.` | `.1 done` (docs-only; DUT byte-identical) |
 | `2026-08-07` | `.0` | `Measured at 4925847: git rev-list --count HEAD = 840 total, 820 touching MEMORY.md = 97.6%; MEMORY.md 6,064 B of a 6,144 B cap = 98.7%, headroom 79 B; band over the last 40 commits touching it 5,955 -> 6,064 B = +2.7 B/commit; the ## Current state block grew 2,250 -> 2,359 B (37.8% -> 38.9%) over the same window, so eviction pressure lands on ballast not on the pointer. Already-demoted sections carrying no further demotion: Standing directives 953 B, Operating gotchas 610 B, Validation policy 421 B. The gate's routing hint reads "Move content down, do not trim prose"; the remedy taken at 4925847 was a three-word prose rewording recovering 17 B, and no check compares remedy-taken against remedy-prescribed. ODI .3/.5a/.5b confirmed done by reading the tree, so the prescribed remedy was exhausted rather than skipped.` | `registered` (docs-only; DUT byte-identical) |
 
 ## Commit Log

@@ -1,6 +1,59 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-07 — RESUME-POINTER-COMMIT-PATH-COUPLING.1 — the growth was one shadow field, not prose bloat
+
+**Landed as:** `this commit`. Previous: `339722b`, `3589d31`, `4925847`.
+**Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** `MEMORY.md`'s `active_work_unit` field now names **one** work unit and points at
+`docs/TASK_TREE.md` for the roster of active trees, per `MEMORY_ARCHITECTURE.md` §6's own singular
+template. `OVERFLOW-DESTINATION-INSTRUMENTATION` is marked `deferred` with its pause recorded in its
+own file. Recorded in `docs/decisions/0050-resume-pointer-holds-one-work-unit-not-a-roster.md`.
+
+**Why.** `.0` framed the symptom (a fail-closed cap on the mandatory commit path). `.1` asked what
+`.0` had not: *what is actually growing?* One field answered it. `active_work_unit` named **7** trees
+while **16** carry `Status: active` on disk — **9 silently missing**, 561 B for that one line. It is
+a [`0033`](docs/decisions/0033-shadow-enumeration-classification.md) **shadow** of
+`docs/TASK_TREE.md`'s *Active Task Trees* table: derivable, growth-coupled, and silent — with
+silence **demonstrated rather than argued**, since the drift to 7-of-16 had already happened and no
+gate failed. `MEMORY-ARCH` asserts the field *name* exists and has never had an opinion about its
+contents. So the growth was never prose to be trimmed; it was a term scaling with the number of task
+trees, inside a hard-capped file.
+
+**Candidate A — generate the block — was rejected**, though `.0` had it as front-runner and
+`MEMORY_ARCHITECTURE.md` §6/§11.7 both suggest it. `docs/TASK_TREE.md` **already is** the derived
+roster, so generating a second one keeps the copy and merely automates its upkeep: R4 where R1 is
+available, and `feedback_full_factorization` forbids the second mechanism. **A generated shadow is
+still a shadow; it drifts on a schedule instead of by neglect.**
+
+**A precondition was found before deleting anything, and it was load-bearing.** The deleted text
+carried `OVERFLOW-DESTINATION-INSTRUMENTATION`'s *"PAUSED, do not resume without a nudge"* — and that
+pause had **no other durable home**: its own tree file said `Status: active` and contained the word
+*paused* **zero** times, so the pause lived only in an overwrite-only, hard-capped file. Deleting the
+shadow would have silently un-paused a tree the owner stopped, and PNT selection reads `Status`.
+Fixed first, using the vocabulary's own word — `deferred`, *"deliberately postponed with an explicit
+consequence"* — with the consequence stated in its Metadata. Recording a pause is not resuming it; no
+leaf was executed or re-decided. **Transferable rule: before deleting a copy, check every claim it
+carries for an independent home — a copy that has quietly become the only original is not a copy.**
+
+**Validation.** Docs-only ⇒ generator output byte-identical by construction. `bash
+scripts/check_doctrines.sh` green on all 11 registered doctrines. Orphan check run *before* deletion,
+not after.
+
+**Impact.** `MEMORY.md` **6,071 → 5,235 B**; headroom to the cap **73 → 909 B (12.5×)**; growth per
+new task tree **40–60 B → 0**. The third number is the durable one — the first two buy time, but
+decoupling growth from the project's size is what stops it recurring. **Stated limits:** the coupling
+itself is untouched (`COMMIT.md` still mandates the file every commit; candidate **B** stays open
+under `.2`), `next_action`'s priority queue still accretes (not a shadow — a priority is derivable
+from no set), and nothing checks the new one-unit invariant, deliberately: re-accretion is *visible*
+where the old drift was *silent*.
+
+**Files touched.** `MEMORY.md`, `docs/decisions/0050-…md` (new), `docs/decisions/INDEX.md`,
+`docs/tasks/RESUME-POINTER-COMMIT-PATH-COUPLING.md`,
+`docs/tasks/OVERFLOW-DESTINATION-INSTRUMENTATION.md` (status + pause), `docs/TASK_TREE.md`,
+`CHANGES.md`, `KNOWLEDGE_MAP.md` (regenerated).
+
 ## 2026-08-07 — RESUME-POINTER-COMMIT-PATH-COUPLING.0 — register the resume-pointer commit-path coupling
 
 **Landed as:** `this commit`. Previous: `3589d31`, `4925847`, `f9e1c61`.
