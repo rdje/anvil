@@ -10,6 +10,8 @@ answers:
   - "how do I test whether a doctrine's remedy is the wrong one"
   - "when is it safe to escalate a mechanism-misfires finding"
   - "is MEMORY.md a rotating log with entries to overwrite"
+  - "can the MEMORY.md cap squeeze out the next-frontier pointer itself"
+  - "how much headroom is left in MEMORY.md before something load-bearing must go"
 date: 2026-08-01
 status: current
 tags: [doctrine, enforcement, memory-architecture, gate-quality, measurement, gotcha]
@@ -83,7 +85,46 @@ kill it is the recurring defect, whatever layer it happens at.
 
 Not when the cap fires again — it will, and that is expected. Reopen only on evidence that routed
 content **returns**, or that a firing caused something to be **lost**. Neither has ever been
-observed.
+observed. **A concrete numeric trigger is given in the amendment below**, so "when to reopen" is a
+measurement rather than a judgement call.
+
+## Amendment `2026-08-07` — the direction of the squeeze, and the runway
+
+Asked by the owner, on the right instinct: *`MEMORY.md` names the next frontier — if the cap can
+block updating it, is the pointer itself at risk?* The concern is **the one clause above that says
+reopen** ("a firing caused something to be lost"), so it was measured rather than answered.
+
+**It is the opposite direction.** Over the same 40-commit window, re-run at `4925847`:
+
+| | oldest `5e3e9a0` | newest `4925847` |
+| --- | ---: | ---: |
+| whole file | 5,955 B | 6,064 B |
+| the `## Current state` block — *the pointer's actual job* | 2,250 B (37.8 %) | 2,359 B (**38.9 %**) |
+
+**The pointer block grew, absolutely and as a share, while the file stayed flat.** Eviction pressure
+lands on everything *else*, which is the design intent. The structural reason it must land that way:
+you hit the cap **while writing the new frontier**, so the content under pressure is the oldest
+ballast, never the sentence you are in the middle of authoring. The feared failure is
+counter-pressured by the authoring path — the same property decision `0045` keyed on.
+
+**Cost of the firing that prompted the question, measured rather than asserted:** the forced trim
+dropped exactly three words — `all`, `at`, `exactly` — a rewording. The leaf id, the decision-record
+pointer and the whole work queue survived byte-for-byte. **Zero facts lost.**
+
+**The runway, which is the part the card did not previously cover and where the instinct is right.**
+The band has crept **5,955 → 6,064 B** across those 40 commits — **+2.7 B/commit** — leaving **79 B**
+of headroom. The remaining sections are **already pointers**: *Standing directives* (953 B),
+*Operating gotchas* (610 B) and *Validation policy* (421 B) all read *"RECORDED, not summarised
+here"* and link out, so there is no third demotion to perform on them. So the compressible surface is
+finite and roughly **29 commits** from exhausted, after which the only thing left to compress is the
+pointer block itself — and *that* would be the loss this card says to reopen on.
+
+**Trigger, so nobody has to judge:** when a firing can no longer be absorbed by rewording — i.e. the
+`## Current state` block has to give up a **leaf id, a decision-record pointer, or a queue entry** —
+that is the reopen condition, and it is a `RESUME-POINTER-CONTRACT`-shaped question with genuinely
+new evidence. **Not before.** Until then this stays a forecast, and a forecast does not get a tree:
+the gate is fail-closed, blocks the commit rather than landing a stale pointer, and announces itself
+the moment the forecast comes true.
 
 ## One residual, deliberately not inflated
 
