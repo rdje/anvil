@@ -1,9 +1,75 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1 — derive the live-document inventory
+
+**Landed as:** `this commit`. Previous: `d0426bd`, `47ac5ce`, `596e624`.
+**Workflow tooling + docs; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** Adds `scripts/live_doc_inventory.py`, which **derives** the complete live-document
+inventory and its route graph from `git ls-files`. Checklist step 2 of
+`LIVE_DOCUMENT_SIZE_CONTAINMENT.md` is now satisfied by a derivation rather than a list.
+
+**Why a script and not a written inventory.** A hand-maintained list mirroring the set of tracked
+documents is derivable, growth-coupled and silent — [`0033`](docs/decisions/0033-shadow-enumeration-classification.md)'s
+three-part test, passed on all three counts — so writing one down would create the exact shadow this
+project repairs by deletion. `git ls-files` is the authority; every later leaf reads the script.
+
+**Census** (at `d0426bd`): **282** tracked `*.md` = **11,106,985 B** across **32 surfaces**
+(27 singletons + 5 collections), **residual 0**. Routes: **843** reader-navigation edges and **22**
+author-overflow edges, the two kinds separated because the doctrine requires it — a reader may
+legitimately navigate to immutable history, while an author being *told by a failing gate* to move
+content somewhere is a pressure edge.
+
+**The finding, and it is larger than `.0` recorded.** `.0` measured `MEMORY-ARCH`'s routing hint at
+**4 of 4** destinations uncapped. Deriving both route kinds from the *whole* enforcement surface shows
+`README-GROWTH` emits an overflow hint as well — one nobody had examined. The measured figure:
+
+| | |
+| --- | ---: |
+| distinct live-document overflow destinations named by the two size gates | **10** |
+| of those, capped | **0** |
+| their total size | **8,683,015 B** |
+| total size of the surfaces the two caps actually bound | **16,115 B** |
+| ratio | **539×** |
+
+Mechanically confirmed: a grep for cap constants over `scripts/*.sh` finds **exactly two** in the
+entire repository — `README-GROWTH`'s 250 / 12,288 and `MEMORY-ARCH`'s 50 / 6,144 — and neither
+governs any of the ten destinations either gate names.
+
+**The method lesson is the durable part.** `.0` read *one* enforcer's hint because that was the
+enforcer under discussion, and reported the result as the finding. Deriving the same fact
+mechanically found the rest in a single run. **A hand-read sample of a mechanism reports the
+mechanism you were already looking at.**
+
+**Validation.**
+- **Residual proven zero** by an identity, not a spot-check: every tracked `*.md` is either a
+  singleton surface or a member of exactly one collection. Anything else is a bug in the script, and
+  a nonzero residual exits nonzero — the count-floor that stops the inventory passing vacuously.
+- **Determinism proven**: two `--json` runs byte-identical by SHA-256 (`b69f2e7913effb12…`). No
+  clock, no randomness, sorted output, repository-relative paths only (`DOCTRINE_ENFORCEMENT.md` §4).
+- **The extractors carry the lessons other ANVIL extractors already paid for**: whole-file rather
+  than line-wise, because a markdown link's *text* may wrap across a newline
+  (`BOOK-LINK-INTEGRITY.3` measured exactly that); fence-masked, because a link inside a fence is an
+  example and not a route.
+- **The route extractor deliberately over-collects** (7 further candidates: `ENUMERATION-PARITY`
+  sync targets, `NO-BOOT-VOLUME-REFS` *forbidden* paths, 2 prose artifacts). That is the fail-closed
+  direction the doctrine mandates for an undeclared path-shaped hint. Separating a genuine pressure
+  edge from a sync target is a **declaration**, and declarations belong in `.6`'s reviewable
+  registry — a hand-curated exclusion list here would be the shadow this leaf exists to avoid. One
+  filter only, and it is a parse fix rather than a judgement: a single-character path segment, since
+  the hint text *"layer B"* yields a spurious `B/`.
+- `bash scripts/check_doctrines.sh` — **all 11 registered doctrines PASS**.
+
+**Impact.** No surface changes size. `.2` classifies the 32 surfaces by lifecycle; the frontier moves
+`.1` → `.2`. `scripts/` is not code by `docs/TASK_TREE.md`'s boundary, so this is workflow tooling.
+
+**Files touched.** `scripts/live_doc_inventory.py` (new), `MEMORY.md`, `CHANGES.md`,
+`docs/TASK_TREE.md`, `docs/tasks/LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.md`.
+
 ## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0 — adopt the live-document size-containment doctrine
 
-**Landed as:** `this commit`. Previous: `47ac5ce`, `596e624`, `339722b`.
+**Landed as:** `d0426bd`. Previous: `47ac5ce`, `596e624`, `339722b`.
 **Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** ANVIL adopts the **Live-Document Size-Containment** doctrine as its **fifth** portable

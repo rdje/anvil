@@ -1,4 +1,4 @@
-# LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION: 2 of 279 tracked documents are capped, they are the two smallest, and the routing hint that relieves them points at three unbounded neighbours
+# LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION: only 2 tracked documents are capped, they are the two smallest, and every one of the 10 destinations the size gates route overflow into is uncapped
 
 ## Metadata
 
@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / doctrine adoption — live-document containment
 - Created: `2026-08-08`
-- Last updated: `2026-08-08` (`.0` registered; frontier `.1`)
+- Last updated: `2026-08-08` (`.1` **done** — inventory derived; frontier `.2`)
 - Owner: repo-local workflow — **opened on an explicit owner directive**, not on an agent's noticing
 
 ## Goal
@@ -47,6 +47,13 @@ did not overlook that; it *argued* for it, on the grounds that append-only recor
 grow and are never capped."* The doctrine's core invariant answers directly: *"a bounded file that
 sends overflow to an unbounded neighbor has not contained anything."* ANVIL's most-exercised
 containment mechanism moves bytes from a capped file into uncapped ones and records it as compliance.
+
+> **`.1` enlarged this figure and the correction is the interesting part.** Deriving both route kinds
+> from the *whole* enforcement surface shows `README-GROWTH` emits an overflow hint as well — never
+> examined, because `.0` read the one enforcer that was under discussion. The measured figure is
+> **10 distinct live-document overflow destinations, 0 capped**, totalling **8,683,015 B** against
+> the **16,115 B** the two caps actually bound: a **539×** ratio. *A hand-read sample of a mechanism
+> reports the mechanism you were already looking at.*
 
 **And a read path has already failed.** `docs/TASK_TREE.md` — a Tier-1 bootstrap read — **could not be
 opened** by this session's file-read tool (296.3 KB against a 256 KB limit), and its worst single line
@@ -102,15 +109,15 @@ then measured on exactly one file.
   Status: `done`
   Goal: `Register the doctrine: the ANVIL-owned copy, the decision, this tree, and discoverability.`
   Acceptance: `LIVE_DOCUMENT_SIZE_CONTAINMENT.md exists at the repo root with the neutral body copied VERBATIM (proved, not asserted) and an ANVIL-specific local-adoption note replacing the donor's; a donor-residue scan over that note is clean; decision 0052 records why ANVIL needs a doctrine 0040 does not supply; README.md gains one navigation row and stays inside both caps.`
-  Verification: `Neutral body proved byte-identical by SHA-256 over the region after the local-adoption END fence: donor 16,673 B / 6c4e8a51dcd735dd == ANVIL 16,673 B / 6c4e8a51dcd735dd. Local note proved fully replaced and scanned clean over 12 donor tokens (project names, decision numbers, task ids, registry filenames, migration counts). Registration census measured at 47ac5ce over 279 tracked *.md = 11,035,621 B, of which 2 files are capped. Routing-hint defect confirmed by reading scripts/check_memory_architecture.sh: all four hint destinations are uncapped. Read-path failure OBSERVED, not predicted: docs/TASK_TREE.md (296.3 KB) was refused by this session's file-read tool at its 256 KB limit during the Tier-1 bootstrap read. bash scripts/check_doctrines.sh green on all 11.`
-  Commit: `this commit`
+  Verification: `Neutral body proved byte-identical by SHA-256 over the region after the local-adoption END fence: donor 16,673 B / 6c4e8a51dcd735dd == ANVIL 16,673 B / 6c4e8a51dcd735dd. Local note proved fully replaced and scanned clean over 12 donor tokens (project names, decision numbers, task ids, registry filenames, migration counts). Registration census measured at 47ac5ce over 279 tracked *.md = 11,035,621 B, of which 2 files are capped. Routing-hint defect confirmed by reading scripts/check_memory_architecture.sh: all four hint destinations are uncapped — ENLARGED at .1 to 10 of 10, by deriving the same fact from the whole enforcement surface instead of the one enforcer under discussion. Read-path failure OBSERVED, not predicted: docs/TASK_TREE.md (296.3 KB) was refused by this session's file-read tool at its 256 KB limit during the Tier-1 bootstrap read. bash scripts/check_doctrines.sh green on all 11.`
+  Commit: `d0426bd`
 
 - ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1`
-  Status: `pending`
+  Status: `done`
   Goal: `Inventory every live document, generated view, collection, route and historical terminal — completely, and mechanically.`
   Acceptance: `A complete enumeration derived from the tree (git ls-files), never hand-listed — a hand-listed inventory is precisely the 0033 shadow this project repairs by deletion. Routes are followed TRANSITIVELY and BOTH route kinds are separated per the doctrine: reader navigation vs author overflow, the latter derived from enforcers' emitted failure hints as well as hand-authored links, since an undeclared path-shaped hint is a real pressure edge. Output: one machine-readable inventory + the count of surfaces and route edges, with the residual (files present, files inventoried) proven zero.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Delivered as scripts/live_doc_inventory.py — a DERIVATION, not a list: git ls-files is the authority and every later leaf reads the script rather than a copy of it. Census at d0426bd: 282 tracked *.md = 11,106,985 B across 32 surfaces (27 singletons + 5 collections), RESIDUAL 0 — the identity every *.md is either a singleton or a member of exactly one collection holds, so nothing is silently omitted. Routes: 843 reader-navigation edges, 22 author-overflow edges, the two kinds separated as the doctrine requires. Determinism proved: two --json runs byte-identical by SHA-256 (b69f2e7913effb12...). Extractors carry the lessons other ANVIL extractors paid for — whole-file not line-wise (a link text may wrap across a newline: BOOK-LINK-INTEGRITY.3), fence-masked (a link inside a fence is an example, not a route), and count-floored by the residual identity. THE FINDING, AND IT IS LARGER THAN .0 RECORDED: .0 measured MEMORY-ARCH's routing hint at 4-of-4 uncapped. The derivation finds README-GROWTH ALSO emits an overflow hint, which nobody had examined, so the true figure is 10 distinct live-document overflow destinations — CHANGES.md, ROADMAP.md, TOOLBOX.md, USER_GUIDE.md, book/src/, docs/TASK_TREE.md, docs/decisions/, docs/evidence/, docs/knowledge/, docs/tasks/ — of which 0 ARE CAPPED. Mechanically confirmed: grep over scripts/*.sh finds exactly two cap constants in the repository (README-GROWTH 250/12,288 and MEMORY-ARCH 50/6,144), and neither governs any of the ten. ANVIL therefore bounds 16,115 B of surface and routes its overflow into 8,683,015 B of unbounded surface — a 539x ratio. Extractor deliberately OVER-collects (7 further candidates: ENUMERATION-PARITY sync targets, NO-BOOT-VOLUME-REFS forbidden paths, 2 prose artifacts), because the doctrine makes an undeclared path-shaped hint fail closed; separating a genuine pressure edge from a sync target is a DECLARATION and belongs in .6's registry, not a hand-curated exclusion list here. One filter only, a parse fix not a judgement: a single-character path segment, since the hint text "layer B" yields a spurious "B/". bash scripts/check_doctrines.sh green on all 11.`
+  Commit: `this commit`
 
 - ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.2`
   Status: `pending`
@@ -193,14 +200,14 @@ then measured on exactly one file.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1` | `pending` | **Next.** The doctrine's checklist puts inventory first for a reason ANVIL has already paid for: `0040` set a rule from one file's pressure, and the axis it did not sweep is where `docs/TASK_TREE.md`'s 39,591 B line was hiding. Classification and thresholds decided before a complete inventory would repeat that exactly. |
-| 2 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.2` | `pending` | Classify only what `.1` proved exists. |
-| 3 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.3` | `pending` | Measure all five axes; targets without measurement are imported numbers by another name. |
-| 4 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.4` | `pending` | Derive targets and ceilings from ANVIL's own survivors. |
-| 5 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.5` | `pending` | Pin the debt before any migration moves a byte. |
-| 6 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.6` | `pending` | Registry + checker, once the data they encode is real. |
-| 7 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.7` | `pending` | Register in every layer; prove it fires. |
-| 8+ | `.8` – `.12` | `pending` | Per-surface migrations, each atomic per the transition protocol. |
+| 1 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.2` | `pending` | **Next.** Classify only what `.1` proved exists — **32 surfaces**, now enumerable by derivation rather than by hand. |
+| 2 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.3` | `pending` | Measure all five axes; targets without measurement are imported numbers by another name. `.1`'s script already emits four of them, so this leaf is the **read path** plus the governed census. |
+| 3 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.4` | `pending` | Derive targets and ceilings from ANVIL's own survivors. |
+| 4 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.5` | `pending` | Pin the debt before any migration moves a byte. |
+| 5 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.6` | `pending` | Registry + checker, once the data they encode is real. |
+| 6 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.7` | `pending` | Register in every layer; prove it fires. |
+| 7+ | `.8` – `.12` | `pending` | Per-surface migrations, each atomic per the transition protocol. |
+| — | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1` | `done` | Inventory derived, not listed. **32 surfaces, residual 0, 843 nav + 22 overflow edges** — and the overflow finding grew from `.0`'s 4-of-4 to **10 of 10 uncapped**. |
 | — | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0` | `done` | Registered `2026-08-08` on an owner directive. |
 
 ## Decisions
@@ -238,16 +245,27 @@ then measured on exactly one file.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-08` | `.1` | `scripts/live_doc_inventory.py at d0426bd: 282 tracked *.md = 11,106,985 B, 32 surfaces (27 singleton + 5 collection), RESIDUAL 0 by the every-file-is-exactly-one-surface identity. 843 reader-navigation + 22 author-overflow edges, the two kinds separated per the doctrine. Determinism: two --json runs byte-identical, SHA-256 b69f2e7913effb12... Overflow destinations of the two size gates: 10 distinct live documents, 0 capped, 8,683,015 B; the two capped surfaces total 16,115 B — a 539x ratio. Two cap constants exist in the whole repository (grep over scripts/*.sh), and neither governs any destination either gate names. bash scripts/check_doctrines.sh green on all 11.` | `.1 done` (workflow tooling + docs; no `src/`, DUT byte-identical) |
 | `2026-08-08` | `.0` | `Neutral body SHA-256 equality proved over the post-fence region: donor 16,673 B 6c4e8a51dcd735dd == ANVIL 16,673 B 6c4e8a51dcd735dd (VERBATIM). Local-adoption note proved replaced and donor-residue-scanned clean across 12 tokens. Registration census at 47ac5ce: 279 tracked *.md, 11,035,621 B, 2 capped (README.md, MEMORY.md) — the two smallest. Routing-hint defect read directly from scripts/check_memory_architecture.sh: 4 of 4 hint destinations uncapped. Read-path failure OBSERVED this session: docs/TASK_TREE.md at 296.3 KB refused by a 256 KB file-read limit, worst line 39,591 B. README.md after its one navigation row: within both caps. bash scripts/check_doctrines.sh green on all 11.` | `.0 registered` (docs-only; DUT byte-identical) |
 
 ## Commit Log
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.0` (registration) | `this commit` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0 — adopt the live-document size-containment doctrine` | Docs-only. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
+| `.1` | `this commit` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1 — derive the live-document inventory` | Adds `scripts/live_doc_inventory.py`. `scripts/` is not code by the `docs/TASK_TREE.md` boundary. |
+| `.0` (registration) | `d0426bd` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0 — adopt the containment doctrine` | Docs-only. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 
 ## Changelog
 
+- `2026-08-08` (`.1`): Inventory **derived** rather than listed, and the derivation immediately
+  enlarged the registration finding. `.0` measured `MEMORY-ARCH`'s routing hint at **4 of 4**
+  destinations uncapped; following *both* route kinds mechanically shows `README-GROWTH` emits an
+  overflow hint too — one nobody had examined — so the real figure is **10 distinct live-document
+  overflow destinations, 0 of them capped**. ANVIL bounds **16,115 B** and routes its overflow into
+  **8,683,015 B**: a **539×** ratio. **The lesson is about the method, not the number:** `.0` read
+  *one* enforcer's hint because that was the enforcer under discussion, and reported the result as
+  the finding. Deriving the same fact from the whole enforcement surface found the rest in one run.
+  *A hand-read sample of a mechanism reports the mechanism you were already looking at.*
 - `2026-08-08`: Created on an explicit owner directive to adopt the doctrine as a project-owned copy,
   treating the originating repository as a **template, not an upstream**. Registration measured
   rather than assumed: **2 of 279** tracked documents are capped and they are the **two smallest**,
