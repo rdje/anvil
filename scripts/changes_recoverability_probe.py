@@ -74,11 +74,68 @@ def commit_messages() -> dict[str, str]:
     return m
 
 
+def durable_layers() -> dict[str, set[str]]:
+    """Every layer that could legitimately hold an entry's content.
+
+    ADDED AT .8a2, AND ITS ABSENCE IS WHY .8a's HEADLINE WAS WRONG. The first pass scored
+    each entry against only its OWN commit message and its OWN task file. Where neither
+    resolved, residue was 100 % BY CONSTRUCTION -- and 162 entries with date-slug headings
+    resolved to neither, contributing nearly half the total. That measured the matcher, not
+    the content. The transferable rule: a coverage metric whose denominator is "sources I
+    managed to locate" reports the locator's competence and calls it a property of the
+    subject.
+    """
+    layers = {}
+    layers["commits"] = words("\n".join(commit_messages().values()))
+    for name, path in (("devnotes", "DEVELOPMENT_NOTES.md"),):
+        p = os.path.join(ROOT, path)
+        layers[name] = words(open(p, encoding="utf-8").read()) if os.path.exists(p) else set()
+    for name, d in (("book", "book/src"), ("adrs", "docs/decisions"), ("km", "docs/knowledge"),
+                    ("tasks", "docs/tasks")):
+        acc: set[str] = set()
+        full = os.path.join(ROOT, d)
+        if os.path.isdir(full):
+            for f in sorted(os.listdir(full)):
+                if f.endswith(".md"):
+                    acc |= words(open(os.path.join(full, f), encoding="utf-8").read())
+        layers[name] = acc
+    return layers
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--worst", type=int, default=10, help="show N least-recoverable entries")
+    ap.add_argument("--layers", action="store_true",
+                    help="score the pre-task-tree era against EVERY durable layer, cumulatively")
     args = ap.parse_args()
+
+    if args.layers:
+        text = open(os.path.join(ROOT, "CHANGES.md"), encoding="utf-8").read()
+        heads = list(ENTRY_RE.finditer(text))
+        date_re = re.compile(r"(20\d\d-\d\d-\d\d)")
+        # 2026-05-17 is the task-tree ownership doctrine. Before it, no task file existed to
+        # hold an entry's reasoning; after it, one exists by construction. The boundary is a
+        # recorded doctrine date, not a percentile chosen to make the answer come out well.
+        pre = set()
+        for i, m in enumerate(heads):
+            d = date_re.search(m.group(1))
+            if d and d.group(1) < "2026-05-17":
+                pre |= words(text[m.start(): heads[i + 1].start() if i + 1 < len(heads) else len(text)])
+        L = durable_layers()
+        print(f"pre-task-tree (< 2026-05-17) distinct content words: {len(pre)}")
+        cov: set[str] = set()
+        for name in ("commits", "devnotes", "book", "adrs", "km", "tasks"):
+            cov |= L[name]
+            r = pre - cov
+            print(f"  + {name:<10} uncovered {len(r):>5}  ({100*len(r)/len(pre):>5.1f} %)")
+        rest = pre - cov
+        alpha = sorted(x for x in rest if re.fullmatch(r"[a-z]{4,}", x))
+        numeric = [x for x in rest if re.search(r"\d", x)]
+        print(f"\nof the {len(rest)} words in NO durable layer: {len(numeric)} numeric/identifier, "
+              f"{len(alpha)} prose (4+ alpha)")
+        print("prose words:", ", ".join(alpha))
+        return 0
 
     text = open(os.path.join(ROOT, "CHANGES.md"), encoding="utf-8").read()
     heads = list(ENTRY_RE.finditer(text))

@@ -1,9 +1,89 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a2 — correct `.8a`'s figure; `.8b` becomes DELETE
+
+**Landed as:** `this commit`. Previous: `ff3d512`, `b7bac03`, `d0426bd`.
+**Workflow tooling + docs; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+*(Written into the file this program is retiring — the last entries `CHANGES.md` receives are the
+records of its own removal, which is the transition protocol's "only records required to complete
+the containment transition may extend a rollover-debt surface".)*
+
+**What.** `.8a`'s headline — *"37.1 % of content words exist only in `CHANGES.md`"* — is **wrong**,
+and `.8b` reverses from **seal** to **delete**. Found by an owner challenge asking what the residue
+actually *is*; a percentage is not an answer to *what would we lose*. `.8a` is `superseded`;
+`0038` keeps its landed entry immutable, so this corrects by new record.
+
+**Why the figure was wrong.** `.8a` scored each entry against only its own commit message and its own
+task file. Bucketing by whether those resolved at all:
+
+| Sources resolved | Entries | Residue % |
+| --- | ---: | ---: |
+| both | 238 | **11.5 %** |
+| task file only | 228 | 15.2 % |
+| commit only | 88 | 89.3 % |
+| **none** | **162** | **100.0 % — by construction** |
+
+Those 162 entries (26,051 words, nearly half the total) use date-slug headings my regex ignored, and
+their hashes live in *separate* `Record <slug> commit hash <h>` commits the probe never traversed.
+**The rule: a coverage metric whose denominator is "sources I managed to locate" reports the
+locator's competence and calls it a property of the subject.**
+
+**The corrected picture.** Split at the recorded `2026-05-17` task-tree doctrine date — a doctrine
+date, not a percentile fitted to make the answer come out well:
+
+| Era | Entries | Residue words | Residue % |
+| --- | ---: | ---: | ---: |
+| task-tree era | 453 | 13,836 | **12.9 %** |
+| pre-task-tree | 263 | 41,694 | **91.2 %** |
+
+**75 % of all residue predates the task trees** — which matches the owner's instinct exactly. But the
+argument *"we have task-trees, KM cards, ADRs, so we are covered"* could not be assumed, because
+**those layers postdate that era**: earliest ADR `2026-06-04`, earliest KM card `2026-06-05`, first
+commit `2026-04-15`. So it was measured, cumulatively, against **every** durable layer:
+
+| Coverage set | Uncovered | |
+| --- | ---: | ---: |
+| all commit messages | 1,965 | 33.0 % |
+| + `DEVELOPMENT_NOTES.md` | 1,304 | 21.9 % |
+| + the mdBook | 1,058 | 17.8 % |
+| + ADRs | 994 | 16.7 % |
+| + KM cards | 987 | 16.6 % |
+| + task files | **918** | **15.4 %** |
+
+Of the **5,958** distinct pre-era content words, **918** appear in no durable layer: **356** numeric
+or identifier tokens, **295** prose words. And the 295 are **overwhelmingly ordinary English** —
+`okay`, `mainly`, `nearby`, `slower`, `sooner`, `certain`, `arise`, `spin`, `drag`, `piles`,
+`lottery`, `syllabus` — vocabulary, not engineering facts.
+
+**The only technically meaningful residue is ~15 code identifiers**: `childinputwidthmismatch`,
+`childoutputwidthmismatch`, `flopidmismatch`, `undefineddriveroot`, `undefinedflopnode`,
+`constantprob`, `terminalreuseprob`, `muxarmsrange`, `hierarchyfacts`, `fraig`, `peepopt`,
+`thiserror`, `sessionstart`, `hookeventname`, `hookspecificoutput`. **`src/` was not in the coverage
+set**, so even those are over-counted — most of them are source symbols.
+
+**Conclusion, reversed.** There is **no irreplaceable engineering content** in `CHANGES.md`. `.8b` is
+now: salvage the ~15 identifiers against `src/` (promote to a KM card only any naming a *removed*
+feature), then `git rm CHANGES.md`. Not sealed, not archived to a new file — removed.
+
+**Validation.** The instrument was repaired, not just the record: `--layers` mode added to
+`scripts/changes_recoverability_probe.py`, with the era boundary taken from a recorded doctrine date.
+`bash scripts/check_doctrines.sh` — **all 11 registered doctrines PASS**.
+
+**Honest limit, load-bearing for the deletion.** Word coverage is **not meaning coverage**. Vocabulary
+overlap does not prove an *argument* survives, so this is strong evidence, not proof. What makes the
+risk acceptable: `DEVELOPMENT_NOTES.md` (1.1 MB of exactly this era's rationale) is retained, git
+keeps the full text permanently under `0031`'s no-rewrite rule, and the era is ~4 months old against
+a substantially rewritten codebase. **The open leg is reachability** — 196 unpushed commits mean the
+git objects live on one machine, so the retention guarantee `.8b`'s descriptor must state cannot be
+written truthfully until that changes.
+
+**Files touched.** `scripts/changes_recoverability_probe.py`, `MEMORY.md`, `CHANGES.md`,
+`docs/tasks/LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.md`.
+
 ## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a — CHANGES.md is not a duplicate of git log + the task trees
 
-**Landed as:** `this commit`. Previous: `b7bac03`, `d0426bd`, `47ac5ce`.
+**Landed as:** `ff3d512`. Previous: `b7bac03`, `d0426bd`, `47ac5ce`.
 **Workflow tooling + docs; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** Owner directive `2026-08-08`: *"CHANGES.md should go, I mean retired. CHANGES.md is
