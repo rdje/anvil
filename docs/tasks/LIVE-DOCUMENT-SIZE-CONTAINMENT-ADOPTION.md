@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / doctrine adoption — live-document containment
 - Created: `2026-08-08`
-- Last updated: `2026-08-08` (`.1` **done** — inventory derived; frontier `.2`)
+- Last updated: `2026-08-08` (`.8a` **done** — `CHANGES.md` proved NOT a duplicate; frontier `.8b`)
 - Owner: repo-local workflow — **opened on an explicit owner directive**, not on an agent's noticing
 
 ## Goal
@@ -162,7 +162,26 @@ then measured on exactly one file.
   Commit: `pending`
 
 - ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8`
+  Status: `active`
+  Goal: `CHANGES.md — RETIRE it. Owner directive 2026-08-08: "CHANGES.md should go, I mean retired. CHANGES.md is replaceable by git log+task-trees."`
+  Children: `.8a` (prove the duplication claim before anything is deleted), `.8b` (execute the atomic transition)
+
+- ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a`
+  Status: `done`
+  Goal: `Prove or refute the claim that CHANGES.md is recoverable from git log + the task trees, BEFORE any byte is removed.`
+  Acceptance: `The doctrine requires a duplicate PROVED before deletion, never assumed. The owner's directive settles the DESTINATION (CHANGES.md is retired); this leaf settles the MANNER, and the two answers are materially different operations: a proved duplicate is removed with a link, while unique content must leave the working set as an archive_terminal because deleting it destroys information.`
+  Verification: `REFUTED, decisively, and the retirement changes shape rather than stopping. scripts/changes_recoverability_probe.py at b7bac03 over all 715 entries: only 1 entry (0.1%) is fully recoverable, and 55,528 of 149,512 content words (37.1%) exist ONLY in CHANGES.md. Addressability was ALSO over-reported: 638 entries carry a "Landed as:" LINE but only 325 (45.5%) name a hex hash, and 1 of those 325 does not resolve in this repository at all (cf3dc3c1...) — so SESSION_BOOTSTRAP.md's documented "632 of 709 carry a Landed as: hash" was counting lines, not hashes, and the true figure is roughly half. 477 of 715 (66.7%) name a task-tree leaf. METHOD: word-multiset residue per entry against its canonical sources (the commit message at its recorded hash + the full text of the task file its leaf id names), word-level rather than line-level because the sources legitimately rephrase, so a line diff would report a spurious total loss on well-covered entries. CONCLUSION: CHANGES.md is NOT a duplicate of git log + task trees. Retirement proceeds — the file stops being a mandatory live surface, which is the whole of what the directive asks — but as an archive_terminal SEAL, never a deletion. A hash proves an entry is ADDRESSABLE; it says nothing about whether the prose beside it survives anywhere else, and this measurement is what separates the two.`
+  Commit: `this commit`
+
+- ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8b`
   Status: `pending`
+  Goal: `Execute the atomic transition: seal CHANGES.md as an archive terminal and stop writes to it.`
+  Acceptance: `The eight-step protocol, in one commit: stop writes at a stable boundary; seal the existing content preserving record order and identity BYTE FOR BYTE (0031 forbids rewriting history, 0038 makes landed entries immutable); write an archive descriptor carrying schema version, former path, covered range, locator, line/byte counts, content digest, a repository-root-relative retrieval procedure, and an executable proof that retrieval reproduces the declared content; update every surface that mandates the file. BLAST RADIUS, measured at .8a and non-trivial: COMMIT.md's unconditional mandate, TOOLBOX.md Part 2, README.md's navigation table, MEMORY_ARCHITECTURE.md, docs/TASK_TREE.md's live-doc relationship section, SESSION_BOOTSTRAP.md Tier 3 — and TWO REGISTERED DOCTRINES DIE WITH IT: CHANGES-ENTRY-PLACEMENT loses its subject entirely, and CODE-CHANGE-EVIDENCE loses its only remaining assertion (RESUME-POINTER-COMMIT-PATH-COUPLING.2 removed the MEMORY.md leg). That is not a loss of enforcement: DOCTRINE_ENFORCEMENT.md §6 already says the measured result belongs in "CHANGES.md + the owning task leaf", and TASK-TREE-OWNERSHIP already asserts the task file is co-staged — so the evidence requirement COLLAPSES onto the task leaf, which is feedback_full_factorization removing a second mechanism rather than weakening a gate. A version object is NOT a self-proving archive (the doctrine is explicit), so "git history has it" is insufficient on its own and needs a named retention contract with owner, reachability guarantee and recovery procedure — or, preferred, a content-addressed file on the repository volume.`
+  Verification: `pending`
+  Commit: `pending`
+
+- ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8-superseded-goal`
+  Status: `superseded`
   Goal: `CHANGES.md — audit for rolling_ledger, archival replacement, or retirement in favour of git and task history.`
   Acceptance: `Decide by measurement, not preference. Retirement is genuinely open: 632 of 709 entries carry a Landed as: hash and 459 name a leaf id, so "git log already holds this" is TESTABLE — test it rather than assert it, and measure what is lost for the entries that carry neither. If it survives as a rolling ledger, declare the seal boundary, immutable segments, bounded index and the archive transition BEFORE aggregate growth becomes unbounded. Landed entries are immutable (0038) and history is never rewritten (0031), so any partition preserves record order and identity byte for byte.`
   Verification: `pending`
@@ -200,13 +219,15 @@ then measured on exactly one file.
 
 | Order | Leaf | Status | Why next |
 | --- | --- | --- | --- |
-| 1 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.2` | `pending` | **Next.** Classify only what `.1` proved exists — **32 surfaces**, now enumerable by derivation rather than by hand. |
-| 2 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.3` | `pending` | Measure all five axes; targets without measurement are imported numbers by another name. `.1`'s script already emits four of them, so this leaf is the **read path** plus the governed census. |
-| 3 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.4` | `pending` | Derive targets and ceilings from ANVIL's own survivors. |
-| 4 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.5` | `pending` | Pin the debt before any migration moves a byte. |
-| 5 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.6` | `pending` | Registry + checker, once the data they encode is real. |
-| 6 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.7` | `pending` | Register in every layer; prove it fires. |
-| 7+ | `.8` – `.12` | `pending` | Per-surface migrations, each atomic per the transition protocol. |
+| 1 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8b` | `pending` | **Next, and deliberately ahead of `.2`–`.7`.** The transition protocol opens with *"stop writes to the source"*, and `CHANGES.md` is the one file `COMMIT.md` mandates on **every** commit — including every commit of this program. Each further leaf appends another entry to a condemned surface, which the doctrine forbids (*"ordinary unrelated growth remains prohibited"*). `.8a` settled the manner: **seal, do not delete.** |
+| 2 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.2` | `pending` | Classify the remaining **32** surfaces — enumerable by derivation rather than by hand. |
+| 3 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.3` | `pending` | Measure all five axes; targets without measurement are imported numbers by another name. `.1`'s script already emits four of them, so this leaf is the **read path** plus the governed census. |
+| 4 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.4` | `pending` | Derive targets and ceilings from ANVIL's own survivors. |
+| 5 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.5` | `pending` | Pin the debt before any migration moves a byte. |
+| 6 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.6` | `pending` | Registry + checker, once the data they encode is real. |
+| 7 | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.7` | `pending` | Register in every layer; prove it fires. |
+| 8+ | `.9` – `.12` | `pending` | Per-surface migrations, each atomic per the transition protocol. |
+| — | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a` | `done` | **`CHANGES.md` is NOT a duplicate** — 1 of 715 entries fully recoverable, **37.1 %** of content words exist only there. Retirement proceeds as a **seal**, not a deletion. |
 | — | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1` | `done` | Inventory derived, not listed. **32 surfaces, residual 0, 843 nav + 22 overflow edges** — and the overflow finding grew from `.0`'s 4-of-4 to **10 of 10 uncapped**. |
 | — | `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0` | `done` | Registered `2026-08-08` on an owner directive. |
 
@@ -245,6 +266,7 @@ then measured on exactly one file.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-08` | `.8a` | `scripts/changes_recoverability_probe.py over all 715 CHANGES.md entries at b7bac03: 1 fully recoverable (0.1%); 55,528 of 149,512 content words (37.1%) present ONLY in CHANGES.md. 325 of 715 (45.5%) name a git-resolvable hex hash — against 638 entries carrying a Landed as: LINE, so the documented 632-of-709 counted lines not hashes; 1 hash (cf3dc3c1...) resolves nowhere in this repository. 477 (66.7%) name a task-tree leaf. Word-multiset residue against commit message + owning task file, word-level because the sources legitimately rephrase. CLAIM REFUTED: retirement proceeds as archive_terminal seal, not deletion.` | `.8a done` (workflow tooling + docs; no `src/`, DUT byte-identical) |
 | `2026-08-08` | `.1` | `scripts/live_doc_inventory.py at d0426bd: 282 tracked *.md = 11,106,985 B, 32 surfaces (27 singleton + 5 collection), RESIDUAL 0 by the every-file-is-exactly-one-surface identity. 843 reader-navigation + 22 author-overflow edges, the two kinds separated per the doctrine. Determinism: two --json runs byte-identical, SHA-256 b69f2e7913effb12... Overflow destinations of the two size gates: 10 distinct live documents, 0 capped, 8,683,015 B; the two capped surfaces total 16,115 B — a 539x ratio. Two cap constants exist in the whole repository (grep over scripts/*.sh), and neither governs any destination either gate names. bash scripts/check_doctrines.sh green on all 11.` | `.1 done` (workflow tooling + docs; no `src/`, DUT byte-identical) |
 | `2026-08-08` | `.0` | `Neutral body SHA-256 equality proved over the post-fence region: donor 16,673 B 6c4e8a51dcd735dd == ANVIL 16,673 B 6c4e8a51dcd735dd (VERBATIM). Local-adoption note proved replaced and donor-residue-scanned clean across 12 tokens. Registration census at 47ac5ce: 279 tracked *.md, 11,035,621 B, 2 capped (README.md, MEMORY.md) — the two smallest. Routing-hint defect read directly from scripts/check_memory_architecture.sh: 4 of 4 hint destinations uncapped. Read-path failure OBSERVED this session: docs/TASK_TREE.md at 296.3 KB refused by a 256 KB file-read limit, worst line 39,591 B. README.md after its one navigation row: within both caps. bash scripts/check_doctrines.sh green on all 11.` | `.0 registered` (docs-only; DUT byte-identical) |
 
@@ -252,10 +274,22 @@ then measured on exactly one file.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
-| `.1` | `this commit` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1 — derive the live-document inventory` | Adds `scripts/live_doc_inventory.py`. `scripts/` is not code by the `docs/TASK_TREE.md` boundary. |
+| `.8a` | `this commit` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a — CHANGES.md is not a duplicate` | Adds `scripts/changes_recoverability_probe.py`. |
+| `.1` | `b7bac03` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1 — derive the live-doc inventory` | Adds `scripts/live_doc_inventory.py`. `scripts/` is not code by the `docs/TASK_TREE.md` boundary. |
 | `.0` (registration) | `d0426bd` — `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0 — adopt the containment doctrine` | Docs-only. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. |
 
 ## Changelog
+
+- `2026-08-08` (`.8a`): **Owner directive settled `.8`'s destination** — *"CHANGES.md should go, I mean
+  retired. CHANGES.md is replaceable by git log+task-trees."* `.8` split into `.8a` (prove) and `.8b`
+  (execute), and moved **ahead of `.2`–`.7`** because the transition protocol's first step is *stop
+  writes to the source* and every commit of this program appends to the condemned file.
+  **`.8a` refuted the replaceability claim**: only **1 of 715** entries is fully recoverable and
+  **37.1 %** of content words exist nowhere else. The retirement still happens — `CHANGES.md` stops
+  being a mandatory live surface, which is all the directive asks — but as a **seal**, because
+  deleting it would destroy 55,528 words. **The transferable rule: a hash proves an entry is
+  ADDRESSABLE, not that the prose beside it survives anywhere else.** Addressability was itself
+  over-reported, at roughly double the true figure, by a count of `Landed as:` *lines*.
 
 - `2026-08-08` (`.1`): Inventory **derived** rather than listed, and the derivation immediately
   enlarged the registration finding. `.0` measured `MEMORY-ARCH`'s routing hint at **4 of 4**

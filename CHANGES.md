@@ -1,9 +1,72 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a — CHANGES.md is not a duplicate of git log + the task trees
+
+**Landed as:** `this commit`. Previous: `b7bac03`, `d0426bd`, `47ac5ce`.
+**Workflow tooling + docs; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** Owner directive `2026-08-08`: *"CHANGES.md should go, I mean retired. CHANGES.md is
+replaceable by git log+task-trees."* `.8` is split into `.8a` (prove the claim) and `.8b` (execute),
+and moved **ahead of `.2`–`.7`**. Adds `scripts/changes_recoverability_probe.py`, which measures the
+claim rather than accepting it.
+
+**Why the reorder.** The doctrine's atomic transition protocol opens with *"stop writes to the source
+at a stable boundary."* `CHANGES.md` is the one file `COMMIT.md` mandates on **every** commit —
+including every commit of this containment program — so leaving the retirement until after five more
+leaves appends five more entries to a condemned surface, which the doctrine forbids outright
+(*"ordinary unrelated growth remains prohibited"*).
+
+**Why prove at all, when the owner has decided.** The directive settles the **destination**; it does
+not settle the **manner**, and the two are materially different operations. A proved duplicate is
+removed with a link. Unique content must leave the working set as an `archive_terminal`, because
+deleting it destroys information — and the doctrine is explicit that duplication is *proved* before
+deletion, never assumed.
+
+**The measurement — the claim is refuted.** Over all **715** entries at `b7bac03`:
+
+| | |
+| --- | ---: |
+| entries **fully** recoverable (zero residue) | **1 — 0.1 %** |
+| content words present **only** in `CHANGES.md` | **55,528 of 149,512 — 37.1 %** |
+| entries naming a **git-resolvable** hash | **325 — 45.5 %** |
+| entries naming a task-tree leaf | 477 — 66.7 % |
+
+**Addressability was over-reported too, by roughly double.** 638 entries carry a `**Landed as:**`
+*line*, but only **325** name a hex hash — so `SESSION_BOOTSTRAP.md`'s documented *"632 of 709 carry
+a `Landed as:` hash"* was counting lines, not hashes. One of the 325 (`cf3dc3c1…`) resolves nowhere
+in this repository.
+
+**Method.** Per-entry word-multiset residue against its canonical sources — the commit message at its
+recorded hash plus the full text of the task file its leaf id names. Word-level rather than
+line-level deliberately: the sources legitimately rephrase, so a line diff would report a spurious
+total loss on entries that are in fact well covered.
+
+**Conclusion.** `CHANGES.md` **is not** a duplicate of `git log` + the task trees. **The retirement
+still happens** — the file stops being a mandatory live surface, which is the whole of what the
+directive asks — but as an **archive-terminal seal, never a deletion**. The transferable rule: **a
+hash proves an entry is ADDRESSABLE; it says nothing about whether the prose beside it survives
+anywhere else.**
+
+**Blast radius recorded for `.8b`**, and it is not small: `COMMIT.md`'s unconditional mandate,
+`TOOLBOX.md` Part 2, `README.md`'s navigation table, `MEMORY_ARCHITECTURE.md`, `docs/TASK_TREE.md`'s
+live-doc section, `SESSION_BOOTSTRAP.md` Tier 3 — and **two registered doctrines die with it**.
+`CHANGES-ENTRY-PLACEMENT` loses its subject entirely; `CODE-CHANGE-EVIDENCE` loses its only
+remaining assertion, `RESUME-POINTER-COMMIT-PATH-COUPLING.2` having removed the `MEMORY.md` leg. That
+is **not** a loss of enforcement: `DOCTRINE_ENFORCEMENT.md` §6 already places the measured result in
+*"`CHANGES.md` + the owning task leaf"*, and `TASK-TREE-OWNERSHIP` already asserts the task file is
+co-staged — so the evidence requirement **collapses onto the task leaf**, which is
+`feedback_full_factorization` removing a second mechanism rather than weakening a gate.
+
+**Validation.** `bash scripts/check_doctrines.sh` — **all 11 registered doctrines PASS**. Probe is
+deterministic (no clock, no randomness, sorted), reads git and the tree, mutates nothing.
+
+**Files touched.** `scripts/changes_recoverability_probe.py` (new), `MEMORY.md`, `CHANGES.md`,
+`docs/tasks/LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.md`.
+
 ## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.1 — derive the live-document inventory
 
-**Landed as:** `this commit`. Previous: `d0426bd`, `47ac5ce`, `596e624`.
+**Landed as:** `b7bac03`. Previous: `d0426bd`, `47ac5ce`, `596e624`.
 **Workflow tooling + docs; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** Adds `scripts/live_doc_inventory.py`, which **derives** the complete live-document
