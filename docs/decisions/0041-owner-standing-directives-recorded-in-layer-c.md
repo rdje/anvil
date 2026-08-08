@@ -153,6 +153,33 @@ the factorization test explicitly rather than waving it through); this does not 
 today. **If the count is ever missed in practice, that is the evidence that changes the answer** —
 and the check is one line when it is wanted.
 
+#### (d.1) Amendment `2026-08-08` — the cadence admits an owner-granted exception, and **200 is unchanged**
+
+**Owner-set, `2026-08-08`, verbatim: *"ok push then, but normally the push cadence shall be 200
+commits. So this particular commit at 196 commits is exceptional."*** Recorded because a push below
+the threshold is visible in the reflog forever, and a future session that finds one without this
+note has exactly two readings available — *the cadence changed* or *someone broke the rule* — and
+both are wrong.
+
+**The measured count at authorization was 195**, not 196 (`git rev-list --count origin/main..HEAD`
+at `9fa9369`); the agent had reported 196 through an arithmetic slip and the owner authorized
+against that figure. The discrepancy changes nothing about the grant and is recorded rather than
+quietly fixed, because §(d)'s whole value is that the *number* is trustworthy.
+
+**The ground, and it is narrow.** `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8b` deletes `CHANGES.md`
+outright. Retention then rests on the git version object, which
+[`LIVE_DOCUMENT_SIZE_CONTAINMENT.md`](../../LIVE_DOCUMENT_SIZE_CONTAINMENT.md) calls *"a conditional
+retention mechanism, not a self-proving archive"* and requires to carry *"an explicit
+reachability/backup guarantee."* With every object on one machine that guarantee **cannot be written
+truthfully**, so the push is not a durability preference here — it is the **precondition of a
+sentence the archive descriptor has to contain.**
+
+**What this does NOT license.** The cadence stays **200**. This is not a new threshold, not a
+standing exemption for migrations, and not a licence to re-raise the count when it is merely large —
+§(d)'s *"neither push nor re-raise it"* stands unchanged for every ordinary case. The exception is
+one grant, on one date, for one leaf, because a doctrine required a factual claim the tree could not
+otherwise support.
+
 ### (e) Amendment `2026-08-01` — §(b) binds at DISCLOSURE time, not only at decision time
 
 **New owner statements, `2026-08-01`, recorded verbatim** (this is the mechanism *What this

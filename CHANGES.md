@@ -1,9 +1,47 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8b — record the exceptional push authorization
+
+**Landed as:** `this commit`. Previous: `9fa9369`, `ff3d512`, `b7bac03`.
+**Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** Records the owner's `2026-08-08` grant of an **exceptional** push below the 200-commit
+cadence, as [`0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md) §(d.1),
+and clears `.8b`'s one open precondition. Also corrects an arithmetic slip: the unpushed count was
+**195**, not the 196 reported in `.8a2`.
+
+**Why record a push at all.** A below-cadence push is visible in the reflog permanently, and a future
+session finding one without this note has exactly two readings available — *the cadence changed* or
+*someone broke the rule* — and both are wrong. Recording it is the same rule that put the owner's
+standing directives in layer C to begin with: **a grant that lives only in a conversation is queued
+for deletion.**
+
+**The ground, and it is narrow.** `.8b` deletes `CHANGES.md` outright, after which retention rests on
+the git version object — which `LIVE_DOCUMENT_SIZE_CONTAINMENT.md` calls *"a conditional retention
+mechanism, not a self-proving archive"* and requires to carry *"an explicit reachability/backup
+guarantee."* With every object on a single machine, that guarantee **cannot be written truthfully**.
+The push is therefore not a durability preference here; it is **the precondition of a sentence the
+archive descriptor has to contain.**
+
+**What it does not license.** The cadence remains **200**. Not a new threshold, not a standing
+exemption for migrations, and not a licence to re-raise the count when it is merely large — §(d)'s
+*"neither push nor re-raise it"* stands for every ordinary case.
+
+**Correction.** `.8a2` and this tree stated **196** unpushed; `git rev-list --count
+origin/main..HEAD` at `9fa9369` reports **195**. The owner authorized against the reported figure.
+The discrepancy changes nothing about the grant, and is recorded rather than quietly fixed because
+§(d)'s entire value is that the number is trustworthy.
+
+**Validation.** `bash scripts/check_doctrines.sh` — **all 11 registered doctrines PASS**. Push
+verified below by comparing `origin/main` before and after.
+
+**Files touched.** `docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md`,
+`docs/tasks/LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.md`, `MEMORY.md`, `CHANGES.md`.
+
 ## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8a2 — correct `.8a`'s figure; `.8b` becomes DELETE
 
-**Landed as:** `this commit`. Previous: `ff3d512`, `b7bac03`, `d0426bd`.
+**Landed as:** `9fa9369`. Previous: `ff3d512`, `b7bac03`, `d0426bd`.
 **Workflow tooling + docs; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 *(Written into the file this program is retiring — the last entries `CHANGES.md` receives are the
 records of its own removal, which is the transition protocol's "only records required to complete

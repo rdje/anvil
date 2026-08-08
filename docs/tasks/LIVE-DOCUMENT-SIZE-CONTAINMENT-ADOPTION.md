@@ -6,7 +6,7 @@
 - Status: `active`
 - Roadmap lane: Workflow / doctrine adoption — live-document containment
 - Created: `2026-08-08`
-- Last updated: `2026-08-08` (`.8a2` **done** — `.8a`'s figure corrected; `.8b` is DELETE, not seal)
+- Last updated: `2026-08-08` (`.8a2` **done**; `.8b` is DELETE, and its reachability precondition is now met)
 - Owner: repo-local workflow — **opened on an explicit owner directive**, not on an agent's noticing
 
 ## Goal
@@ -183,7 +183,7 @@ then measured on exactly one file.
 - ID: `LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.8b`
   Status: `pending`
   Goal: `Execute the atomic transition: DELETE CHANGES.md outright and stop writes to it. Owner directive 2026-08-08, upheld by .8a2's measurement — not sealed, not archived to a new file: removed.`
-  Acceptance: `The eight-step protocol, in one commit. FIRST, the bounded salvage .8a2 sized at ~15 code identifiers: check each against src/ and promote to a KM card ONLY any that names a removed feature with no other home — minutes, not a migration. THEN git rm CHANGES.md. Retention is the git version object, which the doctrine calls conditional and NOT self-proving, so the descriptor must name a retention owner, a reachability guarantee and a recovery procedure (git show <hash>:CHANGES.md; 0031 forbids history rewriting, which makes the objects stable). THE REACHABILITY LEG IS THE OPEN ONE: at .8a2 there are 196 unpushed commits, so the objects live on exactly one machine and the guarantee cannot be written truthfully until that changes. Superseded approach, recorded so it is not re-litigated: seal the existing content preserving record order and identity BYTE FOR BYTE (0031 forbids rewriting history, 0038 makes landed entries immutable); write an archive descriptor carrying schema version, former path, covered range, locator, line/byte counts, content digest, a repository-root-relative retrieval procedure, and an executable proof that retrieval reproduces the declared content; update every surface that mandates the file. BLAST RADIUS, measured at .8a and non-trivial: COMMIT.md's unconditional mandate, TOOLBOX.md Part 2, README.md's navigation table, MEMORY_ARCHITECTURE.md, docs/TASK_TREE.md's live-doc relationship section, SESSION_BOOTSTRAP.md Tier 3 — and TWO REGISTERED DOCTRINES DIE WITH IT: CHANGES-ENTRY-PLACEMENT loses its subject entirely, and CODE-CHANGE-EVIDENCE loses its only remaining assertion (RESUME-POINTER-COMMIT-PATH-COUPLING.2 removed the MEMORY.md leg). That is not a loss of enforcement: DOCTRINE_ENFORCEMENT.md §6 already says the measured result belongs in "CHANGES.md + the owning task leaf", and TASK-TREE-OWNERSHIP already asserts the task file is co-staged — so the evidence requirement COLLAPSES onto the task leaf, which is feedback_full_factorization removing a second mechanism rather than weakening a gate. A version object is NOT a self-proving archive (the doctrine is explicit), so "git history has it" is insufficient on its own and needs a named retention contract with owner, reachability guarantee and recovery procedure — or, preferred, a content-addressed file on the repository volume.`
+  Acceptance: `The eight-step protocol, in one commit. FIRST, the bounded salvage .8a2 sized at ~15 code identifiers: check each against src/ and promote to a KM card ONLY any that names a removed feature with no other home — minutes, not a migration. THEN git rm CHANGES.md. Retention is the git version object, which the doctrine calls conditional and NOT self-proving, so the descriptor must name a retention owner, a reachability guarantee and a recovery procedure (git show <hash>:CHANGES.md; 0031 forbids history rewriting, which makes the objects stable). THE REACHABILITY LEG IS NOW CLOSED: measured 195 unpushed at .8a2 (the 196 reported earlier was an arithmetic slip, corrected here), and the owner granted an EXCEPTIONAL push on 2026-08-08 specifically so the descriptor's reachability guarantee can be written truthfully — recorded as 0041 §(d.1), which leaves the 200-commit cadence unchanged and licenses nothing beyond this leaf. Superseded approach, recorded so it is not re-litigated: seal the existing content preserving record order and identity BYTE FOR BYTE (0031 forbids rewriting history, 0038 makes landed entries immutable); write an archive descriptor carrying schema version, former path, covered range, locator, line/byte counts, content digest, a repository-root-relative retrieval procedure, and an executable proof that retrieval reproduces the declared content; update every surface that mandates the file. BLAST RADIUS, measured at .8a and non-trivial: COMMIT.md's unconditional mandate, TOOLBOX.md Part 2, README.md's navigation table, MEMORY_ARCHITECTURE.md, docs/TASK_TREE.md's live-doc relationship section, SESSION_BOOTSTRAP.md Tier 3 — and TWO REGISTERED DOCTRINES DIE WITH IT: CHANGES-ENTRY-PLACEMENT loses its subject entirely, and CODE-CHANGE-EVIDENCE loses its only remaining assertion (RESUME-POINTER-COMMIT-PATH-COUPLING.2 removed the MEMORY.md leg). That is not a loss of enforcement: DOCTRINE_ENFORCEMENT.md §6 already says the measured result belongs in "CHANGES.md + the owning task leaf", and TASK-TREE-OWNERSHIP already asserts the task file is co-staged — so the evidence requirement COLLAPSES onto the task leaf, which is feedback_full_factorization removing a second mechanism rather than weakening a gate. A version object is NOT a self-proving archive (the doctrine is explicit), so "git history has it" is insufficient on its own and needs a named retention contract with owner, reachability guarantee and recovery procedure — or, preferred, a content-addressed file on the repository volume.`
   Verification: `pending`
   Commit: `pending`
 
@@ -269,7 +269,12 @@ then measured on exactly one file.
 
 ## Blockers
 
-- None.
+- None. **`.8b`'s reachability precondition was resolved `2026-08-08`**: deleting `CHANGES.md` leaves
+  the git version object as the only retention, and the doctrine requires that object to carry *"an
+  explicit reachability/backup guarantee"* — unwritable while every object sat on one machine. The
+  owner granted an **exceptional** push at 195 unpushed against a 200-commit cadence
+  ([`0041`](../decisions/0041-owner-standing-directives-recorded-in-layer-c.md) §(d.1)); the cadence
+  itself is unchanged.
 
 ## Verification Log
 
