@@ -111,6 +111,7 @@ requires reading it.
 | [`KNOWLEDGE_MAP.md`](KNOWLEDGE_MAP.md) · [`knowledge-map/`](knowledge-map/KNOWLEDGE_MAP_ARCHITECTURE.md) | question-keyed retrieval index over facts already logged in the repo, and the standard behind it |
 | [`docs/evidence/`](docs/evidence/README.md) | committed closure-evidence digests — what a banked gate run actually reported (the corpora themselves are bulk and untracked; [`INVENTORY.md`](docs/evidence/INVENTORY.md) classifies every cited bank) |
 | [`DOCTRINE_ENFORCEMENT.md`](DOCTRINE_ENFORCEMENT.md) | every load-bearing doctrine paired with a deterministic check, run from one registry+driver |
+| [`LIVE_DOCUMENT_SIZE_CONTAINMENT.md`](LIVE_DOCUMENT_SIZE_CONTAINMENT.md) | how every long-lived document stays a bounded working set while its history stays recoverable ([`0052`](docs/decisions/0052-live-document-size-containment-adoption.md)) |
 | [`TOOLBOX.md`](TOOLBOX.md) | ANVIL's own diagnostic instruments, plus the acceptance checklist a code change must satisfy |
 | [`CODEBASE_ANALYSIS.md`](CODEBASE_ANALYSIS.md) | live Rust-workspace analysis, aligned to the roadmap and current code |
 | [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) | engineering rationale, rejected alternatives, and earned gotchas (append-only) |

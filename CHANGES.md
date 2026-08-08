@@ -1,9 +1,88 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-08 — LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.0 — adopt the live-document size-containment doctrine
+
+**Landed as:** `this commit`. Previous: `47ac5ce`, `596e624`, `339722b`.
+**Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** ANVIL adopts the **Live-Document Size-Containment** doctrine as its **fifth** portable
+architecture: a repository-root, project-owned `LIVE_DOCUMENT_SIZE_CONTAINMENT.md`, the owning tree
+`docs/tasks/LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.md` (`.0`–`.12`), and decision
+`docs/decisions/0052-live-document-size-containment-adoption.md`. `README.md` gains one navigation
+row so the standard is discoverable. **This registers a standard; it classifies nothing and changes
+no file's size.**
+
+**Why — the boundary against what ANVIL already had.** `MEMORY_ARCHITECTURE.md` governs **what memory
+means and where information belongs**; this doctrine governs **how every long-lived document remains
+usable as the project grows**. The nearest prior art, decision
+[`0040`](docs/decisions/0040-overflow-destination-classification-and-the-unmeasured-axis.md), is good
+work and insufficient: it distinguishes bounded from unbounded documents and classifies overflow
+destinations, but has no lifecycle classes, no rolling ledger, no archive terminal, no transition-debt
+control, no transitive route following and no complete mechanical inventory — and it was derived from
+**one** file's pressure, which is a rule that has never been asked whether it scales.
+
+**The registration census** (at `47ac5ce`):
+
+| Fact | Value |
+| --- | ---: |
+| tracked `*.md` | **279** files, **11,035,621 B ≈ 2.6×** a 4 MiB context window |
+| **mechanically capped** | **2** — `README.md` (10,676 B) and `MEMORY.md` (5,175 B) |
+| `CHANGES.md` | 49,314 lines / **2,669,993 B** — **435×** `MEMORY.md`'s cap |
+| `docs/tasks/*.md` | 85 files / **3,285,728 B** |
+| `DEVELOPMENT_NOTES.md` | 18,124 lines / **1,138,689 B** |
+| `docs/TASK_TREE.md` longest line | **39,591 B** |
+| `CODEBASE_ANALYSIS.md` longest line | **24,991 B** |
+
+**The two capped files are the two smallest live surfaces in the repository.**
+
+**The defect, not merely the gap.** The doctrine's core invariant reads: *"Routing is transitive. A
+bounded file that sends overflow to an unbounded neighbor has not contained anything."* `MEMORY-ARCH`'s
+cap-failure routing hint — the text an author reads at the exact moment they must move content — names
+**four** destinations (`docs/decisions/`, `docs/knowledge/`, `docs/tasks/`, `CHANGES.md`) and **every
+one is unbounded**. `0040` did not overlook that; it **argued** for it, recording the hint as safe
+*"because layer B and layer C are append-only records that are supposed to grow and are never
+capped."* That treats unboundedness as a **justification** where this doctrine treats it as a
+**deferral**. ANVIL's most-exercised containment mechanism has been moving bytes from a capped file
+into uncapped ones and recording the move as compliance.
+
+**And a read path had already failed, unobserved.** `docs/TASK_TREE.md` — a **Tier-1 mandatory
+bootstrap read** — **could not be opened** by this session's file-read tool: 296.3 KB against a 256 KB
+limit. Its worst single line is **39,591 B**. That is the maximum-line-width axis `0040` itself named
+as *"the axis nobody measures"*, and then measured on exactly one file.
+
+**Validation.**
+- **The neutral body is copied verbatim and proved so, not asserted.** SHA-256 over the region after
+  the local-adoption `END` fence: template **16,673 B / `6c4e8a51dcd735dd`** == ANVIL **16,673 B /
+  `6c4e8a51dcd735dd`**. A doctrine restated in local words is a fork that drifts silently from its own
+  template — the failure `0033` classifies — so the copy is mechanically re-checkable in one command.
+- **The donor's fenced local-adoption note is fully replaced** by an ANVIL note, proved different and
+  scanned clean across 12 donor tokens (project names, decision numbers, task ids, registry
+  filenames, migration counts). **No foreign threshold, lifecycle class, registry entry, migration
+  outcome or task identifier is imported** — the neutral body forbids exactly that, and ANVIL derives
+  its own from its own measured survivors.
+- **Nothing is classified at registration.** The owner named five surfaces and their likely classes;
+  those are recorded as **questions for `.2`** with the likely answer attached. A lifecycle asserted
+  before its measurement is `DOCTRINE_ENFORCEMENT.md` §6.1's self-tick, and the doctrine's own
+  checklist orders inventory → classification → measurement → targets for that reason. `MEMORY.md` is
+  the sole exception, already classified `bounded_snapshot` by `0051` *after* being measured.
+- `README.md` after its one row: **163 lines / 10,924 B**, inside both caps (250 / 12,288).
+- `bash scripts/check_doctrines.sh` — **all 11 registered doctrines PASS**.
+
+**Impact.** No file shrinks yet; the program is `.1`–`.12`. `0040` is **subsumed and extended, never
+revoked**, and its non-licenses bind every cap this tree will set — raising a cap still requires a new
+decision record stating the surface's contract expanded. History is never rewritten (`0031`) and
+landed `CHANGES.md` entries stay immutable (`0038`), so any future partition preserves record order
+and identity byte for byte. Durable history may stay logically unbounded, but it must **leave the
+bounded working set** by partitioning, sealing, rotation or archival retrieval.
+
+**Files touched.** `LIVE_DOCUMENT_SIZE_CONTAINMENT.md` (new), `docs/decisions/0052-*.md` (new),
+`docs/tasks/LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION.md` (new), `README.md`, `MEMORY.md`,
+`docs/TASK_TREE.md`, `docs/decisions/INDEX.md`, `KNOWLEDGE_MAP.md`, `CHANGES.md`.
+
 ## 2026-08-08 — RESUME-POINTER-COMMIT-PATH-COUPLING.2 — the resume pointer is updated when resumable state changes, not before every commit
 
-**Landed as:** `this commit`. Previous: `596e624`, `339722b`, `3589d31`.
+**Landed as:** `47ac5ce`. Previous: `596e624`, `339722b`, `3589d31`.
 **Docs + workflow-config only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** `MEMORY.md` is classified **`bounded_snapshot`** and now holds only what the repository

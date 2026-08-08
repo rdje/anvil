@@ -9,8 +9,8 @@
 - **Where you are in history is DERIVED, never written here:** `git log -1 --oneline` for HEAD, `git log --oneline` for what preceded it, `ls docs/decisions/` for the decision set. A hand-copied `latest_commit` is **stale on arrival** — it can only name the commit *before* the one that writes it ⇒ `0051`.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- active_work_unit: **none in progress** — `RESUME-POINTER-COMMIT-PATH-COUPLING` closed at `.2`. **ONE unit, never a roster**, per `MEMORY_ARCHITECTURE.md` §6's singular template; the roster of every `active` tree is [`docs/TASK_TREE.md`](docs/TASK_TREE.md)'s job ⇒ `0050`.
-- next_action: **ONE action, never a queue** — register the task tree + decision adopting `LIVE_DOCUMENT_SIZE_CONTAINMENT.md` (owner directive `2026-08-08`). What comes *after* it is not written here: cross-tree order is `docs/TASK_TREE.md`'s first `active` row (its own §PNT Selection Rules), within-tree order is each tree's `Current Frontier` ⇒ `0051`.
+- active_work_unit: **`LIVE-DOCUMENT-SIZE-CONTAINMENT-ADOPTION`** → frontier **`.1`**. **ONE unit, never a roster**, per `MEMORY_ARCHITECTURE.md` §6's singular template; the roster of every `active` tree is [`docs/TASK_TREE.md`](docs/TASK_TREE.md)'s job ⇒ `0050`.
+- next_action: **ONE action, never a queue** — `.1`: inventory every live document, generated view, collection and route **transitively**, derived from `git ls-files`, never hand-listed. What comes *after* is not written here: cross-tree order is `docs/TASK_TREE.md`'s first `active` row (its own §PNT Selection Rules), within-tree order is each tree's `Current Frontier` ⇒ `0051`.
 - in_flight_uncommitted: none. **`.cache/local-references/` is NEVER tracked** ⇒ `0043`. **Never trust a piped exit status.**
 - blockers: none. Gotchas are **cards, not summaries** — retrieve by *question* from `KNOWLEDGE_MAP.md`; enumerate with `grep -l 'gotcha' docs/knowledge/*.md` (a **derivation**, `0033`). **Adding to this file requires routing, not appending** — and the routing hint means it: *move content down, do not trim prose*.
 
