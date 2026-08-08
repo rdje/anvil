@@ -161,7 +161,11 @@ from the code-only boxes (the scope-aware checks pass them through).
   task-tree leaf owns the change *before* the edit; the owning `docs/tasks/*.md` is
   updated in the same commit; the leaf id is in the commit subject (`commit-msg` hook).
 - [ ] **LIVE-DOC EVIDENCE** — structural (`scripts/check_diagnosis_evidence.sh`): the
-  mandatory `CHANGES.md` + `MEMORY.md` are amended in the same commit (`COMMIT.md`).
+  mandatory `CHANGES.md` entry is amended in the same commit (`COMMIT.md`). `MEMORY.md` is
+  **not** asserted here: it records where the *work* stopped, not what the *diff* did, so a
+  commit that changes no resumable state has nothing true to write in it. Its own doctrine
+  (`MEMORY-ARCH`) owns its size, shape and required fields — decision
+  [`0051`](docs/decisions/0051-the-resume-pointer-is-updated-when-resumable-state-changes.md).
 - [ ] **BOOK SYNC** — if the change touched a documented concept (algorithm, IR, knobs,
   synthesizability, non-triviality, sequential motifs, hierarchy, structured emission),
   the relevant `book/src/*.md` chapter is updated (the book must not drift).

@@ -3,10 +3,10 @@
 ## Metadata
 
 - Tree ID: `RESUME-POINTER-COMMIT-PATH-COUPLING`
-- Status: `active`
+- Status: `done`
 - Roadmap lane: Workflow / gate quality — commit path
 - Created: `2026-08-07`
-- Last updated: `2026-08-07` (`.1` **done** — root cause found and repaired; frontier `.2`)
+- Last updated: `2026-08-08` (`.2` **done** — coupling removed; **tree closed**, both children `done`)
 - Owner: repo-local workflow — **opened on an owner challenge**, not on an agent's own noticing
 
 ## Goal
@@ -85,9 +85,9 @@ substitution is a property of the mechanism rather than of one careless author.
 ## Task Tree
 
 - ID: `RESUME-POINTER-COMMIT-PATH-COUPLING`
-  Status: `active`
+  Status: `done`
   Goal: `The resume pointer can always be updated to name the current frontier, without an unrelated editorial tax on the commit that must update it.`
-  Children: `.1` (measure the candidates and decide), `.2` (implement whatever `.1` chooses)
+  Children: `.1` (measure the candidates and decide) — `done`, `.2` (implement whatever `.1` chooses) — `done`
 
 - ID: `RESUME-POINTER-COMMIT-PATH-COUPLING.1`
   Status: `done`
@@ -97,17 +97,21 @@ substitution is a property of the mechanism rather than of one careless author.
   Commit: `this commit`
 
 - ID: `RESUME-POINTER-COMMIT-PATH-COUPLING.2`
-  Status: `pending`
-  Goal: `Implement the decision from .1.`
+  Status: `done`
+  Goal: `Implement the decision from .1, and settle the residues .1 left open — next_action's queue and candidate B.`
   Acceptance: `Per .1. If A: the generator is deterministic (no clocks, sorted) so derive-and-diff is a valid sync gate, matching the KNOWLEDGE_MAP.md precedent; the hook regenerates and stages it; and the irreducible editorial part stays hand-written and is NOT overwritten by the generator.`
-  Verification: `pending`
-  Commit: `pending`
+  Verification: `Scoped by owner directive 2026-08-08, which is candidate B plus three items .1 had not reached. FINDING 1 — .1's recorded claim that next_action's queue is "not a shadow" is FALSE, and measurably: docs/TASK_TREE.md §PNT Selection Rules already says "choose the first active tree in the table", so the Active Task Trees row order IS the cross-tree authority. 0033's three tests pass, and (1) is proven by RECONSTRUCTION rather than argument — the queue's entries appear in EXACT table order, so it was that order minus one tree, not an independent judgement. (3) is DEMONSTRATED: TASK-LEAF-COMMIT-SHADOW sits at table position 3 with a pending leaf marked "Next." and is absent from the queue, while UNGATED-PRACTICE-AUDIT at position 33 is present; nothing failed. R1 deletion therefore loses no judgement, only the drift. FINDING 2 — latest_commit cannot be correct even once: written before the commit containing it exists, it can only name that commit's predecessor; observed at bootstrap reading f9e1c61 while HEAD was 596e624 (3 commits stale), with COMMIT.md institutionalising a per-slice backfill to keep it half-right. FINDING 3 — the CODE-CHANGE-EVIDENCE assertion was evidence-shaped without being evidence: CHANGES.md is a function of the DIFF (one entry describing this commit, falsifiable), MEMORY.md is a function of the WORK, so a commit changing no resumable state could discharge it only with a no-op diff in an overwrite-only hard-capped file — a 6.1 self-tick that also SPENT the cap's headroom, which is how 4925847 came to answer the cap with the prose trim its own hint forbids. ORPHAN CHECK RUN BEFORE DELETING (the .1 precondition): every claim in the queue is durably recorded in its own tree — BOOTSTRAP-READ-CONTRACT.3's two-contracts/intersection-2-files rationale in that leaf's Acceptance + frontier row + 0049 §(c); the other three in their trees' frontier row 1. Nothing orphaned. IMPLEMENTED: MEMORY.md classified bounded_snapshot with BOTH caps unchanged, latest_commit + predecessor list + decision range + queue + a dated card count deleted, one work unit and one next action kept; COMMIT.md's mandate split (CHANGES.md unconditional, MEMORY.md when resumable state changes) and its hash-backfill step deleted; check_diagnosis_evidence.sh drops the MEMORY.md leg; check_memory_architecture.sh gains a field-shaped forbidden-latest_commit assertion; MEMORY_ARCHITECTURE.md §3/§5/§6 corrected AT SOURCE so the deleted field is not re-imported by the next reader of the portable template. NEGATIVE-CONTROLLED BOTH WAYS via scripts/negative_control.sh (which refuses a zero-match substitution, so each result is a known-run experiment): reintroducing the field FIRES, a mid-sentence prose mention stays SILENT — the check discriminates its subject from a mention of its subject. CODE-CHANGE-EVIDENCE re-tested across a 5-row staged-set matrix: code+CHANGES.md now passes, code-without-CHANGES.md still fails, so the surviving leg is intact rather than weakened. Effect: MEMORY.md 5,235 -> 5,175 B, headroom 909 -> 969 B, commits REQUIRED to touch the file 97.6% -> only those changing resumable state, hash-backfill follow-up commits per slice 1 -> 0. Recorded in 0051. All 11 doctrines green.`
+  Commit: `this commit`
 
 ## Current Frontier
 
-| Order | Leaf | Status | Why next |
+**None — the tree is closed.** Both children are `done` and the top-level goal is met: the resume
+pointer can be updated to name the current frontier without an editorial tax, because it is no longer
+required on commits that change nothing in it.
+
+| Order | Leaf | Status | Outcome |
 | --- | --- | --- | --- |
-| 1 | `RESUME-POINTER-COMMIT-PATH-COUPLING.2` | `pending` | **Next.** `.1` removed the growth term that scaled with the project; what remains is `next_action`'s priority queue (accretion, but **not** a shadow — a priority ordering is derivable from no set) and the still-undecided candidate **B**, relaxing `COMMIT.md`'s *"without exception"* for state-free commits. Not urgent: headroom is **909 B**. |
+| — | `RESUME-POINTER-COMMIT-PATH-COUPLING.2` | `done` | Coupling removed. `MEMORY.md` is a `bounded_snapshot` holding only non-derivable facts; `CODE-CHANGE-EVIDENCE` no longer asserts it. Recorded in [`0051`](../decisions/0051-the-resume-pointer-is-updated-when-resumable-state-changes.md). |
 | — | `RESUME-POINTER-COMMIT-PATH-COUPLING.1` | `done` | Root cause was one shadow field, not prose bloat. Recorded in [`0050`](../decisions/0050-resume-pointer-holds-one-work-unit-not-a-roster.md). |
 
 ## Decisions
@@ -134,6 +138,7 @@ substitution is a property of the mechanism rather than of one careless author.
 
 | Date | Leaf | Checks | Result |
 | --- | --- | --- | --- |
+| `2026-08-08` | `.2` | `Shadow test on next_action's queue: reconstructed as docs/TASK_TREE.md's active-row order EXACTLY, minus TASK-LEAF-COMMIT-SHADOW (table position 3, pending leaf marked "Next."), while UNGATED-PRACTICE-AUDIT (position 33) is present — 3 of 15 active trees named, drift silent. §PNT Selection Rules already elects that table ("choose the first active tree in the table"), so test (1) holds and .1's "derivable from no set" is falsified. latest_commit measured stale by 3 commits at bootstrap (f9e1c61 vs HEAD 596e624). Orphan check run BEFORE deleting: all four queue entries durably recorded in their own trees (BOOTSTRAP-READ-CONTRACT.3 Acceptance + frontier + 0049 §(c); others in frontier row 1) — nothing orphaned. scripts/negative_control.sh probe x2 on the new MEMORY-ARCH assertion: field reintroduced -> FIRES (exit 1), mid-sentence prose mention -> SILENT (exit 0); baseline confirmed non-saturated first, and negative_control refuses a zero-match substitution so both experiments are known to have run. CODE-CHANGE-EVIDENCE staged-set matrix (5 rows via DOCTRINE_STAGED_OVERRIDE): code+CHANGES.md passes, code alone still fails, code+MEMORY.md-only still fails, docs-only exempt. bash scripts/check_doctrines.sh green on all 11. MEMORY.md 5,235 -> 5,175 B (30 lines), headroom 909 -> 969 B.` | `.2 done — tree closed` (docs/workflow-only; no `src/` touched, DUT byte-identical) |
 | `2026-08-07` | `.1` | `Shadow test at 339722b: 7 named in MEMORY.md vs 16 Status: active on disk, 9 silently missing, 561 B for that one line. 0033 three-part test passes with (3) demonstrated by the live miss rather than by grep. Repair R1 deletion, candidate A rejected as R4-where-R1-exists. Effect 6,071 -> 5,235 B, headroom 73 -> 909 B, growth-per-tree -> 0. Orphan check run BEFORE deleting: ODI pause had no home outside MEMORY.md (own file said Status: active, zero occurrences of "paused"), recorded as deferred first. bash scripts/check_doctrines.sh green on all 11.` | `.1 done` (docs-only; DUT byte-identical) |
 | `2026-08-07` | `.0` | `Measured at 4925847: git rev-list --count HEAD = 840 total, 820 touching MEMORY.md = 97.6%; MEMORY.md 6,064 B of a 6,144 B cap = 98.7%, headroom 79 B; band over the last 40 commits touching it 5,955 -> 6,064 B = +2.7 B/commit; the ## Current state block grew 2,250 -> 2,359 B (37.8% -> 38.9%) over the same window, so eviction pressure lands on ballast not on the pointer. Already-demoted sections carrying no further demotion: Standing directives 953 B, Operating gotchas 610 B, Validation policy 421 B. The gate's routing hint reads "Move content down, do not trim prose"; the remedy taken at 4925847 was a three-word prose rewording recovering 17 B, and no check compares remedy-taken against remedy-prescribed. ODI .3/.5a/.5b confirmed done by reading the tree, so the prescribed remedy was exhausted rather than skipped.` | `registered` (docs-only; DUT byte-identical) |
 
@@ -141,10 +146,23 @@ substitution is a property of the mechanism rather than of one careless author.
 
 | Leaf | Commit subject or reference | Notes |
 | --- | --- | --- |
+| `.2` | `this commit` — `RESUME-POINTER-COMMIT-PATH-COUPLING.2 — the pointer is updated when resumable state changes` | Docs + workflow-config only (`scripts/check_*.sh` are not `src/`). Closes the tree. |
+| `.1` | `596e624` — `RESUME-POINTER-COMMIT-PATH-COUPLING.1 — the growth was one shadow field` | Docs-only. Deleted the roster field; recorded in `0050`. |
 | `.0` (registration) | `this commit` — `RESUME-POINTER-COMMIT-PATH-COUPLING.0 — register the resume-pointer commit-path coupling` | Docs-only. `.0` is this repo's registration-commit convention, required because `.githooks/commit-msg` rejects a subject naming no leaf. The same commit demonstrates the **prescribed** remedy — the `saturated instrument` gotcha was demoted out of `MEMORY.md` to a fact card, freeing 44 B — so the registration is not itself another prose trim. |
 
 ## Changelog
 
+- `2026-08-08`: **Closed at `.2`** on an owner directive that both scoped the leaf and settled
+  candidate **B**. The leaf's own finding is that `.1`'s recorded *"the queue is not a shadow — a
+  priority ordering is derivable from no set"* was **false**: `docs/TASK_TREE.md` §PNT Selection
+  Rules had already elected the *Active Task Trees* row order as the cross-tree authority, and the
+  queue reproduced it **exactly**, minus one tree it had silently dropped. Recorded in
+  [`0051`](../decisions/0051-the-resume-pointer-is-updated-when-resumable-state-changes.md), whose
+  transferable rule is about gates rather than about this file: **a gate a compliant author can
+  satisfy with a no-op diff is not measuring compliance — it is charging rent for it.** A second
+  lesson worth keeping: `.1` closed by *stating* a residue's classification rather than measuring
+  it, and the statement was wrong — **a claim recorded as a by-product of finishing something else
+  gets none of the scrutiny the main finding got.**
 - `2026-08-07`: Created from an owner challenge to an agent's own "working as designed" framing.
   Measured rather than conceded: a fail-closed byte cap with **79 B** of slack sits on the path
   **97.6 %** of commits must take, its prescribed remedy (*demote content*) was **exhausted** by

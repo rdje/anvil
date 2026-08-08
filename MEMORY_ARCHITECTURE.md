@@ -68,7 +68,7 @@ blob. Keep four layers, each with its own lifecycle:
 
 | Layer | Holds | Lifecycle | Lives in | Read when |
 |---|---|---|---|---|
-| **A — Resume pointer** | where we are *now*; the single next action; latest commit; any in-flight uncommitted work | **Overwritten** each update; **hard size cap** | one bounded file — the demoted `MEMORY.md` | first, on every resume |
+| **A — Resume pointer** | where we are *now*; the single next action; any in-flight uncommitted work | **Overwritten** each update; **hard size cap** | one bounded file — the demoted `MEMORY.md` | first, on every resume |
 | **B — Work memory** | what is being built/decided, per unit of work: goal, status, frontier, decisions, verification, commit refs | **Append within a unit**; the unit is the addressable file | the **task-tree** files + their index | the active unit on resume; any unit on demand |
 | **C — Decision / fact records** | durable cross-cutting facts: constraints, learnings, conventions, preferences, environment quirks, "tried X, failed because Y" | **Append once, dedupe, supersede** (never silently rewrite) | one file per record (ADR-style) under `docs/decisions/` + an index | when relevant, by topic/index |
 | **D — Audit trail** | the full history of *what changed and when* | **Append-only, immutable** | `git log` (+ a human-readable `CHANGELOG`) | on demand only — never reloaded wholesale |
@@ -112,8 +112,8 @@ A fresh agent (same or different model/harness) resumes deterministically and wi
 
 1. Read the **tool-neutral entrypoint (§7)** → it names this file and the task-tree +
    commit conventions.
-2. Read the **resume pointer (A)** → current commit, active work unit, the single next
-   action, any in-flight uncommitted work.
+2. Read the **resume pointer (A)** → active work unit, the single next action, any
+   in-flight uncommitted work. *Where* you are in history comes from `git log`, not from A.
 3. Open the **active task-tree unit (B)** → its frontier row *is* the precise next step.
 4. Pull only the **decision records (C)** relevant to that step.
 5. Consult **`git log` (D)** only if deeper history is needed.
@@ -148,12 +148,21 @@ stop carrying it forward.
 - Durable facts/decisions live in `docs/decisions/`.
 
 ## Current state (OVERWRITE this block each update — do not append)
-- latest_commit: `<hash>` — "<subject>"   (ahead of origin: <N>; push at ~<threshold>)
 - active_work_unit: `<TASK-TREE-ID>`  →  frontier leaf: `<LEAF-ID>` (<status>)
 - next_action: <one concrete sentence>
 - in_flight_uncommitted: <none | what is staged/unsaved and how to finish it>
 - blockers: <none | what and who-owns>
 ```
+
+**Write nothing here that the repository already derives.** Two fields belong in this template
+and neither is a hash: the commit you are on is `git log -1`, and the roster of *all* open work
+units is the task-tree index — so a `latest_commit:` line and a list of every active unit are
+both copies, and both go stale in place. A hash copy is the sharper case, because it cannot be
+right even once: it is written *before* the commit it would name exists, so it can only ever
+record that commit's predecessor. This is §12's *"hand-maintained current-state that drifts"*
+applied to the file most likely to drift, and the update rule follows from it — **A is amended
+when resumable state changes, not on a fixed schedule.** A schedule-driven update to an
+overwrite-only file under a hard cap produces a no-op diff and spends the cap's headroom on it.
 
 ---
 

@@ -1,4 +1,4 @@
-# MEMORY - resume pointer (layer A; overwrite-only, keep <= 50 lines)
+# MEMORY - resume pointer (layer A; lifecycle `bounded_snapshot`; overwrite-only, <= 50 lines / 6,144 B)
 
 ## How to resume
 - Read `README.md`, then `MEMORY_ARCHITECTURE.md`.
@@ -6,13 +6,13 @@
 - Durable cross-task facts live in `docs/decisions/`.
 - Question-keyed retrieval facts are indexed in `KNOWLEDGE_MAP.md`.
 - Commit completed leaves per `COMMIT.md`; include the leaf id in the subject.
+- **Where you are in history is DERIVED, never written here:** `git log -1 --oneline` for HEAD, `git log --oneline` for what preceded it, `ls docs/decisions/` for the decision set. A hand-copied `latest_commit` is **stale on arrival** — it can only name the commit *before* the one that writes it ⇒ `0051`.
 
 ## Current state (OVERWRITE this block; do not append history — that is git + the task trees)
-- latest_commit: **`f9e1c61`** (`BOOTSTRAP-READ-CONTRACT.1` tiered read contract). Prior: `13c9cdf`, `8101dbb`. Recent decisions: **`0040`–`0049`**. Older: `git log --oneline` (`MEMORY_ARCHITECTURE.md` §12).
-- active_work_unit: **`RESUME-POINTER-COMMIT-PATH-COUPLING`** → frontier **`.1`**. **ONE unit, per `MEMORY_ARCHITECTURE.md` §6's template — the roster of every `active` tree is [`docs/TASK_TREE.md`](docs/TASK_TREE.md)'s job and naming them here was a `0033` shadow that had already silently drifted to 7 of 16** ⇒ `0050`.
-- next_action: **`RESUME-POINTER-COMMIT-PATH-COUPLING.2`** — delete the remaining accretion; `.1` chose **R1 repair-by-deletion**, not a generator. Queue, by priority: **`BOOTSTRAP-READ-CONTRACT.3`** (**TWO** read contracts, intersection **2 files**; repair by deletion, not a third list) · **`.2`** · **`BOOK-PARAGRAPH-BLOBS.2`** · **`UNGATED-PRACTICE-AUDIT.2`**. Frontiers are the trees' own; this line is a **priority**, not a copy of them.
+- active_work_unit: **none in progress** — `RESUME-POINTER-COMMIT-PATH-COUPLING` closed at `.2`. **ONE unit, never a roster**, per `MEMORY_ARCHITECTURE.md` §6's singular template; the roster of every `active` tree is [`docs/TASK_TREE.md`](docs/TASK_TREE.md)'s job ⇒ `0050`.
+- next_action: **ONE action, never a queue** — register the task tree + decision adopting `LIVE_DOCUMENT_SIZE_CONTAINMENT.md` (owner directive `2026-08-08`). What comes *after* it is not written here: cross-tree order is `docs/TASK_TREE.md`'s first `active` row (its own §PNT Selection Rules), within-tree order is each tree's `Current Frontier` ⇒ `0051`.
 - in_flight_uncommitted: none. **`.cache/local-references/` is NEVER tracked** ⇒ `0043`. **Never trust a piped exit status.**
-- blockers: none. Gotchas are **cards, not summaries** — retrieve by *question* from `KNOWLEDGE_MAP.md`; enumerate with `grep -l 'gotcha' docs/knowledge/*.md` (a **derivation**, `0033`; **27** today, all four formerly inlined here among them). **Adding to this file requires routing, not appending** — and the routing hint means it: *move content down, do not trim prose*.
+- blockers: none. Gotchas are **cards, not summaries** — retrieve by *question* from `KNOWLEDGE_MAP.md`; enumerate with `grep -l 'gotcha' docs/knowledge/*.md` (a **derivation**, `0033`). **Adding to this file requires routing, not appending** — and the routing hint means it: *move content down, do not trim prose*.
 
 ## Standing directives (owner-set; violating these is worse than not shipping)
 - **They are RECORDED, not summarised here.** Read both before acting: [`docs/decisions/0041`](docs/decisions/0041-owner-standing-directives-recorded-in-layer-c.md) — *a defect is only handled if a task-tree owns it* · *decide, don't ask* · *`~/Documents/github` is owner-owned*; and [`docs/decisions/0031`](docs/decisions/0031-ssd-volume-exclusivity.md) — *never rewrite history* · *the SSD is the only project volume* · *shared means shared* · *harness runtime files belong to the harness*.

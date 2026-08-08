@@ -12,11 +12,26 @@ This file defines the exact commit workflow that must be followed after completi
 - If multiple tiny edits are part of one logical task, commit them together as one coherent change.
 
 ## Mandatory pre-commit doc updates
-**`CHANGES.md` and `MEMORY.md` MUST be amended before every git commit, without exception.**
-- `CHANGES.md` gets a new entry at the top describing the slice in full detail.
-- `MEMORY.md` is updated to reflect the new current state, the new "next up", and any newly resolved or newly discovered open questions. After the commit lands, the new commit hash is added to `MEMORY.md`'s recent-commits list (either in a follow-up commit or in the next slice's `MEMORY.md` update).
+**`CHANGES.md` MUST be amended before every git commit, without exception.** It gets a new entry at
+the top describing the slice in full detail.
 
-A commit that does not include amendments to both `CHANGES.md` and `MEMORY.md` is a workflow violation. Stop and amend before proceeding.
+**`MEMORY.md` MUST be amended whenever the commit changes resumable state** — and only then. Layer A
+answers *"where am I and what is the single next thing?"*, so it is amended when a commit changes any
+of its four fields: `active_work_unit`, `next_action`, `in_flight_uncommitted`, `blockers`. In
+practice every leaf-completing commit does change them, because it moves a frontier.
+
+It is **not** amended by a commit that changes no resumable state — a hash backfill, a typo fix, a
+mid-leaf slice that leaves the next action exactly where it was. Editing it anyway writes a no-op
+diff into an overwrite-only file that is **hard-capped**, which is how the cap came to sit fail-closed
+on a path 97.6 % of commits were required to take (decision
+[`0051`](docs/decisions/0051-the-resume-pointer-is-updated-when-resumable-state-changes.md)).
+
+Never record `latest_commit` (or any other hand-copied hash) in `MEMORY.md`. HEAD is
+`git log -1 --oneline`; a written copy can only name the commit *before* the one that writes it, so it
+is stale on arrival — `0051`.
+
+A commit that does not amend `CHANGES.md`, or that changes resumable state without amending
+`MEMORY.md`, is a workflow violation. Stop and amend before proceeding.
 
 ## Non-negotiable pre-commit checklist
 
@@ -46,7 +61,7 @@ Before running `git commit`, walk through **every item** below explicitly. Do no
      change that caused it**. An unexplained `.snap` change in
      `git status` is a workflow violation.
 2. **`CHANGES.md`** — new entry at the top, with What/Why/Validation/Impact/Files touched. Previous entry has the landed commit hash filled in.
-3. **`MEMORY.md`** — Current state refreshed. Next-up refreshed. Open questions refreshed if the slice introduced calibration assumptions or rejected alternatives with knobs. Recent-commits list updated with the *previous* commit's hash (the one being superseded by this slice).
+3. **`MEMORY.md`** — *only if this commit changes resumable state.* Then: `active_work_unit` and `next_action` refreshed to exactly **one** each, `in_flight_uncommitted` and `blockers` refreshed. No commit hashes, no roster of trees, no priority queue — all four are derivable, and a derived fact copied here goes stale in place (`0050`, `0051`). If the commit changes no resumable state, leave the file alone; that is compliance, not an omission.
 4. **`DEVELOPMENT_NOTES.md`** — Did the slice introduce any of: new design decision, rejected alternative, non-obvious gotcha, new invariant, or a new calibration knob? If yes, append an entry. **If the last commit touched `src/` and `DEVELOPMENT_NOTES.md` has not been updated in that same commit or since, you are likely skipping this step — audit.**
 5. **`CODEBASE_ANALYSIS.md`** — Did the slice change module boundaries, add/remove helpers, change enforced invariants, add/remove knobs, change the phase coverage map, or change the testing surface? If yes, amend.
 6. **`ROADMAP.md`** — Did a phase label change (`done`/`mostly done`/`in progress`/`not started`)? Did an exit criterion change? Did phases get renumbered? If yes, amend.
@@ -73,9 +88,11 @@ If any item cannot be affirmatively answered, the commit does not proceed. No ex
   - Engineering rationale behind decisions.
   - Record architectural insights, rejected alternatives, and known constraints/gaps.
 - `MEMORY.md`
-  - Compact, operational continuity/handoff snapshot.
-  - Must be updated with latest completed batch context before commit.
-  - Must list the new commit hash (after commit) on the next update.
+  - Compact, operational continuity/handoff snapshot — layer A, lifecycle `bounded_snapshot`:
+    overwrite-only, hard-capped at 50 lines / 6,144 bytes, and holding **only** what is not
+    derivable from somewhere else in the repository.
+  - Updated when a commit changes resumable state; left untouched when it does not.
+  - Carries **no** commit hashes. HEAD comes from `git log -1 --oneline` (`0051`).
 - `CODEBASE_ANALYSIS.md`
   - Live Rust-workspace analysis. Typically refreshed at session bootstrap from a deep-dive into the code (see `SESSION_BOOTSTRAP.md`), and amended at any point during the session — including immediately before a commit — when the slice about to be committed materially changes workspace reality (crate layout, module ownership, IR shape, generator flow, phase-gating, currently-enforced invariants, known weaknesses).
   - The goal is resilience to session loss or crash: at any commit point, this file must reflect the code as it now is, not as it was at session start. Do not rewrite cosmetically.
@@ -104,7 +121,8 @@ If any item cannot be affirmatively answered, the commit does not proceed. No ex
    - If the change touches generator output, spot-check one seed with `verilator --lint-only` and/or `yosys -p "read_verilog -sv ...; synth"` when those tools are available locally. Record the result in `CHANGES.md`.
 
 2. **Sync live docs with factual changes.**
-   - **MANDATORY every commit:** `CHANGES.md` (new entry at top) and `MEMORY.md` (state refreshed).
+   - **MANDATORY every commit:** `CHANGES.md` (new entry at top).
+   - **MANDATORY when resumable state changes:** `MEMORY.md` (the four layer-A fields refreshed).
    - `DEVELOPMENT_NOTES.md` when rationale applies (new decision, rejected alternative, new gotcha).
    - `ROADMAP.md` if the phase status changed.
    - `USER_GUIDE.md` if any user-visible behavior changed.
@@ -138,7 +156,7 @@ If any item cannot be affirmatively answered, the commit does not proceed. No ex
 9. **Verify commit completion.**
    - `git --no-pager status --short`  (should show only `git_message_brief.txt` empty, or clean)
    - `git --no-pager log -1 --oneline`
-   - Record the new commit hash in `MEMORY.md` as the most recent entry (this can be part of the next commit, or a tiny follow-up commit; do not fake-edit history).
+   - **Do not copy that hash anywhere.** The join key between a commit and its task tree is the leaf ID in the subject, which is already there; the hash is `git log`'s to hold. Backfilling one into `MEMORY.md` is the practice `0051` removed — it cost a follow-up commit per slice and was stale the moment it landed.
 
 10. **Push on cadence — do not push per commit.**
     - The cadence is an **owner preference recorded in layer C**, not a number kept here:

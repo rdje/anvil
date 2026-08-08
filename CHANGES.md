@@ -1,9 +1,102 @@
 # Changes
 Fully detailed change history. Newest entries at the top. One entry per commit.
 
+## 2026-08-08 — RESUME-POINTER-COMMIT-PATH-COUPLING.2 — the resume pointer is updated when resumable state changes, not before every commit
+
+**Landed as:** `this commit`. Previous: `596e624`, `339722b`, `3589d31`.
+**Docs + workflow-config only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
+
+**What.** `MEMORY.md` is classified **`bounded_snapshot`** and now holds only what the repository
+cannot derive. Deleted: the `latest_commit` field, its predecessor hash list, the recent-decisions
+range, `next_action`'s cross-tree priority queue, and a dated count of gotcha cards. `COMMIT.md`'s
+mandate is split — `CHANGES.md` stays required on **every** commit, `MEMORY.md` is required **when
+the commit changes resumable state** — and its per-slice hash-backfill step is gone.
+`scripts/check_diagnosis_evidence.sh` (`CODE-CHANGE-EVIDENCE`) no longer asserts `MEMORY.md`
+co-staging; `scripts/check_memory_architecture.sh` (`MEMORY-ARCH`) gains one assertion forbidding a
+`latest_commit:` field. `MEMORY_ARCHITECTURE.md` §3/§5/§6 corrected at source. Recorded in
+`docs/decisions/0051-the-resume-pointer-is-updated-when-resumable-state-changes.md`. **Closes the
+tree** — both children `done`.
+
+**Why — three findings, each measured.**
+
+**(1) `.1`'s own recorded residue-classification was wrong.** `0050` closed by stating that
+`next_action`'s queue was *"not a shadow — a priority ordering is derivable from no set."* It is
+derivable here, because this repository already elected an ordering and wrote the election down:
+`docs/TASK_TREE.md` §*PNT Selection Rules* says *"choose the first active tree in the table."* All
+three of [`0033`](docs/decisions/0033-shadow-enumeration-classification.md)'s tests pass, and test
+(1) is proven by **reconstruction** rather than by argument — the queue's entries appear in **exact**
+table order, so it was that order minus one tree rather than an independent judgement. Test (3) is
+**demonstrated**: `TASK-LEAF-COMMIT-SHADOW` sits at table position **3** with a `pending` leaf marked
+*"Next."* and is **absent** from the queue, while `UNGATED-PRACTICE-AUDIT` (position **33**) is
+present — **3 of 15** active trees named, and nothing failed. R1 deletion therefore discards no
+editorial judgement; it discards only the drift.
+
+**(2) `latest_commit` could not be correct even once.** It is written *before* the commit that
+contains it exists, so it can only ever name that commit's **predecessor**. Observed directly at this
+session's bootstrap: the field read `f9e1c61` while `HEAD` was `596e624`, three commits later.
+`COMMIT.md` had institutionalised the error rather than removed it, mandating a backfill *"in a
+follow-up commit or in the next slice"* — paying a commit per slice to keep a copy of `git log -1`
+half-right.
+
+**(3) The `CODE-CHANGE-EVIDENCE` assertion was evidence-shaped without being evidence.** This is the
+general finding and it is **not** about frequency — [[gate-frequency-is-not-evidence]] stands, and
+`.0` already recorded that mis-citing it was the original sin. The distinction is what the artifact
+is a function of. `CHANGES.md` is a function of **the diff**: one entry describing *this* commit, so
+staging it is a claim that can be false. `MEMORY.md` is a function of **the work**: it records where
+a session stopped. A commit that changes no resumable state has *nothing true to write in it*, so the
+requirement could be discharged only by a no-op diff in an overwrite-only, hard-capped file — the
+cheapest possible box to tick, hence `DOCTRINE_ENFORCEMENT.md` §6.1's self-tick rather than proof.
+And it was a self-tick that **consumed a finite resource**: every no-op update spent headroom under
+the fail-closed cap, which is how `4925847` came to answer that cap with the **prose trim the gate's
+own routing hint forbids**, recorded as compliance. The rule now in §10: **assert co-staging only
+where the artifact's content is a function of the diff.**
+
+**Validation.**
+- **Orphan check run *before* deleting** (the precondition `.1` established): every claim the queue
+  carried has an independent durable home — `BOOTSTRAP-READ-CONTRACT.3`'s two-contracts /
+  intersection-of-two-files rationale in that leaf's `Acceptance`, its frontier row, and `0049` §(c);
+  the other three entries in their trees' frontier row 1. Nothing orphaned.
+- **Negative control, both directions**, via `scripts/negative_control.sh` (whose `apply` refuses a
+  zero-match substitution, so each verdict is known to come from an experiment that actually ran).
+  Baseline confirmed non-saturated first. Reintroducing a `latest_commit:` field → **FIRES** (exit
+  1). Adding a mid-sentence prose mention of the words → **SILENT** (exit 0). The assertion matches
+  the **field shape, not the word**, which matters because the file legitimately explains in prose
+  why the field is gone: a check that cannot tell its subject from a mention of its subject is wrong
+  in whichever direction it errs.
+- **`CODE-CHANGE-EVIDENCE` re-tested across a 5-row staged-set matrix** (`DOCTRINE_STAGED_OVERRIDE`):
+  code + `CHANGES.md` now **passes**; code alone still **fails**; code + `MEMORY.md` only still
+  **fails**; docs-only still exempt. The surviving leg is intact, not weakened.
+- `bash scripts/check_doctrines.sh` — **all 11 registered doctrines PASS**.
+
+**Impact.**
+
+| | before `.1` | after `.1` | **after `.2`** |
+| --- | ---: | ---: | ---: |
+| `MEMORY.md` bytes (cap 6,144) | 6,071 | 5,235 | **5,175** |
+| headroom | 73 B | 909 B | **969 B** |
+| growth per new task tree | ~40–60 B | 0 | **0** |
+| commits *required* to touch the file | **97.6 %** | 97.6 % | **only those changing resumable state** |
+| hash-backfill follow-up commits per slice | 1 | 1 | **0** |
+
+Neither cap moved: this lowers demand rather than raising supply, which is the only move that ever
+fixes a cap (`0040` non-license 3).
+
+**Honest limits.** *"Resumable state changed"* is an author's judgement, not a mechanical predicate;
+the failure mode becomes a **stale** pointer rather than a **blocked** commit — a deliberate trade,
+since a stale pointer is visible to the next session that reads it, while the blocked commit was paid
+by every author on every commit. Nothing yet verifies that `next_action` still describes reality;
+that is a currency contract, and it belongs to the size-containment adoption rather than here.
+`docs/TASK_TREE.md`'s row order is now load-bearing — if true priority differs from row order, move
+the row, never keep a second list.
+
+**Files touched.** `MEMORY.md`, `COMMIT.md`, `MEMORY_ARCHITECTURE.md`, `TOOLBOX.md`,
+`DOCTRINE_ENFORCEMENT.md`, `scripts/check_diagnosis_evidence.sh`,
+`scripts/check_memory_architecture.sh`, `docs/decisions/0051-*.md`, `docs/decisions/INDEX.md`,
+`docs/tasks/RESUME-POINTER-COMMIT-PATH-COUPLING.md`, `docs/TASK_TREE.md`, `CHANGES.md`.
+
 ## 2026-08-07 — RESUME-POINTER-COMMIT-PATH-COUPLING.1 — the growth was one shadow field, not prose bloat
 
-**Landed as:** `this commit`. Previous: `339722b`, `3589d31`, `4925847`.
+**Landed as:** `596e624`. Previous: `339722b`, `3589d31`, `4925847`.
 **Docs only; no `src/`** ⇒ **DUT byte-identical**, `tests/snapshots.rs` untouched.
 
 **What.** `MEMORY.md`'s `active_work_unit` field now names **one** work unit and points at

@@ -98,6 +98,31 @@ if [[ -f MEMORY.md ]]; then
       note "MEMORY.md is missing ${needle}"
     fi
   done
+
+  # --- the forbidden field (decision 0051, RESUME-POINTER-COMMIT-PATH-COUPLING.2) ---
+  #
+  # A `latest_commit:` field is a hand-copied projection of `git log -1`. It cannot be
+  # correct: written before the commit it belongs to exists, it can only ever name that
+  # commit's PREDECESSOR, so it is stale on arrival, and backfilling it cost a follow-up
+  # commit per slice. MEMORY_ARCHITECTURE.md §12 already lists hand-maintained
+  # current-state as an anti-pattern; this asserts it on the one file that must obey.
+  #
+  # WHY THIS ONE AND NOT "exactly one work unit". Decision 0050 deliberately declined a
+  # gate over `active_work_unit`, because a roster reappearing is VISIBLE on sight. A
+  # hash field is the opposite: it looks exactly like correct bookkeeping, so its return
+  # would be silent — which is the property that earns a check (DOCTRINE_ENFORCEMENT §2).
+  #
+  # MATCHES THE FIELD SHAPE, NOT THE WORD. The file legitimately explains in prose why the
+  # field is gone, and a whole-file substring match would fire on that explanation — the
+  # §9 vacuity failure inverted: a check that cannot tell its subject from a mention of
+  # its subject is wrong in whichever direction it errs.
+  if grep -qE '^[-*[:space:]]*`?latest_commit`?[[:space:]]*:' MEMORY.md; then
+    note "MEMORY.md declares a latest_commit field — a hand-copied hash is stale on arrival (decision 0051)"
+    printf '[memory-arch]   HEAD is derived, never written: git log -1 --oneline\n' >&2
+    printf '[memory-arch]   The durable commit<->tree join key is the leaf ID in the subject, already there.\n' >&2
+  else
+    ok "MEMORY.md declares no latest_commit field (HEAD stays derived)"
+  fi
 else
   note "MEMORY.md is missing"
 fi
